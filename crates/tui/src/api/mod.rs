@@ -116,8 +116,7 @@ impl ApiClient {
             .post(format!("{}/execution-processes/{exec_id}/stop", self.base))
             .send()
             .await?;
-        let _: () = unwrap_api(resp).await?;
-        Ok(())
+        unwrap_api_ok(resp).await
     }
 
     /// WS URL for the per-session execution-process stream.
@@ -164,8 +163,7 @@ impl ApiClient {
             .json(req)
             .send()
             .await?;
-        let _: serde_json::Value = unwrap_api(resp).await?;
-        Ok(())
+        unwrap_api_ok(resp).await
     }
 
     /// `POST /api/sessions/{id}/queue` — queue a message for after the current turn.
@@ -180,8 +178,7 @@ impl ApiClient {
             .json(req)
             .send()
             .await?;
-        let _: serde_json::Value = unwrap_api(resp).await?;
-        Ok(())
+        unwrap_api_ok(resp).await
     }
 
     /// WS URL for the global pending-approvals stream.
@@ -203,8 +200,7 @@ impl ApiClient {
             .send()
             .await?;
         // Response payload is the resolved ApprovalOutcome; we only need success.
-        let _: serde_json::Value = unwrap_api(resp).await?;
-        Ok(())
+        unwrap_api_ok(resp).await
     }
 }
 
@@ -219,6 +215,20 @@ async fn unwrap_api<T: DeserializeOwned>(resp: reqwest::Response) -> Result<T, A
     } else {
         let msg = body.message().unwrap_or("unknown error").to_string();
         Err(ApiError::Backend(msg))
+    }
+}
+
+/// Unwrap an `ApiResponse` for endpoints whose data payload is absent or
+/// ignored (e.g. `ApiResponse<()>` serializes `data: null`). Only the success
+/// flag matters; a null payload is not an error.
+async fn unwrap_api_ok(resp: reqwest::Response) -> Result<(), ApiError> {
+    let body: ApiResponse<serde_json::Value, serde_json::Value> = resp.json().await?;
+    if body.is_success() {
+        Ok(())
+    } else {
+        Err(ApiError::Backend(
+            body.message().unwrap_or("unknown error").to_string(),
+        ))
     }
 }
 

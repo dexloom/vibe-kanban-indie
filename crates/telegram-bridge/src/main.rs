@@ -106,31 +106,41 @@ async fn consume_stream(
 async fn handle_event(event: ApprovalEvent, telegram: &Telegram, seen: &mut HashSet<String>) {
     match event {
         // Post any approval we haven't seen yet (covers both fresh `Created`
-        // events and any pending present at first connect), but not duplicates
-        // re-delivered by a snapshot on reconnect.
+        // events and any pending present at first connect). Mark it `seen` only
+        // after a successful send, so a transient Telegram failure is retried on
+        // the next snapshot/reconnect rather than suppressed forever.
         ApprovalEvent::Snapshot(infos) => {
             for info in infos {
-                if seen.insert(info.approval_id.clone()) {
-                    post(telegram, &format_escalation(&info)).await;
+                if !seen.contains(&info.approval_id)
+                    && post(telegram, &format_escalation(&info)).await
+                {
+                    seen.insert(info.approval_id);
                 }
             }
         }
         ApprovalEvent::Created(info) => {
-            if seen.insert(info.approval_id.clone()) {
-                post(telegram, &format_escalation(&info)).await;
+            if !seen.contains(&info.approval_id) && post(telegram, &format_escalation(&info)).await
+            {
+                seen.insert(info.approval_id);
             }
         }
         ApprovalEvent::Resolved(id) => {
             if seen.remove(&id) {
-                post(telegram, &format!("✅ resolved · {id}")).await;
+                // Informational; failure here is not retried.
+                let _ = post(telegram, &format!("✅ resolved · {id}")).await;
             }
         }
     }
 }
 
-async fn post(telegram: &Telegram, text: &str) {
-    if let Err(e) = telegram.send(text).await {
-        tracing::warn!("telegram send failed: {e}");
+/// Returns true on a successful send.
+async fn post(telegram: &Telegram, text: &str) -> bool {
+    match telegram.send(text).await {
+        Ok(()) => true,
+        Err(e) => {
+            tracing::warn!("telegram send failed: {e}");
+            false
+        }
     }
 }
 

@@ -130,7 +130,9 @@ impl CreateForm {
             prompt: String::new(),
             repos: Loadable::Loading,
             repo_idx: 0,
-            branch: "main".to_string(),
+            // Empty until repos load; `submit_create` falls back to the selected
+            // repo's default branch when this is blank.
+            branch: String::new(),
             executor_idx: 0,
             field: CreateField::Prompt,
             submitting: false,
@@ -458,15 +460,33 @@ impl App {
                 CreateField::Prompt => edit_text(&mut form.prompt, k.code),
                 CreateField::Branch => edit_text(&mut form.branch, k.code),
                 CreateField::Repo => {
-                    if let Loadable::Ready(list) = &form.repos {
+                    // Snapshot len + per-repo default branches first to avoid
+                    // borrowing `form.repos` while mutating other form fields.
+                    let (len, defaults): (usize, Vec<Option<String>>) = match &form.repos {
+                        Loadable::Ready(list) => (
+                            list.len(),
+                            list.iter()
+                                .map(|r| r.default_target_branch.clone())
+                                .collect(),
+                        ),
+                        _ => (0, Vec::new()),
+                    };
+                    if len > 0 {
+                        let old = form.repo_idx;
                         match k.code {
                             KeyCode::Left | KeyCode::Char('h') => {
-                                form.repo_idx = step(form.repo_idx, -1, list.len())
+                                form.repo_idx = step(form.repo_idx, -1, len)
                             }
                             KeyCode::Right | KeyCode::Char('l') => {
-                                form.repo_idx = step(form.repo_idx, 1, list.len())
+                                form.repo_idx = step(form.repo_idx, 1, len)
                             }
                             _ => {}
+                        }
+                        // Cycling repos resets the branch to that repo's default.
+                        if form.repo_idx != old
+                            && let Some(Some(def)) = defaults.get(form.repo_idx)
+                        {
+                            form.branch = def.clone();
                         }
                     }
                 }
@@ -879,10 +899,20 @@ impl App {
 
     fn on_repos(&mut self, r: Result<Vec<Repo>, String>) {
         let Some(form) = &mut self.create else { return };
-        form.repos = match r {
-            Ok(list) => Loadable::Ready(list),
-            Err(e) => Loadable::Failed(e),
-        };
+        match r {
+            Ok(list) => {
+                // Show the selected repo's default branch (the user can override).
+                if form.branch.trim().is_empty()
+                    && let Some(def) = list
+                        .get(form.repo_idx)
+                        .and_then(|repo| repo.default_target_branch.clone())
+                {
+                    form.branch = def;
+                }
+                form.repos = Loadable::Ready(list);
+            }
+            Err(e) => form.repos = Loadable::Failed(e),
+        }
     }
 
     fn submit_create(&mut self) {
