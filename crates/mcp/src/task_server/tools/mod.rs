@@ -36,6 +36,7 @@ impl ToolError {
     }
 }
 
+mod approvals;
 mod context;
 mod issue_assignees;
 mod issue_relationships;
@@ -61,6 +62,7 @@ impl McpServer {
             + Self::issue_relationships_tools_router()
             + Self::task_attempts_tools_router()
             + Self::session_tools_router()
+            + Self::approvals_tools_router()
     }
 
     pub fn orchestrator_mode_router() -> rmcp::handler::server::tool::ToolRouter<Self> {
@@ -434,6 +436,10 @@ mod tests {
         assert!(actual.contains("list_workspaces"));
         assert!(actual.contains("delete_workspace"));
         assert!(!actual.contains("output_markdown"));
+        // Approval-control tools must be available so the orchestrator can
+        // unblock and stop agents.
+        assert!(actual.contains("respond_to_approval"));
+        assert!(actual.contains("stop_execution"));
     }
 
     #[test]

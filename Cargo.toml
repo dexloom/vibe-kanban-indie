@@ -7,6 +7,8 @@ members = [
     "crates/relay-types",
     "crates/trusted-key-auth",
     "crates/mcp",
+    "crates/tui",
+    "crates/telegram-bridge",
     "crates/db",
     "crates/executors",
     "crates/services",
