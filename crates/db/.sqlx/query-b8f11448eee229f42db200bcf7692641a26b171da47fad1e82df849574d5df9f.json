@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO issue_assignees (id, issue_id, user_id)\n               VALUES ($1, $2, $3)\n               RETURNING id as \"id!: Uuid\", issue_id as \"issue_id!: Uuid\",\n                         user_id as \"user_id!: Uuid\", assigned_at as \"assigned_at!: DateTime<Utc>\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "issue_id!: Uuid",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "user_id!: Uuid",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "assigned_at!: DateTime<Utc>",
+        "ordinal": 3,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b8f11448eee229f42db200bcf7692641a26b171da47fad1e82df849574d5df9f"
+}

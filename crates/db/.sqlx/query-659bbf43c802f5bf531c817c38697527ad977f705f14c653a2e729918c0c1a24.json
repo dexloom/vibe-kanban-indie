@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE projects\n               SET name = $2,\n                   key = $3,\n                   color = $4,\n                   sort_order = $5,\n                   default_agent_working_dir = $6,\n                   updated_at = datetime('now', 'subsec')\n               WHERE id = $1\n               RETURNING id as \"id!: Uuid\",\n                         name,\n                         key,\n                         color,\n                         sort_order,\n                         default_agent_working_dir,\n                         remote_project_id as \"remote_project_id: Uuid\",\n                         created_at as \"created_at!: DateTime<Utc>\",\n                         updated_at as \"updated_at!: DateTime<Utc>\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "key",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "color",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "sort_order",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "default_agent_working_dir",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "remote_project_id: Uuid",
+        "ordinal": 6,
+        "type_info": "Blob"
+      },
+      {
+        "name": "created_at!: DateTime<Utc>",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at!: DateTime<Utc>",
+        "ordinal": 8,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "659bbf43c802f5bf531c817c38697527ad977f705f14c653a2e729918c0c1a24"
+}

@@ -76,6 +76,11 @@ const collectionCache = new Map<string, ReturnType<typeof createCollection>>();
 const sourceRuntimes = new Map<string, SourceRuntime>();
 const fallbackSnapshotCache = new Map<string, ElectricRow[]>();
 
+// When true, every source skips Electric entirely and reads via the HTTP
+// fallback endpoints. Used by the local build, which has no ElectricSQL server
+// and serves `/v1/fallback/*` + `/v1/*` from local SQLite. Set once at startup.
+let globalFallbackForced = false;
+
 class ErrorHandler {
   private lastErrorTime = 0;
   private lastErrorMessage = '';
@@ -188,13 +193,22 @@ function getOrCreateSourceRuntime(sourceKey: string): SourceRuntime {
   }
 
   const created: SourceRuntime = {
-    mode: 'electric',
-    fallbackLocked: false,
+    mode: globalFallbackForced ? 'fallback' : 'electric',
+    fallbackLocked: globalFallbackForced,
     refreshers: new Set(),
     fallbackSwitchers: new Set(),
   };
   sourceRuntimes.set(sourceKey, created);
   return created;
+}
+
+/// Force all current and future sources onto the HTTP fallback transport.
+/// Call once at startup in the local build (no ElectricSQL available).
+export function forceFallbackMode(): void {
+  globalFallbackForced = true;
+  for (const sourceKey of Array.from(sourceRuntimes.keys())) {
+    lockSourceToFallback(sourceKey);
+  }
 }
 
 function lockSourceToFallback(sourceKey: string): void {

@@ -170,6 +170,13 @@ pub async fn initialize_deployment(
         .backfill_repo_names()
         .await
         .map_err(DeploymentError::from)?;
+
+    // Reconcile the local projects.toml (if present) into the database. Static
+    // project/repo config is file-driven; failures here are non-fatal.
+    if let Err(e) = services::services::project_config::reconcile(&deployment.db().pool).await {
+        tracing::warn!("projects.toml reconcile failed: {e}");
+    }
+
     deployment
         .track_if_analytics_allowed("session_start", serde_json::json!({}))
         .await;

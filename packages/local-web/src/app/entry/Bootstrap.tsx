@@ -16,6 +16,11 @@ import '@/shared/types/modals';
 import { queryClient } from '@/shared/lib/queryClient';
 import { isTauriApp } from '@/shared/lib/platform';
 import { initZoom, zoomIn, zoomOut, zoomReset } from '@/shared/lib/zoom';
+import { forceFallbackMode } from '@/shared/lib/electric/collections';
+
+// The local build has no ElectricSQL server; the kanban reads/writes via the
+// HTTP fallback endpoints (/v1/fallback/* + /v1/*) served from local SQLite.
+forceFallbackMode();
 
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
