@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT repo_id as \"repo_id!: Uuid\" FROM project_repos WHERE project_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "repo_id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "320d7bfc75e55fe9bd7887361c3e988a9db49efd723f1881775b0cd8e0bac022"
+}

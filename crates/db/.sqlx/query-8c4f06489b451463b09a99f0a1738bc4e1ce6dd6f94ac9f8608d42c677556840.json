@@ -1,0 +1,122 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as \"id!: Uuid\",\n                      project_id as \"project_id!: Uuid\",\n                      issue_number,\n                      simple_id,\n                      status_id as \"status_id!: Uuid\",\n                      title,\n                      description,\n                      priority,\n                      start_date as \"start_date: DateTime<Utc>\",\n                      target_date as \"target_date: DateTime<Utc>\",\n                      completed_at as \"completed_at: DateTime<Utc>\",\n                      sort_order as \"sort_order!: f64\",\n                      parent_issue_id as \"parent_issue_id: Uuid\",\n                      parent_issue_sort_order as \"parent_issue_sort_order: f64\",\n                      extension_metadata,\n                      creator_user_id as \"creator_user_id: Uuid\",\n                      created_at as \"created_at!: DateTime<Utc>\",\n                      updated_at as \"updated_at!: DateTime<Utc>\"\n               FROM issues\n               WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "project_id!: Uuid",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "issue_number",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "simple_id",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "status_id!: Uuid",
+        "ordinal": 4,
+        "type_info": "Blob"
+      },
+      {
+        "name": "title",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "description",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "priority",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "start_date: DateTime<Utc>",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "target_date: DateTime<Utc>",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "completed_at: DateTime<Utc>",
+        "ordinal": 10,
+        "type_info": "Text"
+      },
+      {
+        "name": "sort_order!: f64",
+        "ordinal": 11,
+        "type_info": "Float"
+      },
+      {
+        "name": "parent_issue_id: Uuid",
+        "ordinal": 12,
+        "type_info": "Blob"
+      },
+      {
+        "name": "parent_issue_sort_order: f64",
+        "ordinal": 13,
+        "type_info": "Float"
+      },
+      {
+        "name": "extension_metadata",
+        "ordinal": 14,
+        "type_info": "Text"
+      },
+      {
+        "name": "creator_user_id: Uuid",
+        "ordinal": 15,
+        "type_info": "Blob"
+      },
+      {
+        "name": "created_at!: DateTime<Utc>",
+        "ordinal": 16,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at!: DateTime<Utc>",
+        "ordinal": 17,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "8c4f06489b451463b09a99f0a1738bc4e1ce6dd6f94ac9f8608d42c677556840"
+}

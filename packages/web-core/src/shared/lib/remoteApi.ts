@@ -60,15 +60,16 @@ async function makeAuthenticatedRequest(
 ): Promise<Response> {
   const authRuntime = getAuthRuntime();
   const token = await authRuntime.getToken();
-  if (!token) {
-    throw new Error('Not authenticated');
-  }
 
   const headers = new Headers(options.headers ?? {});
   if (!headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  headers.set('Authorization', `Bearer ${token}`);
+  // The local build has no cloud account: requests go to same-origin `/v1/*`
+  // endpoints that don't require auth. Only attach a bearer token if present.
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
   headers.set('X-Client-Version', __APP_VERSION__);
   headers.set('X-Client-Type', 'frontend');
 
