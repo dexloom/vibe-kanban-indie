@@ -14,8 +14,8 @@ use utils::response::ApiResponse;
 use uuid::Uuid;
 
 use crate::api::types::{
-    CreateAndStartRequest, CreateAndStartResponse, FollowUpRequest, QueueRequest, Repo, Session,
-    Workspace,
+    CreateAndStartRequest, CreateAndStartResponse, CreateIssueRequest, FollowUpRequest, Issue,
+    Project, ProjectStatus, QueueRequest, RemoteWorkspace, Repo, Session, Workspace,
 };
 
 #[derive(Debug, Error)]
@@ -38,6 +38,9 @@ pub struct ApiClient {
     base: String,
     /// `ws://host:port/api`
     ws_base: String,
+    /// `http://host:port` — the local kanban API is mounted at the server root
+    /// (`/v1/*`), not under `/api`.
+    root_base: String,
 }
 
 impl ApiClient {
@@ -49,20 +52,25 @@ impl ApiClient {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .build()?;
+        let root_base = base.strip_suffix("/api").unwrap_or(&base).to_string();
         Ok(Self {
             http,
             base,
             ws_base,
+            root_base,
         })
     }
 
     /// Construct a client with explicit base URLs, skipping discovery (tests).
     #[cfg(test)]
     pub fn with_base(http_base: impl Into<String>, ws_base: impl Into<String>) -> Self {
+        let base: String = http_base.into();
+        let root_base = base.strip_suffix("/api").unwrap_or(&base).to_string();
         Self {
             http: reqwest::Client::new(),
-            base: http_base.into(),
+            base,
             ws_base: ws_base.into(),
+            root_base,
         }
     }
 
@@ -202,6 +210,133 @@ impl ApiClient {
         // Response payload is the resolved ApprovalOutcome; we only need success.
         unwrap_api_ok(resp).await
     }
+
+    // ---- local kanban (`/v1/*`, served at the server root) ----
+
+    /// `GET /v1/fallback/projects`.
+    pub async fn list_projects(&self) -> Result<Vec<Project>, ApiError> {
+        self.fallback_list("/v1/fallback/projects", "projects", &[])
+            .await
+    }
+
+    /// `GET /v1/fallback/project_statuses?project_id=` — kanban columns.
+    pub async fn list_statuses(&self, project_id: Uuid) -> Result<Vec<ProjectStatus>, ApiError> {
+        self.fallback_list(
+            "/v1/fallback/project_statuses",
+            "project_statuses",
+            &[("project_id", project_id.to_string())],
+        )
+        .await
+    }
+
+    /// `GET /v1/fallback/issues?project_id=` — kanban cards.
+    pub async fn list_issues(&self, project_id: Uuid) -> Result<Vec<Issue>, ApiError> {
+        self.fallback_list(
+            "/v1/fallback/issues",
+            "issues",
+            &[("project_id", project_id.to_string())],
+        )
+        .await
+    }
+
+    /// `GET /v1/fallback/project_workspaces?project_id=` — workspaces linked to
+    /// any card in the project.
+    pub async fn list_project_workspaces(
+        &self,
+        project_id: Uuid,
+    ) -> Result<Vec<RemoteWorkspace>, ApiError> {
+        self.fallback_list(
+            "/v1/fallback/project_workspaces",
+            "workspaces",
+            &[("project_id", project_id.to_string())],
+        )
+        .await
+    }
+
+    /// `POST /v1/issues` — create a card.
+    pub async fn create_issue(&self, req: &CreateIssueRequest) -> Result<Issue, ApiError> {
+        let resp = self
+            .http
+            .post(format!("{}/v1/issues", self.root_base))
+            .json(req)
+            .send()
+            .await?;
+        unwrap_mutation(resp).await
+    }
+
+    /// `PATCH /v1/issues/{id}` — partial update (move/edit). `body` is the raw
+    /// JSON of the changed fields (matches the backend's present-key semantics).
+    pub async fn update_issue(
+        &self,
+        id: Uuid,
+        body: &serde_json::Value,
+    ) -> Result<Issue, ApiError> {
+        let resp = self
+            .http
+            .patch(format!("{}/v1/issues/{id}", self.root_base))
+            .json(body)
+            .send()
+            .await?;
+        unwrap_mutation(resp).await
+    }
+
+    /// `DELETE /v1/issues/{id}`.
+    pub async fn delete_issue(&self, id: Uuid) -> Result<(), ApiError> {
+        let resp = self
+            .http
+            .delete(format!("{}/v1/issues/{id}", self.root_base))
+            .send()
+            .await?;
+        if resp.status().is_success() {
+            Ok(())
+        } else {
+            Err(ApiError::Backend(format!(
+                "delete status {}",
+                resp.status()
+            )))
+        }
+    }
+
+    /// `POST /api/workspaces/{id}/links` — link a workspace to a kanban issue.
+    pub async fn link_workspace_to_issue(
+        &self,
+        workspace_id: Uuid,
+        project_id: Uuid,
+        issue_id: Uuid,
+    ) -> Result<(), ApiError> {
+        let resp = self
+            .http
+            .post(format!("{}/workspaces/{workspace_id}/links", self.base))
+            .json(&serde_json::json!({ "project_id": project_id, "issue_id": issue_id }))
+            .send()
+            .await?;
+        unwrap_api_ok(resp).await
+    }
+
+    /// GET a `/v1/fallback/<table>` endpoint and pull the keyed array. These
+    /// return a bare `{ "<key>": [...] }` object (not the `ApiResponse` envelope).
+    async fn fallback_list<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        key: &str,
+        query: &[(&str, String)],
+    ) -> Result<Vec<T>, ApiError> {
+        let resp = self
+            .http
+            .get(format!("{}{path}", self.root_base))
+            .query(query)
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(ApiError::Backend(format!("status {}", resp.status())));
+        }
+        let mut body: serde_json::Value = resp.json().await?;
+        let arr = body
+            .get_mut(key)
+            .map(serde_json::Value::take)
+            .unwrap_or(serde_json::Value::Null);
+        serde_json::from_value(arr).map_err(|e| ApiError::Backend(e.to_string()))
+    }
 }
 
 /// Deserialize the standard `ApiResponse<T>` envelope and unwrap it into either
@@ -230,6 +365,22 @@ async fn unwrap_api_ok(resp: reqwest::Response) -> Result<(), ApiError> {
             body.message().unwrap_or("unknown error").to_string(),
         ))
     }
+}
+
+/// Unwrap the local kanban `MutationResponse { data, txid }` envelope, returning
+/// the `data` payload. (Distinct from the `/api/*` `ApiResponse` envelope.)
+async fn unwrap_mutation<T: DeserializeOwned>(resp: reqwest::Response) -> Result<T, ApiError> {
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(ApiError::Backend(format!("{status}: {body}")));
+    }
+    #[derive(serde::Deserialize)]
+    struct Mutation<T> {
+        data: T,
+    }
+    let body: Mutation<T> = resp.json().await?;
+    Ok(body.data)
 }
 
 async fn resolve_base() -> Result<(String, String), ApiError> {

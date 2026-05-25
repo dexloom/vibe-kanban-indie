@@ -6,7 +6,10 @@ use axum::{
     response::Json as ResponseJson,
     routing::{delete, post},
 };
-use db::models::{merge::MergeStatus, pull_request::PullRequest, workspace::Workspace};
+use db::models::{
+    issue::Issue, issue_workspace::IssueWorkspace, merge::MergeStatus, pull_request::PullRequest,
+    workspace::Workspace,
+};
 use deployment::Deployment;
 use serde::Deserialize;
 use services::services::{diff_stream, remote_client::RemoteClientError, remote_sync};
@@ -26,7 +29,23 @@ pub async fn link_workspace(
     State(deployment): State<DeploymentImpl>,
     Json(payload): Json<LinkWorkspaceRequest>,
 ) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
-    let client = deployment.remote_client()?;
+    // Persist the link locally first. This is what makes the kanban board (both
+    // the TUI and the web UI) show the workspace under its card in local-only
+    // mode, where no remote client is configured.
+    IssueWorkspace::link(&deployment.db().pool, payload.issue_id, workspace.id).await?;
+
+    // Best-effort remote sync when a cloud account is configured.
+    let Ok(client) = deployment.remote_client() else {
+        return Ok(ResponseJson(ApiResponse::success(())));
+    };
+
+    // Guard against pushing inconsistent state to the cloud: only sync when the
+    // issue actually belongs to the claimed project. The local link is already
+    // recorded regardless.
+    let issue = Issue::find_by_id(&deployment.db().pool, payload.issue_id).await?;
+    if issue.map(|i| i.project_id) != Some(payload.project_id) {
+        return Ok(ResponseJson(ApiResponse::success(())));
+    }
 
     let stats =
         diff_stream::compute_diff_stats(&deployment.db().pool, deployment.git(), &workspace).await;
@@ -91,11 +110,15 @@ pub async fn unlink_workspace(
     AxumPath(workspace_id): AxumPath<uuid::Uuid>,
     State(deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
-    let client = deployment.remote_client()?;
+    // Always drop the local link.
+    IssueWorkspace::unlink_by_workspace(&deployment.db().pool, workspace_id).await?;
 
+    // Best-effort remote delete when a cloud account is configured.
+    let Ok(client) = deployment.remote_client() else {
+        return Ok(ResponseJson(ApiResponse::success(())));
+    };
     match client.delete_workspace(workspace_id).await {
-        Ok(()) => Ok(ResponseJson(ApiResponse::success(()))),
-        Err(RemoteClientError::Http { status: 404, .. }) => {
+        Ok(()) | Err(RemoteClientError::Http { status: 404, .. }) => {
             Ok(ResponseJson(ApiResponse::success(())))
         }
         Err(e) => Err(e.into()),

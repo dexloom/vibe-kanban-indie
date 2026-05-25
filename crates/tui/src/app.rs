@@ -10,6 +10,8 @@
 //! the watched process changes), so stale frames from superseded streams are
 //! ignored even before their tasks finish aborting.
 
+use std::collections::HashMap;
+
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle};
 use uuid::Uuid;
@@ -18,8 +20,9 @@ use crate::{
     api::{
         ApiClient,
         types::{
-            CreateAndStartRequest, EXECUTORS, ExecutionProcess, ExecutorConfigInput,
-            FollowUpRequest, QueueRequest, Repo, RunReason, Session, Workspace, WorkspaceRepoInput,
+            CreateAndStartRequest, CreateIssueRequest, EXECUTORS, ExecutionProcess,
+            ExecutorConfigInput, FollowUpRequest, Issue, PRIORITIES, Project, ProjectStatus,
+            QueueRequest, RemoteWorkspace, Repo, RunReason, Session, Workspace, WorkspaceRepoInput,
         },
     },
     state::{
@@ -71,6 +74,27 @@ pub enum AppEvent {
     Repos(Result<Vec<Repo>, String>),
     /// Result of creating + starting a workspace (carries the new workspace id).
     Created(Result<Uuid, String>),
+    /// Projects loaded for the kanban board.
+    Projects(Result<Vec<Project>, String>),
+    /// Kanban columns (statuses) loaded for a project.
+    KanbanStatuses {
+        project_id: Uuid,
+        result: Result<Vec<ProjectStatus>, String>,
+    },
+    /// Kanban cards (issues) loaded for a project.
+    KanbanIssues {
+        project_id: Uuid,
+        result: Result<Vec<Issue>, String>,
+    },
+    /// Workspaces linked to cards in a project.
+    KanbanWorkspaces {
+        project_id: Uuid,
+        result: Result<Vec<RemoteWorkspace>, String>,
+    },
+    /// Result of a card mutation (create/edit/move/delete); reloads the board.
+    KanbanMutated(Result<String, String>),
+    /// Result of linking a launched workspace to a card.
+    WorkspaceLinked(Result<(), String>),
     Toast(String),
 }
 
@@ -99,6 +123,7 @@ pub enum Screen {
     Detail,
     Inbox,
     Create,
+    Kanban,
 }
 
 /// Which field of the create-task form has focus.
@@ -154,6 +179,114 @@ impl CreateForm {
     }
 }
 
+/// Kanban board state: the selected project's columns (statuses) and cards
+/// (issues), plus the workspaces linked to those cards.
+pub struct KanbanView {
+    pub projects: Vec<Project>,
+    pub project_idx: usize,
+    /// Visible columns, sorted by `sort_order`.
+    pub statuses: Vec<ProjectStatus>,
+    /// Cards grouped by `status_id`, each sorted by `sort_order`.
+    pub issues_by_status: HashMap<Uuid, Vec<Issue>>,
+    /// Workspaces linked to any card in the project.
+    pub workspaces: Vec<RemoteWorkspace>,
+    pub col_idx: usize,
+    pub card_idx: usize,
+    pub loading: bool,
+    pub error: Option<String>,
+    /// When launching a workspace from a card, the `(project_id, issue_id)` to
+    /// link once the workspace is created.
+    pub pending_link: Option<(Uuid, Uuid)>,
+}
+
+impl KanbanView {
+    fn new() -> Self {
+        Self {
+            projects: Vec::new(),
+            project_idx: 0,
+            statuses: Vec::new(),
+            issues_by_status: HashMap::new(),
+            workspaces: Vec::new(),
+            col_idx: 0,
+            card_idx: 0,
+            loading: true,
+            error: None,
+            pending_link: None,
+        }
+    }
+
+    pub fn selected_project(&self) -> Option<&Project> {
+        self.projects.get(self.project_idx)
+    }
+
+    pub fn current_status(&self) -> Option<&ProjectStatus> {
+        self.statuses.get(self.col_idx)
+    }
+
+    /// Cards in the currently focused column.
+    pub fn current_cards(&self) -> &[Issue] {
+        self.current_status()
+            .and_then(|s| self.issues_by_status.get(&s.id))
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn cards_for(&self, status_id: Uuid) -> &[Issue] {
+        self.issues_by_status
+            .get(&status_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn selected_card(&self) -> Option<&Issue> {
+        self.current_cards().get(self.card_idx)
+    }
+
+    /// Non-archived workspaces linked to a given card.
+    pub fn workspaces_for(&self, issue_id: Uuid) -> Vec<&RemoteWorkspace> {
+        self.workspaces
+            .iter()
+            .filter(|w| !w.archived && w.issue_id == Some(issue_id))
+            .collect()
+    }
+
+    /// Keep the column/card cursors within bounds after data changes.
+    fn clamp(&mut self) {
+        if self.col_idx >= self.statuses.len() {
+            self.col_idx = self.statuses.len().saturating_sub(1);
+        }
+        let n = self.current_cards().len();
+        if self.card_idx >= n {
+            self.card_idx = n.saturating_sub(1);
+        }
+    }
+
+    /// Rebuild `issues_by_status` from a flat list of cards.
+    fn set_issues(&mut self, issues: Vec<Issue>) {
+        let mut map: HashMap<Uuid, Vec<Issue>> = HashMap::new();
+        for issue in issues {
+            map.entry(issue.status_id).or_default().push(issue);
+        }
+        for cards in map.values_mut() {
+            cards.sort_by(|a, b| {
+                a.sort_order
+                    .partial_cmp(&b.sort_order)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+        }
+        self.issues_by_status = map;
+    }
+}
+
+/// Which field of the card create/edit form has focus.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum CardField {
+    Title,
+    Description,
+    Status,
+    Priority,
+}
+
 /// A modal capturing input for an approval response.
 pub enum Modal {
     /// Free-text reason for denying a tool approval.
@@ -182,6 +315,22 @@ pub enum Modal {
         /// When true, queue after the current turn instead of sending now.
         queue: bool,
     },
+    /// Create or edit a kanban card.
+    CardForm {
+        /// `None` = create; `Some(issue_id)` = edit that card.
+        editing: Option<Uuid>,
+        title: String,
+        description: String,
+        /// Index into `KanbanView.statuses`.
+        status_idx: usize,
+        /// Index into `PRIORITIES` (0 = none).
+        priority_idx: usize,
+        field: CardField,
+    },
+    /// Confirm deletion of a card.
+    ConfirmDelete { issue_id: Uuid, label: String },
+    /// Read-only detail view of a card.
+    CardDetail { issue_id: Uuid },
 }
 
 /// State for the Detail screen: a session's processes + the live transcript of
@@ -239,6 +388,7 @@ pub struct App {
     pub modal: Option<Modal>,
 
     pub create: Option<CreateForm>,
+    pub kanban: Option<KanbanView>,
     pub show_help: bool,
 
     pub toast: Option<String>,
@@ -267,6 +417,7 @@ impl App {
             return_screen: Screen::List,
             modal: None,
             create: None,
+            kanban: None,
             show_help: false,
             toast: None,
         }
@@ -317,6 +468,18 @@ impl App {
             } => self.on_question_options(approval_id, questions),
             AppEvent::Repos(r) => self.on_repos(r),
             AppEvent::Created(r) => self.on_created(r),
+            AppEvent::Projects(r) => self.on_projects(r),
+            AppEvent::KanbanStatuses { project_id, result } => {
+                self.on_kanban_statuses(project_id, result)
+            }
+            AppEvent::KanbanIssues { project_id, result } => {
+                self.on_kanban_issues(project_id, result)
+            }
+            AppEvent::KanbanWorkspaces { project_id, result } => {
+                self.on_kanban_workspaces(project_id, result)
+            }
+            AppEvent::KanbanMutated(r) => self.on_kanban_mutated(r),
+            AppEvent::WorkspaceLinked(r) => self.on_workspace_linked(r),
             AppEvent::Toast(t) => self.toast = Some(t),
         }
     }
@@ -404,6 +567,7 @@ impl App {
             Screen::Detail => self.on_key_detail(k),
             Screen::Inbox => self.on_key_inbox(k),
             Screen::Create => self.on_key_create(k),
+            Screen::Kanban => self.on_key_kanban(k),
         }
     }
 
@@ -411,6 +575,7 @@ impl App {
         match k.code {
             KeyCode::Char('r') => self.load_workspaces(),
             KeyCode::Char('n') => self.open_create(),
+            KeyCode::Char('b') => self.open_kanban(),
             KeyCode::Tab => self.toggle_focus(),
             KeyCode::Left | KeyCode::Char('h') => self.focus = Focus::Workspaces,
             KeyCode::Right | KeyCode::Char('l') => self.focus = Focus::Sessions,
@@ -451,7 +616,18 @@ impl App {
         match k.code {
             KeyCode::Esc => {
                 self.create = None;
-                self.screen = Screen::List;
+                // If we got here from "run workspace on a card", drop the pending
+                // link and return to the board instead of the workspace list.
+                let from_card = self
+                    .kanban
+                    .as_mut()
+                    .map(|k| k.pending_link.take().is_some())
+                    .unwrap_or(false);
+                self.screen = if from_card {
+                    Screen::Kanban
+                } else {
+                    Screen::List
+                };
             }
             KeyCode::Tab => form.field = next_field(form.field, 1),
             KeyCode::BackTab => form.field = next_field(form.field, -1),
@@ -521,6 +697,9 @@ impl App {
 
     /// Route keys to the active modal.
     fn on_key_modal(&mut self, k: KeyEvent) {
+        // Snapshot column count before borrowing `self.modal` (the card form's
+        // status picker cycles within it).
+        let status_count = self.kanban.as_ref().map_or(0, |kb| kb.statuses.len());
         let Some(modal) = &mut self.modal else { return };
         match modal {
             Modal::DenyReason { buffer, .. } => match k.code {
@@ -575,6 +754,57 @@ impl App {
                 KeyCode::Char(c) => buffer.push(c),
                 _ => {}
             },
+            Modal::CardForm {
+                title,
+                description,
+                status_idx,
+                priority_idx,
+                field,
+                ..
+            } => {
+                // Ctrl+S submits from any field.
+                if k.code == KeyCode::Char('s') && k.modifiers.contains(KeyModifiers::CONTROL) {
+                    self.submit_card_form();
+                    return;
+                }
+                match k.code {
+                    KeyCode::Esc => self.modal = None,
+                    KeyCode::Tab => *field = next_card_field(*field, 1),
+                    KeyCode::BackTab => *field = next_card_field(*field, -1),
+                    _ => match field {
+                        CardField::Title => edit_text(title, k.code),
+                        CardField::Description => edit_text(description, k.code),
+                        CardField::Status => match k.code {
+                            KeyCode::Left | KeyCode::Char('h') => {
+                                *status_idx = step(*status_idx, -1, status_count)
+                            }
+                            KeyCode::Right | KeyCode::Char('l') => {
+                                *status_idx = step(*status_idx, 1, status_count)
+                            }
+                            _ => {}
+                        },
+                        CardField::Priority => match k.code {
+                            KeyCode::Left | KeyCode::Char('h') => {
+                                *priority_idx = step(*priority_idx, -1, PRIORITIES.len())
+                            }
+                            KeyCode::Right | KeyCode::Char('l') => {
+                                *priority_idx = step(*priority_idx, 1, PRIORITIES.len())
+                            }
+                            _ => {}
+                        },
+                    },
+                }
+            }
+            Modal::ConfirmDelete { .. } => match k.code {
+                KeyCode::Char('y') | KeyCode::Enter => self.confirm_delete_card(),
+                KeyCode::Esc | KeyCode::Char('n') => self.modal = None,
+                _ => {}
+            },
+            Modal::CardDetail { .. } => {
+                if matches!(k.code, KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q')) {
+                    self.modal = None;
+                }
+            }
         }
     }
 
@@ -958,11 +1188,20 @@ impl App {
 
     fn on_created(&mut self, r: Result<Uuid, String>) {
         match r {
-            Ok(_workspace_id) => {
+            Ok(workspace_id) => {
                 self.create = None;
-                self.screen = Screen::List;
-                self.toast = Some("task created — agent started".into());
-                self.load_workspaces();
+                // If this workspace was launched from a kanban card, link it and
+                // return to the board; otherwise behave like a normal new task.
+                let pending = self.kanban.as_mut().and_then(|k| k.pending_link.take());
+                if let Some((project_id, issue_id)) = pending {
+                    self.screen = Screen::Kanban;
+                    self.toast = Some("workspace started — linking to card…".into());
+                    self.link_workspace(workspace_id, project_id, issue_id);
+                } else {
+                    self.screen = Screen::List;
+                    self.toast = Some("task created — agent started".into());
+                    self.load_workspaces();
+                }
             }
             Err(e) => {
                 if let Some(form) = &mut self.create {
@@ -970,6 +1209,465 @@ impl App {
                 }
                 self.toast = Some(format!("create failed: {e}"));
             }
+        }
+    }
+
+    // ---- kanban board ----
+
+    fn on_key_kanban(&mut self, k: KeyEvent) {
+        match k.code {
+            KeyCode::Esc => self.screen = Screen::List,
+            KeyCode::Char('r') => {
+                if let Some(pid) = self.kanban_project_id() {
+                    self.load_board(pid);
+                }
+            }
+            KeyCode::Char('p') => self.cycle_project(1),
+            KeyCode::Left | KeyCode::Char('h') => self.move_column(-1),
+            KeyCode::Right | KeyCode::Char('l') => self.move_column(1),
+            KeyCode::Down | KeyCode::Char('j') => self.move_card_selection(1),
+            KeyCode::Up | KeyCode::Char('k') => self.move_card_selection(-1),
+            KeyCode::Char('n') => self.open_card_create(),
+            KeyCode::Char('e') => self.open_card_edit(),
+            KeyCode::Char('d') | KeyCode::Char('x') => self.begin_delete_card(),
+            KeyCode::Char('[') => self.move_card_to_column(-1),
+            KeyCode::Char(']') => self.move_card_to_column(1),
+            KeyCode::Char('w') => self.run_workspace_from_card(),
+            KeyCode::Enter => self.open_card_detail(),
+            _ => {}
+        }
+    }
+
+    fn open_kanban(&mut self) {
+        self.kanban = Some(KanbanView::new());
+        self.screen = Screen::Kanban;
+        self.load_projects();
+    }
+
+    fn kanban_project_id(&self) -> Option<Uuid> {
+        self.kanban
+            .as_ref()
+            .and_then(|k| k.selected_project())
+            .map(|p| p.id)
+    }
+
+    fn load_projects(&mut self) {
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let r = client.list_projects().await.map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::Projects(r));
+        });
+    }
+
+    fn on_projects(&mut self, r: Result<Vec<Project>, String>) {
+        match r {
+            Ok(list) => {
+                let pid = list.first().map(|p| p.id);
+                if let Some(k) = &mut self.kanban {
+                    k.projects = list;
+                    k.project_idx = 0;
+                    k.error = None;
+                    k.loading = pid.is_some();
+                }
+                if let Some(pid) = pid {
+                    self.load_board(pid);
+                }
+            }
+            Err(e) => {
+                if let Some(k) = &mut self.kanban {
+                    k.error = Some(e);
+                    k.loading = false;
+                }
+            }
+        }
+    }
+
+    /// Load a project's columns, cards, and linked workspaces in parallel.
+    fn load_board(&mut self, project_id: Uuid) {
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let result = client
+                .list_statuses(project_id)
+                .await
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::KanbanStatuses { project_id, result });
+        });
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let result = client
+                .list_issues(project_id)
+                .await
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::KanbanIssues { project_id, result });
+        });
+        self.load_project_workspaces(project_id);
+    }
+
+    fn load_project_workspaces(&self, project_id: Uuid) {
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let result = client
+                .list_project_workspaces(project_id)
+                .await
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::KanbanWorkspaces { project_id, result });
+        });
+    }
+
+    fn on_kanban_statuses(&mut self, project_id: Uuid, result: Result<Vec<ProjectStatus>, String>) {
+        if self.kanban_project_id() != Some(project_id) {
+            return;
+        }
+        let Some(k) = &mut self.kanban else { return };
+        k.loading = false;
+        match result {
+            Ok(mut list) => {
+                list.retain(|s| !s.hidden);
+                list.sort_by_key(|s| s.sort_order);
+                k.statuses = list;
+                k.clamp();
+            }
+            Err(e) => k.error = Some(e),
+        }
+    }
+
+    fn on_kanban_issues(&mut self, project_id: Uuid, result: Result<Vec<Issue>, String>) {
+        if self.kanban_project_id() != Some(project_id) {
+            return;
+        }
+        let Some(k) = &mut self.kanban else { return };
+        match result {
+            Ok(list) => {
+                k.set_issues(list);
+                k.clamp();
+            }
+            Err(e) => k.error = Some(e),
+        }
+    }
+
+    fn on_kanban_workspaces(
+        &mut self,
+        project_id: Uuid,
+        result: Result<Vec<RemoteWorkspace>, String>,
+    ) {
+        if self.kanban_project_id() != Some(project_id) {
+            return;
+        }
+        if let (Some(k), Ok(list)) = (&mut self.kanban, result) {
+            k.workspaces = list;
+        }
+    }
+
+    fn cycle_project(&mut self, delta: i32) {
+        let pid = {
+            let Some(k) = &mut self.kanban else { return };
+            if k.projects.len() < 2 {
+                return;
+            }
+            let n = k.projects.len() as i32;
+            k.project_idx = ((k.project_idx as i32 + delta).rem_euclid(n)) as usize;
+            k.col_idx = 0;
+            k.card_idx = 0;
+            k.statuses.clear();
+            k.issues_by_status.clear();
+            k.workspaces.clear();
+            k.loading = true;
+            k.selected_project().map(|p| p.id)
+        };
+        if let Some(pid) = pid {
+            self.load_board(pid);
+        }
+    }
+
+    fn move_column(&mut self, delta: i32) {
+        let Some(k) = &mut self.kanban else { return };
+        k.col_idx = step(k.col_idx, delta, k.statuses.len());
+        k.card_idx = 0;
+    }
+
+    fn move_card_selection(&mut self, delta: i32) {
+        let Some(k) = &mut self.kanban else { return };
+        let n = k.current_cards().len();
+        k.card_idx = step(k.card_idx, delta, n);
+    }
+
+    fn open_card_create(&mut self) {
+        let Some(k) = &self.kanban else { return };
+        if k.statuses.is_empty() {
+            self.toast = Some("this project has no columns".into());
+            return;
+        }
+        let status_idx = k.col_idx;
+        self.modal = Some(Modal::CardForm {
+            editing: None,
+            title: String::new(),
+            description: String::new(),
+            status_idx,
+            priority_idx: 0,
+            field: CardField::Title,
+        });
+    }
+
+    fn open_card_edit(&mut self) {
+        let Some(k) = &self.kanban else { return };
+        let Some(card) = k.selected_card() else {
+            return;
+        };
+        let status_idx = k
+            .statuses
+            .iter()
+            .position(|s| s.id == card.status_id)
+            .unwrap_or(k.col_idx);
+        let priority_idx = card
+            .priority
+            .as_deref()
+            .and_then(|p| PRIORITIES.iter().position(|x| *x == p))
+            .unwrap_or(0);
+        self.modal = Some(Modal::CardForm {
+            editing: Some(card.id),
+            title: card.title.clone(),
+            description: card.description.clone().unwrap_or_default(),
+            status_idx,
+            priority_idx,
+            field: CardField::Title,
+        });
+    }
+
+    fn submit_card_form(&mut self) {
+        // Validate without consuming the modal so it stays open on error.
+        if let Some(Modal::CardForm { title, .. }) = &self.modal
+            && title.trim().is_empty()
+        {
+            self.toast = Some("title is required".into());
+            return;
+        }
+        let Some(Modal::CardForm {
+            editing,
+            title,
+            description,
+            status_idx,
+            priority_idx,
+            ..
+        }) = self.modal.take()
+        else {
+            return;
+        };
+
+        let Some(k) = &self.kanban else { return };
+        let Some(project) = k.selected_project() else {
+            return;
+        };
+        let project_id = project.id;
+        let Some(status) = k.statuses.get(status_idx) else {
+            return;
+        };
+        let status_id = status.id;
+        let title = title.trim().to_string();
+        let description = Some(description.trim().to_string()).filter(|s| !s.is_empty());
+        let priority = PRIORITIES
+            .get(priority_idx)
+            .filter(|p| **p != "none")
+            .map(|p| p.to_string());
+
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        if let Some(issue_id) = editing {
+            let body = serde_json::json!({
+                "title": title,
+                "status_id": status_id,
+                "description": description,
+                "priority": priority,
+            });
+            tokio::spawn(async move {
+                let r = client
+                    .update_issue(issue_id, &body)
+                    .await
+                    .map(|_| "card updated".to_string())
+                    .map_err(|e| e.to_string());
+                let _ = tx.send(AppEvent::KanbanMutated(r));
+            });
+        } else {
+            // New cards go to the top of their column.
+            let min = k
+                .cards_for(status_id)
+                .iter()
+                .map(|i| i.sort_order)
+                .fold(f64::INFINITY, f64::min);
+            let sort_order = if min.is_finite() { min - 1.0 } else { 0.0 };
+            let req = CreateIssueRequest {
+                project_id,
+                status_id,
+                title,
+                description,
+                priority,
+                sort_order,
+                extension_metadata: serde_json::json!({}),
+            };
+            tokio::spawn(async move {
+                let r = client
+                    .create_issue(&req)
+                    .await
+                    .map(|_| "card created".to_string())
+                    .map_err(|e| e.to_string());
+                let _ = tx.send(AppEvent::KanbanMutated(r));
+            });
+        }
+    }
+
+    fn begin_delete_card(&mut self) {
+        let Some(k) = &self.kanban else { return };
+        let Some(card) = k.selected_card() else {
+            return;
+        };
+        let issue_id = card.id;
+        let label = format!("{} {}", card.simple_id, card.title);
+        self.modal = Some(Modal::ConfirmDelete { issue_id, label });
+    }
+
+    fn confirm_delete_card(&mut self) {
+        let Some(Modal::ConfirmDelete { issue_id, .. }) = self.modal.take() else {
+            return;
+        };
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let r = client
+                .delete_issue(issue_id)
+                .await
+                .map(|_| "card deleted".to_string())
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::KanbanMutated(r));
+        });
+    }
+
+    /// Move the selected card to the previous/next column (status change).
+    fn move_card_to_column(&mut self, delta: i32) {
+        let plan = {
+            let Some(k) = &self.kanban else { return };
+            let Some(card) = k.selected_card() else {
+                return;
+            };
+            let target = k.col_idx as i32 + delta;
+            if target < 0 || target as usize >= k.statuses.len() {
+                return;
+            }
+            let target = target as usize;
+            let target_status = k.statuses[target].id;
+            let max = k
+                .cards_for(target_status)
+                .iter()
+                .map(|i| i.sort_order)
+                .fold(f64::NEG_INFINITY, f64::max);
+            let sort_order = if max.is_finite() { max + 1.0 } else { 0.0 };
+            (card.id, target, target_status, sort_order)
+        };
+        let (issue_id, target, target_status, sort_order) = plan;
+        // Follow the card to its new column.
+        if let Some(k) = &mut self.kanban {
+            k.col_idx = target;
+            k.card_idx = 0;
+        }
+        let body = serde_json::json!({ "status_id": target_status, "sort_order": sort_order });
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let r = client
+                .update_issue(issue_id, &body)
+                .await
+                .map(|_| "card moved".to_string())
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::KanbanMutated(r));
+        });
+    }
+
+    fn open_card_detail(&mut self) {
+        let Some(k) = &self.kanban else { return };
+        let Some(card) = k.selected_card() else {
+            return;
+        };
+        let issue_id = card.id;
+        self.modal = Some(Modal::CardDetail { issue_id });
+    }
+
+    fn run_workspace_from_card(&mut self) {
+        let plan = {
+            let Some(k) = &self.kanban else { return };
+            let Some(project) = k.selected_project() else {
+                return;
+            };
+            let Some(card) = k.selected_card() else {
+                return;
+            };
+            let prompt = match &card.description {
+                Some(d) if !d.trim().is_empty() => format!("{}\n\n{}", card.title, d),
+                _ => card.title.clone(),
+            };
+            (project.id, card.id, prompt)
+        };
+        let (project_id, issue_id, prompt) = plan;
+        if let Some(k) = &mut self.kanban {
+            k.pending_link = Some((project_id, issue_id));
+        }
+        let mut form = CreateForm::new();
+        form.prompt = prompt;
+        self.create = Some(form);
+        self.screen = Screen::Create;
+        // Load repos for the form (same as `open_create`).
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let r = client.list_repos().await.map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::Repos(r));
+        });
+    }
+
+    fn link_workspace(&self, workspace_id: Uuid, project_id: Uuid, issue_id: Uuid) {
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let r = client
+                .link_workspace_to_issue(workspace_id, project_id, issue_id)
+                .await
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::WorkspaceLinked(r));
+        });
+    }
+
+    fn on_kanban_mutated(&mut self, r: Result<String, String>) {
+        match r {
+            Ok(msg) => {
+                self.toast = Some(msg);
+                if let Some(pid) = self.kanban_project_id() {
+                    let client = self.client.clone();
+                    let tx = self.tx.clone();
+                    tokio::spawn(async move {
+                        let result = client.list_issues(pid).await.map_err(|e| e.to_string());
+                        let _ = tx.send(AppEvent::KanbanIssues {
+                            project_id: pid,
+                            result,
+                        });
+                    });
+                    self.load_project_workspaces(pid);
+                }
+            }
+            Err(e) => self.toast = Some(format!("kanban error: {e}")),
+        }
+    }
+
+    fn on_workspace_linked(&mut self, r: Result<(), String>) {
+        match r {
+            Ok(()) => {
+                self.toast = Some("workspace linked to card".into());
+                self.load_workspaces();
+                if let Some(pid) = self.kanban_project_id() {
+                    self.load_project_workspaces(pid);
+                }
+            }
+            Err(e) => self.toast = Some(format!("link failed: {e}")),
         }
     }
 
@@ -1268,6 +1966,16 @@ fn edit_text(buffer: &mut String, code: KeyCode) {
 fn next_field(field: CreateField, delta: i32) -> CreateField {
     use CreateField::*;
     let order = [Name, Prompt, Repo, Branch, Executor];
+    let idx = order.iter().position(|f| *f == field).unwrap_or(0);
+    let n = order.len();
+    let next = (idx as i32 + delta).rem_euclid(n as i32) as usize;
+    order[next]
+}
+
+/// Cycle the focused card-form field.
+fn next_card_field(field: CardField, delta: i32) -> CardField {
+    use CardField::*;
+    let order = [Title, Description, Status, Priority];
     let idx = order.iter().position(|f| *f == field).unwrap_or(0);
     let n = order.len();
     let next = (idx as i32 + delta).rem_euclid(n as i32) as usize;

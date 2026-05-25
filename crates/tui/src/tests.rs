@@ -17,9 +17,9 @@ use uuid::Uuid;
 use crate::{
     api::{
         ApiClient,
-        types::{Session, Workspace},
+        types::{Issue, Project, ProjectStatus, Session, Workspace},
     },
-    app::{App, Loadable},
+    app::{App, CardField, KanbanView, Loadable, Modal, Screen},
     state::conversation::{Conversation, Line, ToolBadge},
     ws::{Decoded, decode_frame},
 };
@@ -116,6 +116,123 @@ fn renders_all_loadable_states_without_panic() {
     // Tiny terminal must not panic.
     let app = stub_app();
     let _ = render_to_string(&app, 4, 3);
+}
+
+fn sample_kanban() -> KanbanView {
+    let project_id = Uuid::new_v4();
+    let status_id = Uuid::new_v4();
+    let issue = Issue {
+        id: Uuid::new_v4(),
+        project_id,
+        status_id,
+        simple_id: "ACME-1".into(),
+        title: "Wire up login".into(),
+        description: Some("Add OAuth".into()),
+        priority: Some("high".into()),
+        sort_order: 0.0,
+        parent_issue_id: None,
+    };
+    let mut issues_by_status = std::collections::HashMap::new();
+    issues_by_status.insert(status_id, vec![issue]);
+    KanbanView {
+        projects: vec![Project {
+            id: project_id,
+            name: "Acme".into(),
+            color: "#6366f1".into(),
+            sort_order: 0,
+        }],
+        project_idx: 0,
+        statuses: vec![ProjectStatus {
+            id: status_id,
+            project_id,
+            name: "Todo".into(),
+            color: "#6366f1".into(),
+            sort_order: 0,
+            hidden: false,
+        }],
+        issues_by_status,
+        workspaces: Vec::new(),
+        col_idx: 0,
+        card_idx: 0,
+        loading: false,
+        error: None,
+        pending_link: None,
+    }
+}
+
+#[test]
+fn renders_kanban_board() {
+    let mut app = stub_app();
+    app.kanban = Some(sample_kanban());
+    app.screen = Screen::Kanban;
+
+    let text = render_to_string(&app, 100, 24);
+    assert!(text.contains("Acme"), "project name missing");
+    assert!(text.contains("Todo"), "column name missing");
+    assert!(text.contains("ACME-1"), "card simple_id missing");
+    assert!(text.contains("Wire up login"), "card title missing");
+}
+
+#[test]
+fn renders_kanban_states_without_panic() {
+    // No projects (loading).
+    let mut app = stub_app();
+    app.kanban = Some(KanbanView {
+        projects: Vec::new(),
+        project_idx: 0,
+        statuses: Vec::new(),
+        issues_by_status: std::collections::HashMap::new(),
+        workspaces: Vec::new(),
+        col_idx: 0,
+        card_idx: 0,
+        loading: true,
+        error: None,
+        pending_link: None,
+    });
+    app.screen = Screen::Kanban;
+    let _ = render_to_string(&app, 80, 24);
+
+    // Populated board on a tiny terminal must not panic.
+    let mut app = stub_app();
+    app.kanban = Some(sample_kanban());
+    app.screen = Screen::Kanban;
+    let _ = render_to_string(&app, 6, 4);
+}
+
+#[test]
+fn renders_card_modals_without_panic() {
+    let mut app = stub_app();
+    let kv = sample_kanban();
+    let issue_id = kv
+        .issues_by_status
+        .values()
+        .flatten()
+        .next()
+        .expect("a card")
+        .id;
+    app.kanban = Some(kv);
+    app.screen = Screen::Kanban;
+
+    // Create-card form.
+    app.modal = Some(Modal::CardForm {
+        editing: None,
+        title: "New thing".into(),
+        description: String::new(),
+        status_idx: 0,
+        priority_idx: 2,
+        field: CardField::Title,
+    });
+    let text = render_to_string(&app, 100, 24);
+    assert!(text.contains("new card"), "card form title missing");
+
+    // Read-only card detail.
+    app.modal = Some(Modal::CardDetail { issue_id });
+    let text = render_to_string(&app, 100, 24);
+    assert!(text.contains("ACME-1"), "detail simple_id missing");
+    assert!(
+        text.contains("workspaces"),
+        "detail workspaces section missing"
+    );
 }
 
 #[test]
@@ -506,6 +623,32 @@ async fn contract_workspaces_and_sessions_deserialize() {
             .list_sessions(w.id)
             .await
             .expect("list_sessions deserializes");
+    }
+}
+
+/// Confirms the kanban mirror structs (`Project`, `ProjectStatus`, `Issue`,
+/// `RemoteWorkspace`) deserialize real `/v1/*` payloads. Ignored by default.
+#[tokio::test]
+#[ignore = "requires a running backend"]
+async fn contract_kanban_types_deserialize() {
+    let client = ApiClient::connect().await.expect("connect to backend");
+    let projects = client
+        .list_projects()
+        .await
+        .expect("list_projects deserializes");
+    if let Some(p) = projects.first() {
+        client
+            .list_statuses(p.id)
+            .await
+            .expect("list_statuses deserializes");
+        client
+            .list_issues(p.id)
+            .await
+            .expect("list_issues deserializes");
+        client
+            .list_project_workspaces(p.id)
+            .await
+            .expect("list_project_workspaces deserializes");
     }
 }
 

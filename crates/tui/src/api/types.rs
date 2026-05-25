@@ -178,6 +178,82 @@ pub const EXECUTORS: &[&str] = &[
     "DROID",
 ];
 
+// ---------------------------------------------------------------------------
+// Kanban (local projects) — mirrors of the `/v1/*` wire shapes.
+// ---------------------------------------------------------------------------
+
+/// Mirror of the wire `Project` (served at `/v1/fallback/projects`). The
+/// per-project issue `key` is not exposed by that endpoint, so it is omitted.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Project {
+    pub id: Uuid,
+    pub name: String,
+    #[serde(default)]
+    pub color: String,
+    #[serde(default)]
+    pub sort_order: i64,
+}
+
+/// Mirror of `db::models::project_status::ProjectStatus` (a kanban column).
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProjectStatus {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub name: String,
+    #[serde(default)]
+    pub color: String,
+    #[serde(default)]
+    pub sort_order: i64,
+    #[serde(default)]
+    pub hidden: bool,
+}
+
+/// Mirror of the wire `Issue` (a kanban card). Subset used for display.
+/// `priority` arrives as a lowercase string (`urgent`/`high`/`medium`/`low`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct Issue {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub status_id: Uuid,
+    pub simple_id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub priority: Option<String>,
+    #[serde(default)]
+    pub sort_order: f64,
+    pub parent_issue_id: Option<Uuid>,
+}
+
+/// Mirror of the remote `Workspace` rows returned by
+/// `/v1/fallback/project_workspaces` — i.e. workspaces linked to an issue.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RemoteWorkspace {
+    pub id: Uuid,
+    pub issue_id: Option<Uuid>,
+    pub local_workspace_id: Option<Uuid>,
+    pub name: Option<String>,
+    #[serde(default)]
+    pub archived: bool,
+}
+
+/// Body for `POST /v1/issues`. Carries all fields the backend requires
+/// (`project_id`, `status_id`, `title`, `sort_order`, `extension_metadata`).
+#[derive(Debug, Serialize)]
+pub struct CreateIssueRequest {
+    pub project_id: Uuid,
+    pub status_id: Uuid,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub priority: Option<String>,
+    pub sort_order: f64,
+    pub extension_metadata: serde_json::Value,
+}
+
+/// Priorities offered by the card form; index 0 means "none" (field omitted).
+pub const PRIORITIES: &[&str] = &["none", "urgent", "high", "medium", "low"];
+
 /// Mirror of `services::services::approvals::ApprovalInfo` — one pending
 /// approval as broadcast on `/api/approvals/stream/ws`.
 #[derive(Debug, Clone, Deserialize)]

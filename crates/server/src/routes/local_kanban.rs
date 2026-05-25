@@ -14,7 +14,7 @@ use api_types::{
     CreateProjectStatusRequest, CreateTagRequest, DeleteResponse, IssuePriority,
     ListMembersResponse, ListOrganizationsResponse, MemberRole, MutationResponse,
     OrganizationMemberWithProfile, OrganizationWithRole, Project as ApiProject, UpdateIssueRequest,
-    UpdateProjectRequest, UpdateProjectStatusRequest, UpdateTagRequest,
+    UpdateProjectRequest, UpdateProjectStatusRequest, UpdateTagRequest, Workspace as ApiWorkspace,
 };
 use axum::{
     Router,
@@ -25,6 +25,7 @@ use axum::{
 use chrono::Utc;
 use db::models::{
     issue::{Issue as DbIssue, IssueUpdate, NewIssue},
+    issue_workspace::{IssueWorkspace, LinkedWorkspaceRow},
     kanban_tag::{IssueAssignee as DbIssueAssignee, IssueTag as DbIssueTag, KanbanTag},
     local_user::{LOCAL_USER_ID, LocalUser},
     project::{LOCAL_ORGANIZATION_ID, Project as DbProject},
@@ -139,6 +140,46 @@ async fn fb_issue_assignees(
 ) -> Result<ResponseJson<Value>, ApiError> {
     let rows = DbIssueAssignee::list_by_project(&deployment.db().pool, q.project_id).await?;
     Ok(ResponseJson(json!({ "issue_assignees": rows })))
+}
+
+/// Synthesize the wire `Workspace` shape from a local issue<->workspace link.
+/// `id` and `local_workspace_id` are both the local workspace id so the frontend
+/// can map the row back to its local workspace; stats are left empty.
+fn to_api_workspace(row: LinkedWorkspaceRow) -> ApiWorkspace {
+    ApiWorkspace {
+        id: row.workspace_id,
+        project_id: row.project_id,
+        owner_user_id: LOCAL_USER_ID,
+        issue_id: Some(row.issue_id),
+        local_workspace_id: Some(row.workspace_id),
+        name: row.name,
+        archived: row.archived,
+        files_changed: None,
+        lines_added: None,
+        lines_removed: None,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
+}
+
+/// Workspaces linked to any issue in a project. Drives the web Kanban's
+/// per-card workspace section (`PROJECT_WORKSPACES_SHAPE`) and the TUI board.
+async fn fb_project_workspaces(
+    State(deployment): State<DeploymentImpl>,
+    Query(q): Query<ProjectScope>,
+) -> Result<ResponseJson<Value>, ApiError> {
+    let rows = IssueWorkspace::list_linked_by_project(&deployment.db().pool, q.project_id).await?;
+    let mapped: Vec<ApiWorkspace> = rows.into_iter().map(to_api_workspace).collect();
+    Ok(ResponseJson(json!({ "workspaces": mapped })))
+}
+
+/// All linked workspaces (`USER_WORKSPACES_SHAPE`); local mode has one user.
+async fn fb_user_workspaces(
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<Value>, ApiError> {
+    let rows = IssueWorkspace::list_linked_all(&deployment.db().pool).await?;
+    let mapped: Vec<ApiWorkspace> = rows.into_iter().map(to_api_workspace).collect();
+    Ok(ResponseJson(json!({ "workspaces": mapped })))
 }
 
 // ---------------------------------------------------------------------------
@@ -610,6 +651,11 @@ pub fn router() -> Router<DeploymentImpl> {
         .route("/v1/fallback/tags", get(fb_tags))
         .route("/v1/fallback/issue_tags", get(fb_issue_tags))
         .route("/v1/fallback/issue_assignees", get(fb_issue_assignees))
+        .route(
+            "/v1/fallback/project_workspaces",
+            get(fb_project_workspaces),
+        )
+        .route("/v1/fallback/user_workspaces", get(fb_user_workspaces))
         .route("/v1/projects", post(create_project))
         .route("/v1/projects/bulk", post(bulk_projects))
         .route(
