@@ -68,6 +68,9 @@ coverage/
 .env
 packages/**/dist
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+
 build-npm-package-codesign.sh
 
 npx-cli/bin/
