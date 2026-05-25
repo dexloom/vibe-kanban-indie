@@ -100,6 +100,8 @@ import {
   OpenRemoteWorkspaceInEditorRequest,
   OpenRemoteEditorResponse,
   ProfileResponse,
+  TelegramStatus,
+  TelegramTestResponse,
 } from 'shared/types';
 import type { Project as RemoteProject } from 'shared/remote-types';
 import type { WorkspaceWithSession } from '@/shared/types/attempt';
@@ -1023,6 +1025,20 @@ export const configApi = {
 };
 
 // Task Tags APIs (all tags are global)
+export const telegramApi = {
+  getStatus: async (): Promise<TelegramStatus> => {
+    const response = await makeRequest('/api/telegram/status');
+    return handleApiResponse<TelegramStatus>(response);
+  },
+
+  sendTest: async (): Promise<TelegramTestResponse> => {
+    const response = await makeRequest('/api/telegram/test', {
+      method: 'POST',
+    });
+    return handleApiResponse<TelegramTestResponse>(response);
+  },
+};
+
 export const tagsApi = {
   list: async (params?: TagSearchParams): Promise<Tag[]> => {
     const queryParam = params?.search

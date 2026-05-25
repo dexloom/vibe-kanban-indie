@@ -32,6 +32,9 @@ similar = "2"
 dirs = "5.0"
 thiserror = { workspace = true }
 command-group = { version = "5.0", features = ["with-tokio"] }
+anyhow = { workspace = true }
+reqwest = { workspace = true }
+toml = "0.8"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.29", features = ["signal", "process"] }

@@ -19,6 +19,8 @@ pub mod response;
 pub mod sentry;
 pub mod shell;
 pub mod stream_lines;
+pub mod telegram;
+pub mod telegram_config;
 pub mod text;
 pub mod tokio;
 pub mod version;
