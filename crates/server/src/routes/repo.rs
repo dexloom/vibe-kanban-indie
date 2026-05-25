@@ -12,7 +12,7 @@ use deployment::Deployment;
 use git::{GitBranch, GitRemote};
 use git_host::{GitHostError, GitHostProvider, GitHostService, ProviderKind, PullRequestDetail};
 use serde::{Deserialize, Serialize};
-use services::services::file_search::SearchQuery;
+use services::services::{file_search::SearchQuery, project_config};
 use ts_rs::TS;
 use utils::response::ApiResponse;
 use uuid::Uuid;
@@ -60,6 +60,7 @@ pub async fn register_repo(
         )
         .await?;
 
+    project_config::mirror_repo(&repo);
     Ok(ResponseJson(ApiResponse::success(repo)))
 }
 
@@ -77,6 +78,7 @@ pub async fn init_repo(
         )
         .await?;
 
+    project_config::mirror_repo(&repo);
     Ok(ResponseJson(ApiResponse::success(repo)))
 }
 
@@ -145,6 +147,7 @@ pub async fn update_repo(
     ResponseJson(payload): ResponseJson<UpdateRepo>,
 ) -> Result<ResponseJson<ApiResponse<Repo>>, ApiError> {
     let repo = Repo::update(&deployment.db().pool, repo_id, &payload).await?;
+    project_config::mirror_repo(&repo);
     Ok(ResponseJson(ApiResponse::success(repo)))
 }
 
@@ -361,7 +364,16 @@ pub async fn delete_repo(
         ));
     }
 
+    // Capture the path before deletion so legacy (id-less) TOML blocks can still
+    // be matched and removed.
+    let path = Repo::find_by_id(&deployment.db().pool, repo_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|r| r.path.to_string_lossy().to_string());
+
     Repo::delete(&deployment.db().pool, repo_id).await?;
+    project_config::forget_repo(repo_id, path.as_deref());
     Ok((StatusCode::OK, ResponseJson(ApiResponse::success(()))))
 }
 

@@ -36,4 +36,39 @@ impl ProjectRepo {
         .fetch_all(pool)
         .await
     }
+
+    /// Repo filesystem paths linked to a project, ordered for stable output.
+    /// Used to mirror project→repo links into `projects.toml`.
+    pub async fn list_repo_paths(
+        pool: &SqlitePool,
+        project_id: Uuid,
+    ) -> Result<Vec<String>, sqlx::Error> {
+        let paths = sqlx::query_scalar!(
+            r#"SELECT r.path as "path!: String"
+               FROM project_repos pr
+               JOIN repos r ON r.id = pr.repo_id
+               WHERE pr.project_id = $1
+               ORDER BY r.path ASC"#,
+            project_id
+        )
+        .fetch_all(pool)
+        .await?;
+        Ok(paths)
+    }
+
+    /// Remove a single project↔repo link. No-op if it does not exist.
+    pub async fn unlink(
+        pool: &SqlitePool,
+        project_id: Uuid,
+        repo_id: Uuid,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            r#"DELETE FROM project_repos WHERE project_id = $1 AND repo_id = $2"#,
+            project_id,
+            repo_id
+        )
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
 }

@@ -33,6 +33,7 @@ use db::models::{
 use deployment::Deployment;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use services::services::project_config;
 use uuid::Uuid;
 
 use crate::{DeploymentImpl, error::ApiError};
@@ -190,17 +191,8 @@ async fn create_project(
     ResponseJson(req): ResponseJson<CreateProjectRequest>,
 ) -> Result<ResponseJson<MutationResponse<ApiProject>>, ApiError> {
     let id = req.id.unwrap_or_else(Uuid::new_v4);
-    let key = derive_key(&req.name);
-    let project = DbProject::create(
-        &deployment.db().pool,
-        id,
-        &req.name,
-        Some(&key),
-        &req.color,
-        0,
-        None,
-    )
-    .await?;
+    let project =
+        project_config::create_project(&deployment.db().pool, id, &req.name, &req.color).await?;
     Ok(mutation(to_api_project(project)))
 }
 
@@ -218,7 +210,7 @@ async fn update_project(
         .sort_order
         .map(|v| v as i64)
         .unwrap_or(existing.sort_order);
-    let project = DbProject::update_fields(
+    let project = project_config::update_project(
         &deployment.db().pool,
         id,
         &name,
@@ -257,7 +249,7 @@ async fn bulk_projects(
                 .sort_order
                 .map(|v| v as i64)
                 .unwrap_or(existing.sort_order);
-            let p = DbProject::update_fields(
+            let p = project_config::update_project(
                 pool,
                 item.id,
                 &name,
@@ -277,7 +269,7 @@ async fn delete_project(
     State(deployment): State<DeploymentImpl>,
     Path(id): Path<Uuid>,
 ) -> Result<ResponseJson<DeleteResponse>, ApiError> {
-    DbProject::delete(&deployment.db().pool, id).await?;
+    project_config::delete_project(&deployment.db().pool, id).await?;
     Ok(deleted())
 }
 
