@@ -266,6 +266,75 @@ pub struct ApprovalInfo {
     pub timeout_at: DateTime<Utc>,
 }
 
+// ---------------------------------------------------------------------------
+// Git operations (workspace detail view) — mirrors of `/api/.../git/*` and the
+// workspace-summary wire shapes.
+// ---------------------------------------------------------------------------
+
+/// Mirror of `RepoBranchStatus` (with the flattened `BranchStatus`) from
+/// `GET /api/workspaces/{id}/git/status` — one entry per repo in the workspace.
+#[derive(Debug, Clone, Deserialize)]
+pub struct GitRepoStatus {
+    pub repo_id: Uuid,
+    pub repo_name: String,
+    pub commits_ahead: Option<usize>,
+    pub commits_behind: Option<usize>,
+    pub remote_commits_ahead: Option<usize>,
+    pub remote_commits_behind: Option<usize>,
+    pub has_uncommitted_changes: Option<bool>,
+    pub uncommitted_count: Option<usize>,
+    pub target_branch_name: String,
+    #[serde(default)]
+    pub is_rebase_in_progress: bool,
+    /// `"rebase"` or `"merge"` while a conflict is being resolved.
+    pub conflict_op: Option<String>,
+    #[serde(default)]
+    pub conflicted_files: Vec<String>,
+    #[serde(default)]
+    pub is_target_remote: bool,
+}
+
+/// Subset of `WorkspaceSummary` (`POST /api/workspaces/summaries`) used to show
+/// per-workspace diff stats and PR state in the detail view.
+#[derive(Debug, Clone, Deserialize)]
+pub struct WorkspaceSummary {
+    pub workspace_id: Uuid,
+    pub files_changed: Option<usize>,
+    pub lines_added: Option<usize>,
+    pub lines_removed: Option<usize>,
+    /// `open` / `merged` / `closed` / `none`.
+    pub pr_status: Option<String>,
+    pub pr_number: Option<i64>,
+    pub pr_url: Option<String>,
+}
+
+/// Body for the repo-only git endpoints (`/git/merge`, `/git/push`,
+/// `/git/push/force`).
+#[derive(Debug, Serialize)]
+pub struct RepoIdRequest {
+    pub repo_id: Uuid,
+}
+
+/// Body for `POST /api/workspaces/{id}/git/rebase`. `None` bases default to the
+/// workspace's current target branch on the backend.
+#[derive(Debug, Serialize)]
+pub struct RebaseRequest {
+    pub repo_id: Uuid,
+    pub old_base_branch: Option<String>,
+    pub new_base_branch: Option<String>,
+}
+
+/// Body for `POST /api/workspaces/{id}/pull-requests`.
+#[derive(Debug, Serialize)]
+pub struct CreatePrRequest {
+    pub title: String,
+    pub body: Option<String>,
+    pub target_branch: Option<String>,
+    pub draft: Option<bool>,
+    pub repo_id: Uuid,
+    pub auto_generate_description: bool,
+}
+
 /// Mirror of `db::models::execution_process::ExecutionProcess`. `executor_action`
 /// is intentionally omitted (not needed for display; serde ignores it).
 #[derive(Debug, Clone, Deserialize)]

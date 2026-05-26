@@ -18,11 +18,12 @@ use uuid::Uuid;
 
 use crate::{
     api::{
-        ApiClient,
+        ApiClient, PushResult,
         types::{
-            CreateAndStartRequest, CreateIssueRequest, EXECUTORS, ExecutionProcess,
-            ExecutorConfigInput, FollowUpRequest, Issue, PRIORITIES, Project, ProjectStatus,
-            QueueRequest, RemoteWorkspace, Repo, RunReason, Session, Workspace, WorkspaceRepoInput,
+            CreateAndStartRequest, CreateIssueRequest, CreatePrRequest, EXECUTORS,
+            ExecutionProcess, ExecutorConfigInput, FollowUpRequest, GitRepoStatus, Issue,
+            PRIORITIES, Project, ProjectStatus, QueueRequest, RemoteWorkspace, Repo, RunReason,
+            Session, Workspace, WorkspaceRepoInput, WorkspaceSummary,
         },
     },
     state::{
@@ -95,6 +96,29 @@ pub enum AppEvent {
     KanbanMutated(Result<String, String>),
     /// Result of linking a launched workspace to a card.
     WorkspaceLinked(Result<(), String>),
+    /// Per-repo git status for the open detail's workspace.
+    GitStatus {
+        workspace_id: Uuid,
+        result: Result<Vec<GitRepoStatus>, String>,
+    },
+    /// Diff-stat + PR summary for the open detail's workspace.
+    GitSummary {
+        workspace_id: Uuid,
+        result: Result<Option<WorkspaceSummary>, String>,
+    },
+    /// Result of a git action (merge / rebase / force-push / create PR). The
+    /// `Ok` payload is a toast message; success reloads git status.
+    GitActionDone {
+        workspace_id: Uuid,
+        result: Result<String, String>,
+    },
+    /// Result of a (non-force) push; `NeedsForce` opens a force-push confirm.
+    PushDone {
+        workspace_id: Uuid,
+        repo_id: Uuid,
+        repo_name: String,
+        result: Result<PushResult, String>,
+    },
     Toast(String),
 }
 
@@ -115,6 +139,15 @@ pub enum Loadable<T> {
 pub enum Focus {
     Workspaces,
     Sessions,
+}
+
+/// Which pane of the Detail screen has keyboard focus. `↑↓`/`jk` act on the
+/// focused pane; `⇥`/`←→` move between them.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum DetailFocus {
+    Processes,
+    Git,
+    Transcript,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -287,6 +320,31 @@ pub enum CardField {
     Priority,
 }
 
+/// A destructive git operation that requires a confirm modal before running.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum GitOp {
+    Merge,
+    Rebase,
+    ForcePush,
+}
+
+impl GitOp {
+    pub fn label(self) -> &'static str {
+        match self {
+            GitOp::Merge => "merge",
+            GitOp::Rebase => "rebase",
+            GitOp::ForcePush => "force-push",
+        }
+    }
+}
+
+/// Which field of the create-PR form has focus.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum PrField {
+    Title,
+    Body,
+}
+
 /// A modal capturing input for an approval response.
 pub enum Modal {
     /// Free-text reason for denying a tool approval.
@@ -331,6 +389,24 @@ pub enum Modal {
     ConfirmDelete { issue_id: Uuid, label: String },
     /// Read-only detail view of a card.
     CardDetail { issue_id: Uuid },
+    /// Confirm a destructive git op (merge / rebase / force-push) on a repo.
+    ConfirmGit {
+        op: GitOp,
+        workspace_id: Uuid,
+        repo_id: Uuid,
+        repo_name: String,
+        target: String,
+    },
+    /// Compose a pull request (title + optional body) for a repo.
+    PrForm {
+        workspace_id: Uuid,
+        repo_id: Uuid,
+        repo_name: String,
+        target: String,
+        title: String,
+        body: String,
+        field: PrField,
+    },
 }
 
 /// State for the Detail screen: a session's processes + the live transcript of
@@ -350,6 +426,22 @@ pub struct Detail {
     /// Transcript scroll cursor (line index); follow keeps it pinned to the end.
     pub cursor: usize,
     pub follow: bool,
+    /// The workspace this session belongs to (the git pane operates on it).
+    pub workspace_id: Uuid,
+    /// The workspace branch, shown as `branch → target` in the git pane.
+    pub workspace_branch: String,
+    /// Per-repo git status for the workspace (one entry per repo).
+    pub git: Vec<GitRepoStatus>,
+    pub git_loading: bool,
+    pub git_error: Option<String>,
+    /// Diff stats + PR state for the workspace (from the summaries endpoint).
+    pub summary: Option<WorkspaceSummary>,
+    /// Index of the active repo in `git` (git actions target it).
+    pub repo_selected: usize,
+    /// Label of an in-flight git action, shown in the pane while it runs.
+    pub git_busy: Option<String>,
+    /// Which pane currently has keyboard focus.
+    pub focus: DetailFocus,
     handles: Vec<JoinHandle<()>>,
 }
 
@@ -357,6 +449,42 @@ impl Detail {
     fn abort(&mut self) {
         for h in self.handles.drain(..) {
             h.abort();
+        }
+    }
+
+    /// The repo the git actions currently target.
+    pub fn selected_repo(&self) -> Option<&GitRepoStatus> {
+        self.git.get(self.repo_selected)
+    }
+}
+
+#[cfg(test)]
+impl Detail {
+    /// Build a Detail with no live streams, for render tests.
+    pub(crate) fn for_test(workspace_id: Uuid, git: Vec<GitRepoStatus>) -> Self {
+        Detail {
+            session_id: Uuid::nil(),
+            session_label: "test-session".into(),
+            session_executor: None,
+            generation: 0,
+            processes: ProcessList::new(),
+            proc_selected: 0,
+            procs_connected: false,
+            log_exec_id: None,
+            log_token: 0,
+            conversation: Conversation::new(),
+            cursor: 0,
+            follow: true,
+            workspace_id,
+            workspace_branch: "vk/test".into(),
+            git,
+            git_loading: false,
+            git_error: None,
+            summary: None,
+            repo_selected: 0,
+            git_busy: None,
+            focus: DetailFocus::Transcript,
+            handles: Vec::new(),
         }
     }
 }
@@ -480,6 +608,24 @@ impl App {
             }
             AppEvent::KanbanMutated(r) => self.on_kanban_mutated(r),
             AppEvent::WorkspaceLinked(r) => self.on_workspace_linked(r),
+            AppEvent::GitStatus {
+                workspace_id,
+                result,
+            } => self.on_git_status(workspace_id, result),
+            AppEvent::GitSummary {
+                workspace_id,
+                result,
+            } => self.on_git_summary(workspace_id, result),
+            AppEvent::GitActionDone {
+                workspace_id,
+                result,
+            } => self.on_git_action_done(workspace_id, result),
+            AppEvent::PushDone {
+                workspace_id,
+                repo_id,
+                repo_name,
+                result,
+            } => self.on_push_done(workspace_id, repo_id, repo_name, result),
             AppEvent::Toast(t) => self.toast = Some(t),
         }
     }
@@ -588,9 +734,13 @@ impl App {
 
     fn on_key_detail(&mut self, k: KeyEvent) {
         match k.code {
-            KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => self.close_detail(),
-            KeyCode::Down | KeyCode::Char('j') => self.scroll_transcript(1),
-            KeyCode::Up | KeyCode::Char('k') => self.scroll_transcript(-1),
+            KeyCode::Esc => self.close_detail(),
+            // Move focus between the processes / git / transcript panes.
+            KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => self.cycle_detail_focus(1),
+            KeyCode::BackTab | KeyCode::Left | KeyCode::Char('h') => self.cycle_detail_focus(-1),
+            // ↑↓/jk act on the focused pane.
+            KeyCode::Down | KeyCode::Char('j') => self.detail_nav(1),
+            KeyCode::Up | KeyCode::Char('k') => self.detail_nav(-1),
             KeyCode::Char('G') => self.transcript_end(),
             KeyCode::Char('g') => self.transcript_top(),
             KeyCode::Char('i') => self.begin_followup(),
@@ -599,10 +749,35 @@ impl App {
                     d.follow = !d.follow;
                 }
             }
+            // Process shortcuts, available regardless of focus.
             KeyCode::Char('n') | KeyCode::Char(']') => self.cycle_process(1),
             KeyCode::Char('p') | KeyCode::Char('[') => self.cycle_process(-1),
             KeyCode::Char('s') => self.stop_selected_process(),
+            // Git actions, available regardless of focus (target the selected repo).
+            KeyCode::Char('m') => self.git_confirm(GitOp::Merge),
+            KeyCode::Char('R') => self.git_confirm(GitOp::Rebase),
+            KeyCode::Char('P') => self.open_pr_form(),
+            KeyCode::Char('u') => self.do_push(),
             _ => {}
+        }
+    }
+
+    /// Cycle the focused detail pane (processes → git → transcript → …).
+    fn cycle_detail_focus(&mut self, delta: i32) {
+        if let Some(d) = &mut self.detail {
+            d.focus = next_detail_focus(d.focus, delta);
+        }
+    }
+
+    /// Route ↑↓ to the focused pane: select a process, select a repo, or scroll.
+    fn detail_nav(&mut self, delta: i32) {
+        let Some(focus) = self.detail.as_ref().map(|d| d.focus) else {
+            return;
+        };
+        match focus {
+            DetailFocus::Processes => self.cycle_process(delta),
+            DetailFocus::Git => self.cycle_repo(delta),
+            DetailFocus::Transcript => self.scroll_transcript(delta),
         }
     }
 
@@ -800,9 +975,37 @@ impl App {
                 KeyCode::Esc | KeyCode::Char('n') => self.modal = None,
                 _ => {}
             },
-            Modal::CardDetail { .. } => {
-                if matches!(k.code, KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q')) {
+            Modal::CardDetail { .. } => match k.code {
+                // Launch a workspace for this card (matches the in-modal hint).
+                KeyCode::Char('w') => {
                     self.modal = None;
+                    self.run_workspace_from_card();
+                }
+                KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => self.modal = None,
+                _ => {}
+            },
+            Modal::ConfirmGit { .. } => match k.code {
+                KeyCode::Char('y') | KeyCode::Enter => self.confirm_git(),
+                KeyCode::Esc | KeyCode::Char('n') => self.modal = None,
+                _ => {}
+            },
+            Modal::PrForm {
+                title, body, field, ..
+            } => {
+                // Ctrl+S submits from any field.
+                if k.code == KeyCode::Char('s') && k.modifiers.contains(KeyModifiers::CONTROL) {
+                    self.submit_pr_form();
+                    return;
+                }
+                match k.code {
+                    KeyCode::Esc => self.modal = None,
+                    KeyCode::Tab => *field = next_pr_field(*field, 1),
+                    KeyCode::BackTab => *field = next_pr_field(*field, -1),
+                    KeyCode::Enter => self.submit_pr_form(),
+                    _ => match field {
+                        PrField::Title => edit_text(title, k.code),
+                        PrField::Body => edit_text(body, k.code),
+                    },
                 }
             }
         }
@@ -859,6 +1062,13 @@ impl App {
         let session_id = session.id;
         let label = session.label();
         let session_executor = session.executor.clone();
+        let workspace_id = session.workspace_id;
+        // The session's workspace is the one selected in the list; grab its
+        // branch for the `branch → target` display in the git pane.
+        let workspace_branch = self
+            .selected_workspace()
+            .map(|w| w.branch.clone())
+            .unwrap_or_default();
 
         // Tear down any previous detail and bump the generation.
         if let Some(mut d) = self.detail.take() {
@@ -886,9 +1096,303 @@ impl App {
             conversation: Conversation::new(),
             cursor: 0,
             follow: true,
+            workspace_id,
+            workspace_branch,
+            git: Vec::new(),
+            git_loading: true,
+            git_error: None,
+            summary: None,
+            repo_selected: 0,
+            git_busy: None,
+            focus: DetailFocus::Transcript,
             handles: vec![proc_handle],
         });
         self.screen = Screen::Detail;
+        self.load_git(workspace_id);
+    }
+
+    /// Fetch per-repo git status + the workspace diff/PR summary for the detail.
+    fn load_git(&self, workspace_id: Uuid) {
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let result = client
+                .git_status(workspace_id)
+                .await
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::GitStatus {
+                workspace_id,
+                result,
+            });
+        });
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let result = client
+                .workspace_summary(workspace_id)
+                .await
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::GitSummary {
+                workspace_id,
+                result,
+            });
+        });
+    }
+
+    /// Re-fetch git status for the open detail (after a successful action).
+    fn reload_git(&self) {
+        if let Some(d) = &self.detail {
+            self.load_git(d.workspace_id);
+        }
+    }
+
+    fn on_git_status(&mut self, workspace_id: Uuid, result: Result<Vec<GitRepoStatus>, String>) {
+        let Some(d) = &mut self.detail else { return };
+        if d.workspace_id != workspace_id {
+            return;
+        }
+        d.git_loading = false;
+        match result {
+            Ok(list) => {
+                d.git = list;
+                if d.repo_selected >= d.git.len() {
+                    d.repo_selected = 0;
+                }
+                d.git_error = None;
+            }
+            Err(e) => d.git_error = Some(e),
+        }
+    }
+
+    fn on_git_summary(
+        &mut self,
+        workspace_id: Uuid,
+        result: Result<Option<WorkspaceSummary>, String>,
+    ) {
+        let Some(d) = &mut self.detail else { return };
+        if d.workspace_id != workspace_id {
+            return;
+        }
+        if let Ok(summary) = result {
+            d.summary = summary;
+        }
+    }
+
+    fn on_git_action_done(&mut self, workspace_id: Uuid, result: Result<String, String>) {
+        if let Some(d) = &mut self.detail
+            && d.workspace_id == workspace_id
+        {
+            d.git_busy = None;
+        }
+        match result {
+            Ok(msg) => {
+                self.toast = Some(msg);
+                self.reload_git();
+            }
+            Err(e) => self.toast = Some(format!("git error: {e}")),
+        }
+    }
+
+    fn on_push_done(
+        &mut self,
+        workspace_id: Uuid,
+        repo_id: Uuid,
+        repo_name: String,
+        result: Result<PushResult, String>,
+    ) {
+        if let Some(d) = &mut self.detail
+            && d.workspace_id == workspace_id
+        {
+            d.git_busy = None;
+        }
+        match result {
+            Ok(PushResult::Pushed) => {
+                self.toast = Some("pushed".into());
+                self.reload_git();
+            }
+            Ok(PushResult::NeedsForce) => {
+                // The remote rejected a fast-forward push; offer a force-push.
+                self.modal = Some(Modal::ConfirmGit {
+                    op: GitOp::ForcePush,
+                    workspace_id,
+                    repo_id,
+                    repo_name,
+                    target: String::new(),
+                });
+            }
+            Ok(PushResult::Failed(msg)) => self.toast = Some(format!("push failed: {msg}")),
+            Err(e) => self.toast = Some(format!("push error: {e}")),
+        }
+    }
+
+    /// Cycle the active repo in the git pane.
+    fn cycle_repo(&mut self, delta: i32) {
+        let Some(d) = &mut self.detail else { return };
+        if d.git.len() < 2 {
+            return;
+        }
+        let n = d.git.len() as i32;
+        d.repo_selected = (((d.repo_selected as i32 + delta) % n + n) % n) as usize;
+    }
+
+    /// Open a confirm modal for a destructive git op on the selected repo.
+    fn git_confirm(&mut self, op: GitOp) {
+        let Some(d) = &self.detail else { return };
+        if d.git_busy.is_some() {
+            return;
+        }
+        let Some(repo) = d.selected_repo() else {
+            self.toast = Some("no repo for this workspace".into());
+            return;
+        };
+        // Mirror the GUI guard: a direct merge into a remote target is rejected.
+        if op == GitOp::Merge && repo.is_target_remote {
+            self.toast = Some("target is a remote branch — create a PR instead".into());
+            return;
+        }
+        self.modal = Some(Modal::ConfirmGit {
+            op,
+            workspace_id: d.workspace_id,
+            repo_id: repo.repo_id,
+            repo_name: repo.repo_name.clone(),
+            target: repo.target_branch_name.clone(),
+        });
+    }
+
+    /// Run the confirmed git op (merge / rebase / force-push).
+    fn confirm_git(&mut self) {
+        let Some(Modal::ConfirmGit {
+            op,
+            workspace_id,
+            repo_id,
+            ..
+        }) = self.modal.take()
+        else {
+            return;
+        };
+        if let Some(d) = &mut self.detail {
+            d.git_busy = Some(op.label().to_string());
+        }
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let result = match op {
+                GitOp::Merge => client
+                    .merge_workspace(workspace_id, repo_id)
+                    .await
+                    .map(|_| "merged".to_string()),
+                GitOp::Rebase => client
+                    .rebase_workspace(workspace_id, repo_id)
+                    .await
+                    .map(|_| "rebased".to_string()),
+                GitOp::ForcePush => client
+                    .force_push_workspace(workspace_id, repo_id)
+                    .await
+                    .map(|_| "force-pushed".to_string()),
+            }
+            .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::GitActionDone {
+                workspace_id,
+                result,
+            });
+        });
+    }
+
+    /// Push the selected repo (no confirm; force-push is confirmed if required).
+    fn do_push(&mut self) {
+        let Some(d) = &mut self.detail else { return };
+        if d.git_busy.is_some() {
+            return;
+        }
+        let Some(repo) = d.git.get(d.repo_selected) else {
+            self.toast = Some("no repo for this workspace".into());
+            return;
+        };
+        let workspace_id = d.workspace_id;
+        let repo_id = repo.repo_id;
+        let repo_name = repo.repo_name.clone();
+        d.git_busy = Some("push".into());
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let result = client
+                .push_workspace(workspace_id, repo_id)
+                .await
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::PushDone {
+                workspace_id,
+                repo_id,
+                repo_name,
+                result,
+            });
+        });
+    }
+
+    /// Open the create-PR form for the selected repo.
+    fn open_pr_form(&mut self) {
+        let Some(d) = &self.detail else { return };
+        if d.git_busy.is_some() {
+            return;
+        }
+        let Some(repo) = d.selected_repo() else {
+            self.toast = Some("no repo for this workspace".into());
+            return;
+        };
+        self.modal = Some(Modal::PrForm {
+            workspace_id: d.workspace_id,
+            repo_id: repo.repo_id,
+            repo_name: repo.repo_name.clone(),
+            target: repo.target_branch_name.clone(),
+            // Default the title to the branch name; the user can edit it.
+            title: d.workspace_branch.clone(),
+            body: String::new(),
+            field: PrField::Title,
+        });
+    }
+
+    /// Submit the create-PR form.
+    fn submit_pr_form(&mut self) {
+        let has_title =
+            matches!(&self.modal, Some(Modal::PrForm { title, .. }) if !title.trim().is_empty());
+        if !has_title {
+            self.toast = Some("PR title is required".into());
+            return;
+        }
+        let Some(Modal::PrForm {
+            workspace_id,
+            repo_id,
+            target,
+            title,
+            body,
+            ..
+        }) = self.modal.take()
+        else {
+            return;
+        };
+        if let Some(d) = &mut self.detail {
+            d.git_busy = Some("create PR".into());
+        }
+        let req = CreatePrRequest {
+            title: title.trim().to_string(),
+            body: Some(body.trim().to_string()).filter(|s| !s.is_empty()),
+            target_branch: Some(target),
+            draft: Some(false),
+            repo_id,
+            auto_generate_description: false,
+        };
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let result = client
+                .create_pr(workspace_id, &req)
+                .await
+                .map(|url| format!("PR created: {url}"))
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::GitActionDone {
+                workspace_id,
+                result,
+            });
+        });
     }
 
     fn close_detail(&mut self) {
@@ -1597,9 +2101,11 @@ impl App {
         let plan = {
             let Some(k) = &self.kanban else { return };
             let Some(project) = k.selected_project() else {
+                self.toast = Some("no project selected".into());
                 return;
             };
             let Some(card) = k.selected_card() else {
+                self.toast = Some("no card selected — pick one with ↑↓ first".into());
                 return;
             };
             let prompt = match &card.description {
@@ -1977,6 +2483,26 @@ fn next_card_field(field: CardField, delta: i32) -> CardField {
     use CardField::*;
     let order = [Title, Description, Status, Priority];
     let idx = order.iter().position(|f| *f == field).unwrap_or(0);
+    let n = order.len();
+    let next = (idx as i32 + delta).rem_euclid(n as i32) as usize;
+    order[next]
+}
+
+/// Cycle the focused create-PR-form field.
+fn next_pr_field(field: PrField, delta: i32) -> PrField {
+    use PrField::*;
+    let order = [Title, Body];
+    let idx = order.iter().position(|f| *f == field).unwrap_or(0);
+    let n = order.len();
+    let next = (idx as i32 + delta).rem_euclid(n as i32) as usize;
+    order[next]
+}
+
+/// Cycle the focused detail pane.
+fn next_detail_focus(focus: DetailFocus, delta: i32) -> DetailFocus {
+    use DetailFocus::*;
+    let order = [Processes, Git, Transcript];
+    let idx = order.iter().position(|f| *f == focus).unwrap_or(0);
     let n = order.len();
     let next = (idx as i32 + delta).rem_euclid(n as i32) as usize;
     order[next]

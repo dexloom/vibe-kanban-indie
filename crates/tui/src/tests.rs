@@ -8,6 +8,7 @@
 //!   `VIBE_BACKEND_URL=http://127.0.0.1:8910 cargo test -p tui -- --ignored`
 
 use chrono::Utc;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use json_patch::Patch;
 use ratatui::{Terminal, backend::TestBackend};
 use serde_json::json;
@@ -17,9 +18,12 @@ use uuid::Uuid;
 use crate::{
     api::{
         ApiClient,
-        types::{Issue, Project, ProjectStatus, Session, Workspace},
+        types::{GitRepoStatus, Issue, Project, ProjectStatus, Session, Workspace},
     },
-    app::{App, CardField, KanbanView, Loadable, Modal, Screen},
+    app::{
+        App, AppEvent, CardField, Detail, DetailFocus, GitOp, KanbanView, Loadable, Modal, PrField,
+        Screen,
+    },
     state::conversation::{Conversation, Line, ToolBadge},
     ws::{Decoded, decode_frame},
 };
@@ -116,6 +120,125 @@ fn renders_all_loadable_states_without_panic() {
     // Tiny terminal must not panic.
     let app = stub_app();
     let _ = render_to_string(&app, 4, 3);
+}
+
+fn sample_git_repo(name: &str, target: &str, ahead: usize, behind: usize) -> GitRepoStatus {
+    GitRepoStatus {
+        repo_id: Uuid::new_v4(),
+        repo_name: name.to_string(),
+        commits_ahead: Some(ahead),
+        commits_behind: Some(behind),
+        remote_commits_ahead: None,
+        remote_commits_behind: None,
+        has_uncommitted_changes: Some(false),
+        uncommitted_count: Some(0),
+        target_branch_name: target.to_string(),
+        is_rebase_in_progress: false,
+        conflict_op: None,
+        conflicted_files: Vec::new(),
+        is_target_remote: false,
+    }
+}
+
+#[test]
+fn renders_git_pane_with_multiple_repos() {
+    let mut app = stub_app();
+    let ws = sample_workspace("snake");
+    let ws_id = ws.id;
+    app.workspaces = Loadable::Ready(vec![ws]);
+    app.sessions = Loadable::Ready(vec![sample_session(ws_id, "attempt-1")]);
+    app.sessions_for = Some(ws_id);
+    app.detail = Some(Detail::for_test(
+        ws_id,
+        vec![
+            sample_git_repo("vksnake", "main", 3, 1),
+            sample_git_repo("ui", "main", 0, 0),
+        ],
+    ));
+    app.screen = Screen::Detail;
+
+    let text = render_to_string(&app, 120, 30);
+    assert!(text.contains("git"), "git pane title missing");
+    assert!(text.contains("vksnake"), "first repo missing");
+    assert!(text.contains("ui"), "second repo missing");
+    assert!(text.contains("merge"), "action hints missing");
+}
+
+#[test]
+fn detail_tab_cycles_pane_focus() {
+    let mut app = stub_app();
+    let ws = sample_workspace("snake");
+    let ws_id = ws.id;
+    app.workspaces = Loadable::Ready(vec![ws]);
+    app.detail = Some(Detail::for_test(
+        ws_id,
+        vec![sample_git_repo("vksnake", "main", 1, 0)],
+    ));
+    app.screen = Screen::Detail;
+
+    let focus = |app: &App| app.detail.as_ref().unwrap().focus;
+    let tab = || AppEvent::Key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+
+    assert_eq!(focus(&app), DetailFocus::Transcript);
+    app.update(tab());
+    assert_eq!(focus(&app), DetailFocus::Processes);
+    app.update(tab());
+    assert_eq!(focus(&app), DetailFocus::Git);
+    app.update(tab());
+    assert_eq!(focus(&app), DetailFocus::Transcript, "focus wraps around");
+
+    // ↑↓ in the git pane moves the repo selection, not the transcript.
+    app.update(tab()); // → Processes
+    app.update(tab()); // → Git
+    app.detail
+        .as_mut()
+        .unwrap()
+        .git
+        .push(sample_git_repo("ui", "main", 0, 0));
+    app.update(AppEvent::Key(KeyEvent::new(
+        KeyCode::Down,
+        KeyModifiers::NONE,
+    )));
+    assert_eq!(app.detail.as_ref().unwrap().repo_selected, 1);
+}
+
+#[test]
+fn renders_git_modals_without_panic() {
+    // Confirm modal for a destructive op.
+    let mut app = stub_app();
+    app.modal = Some(Modal::ConfirmGit {
+        op: GitOp::Merge,
+        workspace_id: Uuid::new_v4(),
+        repo_id: Uuid::new_v4(),
+        repo_name: "vksnake".into(),
+        target: "main".into(),
+    });
+    let text = render_to_string(&app, 100, 24);
+    assert!(text.contains("Merge"), "merge confirm missing");
+
+    // Create-PR form.
+    let mut app = stub_app();
+    app.modal = Some(Modal::PrForm {
+        workspace_id: Uuid::new_v4(),
+        repo_id: Uuid::new_v4(),
+        repo_name: "vksnake".into(),
+        target: "main".into(),
+        title: "Add snake game".into(),
+        body: String::new(),
+        field: PrField::Title,
+    });
+    let text = render_to_string(&app, 100, 24);
+    assert!(text.contains("create PR"), "PR form title missing");
+    assert!(text.contains("Add snake game"), "PR title value missing");
+
+    // Tiny terminal must not panic with a detail + git data.
+    let mut app = stub_app();
+    app.detail = Some(Detail::for_test(
+        Uuid::new_v4(),
+        vec![sample_git_repo("vksnake", "main", 1, 0)],
+    ));
+    app.screen = Screen::Detail;
+    let _ = render_to_string(&app, 6, 4);
 }
 
 fn sample_kanban() -> KanbanView {
@@ -649,6 +772,26 @@ async fn contract_kanban_types_deserialize() {
             .list_project_workspaces(p.id)
             .await
             .expect("list_project_workspaces deserializes");
+    }
+}
+
+/// Confirms the git mirror structs (`GitRepoStatus`, `WorkspaceSummary`)
+/// deserialize real `/api/workspaces/{id}/git/status` and `/summaries`
+/// payloads. Ignored by default — requires a running backend with a workspace.
+#[tokio::test]
+#[ignore = "requires a running backend with a workspace"]
+async fn contract_git_types_deserialize() {
+    let client = ApiClient::connect().await.expect("connect to backend");
+    let workspaces = client.list_workspaces().await.expect("list_workspaces");
+    if let Some(w) = workspaces.first() {
+        client
+            .git_status(w.id)
+            .await
+            .expect("git_status deserializes");
+        client
+            .workspace_summary(w.id)
+            .await
+            .expect("workspace_summary deserializes");
     }
 }
 

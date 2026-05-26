@@ -14,9 +14,19 @@ use utils::response::ApiResponse;
 use uuid::Uuid;
 
 use crate::api::types::{
-    CreateAndStartRequest, CreateAndStartResponse, CreateIssueRequest, FollowUpRequest, Issue,
-    Project, ProjectStatus, QueueRequest, RemoteWorkspace, Repo, Session, Workspace,
+    CreateAndStartRequest, CreateAndStartResponse, CreateIssueRequest, CreatePrRequest,
+    FollowUpRequest, GitRepoStatus, Issue, Project, ProjectStatus, QueueRequest, RebaseRequest,
+    RemoteWorkspace, Repo, RepoIdRequest, Session, Workspace, WorkspaceSummary,
 };
+
+/// Outcome of a (non-force) push attempt. The backend returns the
+/// force-push-required case as a non-error `200` with `error_data`, so it is not
+/// an `ApiError`.
+pub enum PushResult {
+    Pushed,
+    NeedsForce,
+    Failed(String),
+}
 
 #[derive(Debug, Error)]
 pub enum ApiError {
@@ -209,6 +219,129 @@ impl ApiClient {
             .await?;
         // Response payload is the resolved ApprovalOutcome; we only need success.
         unwrap_api_ok(resp).await
+    }
+
+    // ---- workspace git operations (detail view) ----
+
+    /// `GET /api/workspaces/{id}/git/status` — per-repo branch status
+    /// (ahead/behind, conflict/rebase state, target branch).
+    pub async fn git_status(&self, workspace_id: Uuid) -> Result<Vec<GitRepoStatus>, ApiError> {
+        let resp = self
+            .http
+            .get(format!(
+                "{}/workspaces/{workspace_id}/git/status",
+                self.base
+            ))
+            .send()
+            .await?;
+        unwrap_api(resp).await
+    }
+
+    /// `POST /api/workspaces/summaries` — pull the one summary (diff stats + PR
+    /// state) matching `workspace_id`, if present among the non-archived set.
+    pub async fn workspace_summary(
+        &self,
+        workspace_id: Uuid,
+    ) -> Result<Option<WorkspaceSummary>, ApiError> {
+        let resp = self
+            .http
+            .post(format!("{}/workspaces/summaries", self.base))
+            .json(&serde_json::json!({ "archived": false }))
+            .send()
+            .await?;
+        #[derive(serde::Deserialize)]
+        struct Summaries {
+            summaries: Vec<WorkspaceSummary>,
+        }
+        let list: Summaries = unwrap_api(resp).await?;
+        Ok(list
+            .summaries
+            .into_iter()
+            .find(|s| s.workspace_id == workspace_id))
+    }
+
+    /// `POST /api/workspaces/{id}/git/merge` — merge the branch into its target.
+    pub async fn merge_workspace(&self, ws: Uuid, repo_id: Uuid) -> Result<(), ApiError> {
+        let resp = self
+            .http
+            .post(format!("{}/workspaces/{ws}/git/merge", self.base))
+            .json(&RepoIdRequest { repo_id })
+            .send()
+            .await?;
+        unwrap_api_ok(resp).await
+    }
+
+    /// `POST /api/workspaces/{id}/git/rebase` — rebase onto the current target.
+    pub async fn rebase_workspace(&self, ws: Uuid, repo_id: Uuid) -> Result<(), ApiError> {
+        let resp = self
+            .http
+            .post(format!("{}/workspaces/{ws}/git/rebase", self.base))
+            .json(&RebaseRequest {
+                repo_id,
+                old_base_branch: None,
+                new_base_branch: None,
+            })
+            .send()
+            .await?;
+        unwrap_api_ok(resp).await
+    }
+
+    /// `POST /api/workspaces/{id}/git/push`. Distinguishes the
+    /// force-push-required case (returned as a non-error `200` carrying
+    /// `error_data: { type: "force_push_required" }`).
+    pub async fn push_workspace(&self, ws: Uuid, repo_id: Uuid) -> Result<PushResult, ApiError> {
+        let resp = self
+            .http
+            .post(format!("{}/workspaces/{ws}/git/push", self.base))
+            .json(&RepoIdRequest { repo_id })
+            .send()
+            .await?;
+        // Parse loosely so the force-push channel (`error_data`) is reachable;
+        // `ApiResponse` exposes no `error_data` accessor.
+        let body: serde_json::Value = resp.json().await?;
+        if body
+            .get("success")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
+            return Ok(PushResult::Pushed);
+        }
+        let etype = body
+            .get("error_data")
+            .and_then(|d| d.get("type"))
+            .and_then(|t| t.as_str());
+        if etype == Some("force_push_required") {
+            Ok(PushResult::NeedsForce)
+        } else {
+            let msg = body
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("push failed")
+                .to_string();
+            Ok(PushResult::Failed(msg))
+        }
+    }
+
+    /// `POST /api/workspaces/{id}/git/push/force`.
+    pub async fn force_push_workspace(&self, ws: Uuid, repo_id: Uuid) -> Result<(), ApiError> {
+        let resp = self
+            .http
+            .post(format!("{}/workspaces/{ws}/git/push/force", self.base))
+            .json(&RepoIdRequest { repo_id })
+            .send()
+            .await?;
+        unwrap_api_ok(resp).await
+    }
+
+    /// `POST /api/workspaces/{id}/pull-requests` — returns the new PR URL.
+    pub async fn create_pr(&self, ws: Uuid, req: &CreatePrRequest) -> Result<String, ApiError> {
+        let resp = self
+            .http
+            .post(format!("{}/workspaces/{ws}/pull-requests", self.base))
+            .json(req)
+            .send()
+            .await?;
+        unwrap_api(resp).await
     }
 
     // ---- local kanban (`/v1/*`, served at the server root) ----

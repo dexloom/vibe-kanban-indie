@@ -11,7 +11,7 @@ use ratatui::{
 
 use crate::{
     api::types::PRIORITIES,
-    app::{App, CardField, Modal},
+    app::{App, CardField, GitOp, Modal, PrField},
 };
 
 pub fn render(f: &mut Frame, modal: &Modal, app: &App, area: Rect) {
@@ -46,7 +46,92 @@ pub fn render(f: &mut Frame, modal: &Modal, app: &App, area: Rect) {
         ),
         Modal::ConfirmDelete { label, .. } => render_confirm_delete(f, label, area),
         Modal::CardDetail { issue_id } => render_card_detail(f, *issue_id, app, area),
+        Modal::ConfirmGit {
+            op,
+            repo_name,
+            target,
+            ..
+        } => render_confirm_git(f, *op, repo_name, target, area),
+        Modal::PrForm {
+            repo_name,
+            target,
+            title,
+            body,
+            field,
+            ..
+        } => render_pr_form(f, repo_name, target, title, body, *field, area),
     }
+}
+
+fn render_confirm_git(f: &mut Frame, op: GitOp, repo_name: &str, target: &str, area: Rect) {
+    let (verb, color) = match op {
+        GitOp::Merge => ("Merge", Color::Yellow),
+        GitOp::Rebase => ("Rebase", Color::Yellow),
+        GitOp::ForcePush => ("Force-push", Color::Red),
+    };
+    let detail = match op {
+        GitOp::Merge => format!("merge {repo_name} into {target}"),
+        GitOp::Rebase => format!("rebase {repo_name} onto {target}"),
+        GitOp::ForcePush => format!("force-push {repo_name} to its remote"),
+    };
+    let popup = centered(62, 7, area);
+    f.render_widget(Clear, popup);
+    let body = vec![
+        Line::from(vec![
+            Span::raw(format!("{verb} ")),
+            Span::raw(repo_name.to_string()).fg(Color::White).bold(),
+            Span::raw("?"),
+        ]),
+        Line::from(Span::raw(detail).fg(Color::Gray)),
+        Line::from(""),
+        Line::from("  y confirm   ·   n / esc cancel").dim(),
+    ];
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(color))
+        .title(format!(" {verb} "));
+    f.render_widget(
+        Paragraph::new(body).block(block).wrap(Wrap { trim: false }),
+        popup,
+    );
+}
+
+fn render_pr_form(
+    f: &mut Frame,
+    repo_name: &str,
+    target: &str,
+    title: &str,
+    body: &str,
+    field: PrField,
+    area: Rect,
+) {
+    let popup = centered(72, 9, area);
+    f.render_widget(Clear, popup);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan))
+        .title(" create PR — ⇥ field · ^s/⏎ submit · esc cancel ");
+    let inner = block.inner(popup);
+    f.render_widget(block, popup);
+
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1), // repo → target
+            Constraint::Length(2), // title
+            Constraint::Length(2), // body
+            Constraint::Min(1),
+        ])
+        .split(inner);
+
+    f.render_widget(
+        Paragraph::new(Line::from(
+            Span::raw(format!("{repo_name} → {target}")).fg(Color::Gray),
+        )),
+        rows[0],
+    );
+    text_field(f, rows[1], "title*", title, field == PrField::Title);
+    text_field(f, rows[2], "body", body, field == PrField::Body);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -146,7 +231,7 @@ fn render_card_detail(f: &mut Frame, issue_id: uuid::Uuid, app: &App, area: Rect
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Cyan))
-        .title(" card — esc close ");
+        .title(" card — w new workspace · esc close ");
     let inner = block.inner(popup);
     f.render_widget(block, popup);
 
@@ -181,13 +266,15 @@ fn render_card_detail(f: &mut Frame, issue_id: uuid::Uuid, app: &App, area: Rect
     let workspaces = k.workspaces_for(card.id);
     lines.push(Line::from(format!("workspaces ({})", workspaces.len())).fg(Color::Cyan));
     if workspaces.is_empty() {
-        lines.push(Line::from("  none — press w to run one").dim());
+        lines.push(Line::from("  none yet").dim());
     } else {
         for w in workspaces {
             let name = w.name.clone().unwrap_or_else(|| "workspace".into());
             lines.push(Line::from(format!("  ⧉ {name}")));
         }
     }
+    lines.push(Line::from(""));
+    lines.push(Line::from("  press w to create a workspace for this card").dim());
 
     f.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), inner);
 }

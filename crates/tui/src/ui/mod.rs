@@ -68,8 +68,9 @@ fn render_help(f: &mut Frame, area: Rect) {
         Line::from("  global    a  approvals inbox   ?  help   q  quit"),
         Line::from("  list      ↑↓/jk move · ⇥ pane · ⏎ open · n new task · b board · r refresh"),
         Line::from(
-            "  detail    ↑↓ scroll · n/p process · f follow · i message · s stop · esc back",
+            "  detail    ⇥/←→ pane · ↑↓ navigate · f follow · i message · s stop · esc back",
         ),
+        Line::from("  git pane  ↑↓ repo · m merge · R rebase · P create PR · u push"),
         Line::from("  inbox     ↑↓ move · y approve · d deny · ⏎ answer · esc back"),
         Line::from("  create    ⇥ field · ←→ cycle option · ^s create · esc cancel"),
         Line::from(

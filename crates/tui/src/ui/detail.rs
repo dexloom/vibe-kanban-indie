@@ -6,29 +6,169 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::{Line as TextLine, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
 
 use crate::{
-    api::types::ProcStatus,
-    app::{Detail, process_label},
+    api::types::{ProcStatus, WorkspaceSummary},
+    app::{Detail, DetailFocus, process_label},
     state::conversation::{Line, ToolBadge},
 };
 
-pub fn render(f: &mut Frame, detail: &Detail, area: Rect) {
-    let cols = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(28), Constraint::Min(20)])
-        .split(area);
-
-    render_processes(f, detail, cols[0]);
-    render_transcript(f, detail, cols[1]);
+/// Border colour for a pane: cyan when focused, dim grey otherwise.
+fn border(focused: bool) -> Style {
+    Style::default().fg(if focused {
+        Color::Cyan
+    } else {
+        Color::DarkGray
+    })
 }
 
-fn render_processes(f: &mut Frame, detail: &Detail, area: Rect) {
+pub fn render(f: &mut Frame, detail: &Detail, area: Rect) {
+    // processes · git pane (per-repo status + actions) · transcript.
+    let cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(24),
+            Constraint::Length(34),
+            Constraint::Min(20),
+        ])
+        .split(area);
+
+    render_processes(f, detail, cols[0], detail.focus == DetailFocus::Processes);
+    render_git(f, detail, cols[1], detail.focus == DetailFocus::Git);
+    render_transcript(f, detail, cols[2], detail.focus == DetailFocus::Transcript);
+}
+
+/// The git pane: workspace diff/PR summary on top, then one block per repo
+/// (branch → target, ahead/behind, conflict state), then the action hints.
+fn render_git(f: &mut Frame, detail: &Detail, area: Rect, focused: bool) {
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray))
+        .border_style(border(focused))
+        .title(" git ");
+
+    if detail.git_loading && detail.git.is_empty() {
+        f.render_widget(Paragraph::new("  loading…").dim().block(block), area);
+        return;
+    }
+    if let Some(err) = &detail.git_error {
+        f.render_widget(
+            Paragraph::new(format!("  {err}"))
+                .fg(Color::Red)
+                .block(block)
+                .wrap(Wrap { trim: false }),
+            area,
+        );
+        return;
+    }
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let mut lines: Vec<TextLine> = Vec::new();
+
+    // Workspace-level diff stats + PR state (from the summaries endpoint).
+    if let Some(s) = &detail.summary {
+        lines.push(TextLine::from(vec![
+            Span::raw(format!("+{}", s.lines_added.unwrap_or(0))).fg(Color::Green),
+            Span::raw(" "),
+            Span::raw(format!("−{}", s.lines_removed.unwrap_or(0))).fg(Color::Red),
+            Span::raw(format!("  ({} files)", s.files_changed.unwrap_or(0))).fg(Color::DarkGray),
+        ]));
+        if let Some(pr) = pr_line(s) {
+            lines.push(pr);
+        }
+    } else {
+        lines.push(TextLine::from("  diff stats unavailable").dim());
+    }
+    lines.push(TextLine::from(""));
+
+    if detail.git.is_empty() {
+        lines.push(TextLine::from("  no repos").dim());
+    }
+    for (i, r) in detail.git.iter().enumerate() {
+        let active = i == detail.repo_selected;
+        let marker = if active { "› " } else { "  " };
+        let name_style = if active {
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Gray)
+        };
+        lines.push(TextLine::from(vec![
+            Span::raw(marker).fg(Color::Cyan),
+            Span::styled(r.repo_name.clone(), name_style),
+        ]));
+        lines.push(TextLine::from(vec![
+            Span::raw("    "),
+            Span::raw(detail.workspace_branch.clone()).fg(Color::Gray),
+            Span::raw(" → ").fg(Color::DarkGray),
+            Span::raw(r.target_branch_name.clone()).fg(Color::DarkGray),
+        ]));
+        let mut counts = vec![
+            Span::raw("    "),
+            Span::raw(format!("↑{}", r.commits_ahead.unwrap_or(0))).fg(Color::Green),
+            Span::raw(" "),
+            Span::raw(format!("↓{}", r.commits_behind.unwrap_or(0))).fg(Color::Yellow),
+        ];
+        if r.has_uncommitted_changes == Some(true) {
+            counts.push(
+                Span::raw(format!("  ●{}", r.uncommitted_count.unwrap_or(0))).fg(Color::Magenta),
+            );
+        }
+        lines.push(TextLine::from(counts));
+        if let Some(op) = &r.conflict_op {
+            lines.push(TextLine::from(
+                Span::raw(format!(
+                    "    ⚠ {op} conflict ({})",
+                    r.conflicted_files.len()
+                ))
+                .fg(Color::Red),
+            ));
+        } else if r.is_rebase_in_progress {
+            lines.push(TextLine::from(
+                Span::raw("    ⚠ rebase in progress").fg(Color::Red),
+            ));
+        }
+        lines.push(TextLine::from(""));
+    }
+
+    if let Some(busy) = &detail.git_busy {
+        lines.push(TextLine::from(
+            Span::raw(format!("  … {busy}")).fg(Color::Yellow),
+        ));
+    }
+    lines.push(TextLine::from("  m merge · R rebase").dim());
+    lines.push(TextLine::from("  P pr · u push · ↑↓ repo").dim());
+
+    f.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), inner);
+}
+
+/// A one-line PR badge for the git pane, or `None` when there is no PR.
+fn pr_line(s: &WorkspaceSummary) -> Option<TextLine<'static>> {
+    let status = s.pr_status.as_deref()?;
+    if status.is_empty() || status == "none" {
+        return None;
+    }
+    let num = s.pr_number.map(|n| format!("#{n} ")).unwrap_or_default();
+    let color = match status {
+        "open" => Color::Blue,
+        "merged" => Color::Green,
+        "closed" => Color::Red,
+        _ => Color::Gray,
+    };
+    Some(TextLine::from(vec![
+        Span::raw(format!("PR {num}")).fg(Color::Gray),
+        Span::raw(status.to_string()).fg(color),
+    ]))
+}
+
+fn render_processes(f: &mut Frame, detail: &Detail, area: Rect, focused: bool) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(border(focused))
         .title(" processes ");
 
     let procs = detail.processes.processes();
@@ -65,12 +205,12 @@ fn render_processes(f: &mut Frame, detail: &Detail, area: Rect) {
     f.render_stateful_widget(list, area, &mut state);
 }
 
-fn render_transcript(f: &mut Frame, detail: &Detail, area: Rect) {
+fn render_transcript(f: &mut Frame, detail: &Detail, area: Rect, focused: bool) {
     let follow = if detail.follow { "follow" } else { "scroll" };
     let title = format!(" {} — transcript [{}] ", detail.session_label, follow);
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan))
+        .border_style(border(focused))
         .title(title);
 
     let lines = detail.conversation.lines();
