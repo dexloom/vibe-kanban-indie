@@ -134,7 +134,11 @@ fn repo_field(f: &mut Frame, area: Rect, form: &CreateForm) {
         Loadable::Ready(list) => {
             let name = list.get(form.repo_idx).map(|r| r.label()).unwrap_or("");
             let counter = format!("  ({}/{})", form.repo_idx + 1, list.len());
-            let line = Line::from(vec![
+            let is_project_repo = list
+                .get(form.repo_idx)
+                .map(|r| form.preferred_repo_ids.contains(&r.id))
+                .unwrap_or(false);
+            let mut spans = vec![
                 label_span("repo", focused),
                 Span::raw("◀ ").fg(Color::DarkGray),
                 Span::raw(name.to_string())
@@ -146,8 +150,11 @@ fn repo_field(f: &mut Frame, area: Rect, form: &CreateForm) {
                     }),
                 Span::raw(" ▶").fg(Color::DarkGray),
                 Span::raw(counter).dim(),
-            ]);
-            f.render_widget(Paragraph::new(line), area);
+            ];
+            if is_project_repo {
+                spans.push(Span::raw("  · project repo").fg(Color::Green));
+            }
+            f.render_widget(Paragraph::new(Line::from(spans)), area);
         }
     }
 }

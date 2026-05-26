@@ -73,6 +73,9 @@ pub enum AppEvent {
     },
     /// Repos loaded for the create-task form.
     Repos(Result<Vec<Repo>, String>),
+    /// Repos configured for the project a card-launched workspace belongs to;
+    /// used to preselect the project's repo in the create form.
+    ProjectRepos(Result<Vec<Repo>, String>),
     /// Result of creating + starting a workspace (carries the new workspace id).
     Created(Result<Uuid, String>),
     /// Projects loaded for the kanban board.
@@ -175,6 +178,9 @@ pub struct CreateForm {
     pub prompt: String,
     pub repos: Loadable<Vec<Repo>>,
     pub repo_idx: usize,
+    /// When launched from a card, the repo ids configured for that card's
+    /// project; the form preselects the first one that's registered.
+    pub preferred_repo_ids: Vec<Uuid>,
     pub branch: String,
     pub executor_idx: usize,
     pub field: CreateField,
@@ -188,6 +194,7 @@ impl CreateForm {
             prompt: String::new(),
             repos: Loadable::Loading,
             repo_idx: 0,
+            preferred_repo_ids: Vec::new(),
             // Empty until repos load; `submit_create` falls back to the selected
             // repo's default branch when this is blank.
             branch: String::new(),
@@ -595,6 +602,7 @@ impl App {
                 questions,
             } => self.on_question_options(approval_id, questions),
             AppEvent::Repos(r) => self.on_repos(r),
+            AppEvent::ProjectRepos(r) => self.on_project_repos(r),
             AppEvent::Created(r) => self.on_created(r),
             AppEvent::Projects(r) => self.on_projects(r),
             AppEvent::KanbanStatuses { project_id, result } => {
@@ -1632,20 +1640,51 @@ impl App {
     }
 
     fn on_repos(&mut self, r: Result<Vec<Repo>, String>) {
-        let Some(form) = &mut self.create else { return };
         match r {
             Ok(list) => {
-                // Show the selected repo's default branch (the user can override).
-                if form.branch.trim().is_empty()
-                    && let Some(def) = list
-                        .get(form.repo_idx)
-                        .and_then(|repo| repo.default_target_branch.clone())
-                {
-                    form.branch = def;
+                if let Some(form) = &mut self.create {
+                    form.repos = Loadable::Ready(list);
                 }
-                form.repos = Loadable::Ready(list);
+                self.apply_preferred_repo();
             }
-            Err(e) => form.repos = Loadable::Failed(e),
+            Err(e) => {
+                if let Some(form) = &mut self.create {
+                    form.repos = Loadable::Failed(e);
+                }
+            }
+        }
+    }
+
+    fn on_project_repos(&mut self, r: Result<Vec<Repo>, String>) {
+        if let (Some(form), Ok(list)) = (&mut self.create, r) {
+            form.preferred_repo_ids = list.into_iter().map(|repo| repo.id).collect();
+        }
+        self.apply_preferred_repo();
+    }
+
+    /// Once repos (and, for card launches, the project's preferred repos) have
+    /// loaded, select the project's repo and surface its default branch. Both
+    /// loads are async, so this runs from whichever arrives — and is a no-op
+    /// until the repo list is ready.
+    fn apply_preferred_repo(&mut self) {
+        let Some(form) = &mut self.create else { return };
+        let Loadable::Ready(list) = &form.repos else {
+            return;
+        };
+        if !form.preferred_repo_ids.is_empty()
+            && let Some(idx) = list
+                .iter()
+                .position(|repo| form.preferred_repo_ids.contains(&repo.id))
+        {
+            form.repo_idx = idx;
+        }
+        // Show the selected repo's default branch (the user can override).
+        if form.branch.trim().is_empty()
+            && let Some(def) = list
+                .get(form.repo_idx)
+                .and_then(|repo| repo.default_target_branch.clone())
+        {
+            form.branch = def;
         }
     }
 
@@ -2122,12 +2161,23 @@ impl App {
         form.prompt = prompt;
         self.create = Some(form);
         self.screen = Screen::Create;
-        // Load repos for the form (same as `open_create`).
+        // Load all repos for the form (same as `open_create`)…
         let client = self.client.clone();
         let tx = self.tx.clone();
         tokio::spawn(async move {
             let r = client.list_repos().await.map_err(|e| e.to_string());
             let _ = tx.send(AppEvent::Repos(r));
+        });
+        // …and the project's repos, so the form defaults to the project's repo
+        // rather than the global list's first entry.
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let r = client
+                .project_repos(project_id)
+                .await
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::ProjectRepos(r));
         });
     }
 

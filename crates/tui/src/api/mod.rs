@@ -352,6 +352,13 @@ impl ApiClient {
             .await
     }
 
+    /// `GET /v1/projects/{id}/repos` — repos linked to a project (used to
+    /// default a card-launched workspace to the project's repo).
+    pub async fn project_repos(&self, project_id: Uuid) -> Result<Vec<Repo>, ApiError> {
+        self.fallback_list(&format!("/v1/projects/{project_id}/repos"), "repos", &[])
+            .await
+    }
+
     /// `GET /v1/fallback/project_statuses?project_id=` — kanban columns.
     pub async fn list_statuses(&self, project_id: Uuid) -> Result<Vec<ProjectStatus>, ApiError> {
         self.fallback_list(

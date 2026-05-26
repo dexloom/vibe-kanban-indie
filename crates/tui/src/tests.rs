@@ -575,6 +575,7 @@ fn create_form_renders() {
         prompt: "split the module".to_string(),
         repos: Loadable::Ready(vec![sample_repo("my-repo")]),
         repo_idx: 0,
+        preferred_repo_ids: Vec::new(),
         branch: "main".to_string(),
         executor_idx: 0,
         field: CreateField::Prompt,
@@ -585,6 +586,44 @@ fn create_form_renders() {
     assert!(text.contains("split the module"), "prompt missing");
     assert!(text.contains("my-repo"), "repo name missing");
     assert!(text.contains("CLAUDE_CODE"), "executor missing");
+}
+
+#[test]
+fn create_form_preselects_project_repo() {
+    use crate::app::{AppEvent, CreateField, CreateForm, Screen};
+
+    let repo_a = sample_repo("vibe-kanban"); // global list order: first
+    let repo_b = sample_repo("vksnake"); // the project's repo
+    let b_id = repo_b.id;
+
+    let mut app = stub_app();
+    app.screen = Screen::Create;
+    app.create = Some(CreateForm {
+        name: String::new(),
+        prompt: "change snake color".to_string(),
+        repos: Loadable::Loading,
+        repo_idx: 0,
+        preferred_repo_ids: Vec::new(),
+        branch: String::new(),
+        executor_idx: 0,
+        field: CreateField::Prompt,
+        submitting: false,
+    });
+
+    // Project's repos arrive first (vksnake), then the global list (A then B).
+    app.update(AppEvent::ProjectRepos(Ok(vec![repo_b.clone()])));
+    app.update(AppEvent::Repos(Ok(vec![repo_a.clone(), repo_b.clone()])));
+
+    let form = app.create.as_ref().unwrap();
+    assert_eq!(
+        form.repo_idx, 1,
+        "should preselect the project's repo (vksnake)"
+    );
+    assert_eq!(form.preferred_repo_ids, vec![b_id]);
+
+    let text = render_to_string(&app, 100, 24);
+    assert!(text.contains("vksnake"), "selected repo shown");
+    assert!(text.contains("project repo"), "project-repo marker shown");
 }
 
 #[test]

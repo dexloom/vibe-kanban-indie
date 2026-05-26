@@ -29,7 +29,9 @@ use db::models::{
     kanban_tag::{IssueAssignee as DbIssueAssignee, IssueTag as DbIssueTag, KanbanTag},
     local_user::{LOCAL_USER_ID, LocalUser},
     project::{LOCAL_ORGANIZATION_ID, Project as DbProject},
+    project_repo::ProjectRepo,
     project_status::ProjectStatus as DbProjectStatus,
+    repo::Repo as DbRepo,
 };
 use deployment::Deployment;
 use serde::Deserialize;
@@ -100,6 +102,20 @@ async fn fb_users(
 ) -> Result<ResponseJson<Value>, ApiError> {
     let users = LocalUser::list_all(&deployment.db().pool).await?;
     Ok(ResponseJson(json!({ "users": users })))
+}
+
+/// `GET /v1/projects/{id}/repos` — the repos linked to a project (via
+/// `project_repos`, reconciled from `projects.toml`). Used by the TUI to
+/// default a card-launched workspace to the project's repo. Returns the full
+/// repo rows under `{ "repos": [...] }`, in the project's link order.
+async fn project_repos(
+    State(deployment): State<DeploymentImpl>,
+    Path(project_id): Path<Uuid>,
+) -> Result<ResponseJson<Value>, ApiError> {
+    let pool = &deployment.db().pool;
+    let repo_ids = ProjectRepo::list_repo_ids(pool, project_id).await?;
+    let repos = DbRepo::find_by_ids(pool, &repo_ids).await?;
+    Ok(ResponseJson(json!({ "repos": repos })))
 }
 
 async fn fb_statuses(
@@ -645,6 +661,7 @@ pub fn router() -> Router<DeploymentImpl> {
         .route("/v1/organizations", get(list_organizations))
         .route("/v1/organizations/{org_id}/members", get(list_org_members))
         .route("/v1/fallback/projects", get(fb_projects))
+        .route("/v1/projects/{id}/repos", get(project_repos))
         .route("/v1/fallback/users", get(fb_users))
         .route("/v1/fallback/project_statuses", get(fb_statuses))
         .route("/v1/fallback/issues", get(fb_issues))
@@ -683,4 +700,16 @@ pub fn router() -> Router<DeploymentImpl> {
             "/v1/issue_assignees/{id}",
             axum::routing::delete(delete_issue_assignee),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    /// The local-kanban router must build without a matchit path conflict.
+    /// Routes that share a position but use different param names (e.g.
+    /// `/v1/projects/{id}` vs `/v1/projects/{project_id}/repos`) panic at
+    /// registration, which would crash the server on startup.
+    #[test]
+    fn router_builds_without_route_conflicts() {
+        let _ = super::router();
+    }
 }
