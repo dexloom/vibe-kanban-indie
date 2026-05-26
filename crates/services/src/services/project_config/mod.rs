@@ -263,17 +263,34 @@ async fn reconcile_project(pool: &SqlitePool, cfg: &ProjectConfig) -> anyhow::Re
         }
     };
 
-    // Link repos by path.
+    // Link the declared repos, then prune any link no longer declared so the
+    // project's `repos` array in projects.toml is authoritative (add *and*
+    // remove). Project↔repo links are mutated only here — there is no GUI/API
+    // that touches them — so pruning cannot clobber out-of-band links. Unlinking
+    // only removes the grouping; it never deletes the repo, its worktrees, or
+    // any workspaces.
+    let mut declared_repo_ids = Vec::new();
     for repo_path in &cfg.repos {
         let expanded = expand_tilde(repo_path);
         if let Some(repo) = Repo::find_by_path(pool, &expanded).await? {
             ProjectRepo::link(pool, project.id, repo.id).await?;
+            declared_repo_ids.push(repo.id);
         } else {
             tracing::warn!(
                 "Project '{}' references unknown repo path '{}'",
                 cfg.name,
                 repo_path
             );
+        }
+    }
+    for existing in ProjectRepo::list_repo_ids(pool, project.id).await? {
+        if !declared_repo_ids.contains(&existing) {
+            tracing::info!(
+                "Unlinking repo {} from project '{}' (no longer in projects.toml)",
+                existing,
+                cfg.name
+            );
+            ProjectRepo::unlink(pool, project.id, existing).await?;
         }
     }
 
