@@ -1,26 +1,26 @@
 {
-  "name": "vibe-kanban",
+  "name": "vibe-kanban-indie",
   "private": false,
-  "version": "0.1.44",
+  "version": "0.1.0",
   "main": "index.js",
   "bin": {
-    "vibe-kanban": "bin/cli.js"
+    "vibe-kanban-indie": "bin/cli.js"
   },
   "scripts": {
     "build": "esbuild src/cli.ts --bundle --platform=node --target=node20 --format=cjs --outfile=bin/cli.js --external:adm-zip --banner:js=\"#!/usr/bin/env node\"",
     "check": "tsc --noEmit -p tsconfig.json"
   },
   "keywords": [],
-  "author": "bloop",
+  "author": "dexloom",
   "repository": {
     "type": "git",
-    "url": "https://github.com/BloopAI/vibe-kanban"
+    "url": "https://github.com/dexloom/vibe-kanban"
   },
   "engines": {
     "node": ">=20.19.0"
   },
   "license": "",
-  "description": "NPX wrapper around vibe-kanban and vibe-kanban-mcp",
+  "description": "NPX wrapper around vibe-kanban-indie — the single-developer, self-hosted fork of vibe-kanban with a TUI cockpit and Telegram channel orchestration",
   "devDependencies": {
     "esbuild": "^0.27.2"
   },

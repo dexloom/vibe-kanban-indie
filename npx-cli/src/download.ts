@@ -4,12 +4,18 @@ import path from 'path';
 import crypto from 'crypto';
 import os from 'os';
 
-// Replaced during npm pack by workflow
-export const R2_BASE_URL = '__R2_PUBLIC_URL__';
-export const BINARY_TAG = '__BINARY_TAG__'; // e.g., v0.0.135-20251215122030
+// Prebuilt binaries are hosted as GitHub Release assets on the fork repo.
+// The release tag is derived from this package's version, so tagging a commit
+// `v<version>` and publishing the matching npm version keeps them in lockstep.
+export const GITHUB_REPO = 'dexloom/vibe-kanban';
+const PKG_VERSION: string = require('../package.json').version;
+export const BINARY_TAG = `v${PKG_VERSION}`; // e.g., v0.1.0
+export const RELEASE_BASE = `https://github.com/${GITHUB_REPO}/releases/download/${BINARY_TAG}`;
+// Always resolves to the newest release's manifest (used for update checks).
+export const LATEST_MANIFEST_URL = `https://github.com/${GITHUB_REPO}/releases/latest/download/manifest.json`;
 export const CACHE_DIR = path.join(os.homedir(), '.vibe-kanban', 'bin');
 
-// Local development mode: use binaries from npx-cli/dist/ instead of R2
+// Local development mode: use binaries from npx-cli/dist/ instead of GitHub
 // Only activate if dist/ exists (i.e., running from source after local-build.sh)
 export const LOCAL_DIST_DIR = path.join(__dirname, '..', 'dist');
 export const LOCAL_DEV_MODE =
@@ -181,7 +187,7 @@ export async function ensureBinary(
   fs.mkdirSync(cacheDir, { recursive: true });
 
   const manifest = await fetchJson<BinaryManifest>(
-    `${R2_BASE_URL}/binaries/${BINARY_TAG}/manifest.json`
+    `${RELEASE_BASE}/manifest.json`
   );
   const binaryInfo = manifest.platforms?.[platform]?.[binaryName];
 
@@ -191,7 +197,7 @@ export async function ensureBinary(
     );
   }
 
-  const url = `${R2_BASE_URL}/binaries/${BINARY_TAG}/${platform}/${binaryName}.zip`;
+  const url = `${RELEASE_BASE}/${binaryName}-${platform}.zip`;
   await downloadFile(url, zipPath, binaryInfo.sha256, onProgress);
 
   return zipPath;
@@ -243,7 +249,7 @@ export async function ensureDesktopBundle(
 
   // Fetch the desktop manifest
   const manifest = await fetchJson<DesktopManifest>(
-    `${R2_BASE_URL}/binaries/${BINARY_TAG}/tauri/desktop-manifest.json`
+    `${RELEASE_BASE}/tauri/desktop-manifest.json`
   );
   const platformInfo = manifest.platforms?.[tauriPlatform];
   if (!platformInfo) {
@@ -256,7 +262,7 @@ export async function ensureDesktopBundle(
 
   // Skip download if file already exists (e.g. previous failed install)
   if (!fs.existsSync(destPath)) {
-    const url = `${R2_BASE_URL}/binaries/${BINARY_TAG}/tauri/${tauriPlatform}/${platformInfo.file}`;
+    const url = `${RELEASE_BASE}/tauri/${tauriPlatform}/${platformInfo.file}`;
     await downloadFile(url, destPath, platformInfo.sha256, onProgress);
   }
 
@@ -268,8 +274,6 @@ export async function ensureDesktopBundle(
 }
 
 export async function getLatestVersion(): Promise<string | undefined> {
-  const manifest = await fetchJson<BinaryManifest>(
-    `${R2_BASE_URL}/binaries/manifest.json`
-  );
+  const manifest = await fetchJson<BinaryManifest>(LATEST_MANIFEST_URL);
   return manifest.latest;
 }

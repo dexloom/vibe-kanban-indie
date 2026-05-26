@@ -10,7 +10,6 @@ import {
   DESKTOP_CACHE_DIR,
   LOCAL_DEV_MODE,
   LOCAL_DIST_DIR,
-  R2_BASE_URL,
   getLatestVersion,
 } from "./download";
 import {
@@ -196,8 +195,7 @@ async function extractAndRun(
 }
 
 function checkForUpdates(): void {
-  const hasValidR2Url = !R2_BASE_URL.startsWith("__");
-  if (LOCAL_DEV_MODE || !hasValidR2Url) {
+  if (LOCAL_DEV_MODE) {
     return;
   }
 
@@ -206,7 +204,7 @@ function checkForUpdates(): void {
       if (latest && latest !== CLI_VERSION) {
         setTimeout(() => {
           console.log(`\nUpdate available: ${CLI_VERSION} -> ${latest}`);
-          console.log(`Run: npx vibe-kanban@latest`);
+          console.log(`Run: npx vibe-kanban-indie@latest`);
         }, 2000);
       }
     })
@@ -252,7 +250,7 @@ async function runMain(desktopMode: boolean): Promise<void> {
   if (desktopMode && tauriPlatform) {
     try {
       console.log(
-        `Starting vibe-kanban desktop v${CLI_VERSION}${modeLabel}...`,
+        `Starting vibe-kanban-indie desktop v${CLI_VERSION}${modeLabel}...`,
       );
       const bundleInfo = await ensureDesktopBundle(tauriPlatform, showProgress);
       console.error(""); // newline after progress
@@ -272,7 +270,7 @@ async function runMain(desktopMode: boolean): Promise<void> {
   }
 
   // Browser mode (default — headless server + opens browser)
-  console.log(`Starting vibe-kanban v${CLI_VERSION}${modeLabel}...`);
+  console.log(`Starting vibe-kanban-indie v${CLI_VERSION}${modeLabel}...`);
   await extractAndRun("vibe-kanban", (bin) => {
     execSync(`"${bin}"`, { stdio: "inherit" });
   });
@@ -307,7 +305,7 @@ function runOrExit(task: Promise<void>): void {
 
 async function main(): Promise<void> {
   fs.mkdirSync(versionCacheDir, { recursive: true });
-  const cli = cac("vibe-kanban");
+  const cli = cac("vibe-kanban-indie");
 
   cli
     .command("[...args]", "Launch the local vibe-kanban app")
