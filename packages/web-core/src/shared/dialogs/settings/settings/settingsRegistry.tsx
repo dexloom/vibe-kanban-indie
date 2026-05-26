@@ -6,6 +6,7 @@ import {
   CpuIcon,
   PlugIcon,
   BroadcastIcon,
+  TelegramLogoIcon,
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { GeneralSettingsSection } from './GeneralSettingsSection';
@@ -15,6 +16,7 @@ import { RemoteProjectsSettingsSection } from './RemoteProjectsSettingsSection';
 import { AgentsSettingsSection } from './AgentsSettingsSection';
 import { McpSettingsSection } from './McpSettingsSection';
 import { RelaySettingsSectionContent } from './RelaySettingsSection';
+import { TelegramSettingsSection } from './TelegramSettingsSection';
 
 export type SettingsSectionType =
   | 'general'
@@ -23,7 +25,8 @@ export type SettingsSectionType =
   | 'remote-projects'
   | 'agents'
   | 'mcp'
-  | 'relay';
+  | 'relay'
+  | 'telegram';
 
 export type SettingsSectionGroup = 'host' | 'universal';
 
@@ -37,6 +40,7 @@ export type SettingsSectionInitialState = {
   agents: { executor?: string; variant?: string } | undefined;
   mcp: undefined;
   relay: { hostId?: string } | undefined;
+  telegram: undefined;
 };
 
 export interface SettingsSectionDefinition {
@@ -50,6 +54,7 @@ export const SETTINGS_SECTION_DEFINITIONS: SettingsSectionDefinition[] = [
   { id: 'repos', icon: GitBranchIcon, group: 'host' },
   { id: 'agents', icon: CpuIcon, group: 'host' },
   { id: 'mcp', icon: PlugIcon, group: 'host' },
+  { id: 'telegram', icon: TelegramLogoIcon, group: 'host' },
   { id: 'organizations', icon: BuildingsIcon, group: 'universal' },
   { id: 'remote-projects', icon: CloudIcon, group: 'universal' },
   { id: 'relay', icon: BroadcastIcon, group: 'universal' },
@@ -99,6 +104,8 @@ export function renderSettingsSection(
           onClose={onClose}
         />
       );
+    case 'telegram':
+      return <TelegramSettingsSection />;
     default:
       return <GeneralSettingsSection />;
   }

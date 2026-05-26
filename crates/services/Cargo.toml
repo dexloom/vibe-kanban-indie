@@ -23,6 +23,9 @@ tokio-util = { version = "0.7", features = ["io"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = "0.8"
+# Format-preserving TOML writer for projects.toml round-trip CRUD. Pinned to the
+# version already pulled transitively by `toml = "0.8"` to avoid a duplicate.
+toml_edit = "0.20"
 url = "2.5"
 anyhow = { workspace = true }
 tracing = { workspace = true }

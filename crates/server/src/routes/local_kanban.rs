@@ -14,7 +14,7 @@ use api_types::{
     CreateProjectStatusRequest, CreateTagRequest, DeleteResponse, IssuePriority,
     ListMembersResponse, ListOrganizationsResponse, MemberRole, MutationResponse,
     OrganizationMemberWithProfile, OrganizationWithRole, Project as ApiProject, UpdateIssueRequest,
-    UpdateProjectRequest, UpdateProjectStatusRequest, UpdateTagRequest,
+    UpdateProjectRequest, UpdateProjectStatusRequest, UpdateTagRequest, Workspace as ApiWorkspace,
 };
 use axum::{
     Router,
@@ -25,14 +25,18 @@ use axum::{
 use chrono::Utc;
 use db::models::{
     issue::{Issue as DbIssue, IssueUpdate, NewIssue},
+    issue_workspace::{IssueWorkspace, LinkedWorkspaceRow},
     kanban_tag::{IssueAssignee as DbIssueAssignee, IssueTag as DbIssueTag, KanbanTag},
     local_user::{LOCAL_USER_ID, LocalUser},
     project::{LOCAL_ORGANIZATION_ID, Project as DbProject},
+    project_repo::ProjectRepo,
     project_status::ProjectStatus as DbProjectStatus,
+    repo::Repo as DbRepo,
 };
 use deployment::Deployment;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use services::services::project_config;
 use uuid::Uuid;
 
 use crate::{DeploymentImpl, error::ApiError};
@@ -100,6 +104,20 @@ async fn fb_users(
     Ok(ResponseJson(json!({ "users": users })))
 }
 
+/// `GET /v1/projects/{id}/repos` — the repos linked to a project (via
+/// `project_repos`, reconciled from `projects.toml`). Used by the TUI to
+/// default a card-launched workspace to the project's repo. Returns the full
+/// repo rows under `{ "repos": [...] }`, in the project's link order.
+async fn project_repos(
+    State(deployment): State<DeploymentImpl>,
+    Path(project_id): Path<Uuid>,
+) -> Result<ResponseJson<Value>, ApiError> {
+    let pool = &deployment.db().pool;
+    let repo_ids = ProjectRepo::list_repo_ids(pool, project_id).await?;
+    let repos = DbRepo::find_by_ids(pool, &repo_ids).await?;
+    Ok(ResponseJson(json!({ "repos": repos })))
+}
+
 async fn fb_statuses(
     State(deployment): State<DeploymentImpl>,
     Query(q): Query<ProjectScope>,
@@ -138,6 +156,46 @@ async fn fb_issue_assignees(
 ) -> Result<ResponseJson<Value>, ApiError> {
     let rows = DbIssueAssignee::list_by_project(&deployment.db().pool, q.project_id).await?;
     Ok(ResponseJson(json!({ "issue_assignees": rows })))
+}
+
+/// Synthesize the wire `Workspace` shape from a local issue<->workspace link.
+/// `id` and `local_workspace_id` are both the local workspace id so the frontend
+/// can map the row back to its local workspace; stats are left empty.
+fn to_api_workspace(row: LinkedWorkspaceRow) -> ApiWorkspace {
+    ApiWorkspace {
+        id: row.workspace_id,
+        project_id: row.project_id,
+        owner_user_id: LOCAL_USER_ID,
+        issue_id: Some(row.issue_id),
+        local_workspace_id: Some(row.workspace_id),
+        name: row.name,
+        archived: row.archived,
+        files_changed: None,
+        lines_added: None,
+        lines_removed: None,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
+}
+
+/// Workspaces linked to any issue in a project. Drives the web Kanban's
+/// per-card workspace section (`PROJECT_WORKSPACES_SHAPE`) and the TUI board.
+async fn fb_project_workspaces(
+    State(deployment): State<DeploymentImpl>,
+    Query(q): Query<ProjectScope>,
+) -> Result<ResponseJson<Value>, ApiError> {
+    let rows = IssueWorkspace::list_linked_by_project(&deployment.db().pool, q.project_id).await?;
+    let mapped: Vec<ApiWorkspace> = rows.into_iter().map(to_api_workspace).collect();
+    Ok(ResponseJson(json!({ "workspaces": mapped })))
+}
+
+/// All linked workspaces (`USER_WORKSPACES_SHAPE`); local mode has one user.
+async fn fb_user_workspaces(
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<Value>, ApiError> {
+    let rows = IssueWorkspace::list_linked_all(&deployment.db().pool).await?;
+    let mapped: Vec<ApiWorkspace> = rows.into_iter().map(to_api_workspace).collect();
+    Ok(ResponseJson(json!({ "workspaces": mapped })))
 }
 
 // ---------------------------------------------------------------------------
@@ -190,17 +248,8 @@ async fn create_project(
     ResponseJson(req): ResponseJson<CreateProjectRequest>,
 ) -> Result<ResponseJson<MutationResponse<ApiProject>>, ApiError> {
     let id = req.id.unwrap_or_else(Uuid::new_v4);
-    let key = derive_key(&req.name);
-    let project = DbProject::create(
-        &deployment.db().pool,
-        id,
-        &req.name,
-        Some(&key),
-        &req.color,
-        0,
-        None,
-    )
-    .await?;
+    let project =
+        project_config::create_project(&deployment.db().pool, id, &req.name, &req.color).await?;
     Ok(mutation(to_api_project(project)))
 }
 
@@ -218,7 +267,7 @@ async fn update_project(
         .sort_order
         .map(|v| v as i64)
         .unwrap_or(existing.sort_order);
-    let project = DbProject::update_fields(
+    let project = project_config::update_project(
         &deployment.db().pool,
         id,
         &name,
@@ -257,7 +306,7 @@ async fn bulk_projects(
                 .sort_order
                 .map(|v| v as i64)
                 .unwrap_or(existing.sort_order);
-            let p = DbProject::update_fields(
+            let p = project_config::update_project(
                 pool,
                 item.id,
                 &name,
@@ -277,7 +326,7 @@ async fn delete_project(
     State(deployment): State<DeploymentImpl>,
     Path(id): Path<Uuid>,
 ) -> Result<ResponseJson<DeleteResponse>, ApiError> {
-    DbProject::delete(&deployment.db().pool, id).await?;
+    project_config::delete_project(&deployment.db().pool, id).await?;
     Ok(deleted())
 }
 
@@ -612,12 +661,18 @@ pub fn router() -> Router<DeploymentImpl> {
         .route("/v1/organizations", get(list_organizations))
         .route("/v1/organizations/{org_id}/members", get(list_org_members))
         .route("/v1/fallback/projects", get(fb_projects))
+        .route("/v1/projects/{id}/repos", get(project_repos))
         .route("/v1/fallback/users", get(fb_users))
         .route("/v1/fallback/project_statuses", get(fb_statuses))
         .route("/v1/fallback/issues", get(fb_issues))
         .route("/v1/fallback/tags", get(fb_tags))
         .route("/v1/fallback/issue_tags", get(fb_issue_tags))
         .route("/v1/fallback/issue_assignees", get(fb_issue_assignees))
+        .route(
+            "/v1/fallback/project_workspaces",
+            get(fb_project_workspaces),
+        )
+        .route("/v1/fallback/user_workspaces", get(fb_user_workspaces))
         .route("/v1/projects", post(create_project))
         .route("/v1/projects/bulk", post(bulk_projects))
         .route(
@@ -645,4 +700,16 @@ pub fn router() -> Router<DeploymentImpl> {
             "/v1/issue_assignees/{id}",
             axum::routing::delete(delete_issue_assignee),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    /// The local-kanban router must build without a matchit path conflict.
+    /// Routes that share a position but use different param names (e.g.
+    /// `/v1/projects/{id}` vs `/v1/projects/{project_id}/repos`) panic at
+    /// registration, which would crash the server on startup.
+    #[test]
+    fn router_builds_without_route_conflicts() {
+        let _ = super::router();
+    }
 }

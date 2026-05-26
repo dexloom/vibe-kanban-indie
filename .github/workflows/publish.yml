@@ -1,8 +1,11 @@
-name: Publish to npm
+name: Publish to npm (upstream R2 flow — disabled for the indie fork)
 
+# NOTE: The indie fork publishes via `.github/workflows/release-indie.yml`, which
+# builds binaries, creates the GitHub Release, and runs `npm publish` itself.
+# The original `release: [released]` trigger is removed so this upstream R2-based
+# flow does not double-publish when release-indie.yml creates a Release. It is
+# kept here (manual-only) for reference.
 on:
-  release:
-    types: [released]
   workflow_dispatch:
     inputs:
       tag_name:

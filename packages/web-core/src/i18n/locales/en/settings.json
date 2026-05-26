@@ -32,7 +32,9 @@
         "remote-projects": "Projects",
         "remote-projectsDesc": "Manage projects",
         "relay": "Remote Access",
-        "relayDesc": "Relay tunnel and enrollment"
+        "relayDesc": "Relay tunnel and enrollment",
+        "telegram": "Telegram",
+        "telegramDesc": "Agent escalations to Telegram"
       }
     },
     "hostPicker": {
@@ -553,6 +555,37 @@
       },
       "client": {
         "label": "Client"
+      }
+    },
+    "telegram": {
+      "title": "Telegram",
+      "description": "Send agent approval escalations to a Telegram supergroup. Configure this by hand-editing the TOML file below; the vibe-telegram-bridge daemon delivers the messages.",
+      "status": {
+        "title": "Status",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "configured": "Configured",
+        "notConfigured": "Not configured",
+        "chatId": "Chat ID",
+        "tokenSource": "Token source",
+        "perWorktreeTopics": "Per-worktree topics",
+        "on": "On",
+        "off": "Off",
+        "bridgeConnected": "Bridge running",
+        "bridgeDisconnected": "Bridge not running",
+        "lastSeen": "Last seen {{time}}",
+        "loadError": "Failed to load Telegram status"
+      },
+      "test": {
+        "button": "Send test message",
+        "sending": "Sending…",
+        "success": "Test message sent",
+        "failure": "Failed: {{error}}"
+      },
+      "config": {
+        "title": "Configuration file",
+        "description": "Edit this file, then restart the bridge to apply changes.",
+        "example": "Example telegram.toml"
       }
     },
     "remoteProjects": {

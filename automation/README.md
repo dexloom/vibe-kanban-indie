@@ -14,7 +14,7 @@ See the design plan: `~/.claude/plans/ethereal-crafting-lemon.md`.
 | Component | What it is | Where |
 |---|---|---|
 | **TUI** (`vibe-tui`) | Terminal cockpit: list workspaces/sessions, watch live agent transcripts, and an **approvals inbox** to approve/deny/answer locally. Also the always-available manual override. | `crates/tui` |
-| **Bridge** (`vibe-telegram-bridge`) | Send-only daemon: backend approvals stream → Telegram escalation messages (with a machine-readable footer). Never reads Telegram, never polls the bot token. | `crates/telegram-bridge` |
+| **Bridge** (`vibe-telegram-bridge`) | Send-only daemon: backend approvals stream → Telegram escalation messages (with a machine-readable footer). Optionally spawns a **per-worktree forum topic** for each Claude Code worktree and routes that worktree's escalations there. Never reads Telegram, never polls the bot token. | `crates/telegram-bridge` |
 | **MCP approval tools** | `respond_to_approval` + `stop_execution` added to `vibe-kanban-mcp` (global mode) so the PM agent can unblock/stop agents. | `crates/mcp` |
 | **PM agent** | A Claude Code session on the sombrax-telegram channel that reads escalations, decides within guardrails, and acts via the MCP tools. | `automation/pm-agent` |
 
@@ -52,14 +52,37 @@ messaging in Telegram while the PM agent is up.
    ```
    Keys: `a` approvals inbox · `n` new task · `i` message an agent · `?` help.
 
-3. **Telegram bridge** — requires a bot token (same file the sombrax-telegram
-   listener uses) and the target supergroup:
+3. **Telegram bridge** — configured by `~/.vibe-kanban/telegram.toml` (the bot
+   token still falls back to `$TELEGRAM_BOT_TOKEN` or
+   `~/.claude/channels/telegram/.env`, the same file the sombrax-telegram
+   listener uses):
+   ```toml
+   # ~/.vibe-kanban/telegram.toml
+   enabled = true
+   bot_token = "123456:ABC..."        # optional; falls back to env / .env file
+   chat_id = "-1001234567890"         # your supergroup (must have Topics enabled)
+   general_thread_id = "1"            # optional General topic
+   per_worktree_topics = true         # spawn a forum topic per Claude Code worktree
+   # topic_executors = ["CLAUDE_CODE"]  # optional; which executors get a topic
+   # topic_name_template = "vk: {name}" # optional; {name}/{branch} substituted
+   ```
    ```bash
-   export VK_TG_CHAT_ID="-1001234567890"          # your supergroup
-   export VK_TG_GENERAL_THREAD_ID="1"             # optional General topic
-   # token read from $TELEGRAM_BOT_TOKEN or ~/.claude/channels/telegram/.env
    cargo run -p telegram-bridge
    ```
+   When `enabled = false` (or no config and no `VK_TG_CHAT_ID`) the daemon exits
+   cleanly. Legacy env vars (`VK_TG_CHAT_ID`, `VK_TG_GENERAL_THREAD_ID`) still
+   work as a fallback when the TOML is absent.
+
+   With `per_worktree_topics = true`, the bridge watches the backend's
+   `/api/events` stream and, when a Claude Code worktree starts, creates a forum
+   topic named from `topic_name_template` and routes that worktree's escalations
+   into it (everything else goes to the General area). The
+   `workspace_id → message_thread_id` map is persisted in
+   `~/.vibe-kanban/telegram-topics.json` so restarts reuse existing topics.
+
+   The app surfaces a **Settings → Telegram** panel (status + a "Send test
+   message" button); it reads `telegram.toml` and the bridge's heartbeat file
+   but does not edit the config — the TOML is hand-edited.
 
 4. **PM agent** — a long-lived Claude Code session on the sombrax-telegram
    channel, with the vibe-kanban MCP in **global** mode and the PM prompt/policy:

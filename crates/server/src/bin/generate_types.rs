@@ -92,6 +92,8 @@ fn generate_types_content() -> String {
         server::routes::repo::RegisterRepoRequest::decl(),
         server::routes::repo::InitRepoRequest::decl(),
         server::routes::tags::TagSearchParams::decl(),
+        server::routes::telegram::TelegramStatus::decl(),
+        server::routes::telegram::TelegramTestResponse::decl(),
         server::routes::oauth::TokenResponse::decl(),
         server::routes::config::UserSystemInfo::decl(),
         server::routes::config::Environment::decl(),

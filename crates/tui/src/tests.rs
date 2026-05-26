@@ -8,6 +8,7 @@
 //!   `VIBE_BACKEND_URL=http://127.0.0.1:8910 cargo test -p tui -- --ignored`
 
 use chrono::Utc;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use json_patch::Patch;
 use ratatui::{Terminal, backend::TestBackend};
 use serde_json::json;
@@ -17,9 +18,12 @@ use uuid::Uuid;
 use crate::{
     api::{
         ApiClient,
-        types::{Session, Workspace},
+        types::{GitRepoStatus, Issue, Project, ProjectStatus, Session, Workspace},
     },
-    app::{App, Loadable},
+    app::{
+        App, AppEvent, CardField, Detail, DetailFocus, GitOp, KanbanView, Loadable, Modal, PrField,
+        Screen,
+    },
     state::conversation::{Conversation, Line, ToolBadge},
     ws::{Decoded, decode_frame},
 };
@@ -116,6 +120,242 @@ fn renders_all_loadable_states_without_panic() {
     // Tiny terminal must not panic.
     let app = stub_app();
     let _ = render_to_string(&app, 4, 3);
+}
+
+fn sample_git_repo(name: &str, target: &str, ahead: usize, behind: usize) -> GitRepoStatus {
+    GitRepoStatus {
+        repo_id: Uuid::new_v4(),
+        repo_name: name.to_string(),
+        commits_ahead: Some(ahead),
+        commits_behind: Some(behind),
+        remote_commits_ahead: None,
+        remote_commits_behind: None,
+        has_uncommitted_changes: Some(false),
+        uncommitted_count: Some(0),
+        target_branch_name: target.to_string(),
+        is_rebase_in_progress: false,
+        conflict_op: None,
+        conflicted_files: Vec::new(),
+        is_target_remote: false,
+    }
+}
+
+#[test]
+fn renders_git_pane_with_multiple_repos() {
+    let mut app = stub_app();
+    let ws = sample_workspace("snake");
+    let ws_id = ws.id;
+    app.workspaces = Loadable::Ready(vec![ws]);
+    app.sessions = Loadable::Ready(vec![sample_session(ws_id, "attempt-1")]);
+    app.sessions_for = Some(ws_id);
+    app.detail = Some(Detail::for_test(
+        ws_id,
+        vec![
+            sample_git_repo("vksnake", "main", 3, 1),
+            sample_git_repo("ui", "main", 0, 0),
+        ],
+    ));
+    app.screen = Screen::Detail;
+
+    let text = render_to_string(&app, 120, 30);
+    assert!(text.contains("git"), "git pane title missing");
+    assert!(text.contains("vksnake"), "first repo missing");
+    assert!(text.contains("ui"), "second repo missing");
+    assert!(text.contains("merge"), "action hints missing");
+}
+
+#[test]
+fn detail_tab_cycles_pane_focus() {
+    let mut app = stub_app();
+    let ws = sample_workspace("snake");
+    let ws_id = ws.id;
+    app.workspaces = Loadable::Ready(vec![ws]);
+    app.detail = Some(Detail::for_test(
+        ws_id,
+        vec![sample_git_repo("vksnake", "main", 1, 0)],
+    ));
+    app.screen = Screen::Detail;
+
+    let focus = |app: &App| app.detail.as_ref().unwrap().focus;
+    let tab = || AppEvent::Key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+
+    assert_eq!(focus(&app), DetailFocus::Transcript);
+    app.update(tab());
+    assert_eq!(focus(&app), DetailFocus::Processes);
+    app.update(tab());
+    assert_eq!(focus(&app), DetailFocus::Git);
+    app.update(tab());
+    assert_eq!(focus(&app), DetailFocus::Transcript, "focus wraps around");
+
+    // ↑↓ in the git pane moves the repo selection, not the transcript.
+    app.update(tab()); // → Processes
+    app.update(tab()); // → Git
+    app.detail
+        .as_mut()
+        .unwrap()
+        .git
+        .push(sample_git_repo("ui", "main", 0, 0));
+    app.update(AppEvent::Key(KeyEvent::new(
+        KeyCode::Down,
+        KeyModifiers::NONE,
+    )));
+    assert_eq!(app.detail.as_ref().unwrap().repo_selected, 1);
+}
+
+#[test]
+fn renders_git_modals_without_panic() {
+    // Confirm modal for a destructive op.
+    let mut app = stub_app();
+    app.modal = Some(Modal::ConfirmGit {
+        op: GitOp::Merge,
+        workspace_id: Uuid::new_v4(),
+        repo_id: Uuid::new_v4(),
+        repo_name: "vksnake".into(),
+        target: "main".into(),
+    });
+    let text = render_to_string(&app, 100, 24);
+    assert!(text.contains("Merge"), "merge confirm missing");
+
+    // Create-PR form.
+    let mut app = stub_app();
+    app.modal = Some(Modal::PrForm {
+        workspace_id: Uuid::new_v4(),
+        repo_id: Uuid::new_v4(),
+        repo_name: "vksnake".into(),
+        target: "main".into(),
+        title: "Add snake game".into(),
+        body: String::new(),
+        field: PrField::Title,
+    });
+    let text = render_to_string(&app, 100, 24);
+    assert!(text.contains("create PR"), "PR form title missing");
+    assert!(text.contains("Add snake game"), "PR title value missing");
+
+    // Tiny terminal must not panic with a detail + git data.
+    let mut app = stub_app();
+    app.detail = Some(Detail::for_test(
+        Uuid::new_v4(),
+        vec![sample_git_repo("vksnake", "main", 1, 0)],
+    ));
+    app.screen = Screen::Detail;
+    let _ = render_to_string(&app, 6, 4);
+}
+
+fn sample_kanban() -> KanbanView {
+    let project_id = Uuid::new_v4();
+    let status_id = Uuid::new_v4();
+    let issue = Issue {
+        id: Uuid::new_v4(),
+        project_id,
+        status_id,
+        simple_id: "ACME-1".into(),
+        title: "Wire up login".into(),
+        description: Some("Add OAuth".into()),
+        priority: Some("high".into()),
+        sort_order: 0.0,
+        parent_issue_id: None,
+    };
+    let mut issues_by_status = std::collections::HashMap::new();
+    issues_by_status.insert(status_id, vec![issue]);
+    KanbanView {
+        projects: vec![Project {
+            id: project_id,
+            name: "Acme".into(),
+            color: "#6366f1".into(),
+            sort_order: 0,
+        }],
+        project_idx: 0,
+        statuses: vec![ProjectStatus {
+            id: status_id,
+            project_id,
+            name: "Todo".into(),
+            color: "#6366f1".into(),
+            sort_order: 0,
+            hidden: false,
+        }],
+        issues_by_status,
+        workspaces: Vec::new(),
+        col_idx: 0,
+        card_idx: 0,
+        loading: false,
+        error: None,
+        pending_link: None,
+    }
+}
+
+#[test]
+fn renders_kanban_board() {
+    let mut app = stub_app();
+    app.kanban = Some(sample_kanban());
+    app.screen = Screen::Kanban;
+
+    let text = render_to_string(&app, 100, 24);
+    assert!(text.contains("Acme"), "project name missing");
+    assert!(text.contains("Todo"), "column name missing");
+    assert!(text.contains("ACME-1"), "card simple_id missing");
+    assert!(text.contains("Wire up login"), "card title missing");
+}
+
+#[test]
+fn renders_kanban_states_without_panic() {
+    // No projects (loading).
+    let mut app = stub_app();
+    app.kanban = Some(KanbanView {
+        projects: Vec::new(),
+        project_idx: 0,
+        statuses: Vec::new(),
+        issues_by_status: std::collections::HashMap::new(),
+        workspaces: Vec::new(),
+        col_idx: 0,
+        card_idx: 0,
+        loading: true,
+        error: None,
+        pending_link: None,
+    });
+    app.screen = Screen::Kanban;
+    let _ = render_to_string(&app, 80, 24);
+
+    // Populated board on a tiny terminal must not panic.
+    let mut app = stub_app();
+    app.kanban = Some(sample_kanban());
+    app.screen = Screen::Kanban;
+    let _ = render_to_string(&app, 6, 4);
+}
+
+#[test]
+fn renders_card_modals_without_panic() {
+    let mut app = stub_app();
+    let kv = sample_kanban();
+    let issue_id = kv
+        .issues_by_status
+        .values()
+        .flatten()
+        .next()
+        .expect("a card")
+        .id;
+    app.kanban = Some(kv);
+    app.screen = Screen::Kanban;
+
+    // Create-card form.
+    app.modal = Some(Modal::CardForm {
+        editing: None,
+        title: "New thing".into(),
+        description: String::new(),
+        status_idx: 0,
+        priority_idx: 2,
+        field: CardField::Title,
+    });
+    let text = render_to_string(&app, 100, 24);
+    assert!(text.contains("new card"), "card form title missing");
+
+    // Read-only card detail.
+    app.modal = Some(Modal::CardDetail { issue_id });
+    let text = render_to_string(&app, 100, 24);
+    assert!(text.contains("ACME-1"), "detail simple_id missing");
+    assert!(
+        text.contains("workspaces"),
+        "detail workspaces section missing"
+    );
 }
 
 #[test]
@@ -335,6 +575,7 @@ fn create_form_renders() {
         prompt: "split the module".to_string(),
         repos: Loadable::Ready(vec![sample_repo("my-repo")]),
         repo_idx: 0,
+        preferred_repo_ids: Vec::new(),
         branch: "main".to_string(),
         executor_idx: 0,
         field: CreateField::Prompt,
@@ -345,6 +586,44 @@ fn create_form_renders() {
     assert!(text.contains("split the module"), "prompt missing");
     assert!(text.contains("my-repo"), "repo name missing");
     assert!(text.contains("CLAUDE_CODE"), "executor missing");
+}
+
+#[test]
+fn create_form_preselects_project_repo() {
+    use crate::app::{AppEvent, CreateField, CreateForm, Screen};
+
+    let repo_a = sample_repo("vibe-kanban"); // global list order: first
+    let repo_b = sample_repo("vksnake"); // the project's repo
+    let b_id = repo_b.id;
+
+    let mut app = stub_app();
+    app.screen = Screen::Create;
+    app.create = Some(CreateForm {
+        name: String::new(),
+        prompt: "change snake color".to_string(),
+        repos: Loadable::Loading,
+        repo_idx: 0,
+        preferred_repo_ids: Vec::new(),
+        branch: String::new(),
+        executor_idx: 0,
+        field: CreateField::Prompt,
+        submitting: false,
+    });
+
+    // Project's repos arrive first (vksnake), then the global list (A then B).
+    app.update(AppEvent::ProjectRepos(Ok(vec![repo_b.clone()])));
+    app.update(AppEvent::Repos(Ok(vec![repo_a.clone(), repo_b.clone()])));
+
+    let form = app.create.as_ref().unwrap();
+    assert_eq!(
+        form.repo_idx, 1,
+        "should preselect the project's repo (vksnake)"
+    );
+    assert_eq!(form.preferred_repo_ids, vec![b_id]);
+
+    let text = render_to_string(&app, 100, 24);
+    assert!(text.contains("vksnake"), "selected repo shown");
+    assert!(text.contains("project repo"), "project-repo marker shown");
 }
 
 #[test]
@@ -506,6 +785,52 @@ async fn contract_workspaces_and_sessions_deserialize() {
             .list_sessions(w.id)
             .await
             .expect("list_sessions deserializes");
+    }
+}
+
+/// Confirms the kanban mirror structs (`Project`, `ProjectStatus`, `Issue`,
+/// `RemoteWorkspace`) deserialize real `/v1/*` payloads. Ignored by default.
+#[tokio::test]
+#[ignore = "requires a running backend"]
+async fn contract_kanban_types_deserialize() {
+    let client = ApiClient::connect().await.expect("connect to backend");
+    let projects = client
+        .list_projects()
+        .await
+        .expect("list_projects deserializes");
+    if let Some(p) = projects.first() {
+        client
+            .list_statuses(p.id)
+            .await
+            .expect("list_statuses deserializes");
+        client
+            .list_issues(p.id)
+            .await
+            .expect("list_issues deserializes");
+        client
+            .list_project_workspaces(p.id)
+            .await
+            .expect("list_project_workspaces deserializes");
+    }
+}
+
+/// Confirms the git mirror structs (`GitRepoStatus`, `WorkspaceSummary`)
+/// deserialize real `/api/workspaces/{id}/git/status` and `/summaries`
+/// payloads. Ignored by default — requires a running backend with a workspace.
+#[tokio::test]
+#[ignore = "requires a running backend with a workspace"]
+async fn contract_git_types_deserialize() {
+    let client = ApiClient::connect().await.expect("connect to backend");
+    let workspaces = client.list_workspaces().await.expect("list_workspaces");
+    if let Some(w) = workspaces.first() {
+        client
+            .git_status(w.id)
+            .await
+            .expect("git_status deserializes");
+        client
+            .workspace_summary(w.id)
+            .await
+            .expect("workspace_summary deserializes");
     }
 }
 

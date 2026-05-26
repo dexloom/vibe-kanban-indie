@@ -7,17 +7,11 @@ import {
   ensureDesktopBundle,
   BINARY_TAG,
   CACHE_DIR,
-  DESKTOP_CACHE_DIR,
   LOCAL_DEV_MODE,
   LOCAL_DIST_DIR,
-  R2_BASE_URL,
   getLatestVersion,
 } from "./download";
-import {
-  getTauriPlatform,
-  installAndLaunch,
-  cleanOldDesktopVersions,
-} from "./desktop";
+import { getTauriPlatform, installAndLaunch } from "./desktop";
 
 const CLI_VERSION: string = require("../package.json").version;
 
@@ -196,8 +190,7 @@ async function extractAndRun(
 }
 
 function checkForUpdates(): void {
-  const hasValidR2Url = !R2_BASE_URL.startsWith("__");
-  if (LOCAL_DEV_MODE || !hasValidR2Url) {
+  if (LOCAL_DEV_MODE) {
     return;
   }
 
@@ -206,7 +199,7 @@ function checkForUpdates(): void {
       if (latest && latest !== CLI_VERSION) {
         setTimeout(() => {
           console.log(`\nUpdate available: ${CLI_VERSION} -> ${latest}`);
-          console.log(`Run: npx vibe-kanban@latest`);
+          console.log(`Run: npx vibe-kanban-indie@latest`);
         }, 2000);
       }
     })
@@ -250,29 +243,34 @@ async function runMain(desktopMode: boolean): Promise<void> {
   // Default: browser mode (headless server + opens browser).
   // Use --desktop to launch the desktop app instead.
   if (desktopMode && tauriPlatform) {
-    try {
-      console.log(
-        `Starting vibe-kanban desktop v${CLI_VERSION}${modeLabel}...`,
+    if (!LOCAL_DEV_MODE) {
+      // Desktop bundles are not published for vibe-kanban-indie — the release
+      // workflow ships CLI binaries only. Skip the doomed fetch and fall back.
+      console.error(
+        "Desktop builds are not published for vibe-kanban-indie; starting browser mode instead.",
       );
-      const bundleInfo = await ensureDesktopBundle(tauriPlatform, showProgress);
-      console.error(""); // newline after progress
-
-      // Clean old desktop versions after successful download
-      if (!LOCAL_DEV_MODE) {
-        cleanOldDesktopVersions(DESKTOP_CACHE_DIR, BINARY_TAG);
+    } else {
+      try {
+        console.log(
+          `Starting vibe-kanban-indie desktop v${CLI_VERSION}${modeLabel}...`,
+        );
+        const bundleInfo = await ensureDesktopBundle(
+          tauriPlatform,
+          showProgress,
+        );
+        console.error(""); // newline after progress
+        const exitCode = await installAndLaunch(bundleInfo, platform);
+        process.exit(exitCode);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`Desktop app not available: ${msg}`);
+        console.error("Falling back to browser mode...");
       }
-
-      const exitCode = await installAndLaunch(bundleInfo, platform);
-      process.exit(exitCode);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`Desktop app not available: ${msg}`);
-      console.error("Falling back to browser mode...");
     }
   }
 
   // Browser mode (default — headless server + opens browser)
-  console.log(`Starting vibe-kanban v${CLI_VERSION}${modeLabel}...`);
+  console.log(`Starting vibe-kanban-indie v${CLI_VERSION}${modeLabel}...`);
   await extractAndRun("vibe-kanban", (bin) => {
     execSync(`"${bin}"`, { stdio: "inherit" });
   });
@@ -307,7 +305,7 @@ function runOrExit(task: Promise<void>): void {
 
 async function main(): Promise<void> {
   fs.mkdirSync(versionCacheDir, { recursive: true });
-  const cli = cac("vibe-kanban");
+  const cli = cac("vibe-kanban-indie");
 
   cli
     .command("[...args]", "Launch the local vibe-kanban app")

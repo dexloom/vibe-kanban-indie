@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT r.path as \"path!: String\"\n               FROM project_repos pr\n               JOIN repos r ON r.id = pr.repo_id\n               WHERE pr.project_id = $1\n               ORDER BY r.path ASC",
+  "describe": {
+    "columns": [
+      {
+        "name": "path!: String",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "10198719625877c9f9d11be621d0afd5cecd354dd1ea3e80b653a6fc71a62892"
+}

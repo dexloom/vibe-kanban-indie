@@ -1,0 +1,31 @@
+# Example vibe-kanban Telegram integration config.
+#
+# Copy to ~/.vibe-kanban/telegram.toml (or set $VIBE_KANBAN_TELEGRAM_CONFIG to a
+# path) and edit. Read by both the server (Settings → Telegram status/test) and
+# the vibe-telegram-bridge daemon. See automation/README.md.
+
+# Master on/off. When false, the bridge exits cleanly.
+enabled = true
+
+# Bot token. Optional here — if omitted, falls back to $TELEGRAM_BOT_TOKEN, then
+# the TELEGRAM_BOT_TOKEN= line in ~/.claude/channels/telegram/.env (the same file
+# the sombrax-telegram listener uses).
+# bot_token = "123456:ABC-DEF..."
+
+# Target supergroup chat id. For per-worktree topics the group must have the
+# "Topics" (forum) feature enabled.
+chat_id = "-1001234567890"
+
+# Optional: forum topic to mirror non-worktree ("General") messages into.
+# general_thread_id = "1"
+
+# Spawn a dedicated forum topic per worktree whose agent is opted in below, and
+# route that worktree's escalations into it.
+per_worktree_topics = true
+
+# Which session executors get their own topic. Defaults to ["CLAUDE_CODE"].
+# topic_executors = ["CLAUDE_CODE"]
+
+# Topic name template. {name} = worktree name (falls back to branch),
+# {branch} = git branch. Defaults to "vk: {name}".
+# topic_name_template = "vk: {name}"

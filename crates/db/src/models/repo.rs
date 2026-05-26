@@ -281,6 +281,52 @@ impl Repo {
         .await
     }
 
+    /// Like [`find_or_create`], but uses `id` when inserting a brand-new row so
+    /// an id declared in `projects.toml` is honored. If a row with this path
+    /// already exists its existing id is kept (path is the unique anchor).
+    pub async fn find_or_create_with_id<'e, E>(
+        executor: E,
+        path: &Path,
+        display_name: &str,
+        id: Uuid,
+    ) -> Result<Self, sqlx::Error>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
+        let path_str = path.to_string_lossy().to_string();
+        let repo_name = path
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| id.to_string());
+
+        sqlx::query_as!(
+            Repo,
+            r#"INSERT INTO repos (id, path, name, display_name)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT(path) DO UPDATE SET updated_at = updated_at
+               RETURNING id as "id!: Uuid",
+                         path,
+                         name,
+                         display_name,
+                         setup_script,
+                         cleanup_script,
+                         archive_script,
+                         copy_files,
+                         parallel_setup_script as "parallel_setup_script!: bool",
+                         dev_server_script,
+                         default_target_branch,
+                         default_working_dir,
+                         created_at as "created_at!: DateTime<Utc>",
+                         updated_at as "updated_at!: DateTime<Utc>""#,
+            id,
+            path_str,
+            repo_name,
+            display_name,
+        )
+        .fetch_one(executor)
+        .await
+    }
+
     pub async fn list_all(pool: &SqlitePool) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as!(
             Repo,

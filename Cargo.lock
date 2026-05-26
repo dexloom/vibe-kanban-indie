@@ -2084,6 +2084,7 @@ dependencies = [
  "strum 0.27.2",
  "strum_macros 0.27.2",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
  "ts-rs 11.0.1",
  "utils",
@@ -9090,6 +9091,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "toml 0.8.2",
+ "toml_edit 0.20.2",
  "tracing",
  "ts-rs 11.0.1",
  "url",
@@ -11544,6 +11546,7 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 name = "utils"
 version = "0.1.44"
 dependencies = [
+ "anyhow",
  "axum",
  "bytes",
  "chrono",
@@ -11556,6 +11559,7 @@ dependencies = [
  "nix 0.29.0",
  "open",
  "regex",
+ "reqwest 0.13.2",
  "rust-embed",
  "sentry",
  "sentry-tracing",
@@ -11568,6 +11572,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util",
+ "toml 0.8.2",
  "tracing",
  "tracing-subscriber",
  "ts-rs 11.0.1",

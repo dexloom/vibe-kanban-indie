@@ -5,6 +5,7 @@
 mod create;
 mod detail;
 mod inbox;
+mod kanban;
 mod list;
 mod modal;
 
@@ -42,12 +43,17 @@ pub fn render(f: &mut Frame, app: &App) {
                 create::render(f, form, chunks[1]);
             }
         }
+        Screen::Kanban => {
+            if let Some(k) = &app.kanban {
+                kanban::render(f, k, chunks[1]);
+            }
+        }
     }
     render_footer(f, app, chunks[2]);
 
     // Modals overlay the whole content area.
     if let Some(m) = &app.modal {
-        modal::render(f, m, chunks[1]);
+        modal::render(f, m, app, chunks[1]);
     }
     if app.show_help {
         render_help(f, chunks[1]);
@@ -60,12 +66,16 @@ fn render_help(f: &mut Frame, area: Rect) {
         Line::from(" vibe-tui — keys ".bold()),
         Line::from(""),
         Line::from("  global    a  approvals inbox   ?  help   q  quit"),
-        Line::from("  list      ↑↓/jk move · ⇥ pane · ⏎ open · n new task · r refresh"),
+        Line::from("  list      ↑↓/jk move · ⇥ pane · ⏎ open · n new task · b board · r refresh"),
         Line::from(
-            "  detail    ↑↓ scroll · n/p process · f follow · i message · s stop · esc back",
+            "  detail    ⇥/←→ pane · ↑↓ navigate · f follow · i message · s stop · esc back",
         ),
+        Line::from("  git pane  ↑↓ repo · m merge · R rebase · P create PR · u push"),
         Line::from("  inbox     ↑↓ move · y approve · d deny · ⏎ answer · esc back"),
         Line::from("  create    ⇥ field · ←→ cycle option · ^s create · esc cancel"),
+        Line::from(
+            "  board     ←→ column · ↑↓ card · [ ] move · n new · e edit · d delete · w workspace · p project · ⏎ detail",
+        ),
         Line::from(""),
         Line::from("  press any key to close".to_string()).dim(),
     ];
@@ -167,6 +177,24 @@ fn render_footer(f: &mut Frame, app: &App, area: Rect) {
             Span::raw(" create  "),
             key(" esc "),
             Span::raw(" cancel  "),
+        ],
+        Screen::Kanban => vec![
+            key(" ←→/hl "),
+            Span::raw(" column  "),
+            key(" ↑↓/jk "),
+            Span::raw(" card  "),
+            key(" [ ] "),
+            Span::raw(" move  "),
+            key(" n "),
+            Span::raw(" new  "),
+            key(" e "),
+            Span::raw(" edit  "),
+            key(" w "),
+            Span::raw(" workspace  "),
+            key(" ⏎ "),
+            Span::raw(" detail  "),
+            key(" esc "),
+            Span::raw(" back  "),
         ],
     };
     // Global approvals shortcut (except while already in the inbox).

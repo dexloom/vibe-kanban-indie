@@ -98,7 +98,7 @@ fn render_sessions(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-fn pane_block(title: &str, focused: bool) -> Block<'_> {
+pub(crate) fn pane_block(title: &str, focused: bool) -> Block<'_> {
     let border_color = if focused {
         Color::Cyan
     } else {
@@ -110,7 +110,11 @@ fn pane_block(title: &str, focused: bool) -> Block<'_> {
         .title(title)
 }
 
-fn selectable_list<'a>(items: Vec<ListItem<'a>>, block: Block<'a>, focused: bool) -> List<'a> {
+pub(crate) fn selectable_list<'a>(
+    items: Vec<ListItem<'a>>,
+    block: Block<'a>,
+    focused: bool,
+) -> List<'a> {
     let highlight = if focused {
         Style::default()
             .bg(Color::Cyan)

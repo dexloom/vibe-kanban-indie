@@ -268,6 +268,34 @@ export type InitRepoRequest = { parent_path: string, folder_name: string, };
 
 export type TagSearchParams = { search: string | null, };
 
+export type TelegramStatus = { 
+/**
+ * `enabled = true` in telegram.toml.
+ */
+enabled: boolean, 
+/**
+ * A chat id and a resolvable bot token are both present.
+ */
+configured: boolean, 
+/**
+ * Chat id with all but the last 4 chars masked (never the full id in logs).
+ */
+chat_id_masked: string | null, general_thread_id: string | null, per_worktree_topics: boolean, 
+/**
+ * Where the bot token was resolved from, or `None` if unresolved.
+ */
+token_source: string | null, 
+/**
+ * The bridge heartbeat is present and recent.
+ */
+bridge_connected: boolean, bridge_last_seen: string | null, 
+/**
+ * Absolute path of the hand-edited config file (shown in the UI help).
+ */
+config_path: string, };
+
+export type TelegramTestResponse = { ok: boolean, error: string | null, };
+
 export type TokenResponse = { access_token: string, expires_at: string | null, };
 
 export type UserSystemInfo = { version: string, config: Config, machine_id: string, login_status: LoginStatus, remote_auth_degraded: string | null, environment: Environment, 
