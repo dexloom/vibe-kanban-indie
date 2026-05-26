@@ -68,7 +68,7 @@ async fn get_status() -> Result<ResponseJson<ApiResponse<TelegramStatus>>, ApiEr
     let cfg = telegram_config::load();
     let token = telegram_config::resolve_bot_token(cfg.as_ref());
 
-    let chat_id = cfg.as_ref().and_then(|c| c.chat_id.clone());
+    let chat_id = telegram_config::resolve_chat_id(cfg.as_ref());
     let configured = chat_id.is_some() && token.is_some();
 
     let (bridge_connected, bridge_last_seen) = read_heartbeat();
@@ -77,7 +77,7 @@ async fn get_status() -> Result<ResponseJson<ApiResponse<TelegramStatus>>, ApiEr
         enabled: cfg.as_ref().map(|c| c.enabled).unwrap_or(false),
         configured,
         chat_id_masked: chat_id.as_deref().map(mask),
-        general_thread_id: cfg.as_ref().and_then(|c| c.general_thread_id.clone()),
+        general_thread_id: telegram_config::resolve_general_thread_id(cfg.as_ref()),
         per_worktree_topics: cfg.as_ref().map(|c| c.per_worktree_topics).unwrap_or(false),
         token_source: token.map(|(_, src)| token_source_label(src).to_string()),
         bridge_connected,
@@ -98,16 +98,16 @@ async fn send_test(
             error: Some("No bot token configured".to_string()),
         })));
     };
-    let Some(chat_id) = cfg.as_ref().and_then(|c| c.chat_id.clone()) else {
+    let Some(chat_id) = telegram_config::resolve_chat_id(cfg.as_ref()) else {
         return Ok(ResponseJson(ApiResponse::success(TelegramTestResponse {
             ok: false,
-            error: Some("No chat_id configured in telegram.toml".to_string()),
+            error: Some(
+                "No chat_id configured (set chat_id in telegram.toml or VK_TG_CHAT_ID)".to_string(),
+            ),
         })));
     };
 
-    let thread = cfg
-        .as_ref()
-        .and_then(|c| c.general_thread_id.clone())
+    let thread = telegram_config::resolve_general_thread_id(cfg.as_ref())
         .and_then(|s| s.trim().parse::<i64>().ok());
 
     let telegram = Telegram::new(token, chat_id);

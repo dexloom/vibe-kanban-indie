@@ -176,6 +176,34 @@ fn token_env_path() -> PathBuf {
         .join(".claude/channels/telegram/.env")
 }
 
+/// Resolve the chat id: the TOML value, else the legacy `VK_TG_CHAT_ID` env var.
+/// The bridge honors the same fallback, so status/test reporting stays in sync
+/// with whether the bridge is actually configured.
+pub fn resolve_chat_id(cfg: Option<&TelegramConfig>) -> Option<String> {
+    if let Some(id) = cfg.and_then(|c| c.chat_id.as_deref())
+        && !id.trim().is_empty()
+    {
+        return Some(id.trim().to_string());
+    }
+    std::env::var("VK_TG_CHAT_ID")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Resolve the general thread id: the TOML value, else `VK_TG_GENERAL_THREAD_ID`.
+pub fn resolve_general_thread_id(cfg: Option<&TelegramConfig>) -> Option<String> {
+    if let Some(id) = cfg.and_then(|c| c.general_thread_id.as_deref())
+        && !id.trim().is_empty()
+    {
+        return Some(id.trim().to_string());
+    }
+    std::env::var("VK_TG_GENERAL_THREAD_ID")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
