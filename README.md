@@ -15,10 +15,17 @@
   <a href="https://deepwiki.com/BloopAI/vibe-kanban"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 </p>
 
-<h1 align="center">
-  <strong>Vibe Kanban is sunsetting.</strong>
-  <a href="https://www.vibekanban.com/blog/shutdown">Read the announcement.</a>
-</h1>
+<h1 align="center"><strong>vibe-kanban-indie</strong></h1>
+<p align="center">
+  The independent, self-hosted fork of vibe-kanban. One dev, your machine, your
+  agents — drive a crew of coding agents from the terminal or your phone.
+</p>
+<p align="center">
+  Built for a <strong>single-developer process</strong>: no team, no cloud, no
+  auth. Adds a <a href="#terminal-ui-tui">TUI cockpit</a> and
+  <a href="#telegram-integration">Telegram channel orchestration</a> on top of
+  upstream <a href="https://github.com/BloopAI/vibe-kanban">vibe-kanban</a>.
+</p>
 
 ![](packages/public/vibe-kanban-screenshot-overview.png)
 
@@ -26,7 +33,7 @@
 
 In a world where software engineers spend most of their time planning and reviewing coding agents, the most impactful way to ship more is to get faster at planning and review.
 
-Vibe Kanban is built for this. Use kanban issues to plan work, either privately or with your team. When you're ready to begin, create workspaces where coding agents can execute.
+`vibe-kanban-indie` is built for this — for a single developer, running entirely on your own machine. Use kanban issues to plan work, then create workspaces where coding agents can execute.
 
 - **Plan with kanban issues** — create, prioritise, and assign issues on a kanban board
 - **Run coding agents in workspaces** — each workspace gives an agent a branch, a terminal, and a dev server
@@ -51,6 +58,55 @@ Make sure you have authenticated with your favourite coding agent. A full list o
 ```bash
 npx vibe-kanban
 ```
+
+## Terminal UI (TUI)
+
+`vibe-tui` is a terminal cockpit for the backend — list workspaces and sessions, watch live agent transcripts, manage a kanban board for local projects, and approve/deny/answer the things agents block on, all without leaving the terminal. It's also the always-available manual override for the [Telegram automation](#telegram-integration) below.
+
+Run it against a running backend (it discovers the backend via its port file, or set `VIBE_BACKEND_URL`):
+
+```bash
+cargo run -p tui
+```
+
+Keys (press `?` in-app for the full list):
+
+| Context | Keys |
+|---|---|
+| Global | `a` approvals inbox · `?` help · `q` quit |
+| List | `↑↓`/`jk` move · `⇥` switch pane · `⏎` open · `n` new task · `b` board · `r` refresh |
+| Detail | `⇥`/`←→` move focus between panes (processes · git · transcript) · `↑↓`/`jk` navigate the focused pane · `n`/`p` process · `f` follow · `i` message agent · `s` stop · `esc` back |
+| Git pane (in detail) | focus it with `⇥`, then `↑↓` select repo · `m` merge · `R` rebase · `P` create PR · `u` push — shows branch→target, ↑ahead/↓behind, ±diff, PR state per repo |
+| Approvals inbox | `↑↓` move · `y` approve · `d` deny · `⏎` answer · `esc` back |
+| Board | `←→` column · `↑↓` card · `[ ]` move card · `n` new · `e` edit · `d` delete · `w` workspace · `p` project · `⏎` detail |
+
+## Telegram Integration
+
+`vibe-telegram-bridge` is a **send-only** daemon that streams coding-agent escalations to a Telegram supergroup, so a blocked agent (waiting on a tool-permission prompt or a clarifying question) can be unblocked remotely — by a human replying in Telegram, or by a PM agent acting through the MCP approval tools. The bridge never reads Telegram and never polls the bot token, so it coexists with the sombrax-telegram listener without a 409 conflict.
+
+It is configured by `~/.vibe-kanban/telegram.toml` (see `automation/telegram.toml.example`):
+
+```toml
+# ~/.vibe-kanban/telegram.toml
+enabled = true
+bot_token = "123456:ABC..."        # optional; falls back to $TELEGRAM_BOT_TOKEN
+                                   # or ~/.claude/channels/telegram/.env
+chat_id = "-1001234567890"         # your supergroup (must have Topics enabled)
+general_thread_id = "1"            # optional General topic
+per_worktree_topics = true         # spawn a forum topic per Claude Code worktree
+# topic_executors = ["CLAUDE_CODE"]  # which executors get a topic
+# topic_name_template = "vk: {name}" # {name}/{branch} substituted
+```
+
+```bash
+cargo run -p telegram-bridge
+```
+
+When `enabled = false` (or no config is present), the daemon exits cleanly. With `per_worktree_topics = true`, the bridge watches the backend's `/api/events` stream and creates a dedicated forum topic for each opted-in worktree, routing that worktree's escalations into it; the `workspace_id → message_thread_id` map is persisted in `~/.vibe-kanban/telegram-topics.json` so restarts reuse existing topics.
+
+The app surfaces a read-only **Settings → Telegram** panel (status + a "Send test message" button); it reads `telegram.toml` and the bridge's heartbeat file but does not edit the config — the TOML is hand-edited.
+
+For the full architecture (TUI, bridge, MCP approval tools, and the PM agent), see [`automation/README.md`](automation/README.md).
 
 ## Documentation
 

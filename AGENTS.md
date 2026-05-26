@@ -1,7 +1,10 @@
+> **vibe-kanban-indie** — the independent, self-hosted fork of vibe-kanban, built for a **single-developer process** (no team, no cloud, no auth). The TUI cockpit (`crates/tui`, `vibe-tui`) and Telegram channel orchestration (`crates/telegram-bridge`) are the control surfaces a solo dev uses to drive a crew of agents.
+
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `crates/`: Rust workspace crates — `server` (API + bins), `db` (SQLx models/migrations), `executors`, `services`, `utils`, `git` (Git operations), `api-types` (shared API types for local + remote), `review` (PR review tool), `deployment`, `local-deployment`, `remote`.
+- `crates/`: Rust workspace crates — `server` (API + bins), `db` (SQLx models/migrations), `executors`, `services`, `utils`, `git` (Git operations), `api-types` (shared API types for local + remote), `review` (PR review tool), `deployment`, `local-deployment`, `remote`, `tui` (terminal cockpit, `vibe-tui` bin), `telegram-bridge` (send-only escalation daemon, `vibe-telegram-bridge` bin).
+- `automation/`: Automated-supervision layer (TUI + Telegram bridge + PM agent) — see [`automation/README.md`](automation/README.md). Telegram config lives in `~/.vibe-kanban/telegram.toml` (example: `automation/telegram.toml.example`).
 - `packages/local-web/`: Local React + TypeScript app entrypoint (Vite, Tailwind). Shell source in `packages/local-web/src`.
 - `packages/remote-web/`: Remote deployment frontend entrypoint.
 - `packages/web-core/`: Shared React + TypeScript frontend library used by local + remote web (`packages/web-core/src`).
