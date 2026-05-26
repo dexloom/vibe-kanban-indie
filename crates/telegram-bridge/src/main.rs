@@ -102,7 +102,16 @@ async fn run_approvals(
     let mut backoff = Duration::from_secs(1);
 
     loop {
-        match consume_approvals(&ws_url, telegram, general_thread, &topics, &mut seen).await {
+        match consume_approvals(
+            &ws_url,
+            telegram,
+            general_thread,
+            &topics,
+            &mut seen,
+            &heartbeat,
+        )
+        .await
+        {
             Ok(()) => {
                 tracing::warn!("approvals stream ended; reconnecting");
                 backoff = Duration::from_secs(1);
@@ -123,9 +132,13 @@ async fn consume_approvals(
     general_thread: Option<i64>,
     topics: &Arc<Topics>,
     seen: &mut HashSet<String>,
+    heartbeat: &Heartbeat,
 ) -> Result<()> {
     let (mut socket, _) = tokio_tungstenite::connect_async(ws_url).await?;
     tracing::info!("approvals stream connected");
+    // Mark the bridge live as soon as the approvals stream is up, so
+    // /api/telegram/status (and the settings UI) reports connected.
+    heartbeat.set_connected(true);
     while let Some(msg) = socket.next().await {
         match msg? {
             Message::Text(text) => {
@@ -238,8 +251,12 @@ async fn consume_events(events_url: &str, topics: &Arc<Topics>) -> Result<()> {
         while let Some(nl) = buf.find('\n') {
             let line = buf[..nl].trim_end_matches('\r').to_string();
             buf.drain(..=nl);
+            // SSE frames carry the raw JSON-Patch as the `data:` payload (see
+            // LogMsg::to_sse_event), unlike the approvals WS which wraps it in a
+            // LogMsg. Parse the patch directly; non-patch events (ready/stdout/…)
+            // simply fail to deserialize and are ignored.
             if let Some(data) = line.strip_prefix("data:")
-                && let Some(patch) = decode_patch(data.trim())
+                && let Ok(patch) = serde_json::from_str::<json_patch::Patch>(data.trim())
             {
                 handle_events_patch(&patch, topics).await;
             }

@@ -574,7 +574,11 @@ async fn sync_config_file(pool: &SqlitePool) {
                 let path = repo.path.to_string_lossy().to_string();
                 let pos = aot.iter().position(|t| {
                     t.get("id").and_then(Item::as_str) == Some(id.as_str())
-                        || t.get("path").and_then(Item::as_str) == Some(path.as_str())
+                        || t.get("path")
+                            .and_then(Item::as_str)
+                            .map(expand_tilde)
+                            .as_deref()
+                            == Some(path.as_str())
                 });
                 match pos {
                     Some(i) => {

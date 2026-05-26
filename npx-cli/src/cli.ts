@@ -7,16 +7,11 @@ import {
   ensureDesktopBundle,
   BINARY_TAG,
   CACHE_DIR,
-  DESKTOP_CACHE_DIR,
   LOCAL_DEV_MODE,
   LOCAL_DIST_DIR,
   getLatestVersion,
 } from "./download";
-import {
-  getTauriPlatform,
-  installAndLaunch,
-  cleanOldDesktopVersions,
-} from "./desktop";
+import { getTauriPlatform, installAndLaunch } from "./desktop";
 
 const CLI_VERSION: string = require("../package.json").version;
 
@@ -248,24 +243,29 @@ async function runMain(desktopMode: boolean): Promise<void> {
   // Default: browser mode (headless server + opens browser).
   // Use --desktop to launch the desktop app instead.
   if (desktopMode && tauriPlatform) {
-    try {
-      console.log(
-        `Starting vibe-kanban-indie desktop v${CLI_VERSION}${modeLabel}...`,
+    if (!LOCAL_DEV_MODE) {
+      // Desktop bundles are not published for vibe-kanban-indie — the release
+      // workflow ships CLI binaries only. Skip the doomed fetch and fall back.
+      console.error(
+        "Desktop builds are not published for vibe-kanban-indie; starting browser mode instead.",
       );
-      const bundleInfo = await ensureDesktopBundle(tauriPlatform, showProgress);
-      console.error(""); // newline after progress
-
-      // Clean old desktop versions after successful download
-      if (!LOCAL_DEV_MODE) {
-        cleanOldDesktopVersions(DESKTOP_CACHE_DIR, BINARY_TAG);
+    } else {
+      try {
+        console.log(
+          `Starting vibe-kanban-indie desktop v${CLI_VERSION}${modeLabel}...`,
+        );
+        const bundleInfo = await ensureDesktopBundle(
+          tauriPlatform,
+          showProgress,
+        );
+        console.error(""); // newline after progress
+        const exitCode = await installAndLaunch(bundleInfo, platform);
+        process.exit(exitCode);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`Desktop app not available: ${msg}`);
+        console.error("Falling back to browser mode...");
       }
-
-      const exitCode = await installAndLaunch(bundleInfo, platform);
-      process.exit(exitCode);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`Desktop app not available: ${msg}`);
-      console.error("Falling back to browser mode...");
     }
   }
 
