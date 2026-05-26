@@ -21,6 +21,7 @@ pub mod shell;
 pub mod stream_lines;
 pub mod telegram;
 pub mod telegram_config;
+pub mod telegram_topics;
 pub mod text;
 pub mod tokio;
 pub mod version;

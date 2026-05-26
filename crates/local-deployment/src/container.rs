@@ -1366,6 +1366,20 @@ impl ContainerService for LocalContainerService {
         env.insert("VK_WORKSPACE_ID", workspace.id.to_string());
         env.insert("VK_WORKSPACE_BRANCH", &workspace.branch);
 
+        // Telegram channel: hand Claude Code agents their per-branch channel
+        // *name* via TELEGRAM_TOPIC, plus TELEGRAM_DEV=1 marking the session as
+        // the channel's dev agent (kind=dev, role=owner in sombrax-telegram's
+        // role model). Without this flag the agent registers as a passive
+        // observer and never owns its channel. VK holds no bot token and passes
+        // no chat id — the sombrax listener resolves/creates the forum topic
+        // from the name and resolves the chat itself, owning all Bot API I/O.
+        if executor_action.base_executor() == Some(BaseCodingAgent::ClaudeCode)
+            && utils::telegram_topics::per_worktree_enabled()
+        {
+            env.insert("TELEGRAM_TOPIC", &workspace.branch);
+            env.insert("TELEGRAM_DEV", "1");
+        }
+
         // Create the child and stream, add to execution tracker with timeout
         let mut spawned = tokio::time::timeout(
             Duration::from_secs(30),
