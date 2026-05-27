@@ -14,7 +14,7 @@
   "author": "dexloom",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dexloom/vibe-kanban"
+    "url": "git+https://github.com/dexloom/vibe-kanban-indie.git"
   },
   "engines": {
     "node": ">=20.19.0"
