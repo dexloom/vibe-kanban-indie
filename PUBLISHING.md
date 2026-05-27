@@ -78,6 +78,14 @@ npm pack --dry-run
 npm publish --access public
 ```
 
+> **2FA / access:** if your npm account enforces two-factor auth, `npm publish`
+> returns `403 ... Two-factor authentication ... is required`. Add the current
+> code: `npm publish --access public --otp=123456`, or use a **granular access
+> token** (npmjs.com → Access Tokens) scoped to this package with publish rights
+> and "bypass 2FA" enabled. This applies **only** to this one-time bootstrap —
+> the automated releases in Part 2 authenticate via OIDC and never need a token
+> or OTP.
+
 Verify:
 ```bash
 cd /tmp && npx vibe-kanban-indie@0.1.0   # downloads binaries from the release
