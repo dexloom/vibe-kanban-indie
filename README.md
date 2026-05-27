@@ -47,7 +47,7 @@ In a world where software engineers spend most of their time planning and review
 One command. Describe the work, review the diff, ship it.
 
 ```bash
-npx vibe-kanban
+npx vibe-kanban-indie
 ```
 
 
@@ -56,7 +56,7 @@ npx vibe-kanban
 Make sure you have authenticated with your favourite coding agent. A full list of supported coding agents can be found in the [docs](https://vibekanban.com/docs/supported-coding-agents). Then in your terminal run:
 
 ```bash
-npx vibe-kanban
+npx vibe-kanban-indie
 ```
 
 ## Terminal UI (TUI)
