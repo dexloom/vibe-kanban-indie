@@ -7,7 +7,7 @@ import os from 'os';
 // Prebuilt binaries are hosted as GitHub Release assets on the fork repo.
 // The release tag is derived from this package's version, so tagging a commit
 // `v<version>` and publishing the matching npm version keeps them in lockstep.
-export const GITHUB_REPO = 'dexloom/vibe-kanban';
+export const GITHUB_REPO = 'dexloom/vibe-kanban-indie';
 const PKG_VERSION: string = require('../package.json').version;
 export const BINARY_TAG = `v${PKG_VERSION}`; // e.g., v0.1.0
 export const RELEASE_BASE = `https://github.com/${GITHUB_REPO}/releases/download/${BINARY_TAG}`;
