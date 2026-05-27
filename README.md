@@ -29,6 +29,8 @@
 
 ![](packages/public/vibe-kanban-screenshot-overview.png)
 
+# Welcome to indie version of Vibe-Kanban
+
 ## Overview
 
 In a world where software engineers spend most of their time planning and reviewing coding agents, the most impactful way to ship more is to get faster at planning and review.
