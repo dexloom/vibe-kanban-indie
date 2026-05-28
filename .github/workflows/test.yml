@@ -219,9 +219,14 @@ jobs:
         run: npm run prepare-db:check
 
   backend-remote-checks:
+    # Disabled in the indie fork: crates/remote targets the upstream cloud and
+    # depends on private repos that need a VK_PRIVATE_DEPLOY_KEY secret we
+    # don't carry here. Re-enable by removing the literal `false &&` below if
+    # you wire the secret back up.
     needs: changes
     if: >-
-      always()
+      false
+      && always()
       && (needs.changes.outputs['backend-remote'] == 'true' || needs.changes.result == 'skipped')
       && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: *runner_label
