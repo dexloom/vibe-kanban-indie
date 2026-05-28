@@ -21,6 +21,11 @@ env:
   # Indie fork is local-only; no shared cloud API. Keep frontend build offline.
   VITE_VK_SHARED_API_BASE: ""
   VK_SHARED_API_BASE: ""
+  # Must match rust-toolchain.toml — otherwise the toolchain file overrides
+  # whatever the action installs and the requested matrix target is missing.
+  RUST_TOOLCHAIN: nightly-2025-12-04
+  # Pin zig so transient mirror 404s don't break the linux-musl matrix legs.
+  ZIG_VERSION: "0.13.0"
 
 jobs:
   # 1) Build the web app once; the `server` binary embeds it.
@@ -61,12 +66,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
         with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
           targets: ${{ matrix.target }}
 
       - if: matrix.zig
         uses: mlugg/setup-zig@v1
+        with:
+          version: ${{ env.ZIG_VERSION }}
       - if: matrix.zig
         uses: taiki-e/install-action@v2
         with:
