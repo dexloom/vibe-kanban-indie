@@ -1,4 +1,5 @@
 edition = "2024"
 reorder_imports = true
-group_imports = "StdExternalCrate"
-imports_granularity = "Crate"
+# group_imports = "StdExternalCrate" and imports_granularity = "Crate" are
+# nightly-only rustfmt options. Re-enable them if the project moves back to
+# nightly, or run `cargo +nightly fmt` ad-hoc.

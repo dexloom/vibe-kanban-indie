@@ -23,7 +23,7 @@ env:
   VK_SHARED_API_BASE: ""
   # Must match rust-toolchain.toml — otherwise the toolchain file overrides
   # whatever the action installs and the requested matrix target is missing.
-  RUST_TOOLCHAIN: nightly-2025-12-04
+  RUST_TOOLCHAIN: stable
   # Pin zig so transient mirror 404s don't break the linux-musl matrix legs.
   ZIG_VERSION: "0.13.0"
 

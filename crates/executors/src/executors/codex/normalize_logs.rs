@@ -1044,13 +1044,11 @@ fn handle_direct_item_completed(
             upsert_normalized_entry(msg_store, index, entry, is_new);
             state.assistant = None;
         }
-        AppThreadItem::Reasoning { summary, .. } => {
-            if !summary.is_empty() {
-                state.assistant = None;
-                let (entry, index, is_new) = state.thinking(summary.join("\n\n"));
-                upsert_normalized_entry(msg_store, index, entry, is_new);
-                state.thinking = None;
-            }
+        AppThreadItem::Reasoning { summary, .. } if !summary.is_empty() => {
+            state.assistant = None;
+            let (entry, index, is_new) = state.thinking(summary.join("\n\n"));
+            upsert_normalized_entry(msg_store, index, entry, is_new);
+            state.thinking = None;
         }
         AppThreadItem::Plan { id, text } => {
             if let Some(plan_state) = state.plans.get_mut(&id) {

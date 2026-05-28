@@ -105,25 +105,21 @@ impl EventService {
                                         serde_json::from_value::<EventPatch>(event_patch_value)
                                 {
                                     match &event_patch.value.record {
-                                        RecordTypes::ExecutionProcess(process) => {
-                                            if process.session_id == session_id {
-                                                if !show_soft_deleted && process.dropped {
-                                                    let remove_patch =
-                                                        execution_process_patch::remove(process.id);
-                                                    return Some(Ok(LogMsg::JsonPatch(
-                                                        remove_patch,
-                                                    )));
-                                                }
-                                                return Some(Ok(LogMsg::JsonPatch(patch)));
+                                        RecordTypes::ExecutionProcess(process)
+                                            if process.session_id == session_id =>
+                                        {
+                                            if !show_soft_deleted && process.dropped {
+                                                let remove_patch =
+                                                    execution_process_patch::remove(process.id);
+                                                return Some(Ok(LogMsg::JsonPatch(remove_patch)));
                                             }
+                                            return Some(Ok(LogMsg::JsonPatch(patch)));
                                         }
                                         RecordTypes::DeletedExecutionProcess {
                                             session_id: Some(deleted_session_id),
                                             ..
-                                        } => {
-                                            if *deleted_session_id == session_id {
-                                                return Some(Ok(LogMsg::JsonPatch(patch)));
-                                            }
+                                        } if *deleted_session_id == session_id => {
+                                            return Some(Ok(LogMsg::JsonPatch(patch)));
                                         }
                                         _ => {}
                                     }
