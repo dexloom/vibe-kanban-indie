@@ -4,7 +4,7 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 /// Fixed id of the single predefined local user. Issue creator/assignee
-/// references point here. Its display name is configurable via projects.toml.
+/// references point here. Its display name is configurable via config import.
 pub const LOCAL_USER_ID: Uuid = Uuid::from_u128(0xA002);
 
 /// Mirrors the wire `User` shape consumed by the frontend (served at

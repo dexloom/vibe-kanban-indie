@@ -1,23 +1,22 @@
-//! TOML-backed project/repo configuration with round-trip CRUD.
+//! Static project/repo config export & import (TOML <-> DB).
 //!
-//! The hosted product stores projects in Postgres behind organisation auth.
-//! Locally, `projects.toml` is the human-editable source of truth for project
-//! and repo *config* (name, key, color, repo scripts, branches, grouping,
-//! kanban seed columns). The SQLite database keeps `projects`/`repos` rows as an
-//! id-anchored *mirror* so every existing read, foreign key, and runtime
-//! reference (issues, workspaces, execution state) keeps working unchanged.
+//! The SQLite database is the source of truth for projects, repos, their links,
+//! and kanban columns — they are created and edited through the API. TOML is no
+//! longer auto-loaded at startup or written through on every mutation. Instead it
+//! is an explicit, portable export/import format for the *static* config:
+//! projects, repos, project↔repo links, kanban seed columns, and executor
+//! profiles (agents). Issues, workspaces, tags, and other runtime state are never
+//! part of it.
 //!
-//! Lifecycle:
-//! - **Startup** ([`reconcile`]): parse `projects.toml` → upsert the DB mirror,
-//!   stamp a stable `id` onto each declared block, and export any DB-only
-//!   project/repo back into the file. Non-destructive: it never prunes, so a
-//!   hand-removed block reappears on next boot — deletion happens via the API.
-//! - **Runtime CRUD** ([`create_project`], [`update_project`], [`delete_project`],
-//!   [`mirror_repo`], [`forget_repo`]): mutate the DB mirror, then write the
-//!   change through to `projects.toml` (format-preserving, atomic). TOML write
-//!   failures are logged, never fatal — the DB mirror is what reads serve.
+//! - [`export_to_string`] / [`export_to_path`]: serialise the current DB config
+//!   (plus the cached executor profiles) into a single TOML document.
+//! - [`import_from_str`] / [`import_from_path`]: parse a TOML document and
+//!   non-destructively upsert it into the DB — match by `id`, then by name/path;
+//!   never deletes existing rows or links — then apply any embedded executor
+//!   profiles.
+//! - [`ensure_local_user`]: ensure the predefined local user exists at startup.
 
-use std::{path::PathBuf, sync::Mutex};
+use std::path::{Path, PathBuf};
 
 use db::models::{
     local_user::LocalUser,
@@ -26,6 +25,7 @@ use db::models::{
     project_status::ProjectStatus,
     repo::{Repo, UpdateRepo},
 };
+use executors::profile::ExecutorConfigs;
 use serde::Deserialize;
 use sqlx::SqlitePool;
 use toml_edit::{Array, ArrayOfTables, Document, Item, Table, value};
@@ -36,12 +36,15 @@ const DEFAULT_PROJECT_COLOR: &str = "#6366f1";
 const DEFAULT_STATUSES: &[&str] = &["Todo", "In Progress", "In Review", "Done"];
 const STATUS_PALETTE: &[&str] = &["#94a3b8", "#3b82f6", "#a855f7", "#22c55e", "#f59e0b"];
 
-/// Top-level shape of `projects.toml`.
+/// Top-level shape of an exported/imported config document.
 #[derive(Debug, Default, Deserialize)]
 struct ProjectsConfig {
     /// Display name for the predefined local user (issue creator/assignee).
     #[serde(default)]
     local_user_name: Option<String>,
+    /// Executor profiles (agents) as the JSON the profiles API round-trips.
+    #[serde(default)]
+    profiles_json: Option<String>,
     #[serde(default, rename = "repo")]
     repos: Vec<RepoConfig>,
     #[serde(default, rename = "project")]
@@ -50,7 +53,7 @@ struct ProjectsConfig {
 
 #[derive(Debug, Deserialize)]
 struct RepoConfig {
-    /// Stable id mapped to the DB row. Generated and written back if omitted.
+    /// Stable id mapped to the DB row. Generated if omitted.
     #[serde(default)]
     id: Option<Uuid>,
     path: String,
@@ -76,7 +79,7 @@ struct RepoConfig {
 
 #[derive(Debug, Deserialize)]
 struct ProjectConfig {
-    /// Stable id mapped to the DB row. Generated and written back if omitted.
+    /// Stable id mapped to the DB row. Generated if omitted.
     #[serde(default)]
     id: Option<Uuid>,
     name: String,
@@ -89,12 +92,12 @@ struct ProjectConfig {
     /// Repo paths grouped under this project (matched against `[[repo]].path`).
     #[serde(default)]
     repos: Vec<String>,
-    /// Kanban column names, created in order only on first reconcile.
+    /// Kanban column names, created in order only when the project has none yet.
     #[serde(default)]
     statuses: Vec<String>,
 }
 
-/// Resolve the config file path: `$VIBE_KANBAN_PROJECTS_CONFIG`, otherwise
+/// Default export/import path: `$VIBE_KANBAN_PROJECTS_CONFIG`, otherwise
 /// `~/.vibe-kanban/projects.toml` (falling back to `<asset_dir>/projects.toml`
 /// only if the home directory can't be determined).
 pub fn config_path() -> PathBuf {
@@ -132,26 +135,42 @@ fn derive_key(name: &str) -> String {
     }
 }
 
+/// Ensure the single predefined local user exists. Called at startup now that the
+/// TOML reconcile (which previously did this) no longer runs.
+pub async fn ensure_local_user(pool: &SqlitePool) -> anyhow::Result<()> {
+    LocalUser::ensure(pool, DEFAULT_LOCAL_USER_NAME).await?;
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
-// Startup reconcile (projects.toml -> DB), plus id-stamp + DB-only export.
+// Import (TOML -> DB), non-destructive upsert.
 // ---------------------------------------------------------------------------
 
-/// Load `projects.toml` (if present) and reconcile it into the database, then
-/// stamp ids and export DB-only entries back into the file. Always ensures the
-/// predefined local user exists. Per-entry failures are logged and skipped.
-pub async fn reconcile(pool: &SqlitePool) -> anyhow::Result<()> {
-    let path = config_path();
-    let config = match std::fs::read_to_string(&path) {
-        Ok(raw) => toml::from_str::<ProjectsConfig>(&raw)
-            .map_err(|e| anyhow::anyhow!("Failed to parse {}: {e}", path.display()))?,
-        Err(_) => {
-            tracing::debug!(
-                "No projects.toml at {}; skipping config sync",
-                path.display()
-            );
-            ProjectsConfig::default()
-        }
-    };
+/// Counts of what an import touched.
+#[derive(Debug, Default, Clone, Copy, serde::Serialize)]
+pub struct ImportSummary {
+    pub projects: usize,
+    pub repos: usize,
+    pub links: usize,
+    pub profiles_applied: bool,
+}
+
+/// Read a TOML file and import it (see [`import_from_str`]).
+pub async fn import_from_path(pool: &SqlitePool, path: &Path) -> anyhow::Result<ImportSummary> {
+    let raw = std::fs::read_to_string(path)
+        .map_err(|e| anyhow::anyhow!("Failed to read {}: {e}", path.display()))?;
+    import_from_str(pool, &raw).await
+}
+
+/// Parse a TOML config document and upsert it into the database. Matches rows by
+/// `id`, then by name/path; updates the fields of matched rows and inserts new
+/// ones. Never deletes a project, repo, or link that isn't in the document.
+/// Embedded executor profiles, if present, are saved as overrides. Per-entry
+/// failures are logged and skipped.
+pub async fn import_from_str(pool: &SqlitePool, raw: &str) -> anyhow::Result<ImportSummary> {
+    let config: ProjectsConfig =
+        toml::from_str(raw).map_err(|e| anyhow::anyhow!("Failed to parse config: {e}"))?;
+    let mut summary = ImportSummary::default();
 
     let user_name = config
         .local_user_name
@@ -159,28 +178,40 @@ pub async fn reconcile(pool: &SqlitePool) -> anyhow::Result<()> {
         .unwrap_or(DEFAULT_LOCAL_USER_NAME);
     LocalUser::ensure(pool, user_name).await?;
 
-    // Repos: upsert by id/path, then apply static config.
     for repo_cfg in &config.repos {
-        if let Err(e) = reconcile_repo(pool, repo_cfg).await {
-            tracing::warn!("Skipping repo '{}': {e}", repo_cfg.path);
+        match import_repo(pool, repo_cfg).await {
+            Ok(()) => summary.repos += 1,
+            Err(e) => tracing::warn!("Skipping repo '{}': {e}", repo_cfg.path),
         }
     }
 
-    // Projects: upsert by id/name, link repos, seed statuses.
     for project_cfg in &config.projects {
-        if let Err(e) = reconcile_project(pool, project_cfg).await {
-            tracing::warn!("Skipping project '{}': {e}", project_cfg.name);
+        match import_project(pool, project_cfg).await {
+            Ok(links) => {
+                summary.projects += 1;
+                summary.links += links;
+            }
+            Err(e) => tracing::warn!("Skipping project '{}': {e}", project_cfg.name),
         }
     }
 
-    // Stamp stable ids on declared blocks and export any DB-only entries so the
-    // file stays the complete, authoritative record. Never prunes.
-    sync_config_file(pool).await;
+    if let Some(json) = config.profiles_json.as_deref() {
+        match serde_json::from_str::<ExecutorConfigs>(json) {
+            Ok(profiles) => match profiles.save_overrides() {
+                Ok(()) => {
+                    ExecutorConfigs::reload();
+                    summary.profiles_applied = true;
+                }
+                Err(e) => tracing::warn!("Failed to save imported executor profiles: {e}"),
+            },
+            Err(e) => tracing::warn!("Invalid profiles_json in import: {e}"),
+        }
+    }
 
-    Ok(())
+    Ok(summary)
 }
 
-async fn reconcile_repo(pool: &SqlitePool, cfg: &RepoConfig) -> anyhow::Result<()> {
+async fn import_repo(pool: &SqlitePool, cfg: &RepoConfig) -> anyhow::Result<()> {
     let expanded = expand_tilde(&cfg.path);
     let path = std::path::Path::new(&expanded);
     let display_name = cfg.display_name.clone().unwrap_or_else(|| {
@@ -219,7 +250,9 @@ async fn reconcile_repo(pool: &SqlitePool, cfg: &RepoConfig) -> anyhow::Result<(
     Ok(())
 }
 
-async fn reconcile_project(pool: &SqlitePool, cfg: &ProjectConfig) -> anyhow::Result<()> {
+/// Upsert a project and link its declared repos. Returns the number of links
+/// established. Links are only added, never pruned (import is non-destructive).
+async fn import_project(pool: &SqlitePool, cfg: &ProjectConfig) -> anyhow::Result<usize> {
     let key = cfg.key.clone().unwrap_or_else(|| derive_key(&cfg.name));
     let color = cfg
         .color
@@ -263,34 +296,19 @@ async fn reconcile_project(pool: &SqlitePool, cfg: &ProjectConfig) -> anyhow::Re
         }
     };
 
-    // Link the declared repos, then prune any link no longer declared so the
-    // project's `repos` array in projects.toml is authoritative (add *and*
-    // remove). Project↔repo links are mutated only here — there is no GUI/API
-    // that touches them — so pruning cannot clobber out-of-band links. Unlinking
-    // only removes the grouping; it never deletes the repo, its worktrees, or
-    // any workspaces.
-    let mut declared_repo_ids = Vec::new();
+    // Link the declared repos by path. Existing links are left untouched.
+    let mut links = 0;
     for repo_path in &cfg.repos {
         let expanded = expand_tilde(repo_path);
         if let Some(repo) = Repo::find_by_path(pool, &expanded).await? {
             ProjectRepo::link(pool, project.id, repo.id).await?;
-            declared_repo_ids.push(repo.id);
+            links += 1;
         } else {
             tracing::warn!(
                 "Project '{}' references unknown repo path '{}'",
                 cfg.name,
                 repo_path
             );
-        }
-    }
-    for existing in ProjectRepo::list_repo_ids(pool, project.id).await? {
-        if !declared_repo_ids.contains(&existing) {
-            tracing::info!(
-                "Unlinking repo {} from project '{}' (no longer in projects.toml)",
-                existing,
-                cfg.name
-            );
-            ProjectRepo::unlink(pool, project.id, existing).await?;
         }
     }
 
@@ -316,127 +334,92 @@ async fn reconcile_project(pool: &SqlitePool, cfg: &ProjectConfig) -> anyhow::Re
         }
     }
 
+    Ok(links)
+}
+
+/// Seed default kanban columns for a freshly created project (used by the API
+/// when a project is created directly in the DB). No-op if it already has any.
+pub async fn seed_default_statuses(pool: &SqlitePool, project_id: Uuid) -> anyhow::Result<()> {
+    if ProjectStatus::count_by_project(pool, project_id).await? != 0 {
+        return Ok(());
+    }
+    for (idx, name) in DEFAULT_STATUSES.iter().enumerate() {
+        let color = STATUS_PALETTE[idx % STATUS_PALETTE.len()];
+        ProjectStatus::create(
+            pool,
+            Uuid::new_v4(),
+            project_id,
+            name,
+            color,
+            idx as i64,
+            false,
+        )
+        .await?;
+    }
     Ok(())
 }
 
 // ---------------------------------------------------------------------------
-// Runtime CRUD — mutate the DB mirror, then write through to projects.toml.
+// Export (DB -> TOML).
 // ---------------------------------------------------------------------------
 
-/// Create a project (DB mirror + TOML block). Derives an issue key from name.
-pub async fn create_project(
-    pool: &SqlitePool,
-    id: Uuid,
-    name: &str,
-    color: &str,
-) -> Result<Project, sqlx::Error> {
-    let key = derive_key(name);
-    let project = Project::create(pool, id, name, Some(&key), color, 0, None).await?;
-    mirror_project(pool, &project).await;
-    Ok(project)
-}
+/// Serialise the current static config into a single TOML document: the local
+/// user name, every repo, every project (with its linked repo paths and current
+/// kanban columns), and the cached executor profiles as `profiles_json`.
+pub async fn export_to_string(pool: &SqlitePool) -> anyhow::Result<String> {
+    let mut doc = Document::new();
 
-/// Update a project's presentation fields (DB mirror + TOML block).
-#[allow(clippy::too_many_arguments)]
-pub async fn update_project(
-    pool: &SqlitePool,
-    id: Uuid,
-    name: &str,
-    key: Option<&str>,
-    color: &str,
-    sort_order: i64,
-    default_agent_working_dir: Option<&str>,
-) -> Result<Project, sqlx::Error> {
-    let project = Project::update_fields(
-        pool,
-        id,
-        name,
-        key,
-        color,
-        sort_order,
-        default_agent_working_dir,
-    )
-    .await?;
-    mirror_project(pool, &project).await;
-    Ok(project)
-}
-
-/// Delete a project (cascades to its statuses/issues/tags/repo links via FK)
-/// and remove its block from `projects.toml`.
-pub async fn delete_project(pool: &SqlitePool, id: Uuid) -> Result<u64, sqlx::Error> {
-    let rows = Project::delete(pool, id).await?;
-    let id_str = id.to_string();
-    edit_document(|doc| {
-        if let Some(aot) = doc
-            .get_mut("project")
-            .and_then(Item::as_array_of_tables_mut)
-        {
-            remove_table(aot, &id_str, "name", None);
-        }
-    });
-    Ok(rows)
-}
-
-/// Write a project's current config (incl. linked repo paths) into the TOML
-/// file, creating or replacing its block. Best-effort: errors are logged.
-pub async fn mirror_project(pool: &SqlitePool, project: &Project) {
-    let repo_paths = ProjectRepo::list_repo_paths(pool, project.id)
-        .await
-        .unwrap_or_default();
-    let id_str = project.id.to_string();
-    edit_document(|doc| {
-        let aot = array_of_tables(doc, "project");
-        let table = upsert_table(aot, &id_str);
-        write_project_table(table, project, &repo_paths);
-    });
-}
-
-/// Write a repo's current config into the TOML file, creating or replacing its
-/// block. Best-effort: errors are logged. (No DB access — repos are created via
-/// the repo service before this is called.)
-pub fn mirror_repo(repo: &Repo) {
-    let id_str = repo.id.to_string();
-    edit_document(|doc| {
-        let aot = array_of_tables(doc, "repo");
-        let table = upsert_table(aot, &id_str);
-        write_repo_table(table, repo);
-    });
-}
-
-/// Remove a repo's block from `projects.toml`. `path` is an optional fallback
-/// match for legacy blocks written before ids existed.
-pub fn forget_repo(id: Uuid, path: Option<&str>) {
-    let id_str = id.to_string();
-    edit_document(|doc| {
-        if let Some(aot) = doc.get_mut("repo").and_then(Item::as_array_of_tables_mut) {
-            remove_table(aot, &id_str, "path", path);
-        }
-    });
-}
-
-// ---------------------------------------------------------------------------
-// projects.toml document editing (format-preserving, atomic, serialized).
-// ---------------------------------------------------------------------------
-
-/// Load the file, apply `edit`, and write it back atomically. Serialized across
-/// the process so concurrent mutations don't clobber each other. A missing or
-/// unparseable file starts from an empty document. Write failures are logged.
-fn edit_document<F: FnOnce(&mut Document)>(edit: F) {
-    static FILE_LOCK: Mutex<()> = Mutex::new(());
-    let _guard = FILE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-
-    let path = config_path();
-    let mut doc = std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|raw| raw.parse::<Document>().ok())
-        .unwrap_or_default();
-    edit(&mut doc);
-    if let Err(e) = save_document(&path, &doc) {
-        tracing::warn!("Failed to write {}: {e}", path.display());
+    // Top-level scalar keys MUST be emitted before any array-of-tables, otherwise
+    // they would parse as belonging to the last table. Insert them first.
+    if let Some(user) = LocalUser::list_all(pool).await?.into_iter().next()
+        && let Some(name) = user.first_name.or(user.username)
+    {
+        doc["local_user_name"] = value(name);
     }
+
+    let profiles = ExecutorConfigs::get_cached();
+    match serde_json::to_string(&profiles) {
+        Ok(json) => doc["profiles_json"] = value(json),
+        Err(e) => tracing::warn!("Failed to serialise executor profiles for export: {e}"),
+    }
+
+    let repos = Repo::list_all(pool).await?;
+    if !repos.is_empty() {
+        let mut tables = ArrayOfTables::new();
+        for repo in &repos {
+            let mut table = Table::new();
+            write_repo_table(&mut table, repo);
+            tables.push(table);
+        }
+        doc.insert("repo", Item::ArrayOfTables(tables));
+    }
+
+    let projects = Project::find_all(pool).await?;
+    if !projects.is_empty() {
+        let mut tables = ArrayOfTables::new();
+        for project in &projects {
+            let repo_paths = ProjectRepo::list_repo_paths(pool, project.id)
+                .await
+                .unwrap_or_default();
+            let statuses: Vec<String> = ProjectStatus::list_by_project(pool, project.id)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|s| s.name)
+                .collect();
+            let mut table = Table::new();
+            write_project_table(&mut table, project, &repo_paths, &statuses);
+            tables.push(table);
+        }
+        doc.insert("project", Item::ArrayOfTables(tables));
+    }
+
+    Ok(doc.to_string())
 }
 
-fn save_document(path: &std::path::Path, doc: &Document) -> std::io::Result<()> {
+/// Export the static config and write it atomically to `path`.
+pub async fn export_to_path(pool: &SqlitePool, path: &Path) -> anyhow::Result<()> {
+    let content = export_to_string(pool).await?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -445,48 +428,14 @@ fn save_document(path: &std::path::Path, doc: &Document) -> std::io::Result<()> 
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "projects.toml".to_string());
     let tmp = path.with_file_name(format!("{file_name}.tmp"));
-    std::fs::write(&tmp, doc.to_string())?;
+    std::fs::write(&tmp, &content)?;
     std::fs::rename(&tmp, path)?;
     Ok(())
 }
 
-/// Ensure `[[<key>]]` exists as an array-of-tables and return it.
-fn array_of_tables<'a>(doc: &'a mut Document, key: &str) -> &'a mut ArrayOfTables {
-    let entry = doc
-        .entry(key)
-        .or_insert(Item::ArrayOfTables(ArrayOfTables::new()));
-    if entry.as_array_of_tables().is_none() {
-        *entry = Item::ArrayOfTables(ArrayOfTables::new());
-    }
-    entry
-        .as_array_of_tables_mut()
-        .expect("entry was just set to an array of tables")
-}
-
-/// Find the table whose `id` matches, or push a fresh one.
-fn upsert_table<'a>(aot: &'a mut ArrayOfTables, id: &str) -> &'a mut Table {
-    let pos = aot
-        .iter()
-        .position(|t| t.get("id").and_then(Item::as_str) == Some(id));
-    match pos {
-        Some(i) => aot.iter_mut().nth(i).expect("position just found"),
-        None => {
-            aot.push(Table::new());
-            aot.iter_mut().last().expect("table just pushed")
-        }
-    }
-}
-
-/// Remove the table matching `id`, or `alt_key == alt_val` for legacy blocks.
-fn remove_table(aot: &mut ArrayOfTables, id: &str, alt_key: &str, alt_val: Option<&str>) {
-    let pos = aot.iter().position(|t| {
-        t.get("id").and_then(Item::as_str) == Some(id)
-            || alt_val.is_some_and(|a| t.get(alt_key).and_then(Item::as_str) == Some(a))
-    });
-    if let Some(i) = pos {
-        aot.remove(i);
-    }
-}
+// ---------------------------------------------------------------------------
+// TOML table serialisation helpers.
+// ---------------------------------------------------------------------------
 
 fn set_opt_str(table: &mut Table, key: &str, val: Option<&str>) {
     match val {
@@ -505,7 +454,12 @@ fn set_str_array(table: &mut Table, key: &str, items: &[String]) {
     table[key] = value(arr);
 }
 
-fn write_project_table(table: &mut Table, project: &Project, repo_paths: &[String]) {
+fn write_project_table(
+    table: &mut Table,
+    project: &Project,
+    repo_paths: &[String],
+    statuses: &[String],
+) {
     table["id"] = value(project.id.to_string());
     table["name"] = value(project.name.as_str());
     set_opt_str(table, "key", project.key.as_deref());
@@ -516,7 +470,7 @@ fn write_project_table(table: &mut Table, project: &Project, repo_paths: &[Strin
         project.default_agent_working_dir.as_deref(),
     );
     set_str_array(table, "repos", repo_paths);
-    // `statuses` is a first-seed-only field; leave any existing value untouched.
+    set_str_array(table, "statuses", statuses);
 }
 
 fn write_repo_table(table: &mut Table, repo: &Repo) {
@@ -550,93 +504,20 @@ fn write_repo_table(table: &mut Table, repo: &Repo) {
     );
 }
 
-/// Stamp ids onto declared blocks and export any DB-only project/repo into the
-/// file. Existing declared blocks keep their hand-written field values (only a
-/// missing `id` is added); rows absent from the file are written in full.
-async fn sync_config_file(pool: &SqlitePool) {
-    let projects = Project::find_all(pool).await.unwrap_or_default();
-    let repos = Repo::list_all(pool).await.unwrap_or_default();
-
-    let mut project_repo_paths = Vec::with_capacity(projects.len());
-    for p in &projects {
-        project_repo_paths.push(
-            ProjectRepo::list_repo_paths(pool, p.id)
-                .await
-                .unwrap_or_default(),
-        );
-    }
-
-    edit_document(|doc| {
-        {
-            let aot = array_of_tables(doc, "repo");
-            for repo in &repos {
-                let id = repo.id.to_string();
-                let path = repo.path.to_string_lossy().to_string();
-                let pos = aot.iter().position(|t| {
-                    t.get("id").and_then(Item::as_str) == Some(id.as_str())
-                        || t.get("path")
-                            .and_then(Item::as_str)
-                            .map(expand_tilde)
-                            .as_deref()
-                            == Some(path.as_str())
-                });
-                match pos {
-                    Some(i) => {
-                        let table = aot.iter_mut().nth(i).expect("position just found");
-                        if table.get("id").and_then(Item::as_str) != Some(id.as_str()) {
-                            table["id"] = value(id);
-                        }
-                    }
-                    None => {
-                        aot.push(Table::new());
-                        let table = aot.iter_mut().last().expect("table just pushed");
-                        write_repo_table(table, repo);
-                    }
-                }
-            }
-        }
-        {
-            let aot = array_of_tables(doc, "project");
-            for (project, paths) in projects.iter().zip(project_repo_paths.iter()) {
-                let id = project.id.to_string();
-                let pos = aot.iter().position(|t| {
-                    t.get("id").and_then(Item::as_str) == Some(id.as_str())
-                        || t.get("name").and_then(Item::as_str) == Some(project.name.as_str())
-                });
-                match pos {
-                    Some(i) => {
-                        let table = aot.iter_mut().nth(i).expect("position just found");
-                        if table.get("id").and_then(Item::as_str) != Some(id.as_str()) {
-                            table["id"] = value(id);
-                        }
-                    }
-                    None => {
-                        aot.push(Table::new());
-                        let table = aot.iter_mut().last().expect("table just pushed");
-                        write_project_table(table, project, paths);
-                    }
-                }
-            }
-        }
-    });
-}
-
 #[cfg(test)]
 mod tests {
+    use sqlx::sqlite::SqlitePoolOptions;
+
     use super::*;
 
-    /// Run `body` with `projects.toml` pointed at a unique temp file. The env
-    /// var is process-global, so serialize access across tests.
-    fn with_temp_config(body: impl FnOnce(&std::path::Path)) {
-        static ENV_GUARD: Mutex<()> = Mutex::new(());
-        let _guard = ENV_GUARD.lock().unwrap_or_else(|e| e.into_inner());
-
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("projects.toml");
-        // SAFETY: ENV_GUARD serializes all readers/writers of this var.
-        unsafe { std::env::set_var("VIBE_KANBAN_PROJECTS_CONFIG", &path) };
-        body(&path);
-        unsafe { std::env::remove_var("VIBE_KANBAN_PROJECTS_CONFIG") };
+    async fn pool() -> SqlitePool {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("../db/migrations").run(&pool).await.unwrap();
+        pool
     }
 
     #[test]
@@ -646,91 +527,106 @@ mod tests {
         assert_eq!(derive_key("!!!"), "PRJ");
     }
 
-    #[test]
-    fn upsert_is_keyed_by_id_and_preserves_comments() {
-        with_temp_config(|path| {
-            // Hand-written file: a comment plus a legacy block without an id.
-            std::fs::write(
-                path,
-                "# my projects\n\n[[project]]\nname = \"Acme\"\ncolor = \"#ffffff\"\n",
-            )
-            .unwrap();
-
-            let id = Uuid::from_u128(0x1234);
-            let id_str = id.to_string();
-
-            // First upsert appends a distinct, id-keyed block.
-            edit_document(|doc| {
-                let aot = array_of_tables(doc, "project");
-                let table = upsert_table(aot, &id_str);
-                table["id"] = value(id_str.clone());
-                table["name"] = value("Acme V2");
-                table["color"] = value("#000000");
-            });
-
-            let raw = std::fs::read_to_string(path).unwrap();
-            assert!(raw.contains("# my projects"), "comment must survive writes");
-            assert!(raw.contains("Acme V2"));
-            let doc = raw.parse::<Document>().unwrap();
-            assert_eq!(
-                doc["project"].as_array_of_tables().unwrap().len(),
-                2,
-                "legacy block kept, new id block added"
-            );
-
-            // Second upsert with the same id updates in place (no duplicate).
-            edit_document(|doc| {
-                let aot = array_of_tables(doc, "project");
-                let table = upsert_table(aot, &id_str);
-                table["color"] = value("#abcabc");
-            });
-            let raw = std::fs::read_to_string(path).unwrap();
-            let doc = raw.parse::<Document>().unwrap();
-            assert_eq!(doc["project"].as_array_of_tables().unwrap().len(), 2);
-            assert!(raw.contains("#abcabc"));
-
-            // Removal by id drops only the matching block.
-            edit_document(|doc| {
-                if let Some(aot) = doc
-                    .get_mut("project")
-                    .and_then(Item::as_array_of_tables_mut)
-                {
-                    remove_table(aot, &id_str, "name", None);
-                }
-            });
-            let raw = std::fs::read_to_string(path).unwrap();
-            assert!(!raw.contains(&id_str), "removed block's id is gone");
-            let doc = raw.parse::<Document>().unwrap();
-            assert_eq!(doc["project"].as_array_of_tables().unwrap().len(), 1);
-            assert!(raw.contains("# my projects"));
-        });
+    /// Exported config must be valid TOML: top-level scalar keys (local_user_name,
+    /// profiles_json) have to precede the `[[repo]]`/`[[project]]` arrays, or they
+    /// would parse into the last table.
+    #[tokio::test]
+    async fn export_is_valid_toml_with_scalars_first() {
+        let pool = pool().await;
+        ensure_local_user(&pool).await.unwrap();
+        let toml = export_to_string(&pool).await.unwrap();
+        // Round-trips back through the import shape without error.
+        let _cfg: ProjectsConfig = toml::from_str(&toml).unwrap();
+        assert!(toml.contains("local_user_name"));
+        assert!(toml.contains("profiles_json"));
     }
 
-    #[test]
-    fn write_repo_table_round_trips_fields() {
-        with_temp_config(|path| {
-            let id = Uuid::from_u128(0xBEEF);
-            let id_str = id.to_string();
-            edit_document(|doc| {
-                let aot = array_of_tables(doc, "repo");
-                let table = upsert_table(aot, &id_str);
-                table["id"] = value(id_str.clone());
-                table["path"] = value("/tmp/acme");
-                table["display_name"] = value("Acme");
-                set_str_array(table, "copy_files", &[".env".into(), "x.toml".into()]);
-                table["parallel_setup_script"] = value(true);
-            });
+    /// Seed a project + repo + link + custom statuses in the DB, export, then
+    /// import into a fresh DB and assert everything is restored.
+    #[tokio::test]
+    async fn export_import_round_trip() {
+        let src = pool().await;
+        ensure_local_user(&src).await.unwrap();
 
-            let raw = std::fs::read_to_string(path).unwrap();
-            let doc = raw.parse::<Document>().unwrap();
-            let t = &doc["repo"].as_array_of_tables().unwrap().get(0).unwrap();
-            assert_eq!(t.get("path").and_then(Item::as_str), Some("/tmp/acme"));
-            assert_eq!(
-                t.get("parallel_setup_script").and_then(Item::as_bool),
-                Some(true)
-            );
-            let copy = t.get("copy_files").and_then(Item::as_array).unwrap();
-            assert_eq!(copy.len(), 2);
-        });
+        // A repo on disk-agnostic path + a project that links it with custom cols.
+        let repo = Repo::find_or_create(&src, std::path::Path::new("/tmp/acme"), "Acme")
+            .await
+            .unwrap();
+        let project = Project::create(
+            &src,
+            Uuid::new_v4(),
+            "Acme",
+            Some("ACME"),
+            "#123456",
+            0,
+            Some("/src"),
+        )
+        .await
+        .unwrap();
+        ProjectRepo::link(&src, project.id, repo.id).await.unwrap();
+        for (i, name) in ["Backlog", "Doing", "Done"].iter().enumerate() {
+            ProjectStatus::create(
+                &src,
+                Uuid::new_v4(),
+                project.id,
+                name,
+                "#fff",
+                i as i64,
+                false,
+            )
+            .await
+            .unwrap();
+        }
+
+        let exported = export_to_string(&src).await.unwrap();
+
+        // Import into a clean DB.
+        let dst = pool().await;
+        let summary = import_from_str(&dst, &exported).await.unwrap();
+        assert_eq!(summary.projects, 1);
+        assert_eq!(summary.repos, 1);
+        assert_eq!(summary.links, 1);
+
+        let projects = Project::find_all(&dst).await.unwrap();
+        assert_eq!(projects.len(), 1);
+        let p = &projects[0];
+        assert_eq!(p.id, project.id);
+        assert_eq!(p.name, "Acme");
+        assert_eq!(p.key.as_deref(), Some("ACME"));
+        assert_eq!(p.color, "#123456");
+        assert_eq!(p.default_agent_working_dir.as_deref(), Some("/src"));
+
+        let linked = ProjectRepo::list_repo_paths(&dst, p.id).await.unwrap();
+        assert_eq!(linked, vec!["/tmp/acme".to_string()]);
+
+        let statuses: Vec<String> = ProjectStatus::list_by_project(&dst, p.id)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|s| s.name)
+            .collect();
+        assert_eq!(statuses, vec!["Backlog", "Doing", "Done"]);
+    }
+
+    /// Import matches existing rows by id and updates them (non-destructive).
+    #[tokio::test]
+    async fn import_upserts_existing_by_id() {
+        let pool = pool().await;
+        ensure_local_user(&pool).await.unwrap();
+        let id = Uuid::new_v4();
+        Project::create(&pool, id, "Old", Some("OLD"), "#000000", 0, None)
+            .await
+            .unwrap();
+
+        let toml = format!(
+            "[[project]]\nid = \"{id}\"\nname = \"New\"\nkey = \"NEW\"\ncolor = \"#ffffff\"\n"
+        );
+        let summary = import_from_str(&pool, &toml).await.unwrap();
+        assert_eq!(summary.projects, 1);
+
+        let projects = Project::find_all(&pool).await.unwrap();
+        assert_eq!(projects.len(), 1, "matched existing row, no duplicate");
+        assert_eq!(projects[0].name, "New");
+        assert_eq!(projects[0].color, "#ffffff");
     }
 }

@@ -1,17 +1,22 @@
-# Example projects.toml for running Vibe Kanban fully locally.
+# Example config bundle for Vibe Kanban (import/export format).
 #
-# Copy this to ~/.vibe-kanban/projects.toml (or point $VIBE_KANBAN_PROJECTS_CONFIG
-# at it) and edit to taste. This file is the source of truth for project and repo
-# *config*; the SQLite database keeps matching rows as an id-anchored mirror so
-# issues, workspaces, and kanban state work normally.
+# The SQLite database is the source of truth for projects, repos, links, and
+# kanban columns — create and edit them in the app. This file is an explicit,
+# portable export/import format for that *static* config (NOT issues, workspaces,
+# or tags).
 #
-# How it syncs:
-# - On startup the file is reconciled into the database (the file wins for any
-#   field it declares). Stable `id`s are generated and written back here, and any
-#   project/repo created in the UI is exported back into this file.
-# - Creating/editing projects or repos in the UI writes the change back here too.
-# - Reconcile never deletes: removing a block by hand will reappear on next start.
-#   To delete a project or repo, use the UI (deletes cascade to issues/links).
+# Import this file:   vibe-kanban import path/to/this.toml
+#   (or POST its contents to /api/config/import)
+# Export current DB:  vibe-kanban export path/to/out.toml
+#   (or GET /api/config/export)
+#
+# Import is non-destructive: rows are matched by `id` (then by name/path),
+# existing rows are updated, new ones inserted, and nothing is ever deleted.
+# Default path when none is given: $VIBE_KANBAN_PROJECTS_CONFIG, else
+# ~/.vibe-kanban/projects.toml.
+#
+# An export also includes a top-level `profiles_json = "..."` string holding your
+# executor profiles (agents); importing it restores those profile overrides.
 
 # Display name for the predefined local user (issue creator/assignee).
 local_user_name = "Local"
@@ -20,7 +25,8 @@ local_user_name = "Local"
 # Repos — one block per git repository. `path` is the unique anchor.
 # ---------------------------------------------------------------------------
 [[repo]]
-# id is optional; generated and written back on first run if omitted.
+# id is optional; generated on import if omitted. Exports always include it so a
+# re-import updates the same row instead of inserting a duplicate.
 # id = "00000000-0000-0000-0000-000000000000"
 path = "~/code/acme-api"
 display_name = "Acme API"
@@ -51,6 +57,6 @@ color = "#3b82f6"
 # default_agent_working_dir = "."
 # Repo paths grouped under this project (must match a [[repo]].path above).
 repos = ["~/code/acme-api", "~/code/acme-web"]
-# Kanban columns, created in order on first reconcile only. Afterwards columns
-# are managed in the app (this field is ignored once the project has any).
+# Kanban columns, created in order on import only if the project has none yet.
+# Once a project has columns they are managed in the app and this is ignored.
 statuses = ["Todo", "In Progress", "In Review", "Done"]

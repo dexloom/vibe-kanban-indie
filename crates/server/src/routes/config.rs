@@ -7,7 +7,7 @@ use axum::{
     extract::{Path, Query, State, ws::Message},
     http,
     response::{IntoResponse, Json as ResponseJson, Response},
-    routing::{get, put},
+    routing::{get, post, put},
 };
 use deployment::{Deployment, DeploymentError};
 use executors::{
@@ -26,6 +26,7 @@ use services::services::{
         save_config_to_file,
     },
     container::ContainerService,
+    project_config,
     remote_client::RemoteClientError,
 };
 use tokio::fs;
@@ -47,6 +48,8 @@ pub fn router() -> Router<DeploymentImpl> {
         .route("/sounds/{sound}", get(get_sound))
         .route("/mcp-config", get(get_mcp_servers).post(update_mcp_servers))
         .route("/profiles", get(get_profiles).put(update_profiles))
+        .route("/export", get(export_config))
+        .route("/import", post(import_config))
         .route(
             "/editors/check-availability",
             get(check_editor_availability),
@@ -508,6 +511,35 @@ async fn update_profiles(
             "Invalid executor profiles format: {}",
             e
         ))),
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct ConfigExport {
+    /// The exported config as a TOML document.
+    pub content: String,
+}
+
+/// `GET /api/config/export` — serialise the static project/repo/agent config
+/// (projects, repos, links, kanban columns, executor profiles) to TOML.
+async fn export_config(
+    State(deployment): State<DeploymentImpl>,
+) -> ResponseJson<ApiResponse<ConfigExport>> {
+    match project_config::export_to_string(&deployment.db().pool).await {
+        Ok(content) => ResponseJson(ApiResponse::success(ConfigExport { content })),
+        Err(e) => ResponseJson(ApiResponse::error(&format!("Export failed: {e}"))),
+    }
+}
+
+/// `POST /api/config/import` — non-destructively upsert a TOML config document
+/// (request body) into the DB and apply any embedded executor profiles.
+async fn import_config(
+    State(deployment): State<DeploymentImpl>,
+    body: String,
+) -> ResponseJson<ApiResponse<project_config::ImportSummary>> {
+    match project_config::import_from_str(&deployment.db().pool, &body).await {
+        Ok(summary) => ResponseJson(ApiResponse::success(summary)),
+        Err(e) => ResponseJson(ApiResponse::error(&format!("Import failed: {e}"))),
     }
 }
 

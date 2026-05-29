@@ -104,10 +104,10 @@ async fn fb_users(
     Ok(ResponseJson(json!({ "users": users })))
 }
 
-/// `GET /v1/projects/{id}/repos` — the repos linked to a project (via
-/// `project_repos`, reconciled from `projects.toml`). Used by the TUI to
-/// default a card-launched workspace to the project's repo. Returns the full
-/// repo rows under `{ "repos": [...] }`, in the project's link order.
+/// `GET /v1/projects/{id}/repos` — the repos linked to a project (via the
+/// `project_repos` table; managed by the link/unlink endpoints below). Used by
+/// the TUI to default a card-launched workspace to the project's repo. Returns
+/// the full repo rows under `{ "repos": [...] }`, in the project's link order.
 async fn project_repos(
     State(deployment): State<DeploymentImpl>,
     Path(project_id): Path<Uuid>,
@@ -116,6 +116,33 @@ async fn project_repos(
     let repo_ids = ProjectRepo::list_repo_ids(pool, project_id).await?;
     let repos = DbRepo::find_by_ids(pool, &repo_ids).await?;
     Ok(ResponseJson(json!({ "repos": repos })))
+}
+
+#[derive(Debug, Deserialize)]
+struct LinkRepoRequest {
+    repo_id: Uuid,
+}
+
+/// `POST /v1/projects/{id}/repos` — link a repo to a project. Idempotent.
+async fn link_project_repo(
+    State(deployment): State<DeploymentImpl>,
+    Path(project_id): Path<Uuid>,
+    ResponseJson(req): ResponseJson<LinkRepoRequest>,
+) -> Result<ResponseJson<MutationResponse<Value>>, ApiError> {
+    ProjectRepo::link(&deployment.db().pool, project_id, req.repo_id).await?;
+    Ok(mutation(
+        json!({ "project_id": project_id, "repo_id": req.repo_id }),
+    ))
+}
+
+/// `DELETE /v1/projects/{id}/repos/{repo_id}` — unlink a repo from a project.
+/// Removes only the grouping; the repo, its worktrees, and workspaces are kept.
+async fn unlink_project_repo(
+    State(deployment): State<DeploymentImpl>,
+    Path((project_id, repo_id)): Path<(Uuid, Uuid)>,
+) -> Result<ResponseJson<DeleteResponse>, ApiError> {
+    ProjectRepo::unlink(&deployment.db().pool, project_id, repo_id).await?;
+    Ok(deleted())
 }
 
 async fn fb_statuses(
@@ -247,9 +274,14 @@ async fn create_project(
     State(deployment): State<DeploymentImpl>,
     ResponseJson(req): ResponseJson<CreateProjectRequest>,
 ) -> Result<ResponseJson<MutationResponse<ApiProject>>, ApiError> {
+    let pool = &deployment.db().pool;
     let id = req.id.unwrap_or_else(Uuid::new_v4);
-    let project =
-        project_config::create_project(&deployment.db().pool, id, &req.name, &req.color).await?;
+    let key = derive_key(&req.name);
+    let project = DbProject::create(pool, id, &req.name, Some(&key), &req.color, 0, None).await?;
+    // Seed default kanban columns; previously done by the TOML reconcile.
+    if let Err(e) = project_config::seed_default_statuses(pool, project.id).await {
+        tracing::warn!("Failed to seed default statuses for {}: {e}", project.id);
+    }
     Ok(mutation(to_api_project(project)))
 }
 
@@ -267,7 +299,7 @@ async fn update_project(
         .sort_order
         .map(|v| v as i64)
         .unwrap_or(existing.sort_order);
-    let project = project_config::update_project(
+    let project = DbProject::update_fields(
         &deployment.db().pool,
         id,
         &name,
@@ -306,7 +338,7 @@ async fn bulk_projects(
                 .sort_order
                 .map(|v| v as i64)
                 .unwrap_or(existing.sort_order);
-            let p = project_config::update_project(
+            let p = DbProject::update_fields(
                 pool,
                 item.id,
                 &name,
@@ -326,7 +358,7 @@ async fn delete_project(
     State(deployment): State<DeploymentImpl>,
     Path(id): Path<Uuid>,
 ) -> Result<ResponseJson<DeleteResponse>, ApiError> {
-    project_config::delete_project(&deployment.db().pool, id).await?;
+    DbProject::delete(&deployment.db().pool, id).await?;
     Ok(deleted())
 }
 
@@ -661,7 +693,14 @@ pub fn router() -> Router<DeploymentImpl> {
         .route("/v1/organizations", get(list_organizations))
         .route("/v1/organizations/{org_id}/members", get(list_org_members))
         .route("/v1/fallback/projects", get(fb_projects))
-        .route("/v1/projects/{id}/repos", get(project_repos))
+        .route(
+            "/v1/projects/{id}/repos",
+            get(project_repos).post(link_project_repo),
+        )
+        .route(
+            "/v1/projects/{id}/repos/{repo_id}",
+            axum::routing::delete(unlink_project_repo),
+        )
         .route("/v1/fallback/users", get(fb_users))
         .route("/v1/fallback/project_statuses", get(fb_statuses))
         .route("/v1/fallback/issues", get(fb_issues))

@@ -87,10 +87,53 @@ async fn main() -> Result<(), VibeKanbanError> {
         .await
         .map_err(DeploymentError::from)?;
 
-    // Reconcile the local projects.toml (if present) into the database. Static
-    // project/repo config is file-driven; failures here are non-fatal.
-    if let Err(e) = services::services::project_config::reconcile(&deployment.db().pool).await {
-        tracing::warn!("projects.toml reconcile failed: {e}");
+    // Ensure the predefined local user exists. Project/repo config lives in the
+    // DB (source of truth); TOML is only an explicit export/import format now.
+    if let Err(e) =
+        services::services::project_config::ensure_local_user(&deployment.db().pool).await
+    {
+        tracing::warn!("ensure local user failed: {e}");
+    }
+
+    // CLI subcommands for the static config: `export [path]` / `import [path]`.
+    // These run against the DB and exit without starting the HTTP server. An
+    // unknown first arg falls through to normal server startup.
+    {
+        use services::services::project_config;
+        let mut cli = std::env::args().skip(1);
+        match cli.next().as_deref() {
+            Some("export") => {
+                let path = cli
+                    .next()
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_else(project_config::config_path);
+                project_config::export_to_path(&deployment.db().pool, &path).await?;
+                println!("Exported static config to {}", path.display());
+                return Ok(());
+            }
+            Some("import") => {
+                let path = cli
+                    .next()
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_else(project_config::config_path);
+                let summary =
+                    project_config::import_from_path(&deployment.db().pool, &path).await?;
+                println!(
+                    "Imported {} project(s), {} repo(s), {} link(s){} from {}",
+                    summary.projects,
+                    summary.repos,
+                    summary.links,
+                    if summary.profiles_applied {
+                        ", executor profiles applied"
+                    } else {
+                        ""
+                    },
+                    path.display()
+                );
+                return Ok(());
+            }
+            _ => {}
+        }
     }
 
     deployment

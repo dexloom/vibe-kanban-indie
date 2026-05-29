@@ -22,7 +22,7 @@ pub fn render(f: &mut Frame, k: &KanbanView, area: Rect) {
         let msg = if k.loading {
             "  loading projects…"
         } else {
-            "  no projects configured (add one in projects.toml)"
+            "  no projects configured (create one in the web app, or import a config)"
         };
         f.render_widget(Paragraph::new(msg).dim(), area);
         return;

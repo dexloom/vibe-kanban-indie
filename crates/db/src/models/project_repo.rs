@@ -38,7 +38,7 @@ impl ProjectRepo {
     }
 
     /// Repo filesystem paths linked to a project, ordered for stable output.
-    /// Used to mirror project→repo links into `projects.toml`.
+    /// Used when exporting project→repo links to a config file.
     pub async fn list_repo_paths(
         pool: &SqlitePool,
         project_id: Uuid,
