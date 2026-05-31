@@ -33,7 +33,11 @@ use executors::{
     },
     approvals::{ExecutorApprovalService, NoopExecutorApprovalService},
     env::{ExecutionEnv, RepoContext},
-    executors::{BaseCodingAgent, CancellationToken, ExecutorExitResult, ExecutorExitSignal},
+    executors::{
+        BaseCodingAgent, CancellationToken, ExecutorExitResult, ExecutorExitSignal,
+        StandardCodingAgentExecutor,
+    },
+    interactive::{self, InteractiveTmuxConfig},
     logs::{NormalizedEntryType, utils::patch::extract_normalized_entry_from_patch},
 };
 use futures::{FutureExt, TryStreamExt, stream::select};
@@ -45,13 +49,18 @@ use services::services::{
     config::{Config, DEFAULT_COMMIT_REMINDER_PROMPT},
     container::{ContainerError, ContainerRef, ContainerService},
     diff_stream::{self, DiffStreamHandle},
+    execution_process,
     file::FileService,
     notification::NotificationService,
     queued_message::QueuedMessageService,
     remote_client::RemoteClient,
     remote_sync,
 };
-use tokio::{sync::RwLock, task::JoinHandle};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncSeekExt, BufReader},
+    sync::RwLock,
+    task::JoinHandle,
+};
 use tokio_util::io::ReaderStream;
 use utils::{
     log_msg::LogMsg,
@@ -61,15 +70,34 @@ use utils::{
 use uuid::Uuid;
 use workspace_manager::{RepoWorkspaceInput, WorkspaceError, WorkspaceManager};
 
-use crate::{command, copy};
+use crate::{command, copy, terminal};
 
 const WORKSPACE_TOUCH_DEBOUNCE: Duration = Duration::from_mins(2);
+
+/// How often the detached liveness poller checks whether the tmux session is
+/// still alive.
+const DETACHED_POLL_INTERVAL: Duration = Duration::from_secs(2);
+
+/// Runtime tracking for an interactive (detached tmux) execution. Unlike owned
+/// child processes (`child_store`), a detached tmux session is not an
+/// `AsyncGroupChild`; it is tracked by name with a transcript tail + liveness
+/// poller that mirror its output and detect completion.
+struct DetachedHandle {
+    /// tmux session name = `interactive::tmux_session_name(exec_id)`.
+    tmux_session: String,
+    /// Cancels both the transcript tail and the liveness poller.
+    cancel: CancellationToken,
+    tail_handle: JoinHandle<()>,
+    poll_handle: JoinHandle<()>,
+}
 
 #[derive(Clone)]
 pub struct LocalContainerService {
     db: DBService,
     workspace_manager: WorkspaceManager,
     child_store: Arc<RwLock<HashMap<Uuid, Arc<RwLock<AsyncGroupChild>>>>>,
+    /// Interactive (detached tmux) executions, keyed by execution id.
+    detached_store: Arc<RwLock<HashMap<Uuid, DetachedHandle>>>,
     cancellation_tokens: Arc<RwLock<HashMap<Uuid, CancellationToken>>>,
     msg_stores: Arc<RwLock<HashMap<Uuid, Arc<MsgStore>>>>,
     /// Tracks background tasks that stream logs to the database.
@@ -102,6 +130,7 @@ impl LocalContainerService {
         remote_client: Option<RemoteClient>,
     ) -> Self {
         let child_store = Arc::new(RwLock::new(HashMap::new()));
+        let detached_store = Arc::new(RwLock::new(HashMap::new()));
         let cancellation_tokens = Arc::new(RwLock::new(HashMap::new()));
         let db_stream_handles = Arc::new(RwLock::new(HashMap::new()));
         let exit_monitor_handles = Arc::new(RwLock::new(HashMap::new()));
@@ -112,6 +141,7 @@ impl LocalContainerService {
             db,
             workspace_manager,
             child_store,
+            detached_store,
             cancellation_tokens,
             msg_stores,
             db_stream_handles,
@@ -475,6 +505,293 @@ impl LocalContainerService {
         any_committed
     }
 
+    /// Finalize an execution that has completed (process exited, or — for a
+    /// detached tmux session — the session ended). Marks completion, commits
+    /// changes, chains the next action / queued follow-up, finalizes the task,
+    /// fires analytics + remote sync, and tears down the MsgStore / db stream /
+    /// child handle.
+    ///
+    /// Shared by [`Self::spawn_exit_monitor`] (owned child processes) and the
+    /// detached tmux liveness poller, so both modes reach the same end state.
+    async fn finalize_completed_execution(
+        &self,
+        exec_id: Uuid,
+        exit_code: Option<i64>,
+        status: ExecutionProcessStatus,
+    ) {
+        let db = &self.db;
+        let config = &self.config;
+        let analytics = &self.analytics;
+        let container = self;
+
+        if !ExecutionProcess::was_stopped(&db.pool, exec_id).await
+            && let Err(e) =
+                ExecutionProcess::update_completion(&db.pool, exec_id, status, exit_code).await
+        {
+            tracing::error!("Failed to update execution process completion: {}", e);
+        }
+
+        if let Ok(ctx) = ExecutionProcess::load_context(&db.pool, exec_id).await {
+            // Update executor session summary if available
+            if let Err(e) = container.update_executor_session_summary(&exec_id).await {
+                tracing::warn!("Failed to update executor session summary: {}", e);
+            }
+
+            let success = matches!(
+                ctx.execution_process.status,
+                ExecutionProcessStatus::Completed
+            ) && exit_code == Some(0);
+
+            let cleanup_done = matches!(
+                ctx.execution_process.run_reason,
+                ExecutionProcessRunReason::CleanupScript
+            ) && !matches!(
+                ctx.execution_process.status,
+                ExecutionProcessStatus::Running
+            );
+
+            let mut already_finalized = false;
+
+            if success || cleanup_done {
+                // Commit changes (if any) and get feedback about whether changes were made
+                let changes_committed = match container.try_commit_changes(&ctx).await {
+                    Ok(committed) => committed,
+                    Err(e) => {
+                        tracing::error!("Failed to commit changes after execution: {}", e);
+                        // Treat commit failures as if changes were made to be safe
+                        true
+                    }
+                };
+
+                let should_start_next = if matches!(
+                    ctx.execution_process.run_reason,
+                    ExecutionProcessRunReason::CodingAgent
+                ) {
+                    // Check if agent made commits OR if we just committed uncommitted changes
+                    changes_committed
+                        || container
+                            .has_commits_from_execution(&ctx)
+                            .await
+                            .unwrap_or(false)
+                } else {
+                    true
+                };
+
+                if should_start_next {
+                    // If the process exited successfully, start the next action
+                    if let Err(e) = container.try_start_next_action(&ctx).await {
+                        tracing::error!("Failed to start next action after completion: {}", e);
+                    }
+                } else {
+                    tracing::info!(
+                        "Skipping cleanup script for workspace {} - no changes made by coding agent",
+                        ctx.workspace.id
+                    );
+
+                    // Manually finalize task since we're bypassing normal execution flow
+                    container.finalize_task(&ctx).await;
+                    already_finalized = true;
+                }
+            }
+
+            if !already_finalized && container.should_finalize(&ctx) {
+                let has_chained_follow_up = ctx
+                    .execution_process
+                    .executor_action()
+                    .ok()
+                    .and_then(|action| action.next_action())
+                    .is_some();
+                let mut started_queued_follow_up = false;
+
+                // Only execute queued messages if the execution succeeded
+                // If it failed or was killed, just clear the queue and finalize
+                let should_execute_queued = !matches!(
+                    ctx.execution_process.status,
+                    ExecutionProcessStatus::Failed | ExecutionProcessStatus::Killed
+                );
+
+                if let Some(queued_msg) =
+                    container.queued_message_service.take_queued(ctx.session.id)
+                {
+                    if should_execute_queued {
+                        tracing::info!(
+                            "Found queued message for session {}, starting follow-up execution",
+                            ctx.session.id
+                        );
+
+                        // Delete the scratch since we're consuming the queued message
+                        if let Err(e) =
+                            Scratch::delete(&db.pool, ctx.session.id, &ScratchType::DraftFollowUp)
+                                .await
+                        {
+                            tracing::warn!(
+                                "Failed to delete scratch after consuming queued message: {}",
+                                e
+                            );
+                        }
+
+                        // Execute the queued follow-up
+                        if let Err(e) = container
+                            .start_queued_follow_up(&ctx, &queued_msg.data)
+                            .await
+                        {
+                            tracing::error!("Failed to start queued follow-up: {}", e);
+                            // Fall back to finalization if follow-up fails
+                            container.finalize_task(&ctx).await;
+                        } else {
+                            started_queued_follow_up = true;
+                        }
+                    } else {
+                        // Execution failed or was killed - discard the queued message and finalize
+                        tracing::info!(
+                            "Discarding queued message for session {} due to execution status {:?}",
+                            ctx.session.id,
+                            ctx.execution_process.status
+                        );
+                        container.finalize_task(&ctx).await;
+                    }
+                } else {
+                    container.finalize_task(&ctx).await;
+                }
+
+                let should_mark_turn_unseen = matches!(
+                    ctx.execution_process.run_reason,
+                    ExecutionProcessRunReason::CodingAgent
+                ) && !has_chained_follow_up
+                    && !started_queued_follow_up;
+
+                if should_mark_turn_unseen
+                    && let Err(e) = CodingAgentTurn::mark_unseen_by_execution_process_id(
+                        &db.pool,
+                        ctx.execution_process.id,
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        "Failed to mark coding agent turn unseen for execution {}: {}",
+                        ctx.execution_process.id,
+                        e
+                    );
+                }
+            }
+
+            // When a parallel setup script finishes and no coding agent is running,
+            // consume any queued message that was stuck waiting
+            if matches!(
+                ctx.execution_process.run_reason,
+                ExecutionProcessRunReason::SetupScript
+            ) && !container.should_finalize(&ctx)
+            {
+                let has_running_agent = ExecutionProcess::has_running_coding_agent_for_session(
+                    &db.pool,
+                    ctx.session.id,
+                )
+                .await
+                .unwrap_or(true);
+
+                if !has_running_agent
+                    && let Some(queued_msg) =
+                        container.queued_message_service.take_queued(ctx.session.id)
+                {
+                    tracing::info!(
+                        "Parallel setup script finished with queued message for session {}, starting follow-up",
+                        ctx.session.id
+                    );
+
+                    if let Err(e) =
+                        Scratch::delete(&db.pool, ctx.session.id, &ScratchType::DraftFollowUp).await
+                    {
+                        tracing::warn!(
+                            "Failed to delete scratch after consuming queued message: {}",
+                            e
+                        );
+                    }
+
+                    if let Err(e) = container
+                        .start_queued_follow_up(&ctx, &queued_msg.data)
+                        .await
+                    {
+                        tracing::error!(
+                            "Failed to start queued follow-up from setup script completion: {}",
+                            e
+                        );
+                    }
+                }
+            }
+
+            // Fire analytics event when CodingAgent execution has finished
+            if config.read().await.analytics_enabled
+                && matches!(
+                    &ctx.execution_process.run_reason,
+                    ExecutionProcessRunReason::CodingAgent
+                )
+                && let Some(analytics) = analytics
+            {
+                analytics.analytics_service.track_event(&analytics.user_id, "task_attempt_finished", Some(json!({
+                    "workspace_id": ctx.workspace.id.to_string(),
+                    "session_id": ctx.session.id.to_string(),
+                    "execution_success": matches!(ctx.execution_process.status, ExecutionProcessStatus::Completed),
+                    "exit_code": ctx.execution_process.exit_code,
+                })));
+            }
+
+            // Sync workspace to remote after CodingAgent execution
+            if matches!(
+                &ctx.execution_process.run_reason,
+                ExecutionProcessRunReason::CodingAgent
+            ) && let Some(client) = &container.remote_client
+            {
+                let stats = diff_stream::compute_diff_stats(
+                    &container.db.pool,
+                    &container.git,
+                    &ctx.workspace,
+                )
+                .await;
+                let workspace_name =
+                    Workspace::find_by_id_with_status(&container.db.pool, ctx.workspace.id)
+                        .await
+                        .ok()
+                        .flatten()
+                        .and_then(|ws| ws.workspace.name);
+                let client = client.clone();
+                let workspace_id = ctx.workspace.id;
+                let archived = ctx.workspace.archived;
+                tokio::spawn(async move {
+                    remote_sync::sync_workspace_to_remote(
+                        &client,
+                        workspace_id,
+                        workspace_name.map(Some),
+                        Some(archived),
+                        stats.as_ref(),
+                    )
+                    .await;
+                });
+            }
+        }
+
+        // Now that commit/next-action/finalization steps for this process are complete,
+        // capture the HEAD OID as the definitive "after" state (best-effort).
+        container.update_after_head_commits(exec_id).await;
+
+        // Wait for DB persistence to complete before cleaning up MsgStore
+        let db_stream_handle = container.take_db_stream_handle(&exec_id).await;
+        if let Some(msg_arc) = container.msg_stores.write().await.remove(&exec_id) {
+            msg_arc.push_finished();
+        }
+        if let Some(handle) = db_stream_handle {
+            let _ = tokio::time::timeout(Duration::from_secs(5), handle).await;
+        }
+
+        // SIGKILL any orphaned children (e.g. MCP servers) still in the
+        // process group. The executor itself is already done — either it
+        // exited naturally or was killed in the exit-signal branch above.
+        if let Some(child_lock) = container.child_store.read().await.get(&exec_id).cloned() {
+            let mut child = child_lock.write().await;
+            let _ = child.start_kill();
+        }
+        container.child_store.write().await.remove(&exec_id);
+    }
+
     /// Spawn a background task that polls the child process for completion and
     /// cleans up the execution entry when it exits.
     fn spawn_exit_monitor(
@@ -484,11 +801,7 @@ impl LocalContainerService {
     ) -> JoinHandle<()> {
         let exec_id = *exec_id;
         let child_store = self.child_store.clone();
-        let msg_stores = self.msg_stores.clone();
-        let db = self.db.clone();
-        let config = self.config.clone();
         let container = self.clone();
-        let analytics = self.analytics.clone();
 
         let mut process_exit_rx = self.spawn_os_exit_watcher(exec_id);
 
@@ -539,276 +852,9 @@ impl LocalContainerService {
                 Err(_) => (None, ExecutionProcessStatus::Failed),
             };
 
-            if !ExecutionProcess::was_stopped(&db.pool, exec_id).await
-                && let Err(e) =
-                    ExecutionProcess::update_completion(&db.pool, exec_id, status, exit_code).await
-            {
-                tracing::error!("Failed to update execution process completion: {}", e);
-            }
-
-            if let Ok(ctx) = ExecutionProcess::load_context(&db.pool, exec_id).await {
-                // Update executor session summary if available
-                if let Err(e) = container.update_executor_session_summary(&exec_id).await {
-                    tracing::warn!("Failed to update executor session summary: {}", e);
-                }
-
-                let success = matches!(
-                    ctx.execution_process.status,
-                    ExecutionProcessStatus::Completed
-                ) && exit_code == Some(0);
-
-                let cleanup_done = matches!(
-                    ctx.execution_process.run_reason,
-                    ExecutionProcessRunReason::CleanupScript
-                ) && !matches!(
-                    ctx.execution_process.status,
-                    ExecutionProcessStatus::Running
-                );
-
-                let mut already_finalized = false;
-
-                if success || cleanup_done {
-                    // Commit changes (if any) and get feedback about whether changes were made
-                    let changes_committed = match container.try_commit_changes(&ctx).await {
-                        Ok(committed) => committed,
-                        Err(e) => {
-                            tracing::error!("Failed to commit changes after execution: {}", e);
-                            // Treat commit failures as if changes were made to be safe
-                            true
-                        }
-                    };
-
-                    let should_start_next = if matches!(
-                        ctx.execution_process.run_reason,
-                        ExecutionProcessRunReason::CodingAgent
-                    ) {
-                        // Check if agent made commits OR if we just committed uncommitted changes
-                        changes_committed
-                            || container
-                                .has_commits_from_execution(&ctx)
-                                .await
-                                .unwrap_or(false)
-                    } else {
-                        true
-                    };
-
-                    if should_start_next {
-                        // If the process exited successfully, start the next action
-                        if let Err(e) = container.try_start_next_action(&ctx).await {
-                            tracing::error!("Failed to start next action after completion: {}", e);
-                        }
-                    } else {
-                        tracing::info!(
-                            "Skipping cleanup script for workspace {} - no changes made by coding agent",
-                            ctx.workspace.id
-                        );
-
-                        // Manually finalize task since we're bypassing normal execution flow
-                        container.finalize_task(&ctx).await;
-                        already_finalized = true;
-                    }
-                }
-
-                if !already_finalized && container.should_finalize(&ctx) {
-                    let has_chained_follow_up = ctx
-                        .execution_process
-                        .executor_action()
-                        .ok()
-                        .and_then(|action| action.next_action())
-                        .is_some();
-                    let mut started_queued_follow_up = false;
-
-                    // Only execute queued messages if the execution succeeded
-                    // If it failed or was killed, just clear the queue and finalize
-                    let should_execute_queued = !matches!(
-                        ctx.execution_process.status,
-                        ExecutionProcessStatus::Failed | ExecutionProcessStatus::Killed
-                    );
-
-                    if let Some(queued_msg) =
-                        container.queued_message_service.take_queued(ctx.session.id)
-                    {
-                        if should_execute_queued {
-                            tracing::info!(
-                                "Found queued message for session {}, starting follow-up execution",
-                                ctx.session.id
-                            );
-
-                            // Delete the scratch since we're consuming the queued message
-                            if let Err(e) = Scratch::delete(
-                                &db.pool,
-                                ctx.session.id,
-                                &ScratchType::DraftFollowUp,
-                            )
-                            .await
-                            {
-                                tracing::warn!(
-                                    "Failed to delete scratch after consuming queued message: {}",
-                                    e
-                                );
-                            }
-
-                            // Execute the queued follow-up
-                            if let Err(e) = container
-                                .start_queued_follow_up(&ctx, &queued_msg.data)
-                                .await
-                            {
-                                tracing::error!("Failed to start queued follow-up: {}", e);
-                                // Fall back to finalization if follow-up fails
-                                container.finalize_task(&ctx).await;
-                            } else {
-                                started_queued_follow_up = true;
-                            }
-                        } else {
-                            // Execution failed or was killed - discard the queued message and finalize
-                            tracing::info!(
-                                "Discarding queued message for session {} due to execution status {:?}",
-                                ctx.session.id,
-                                ctx.execution_process.status
-                            );
-                            container.finalize_task(&ctx).await;
-                        }
-                    } else {
-                        container.finalize_task(&ctx).await;
-                    }
-
-                    let should_mark_turn_unseen = matches!(
-                        ctx.execution_process.run_reason,
-                        ExecutionProcessRunReason::CodingAgent
-                    ) && !has_chained_follow_up
-                        && !started_queued_follow_up;
-
-                    if should_mark_turn_unseen
-                        && let Err(e) = CodingAgentTurn::mark_unseen_by_execution_process_id(
-                            &db.pool,
-                            ctx.execution_process.id,
-                        )
-                        .await
-                    {
-                        tracing::warn!(
-                            "Failed to mark coding agent turn unseen for execution {}: {}",
-                            ctx.execution_process.id,
-                            e
-                        );
-                    }
-                }
-
-                // When a parallel setup script finishes and no coding agent is running,
-                // consume any queued message that was stuck waiting
-                if matches!(
-                    ctx.execution_process.run_reason,
-                    ExecutionProcessRunReason::SetupScript
-                ) && !container.should_finalize(&ctx)
-                {
-                    let has_running_agent = ExecutionProcess::has_running_coding_agent_for_session(
-                        &db.pool,
-                        ctx.session.id,
-                    )
-                    .await
-                    .unwrap_or(true);
-
-                    if !has_running_agent
-                        && let Some(queued_msg) =
-                            container.queued_message_service.take_queued(ctx.session.id)
-                    {
-                        tracing::info!(
-                            "Parallel setup script finished with queued message for session {}, starting follow-up",
-                            ctx.session.id
-                        );
-
-                        if let Err(e) =
-                            Scratch::delete(&db.pool, ctx.session.id, &ScratchType::DraftFollowUp)
-                                .await
-                        {
-                            tracing::warn!(
-                                "Failed to delete scratch after consuming queued message: {}",
-                                e
-                            );
-                        }
-
-                        if let Err(e) = container
-                            .start_queued_follow_up(&ctx, &queued_msg.data)
-                            .await
-                        {
-                            tracing::error!(
-                                "Failed to start queued follow-up from setup script completion: {}",
-                                e
-                            );
-                        }
-                    }
-                }
-
-                // Fire analytics event when CodingAgent execution has finished
-                if config.read().await.analytics_enabled
-                    && matches!(
-                        &ctx.execution_process.run_reason,
-                        ExecutionProcessRunReason::CodingAgent
-                    )
-                    && let Some(analytics) = &analytics
-                {
-                    analytics.analytics_service.track_event(&analytics.user_id, "task_attempt_finished", Some(json!({
-                        "workspace_id": ctx.workspace.id.to_string(),
-                        "session_id": ctx.session.id.to_string(),
-                        "execution_success": matches!(ctx.execution_process.status, ExecutionProcessStatus::Completed),
-                        "exit_code": ctx.execution_process.exit_code,
-                    })));
-                }
-
-                // Sync workspace to remote after CodingAgent execution
-                if matches!(
-                    &ctx.execution_process.run_reason,
-                    ExecutionProcessRunReason::CodingAgent
-                ) && let Some(client) = &container.remote_client
-                {
-                    let stats = diff_stream::compute_diff_stats(
-                        &container.db.pool,
-                        &container.git,
-                        &ctx.workspace,
-                    )
-                    .await;
-                    let workspace_name =
-                        Workspace::find_by_id_with_status(&container.db.pool, ctx.workspace.id)
-                            .await
-                            .ok()
-                            .flatten()
-                            .and_then(|ws| ws.workspace.name);
-                    let client = client.clone();
-                    let workspace_id = ctx.workspace.id;
-                    let archived = ctx.workspace.archived;
-                    tokio::spawn(async move {
-                        remote_sync::sync_workspace_to_remote(
-                            &client,
-                            workspace_id,
-                            workspace_name.map(Some),
-                            Some(archived),
-                            stats.as_ref(),
-                        )
-                        .await;
-                    });
-                }
-            }
-
-            // Now that commit/next-action/finalization steps for this process are complete,
-            // capture the HEAD OID as the definitive "after" state (best-effort).
-            container.update_after_head_commits(exec_id).await;
-
-            // Wait for DB persistence to complete before cleaning up MsgStore
-            let db_stream_handle = container.take_db_stream_handle(&exec_id).await;
-            if let Some(msg_arc) = msg_stores.write().await.remove(&exec_id) {
-                msg_arc.push_finished();
-            }
-            if let Some(handle) = db_stream_handle {
-                let _ = tokio::time::timeout(Duration::from_secs(5), handle).await;
-            }
-
-            // SIGKILL any orphaned children (e.g. MCP servers) still in the
-            // process group. The executor itself is already done — either it
-            // exited naturally or was killed in the exit-signal branch above.
-            if let Some(child_lock) = child_store.read().await.get(&exec_id).cloned() {
-                let mut child = child_lock.write().await;
-                let _ = child.start_kill();
-            }
-            child_store.write().await.remove(&exec_id);
+            container
+                .finalize_completed_execution(exec_id, exit_code, status)
+                .await;
         })
     }
 
@@ -1097,12 +1143,16 @@ impl LocalContainerService {
                 reset_to_message_id: None,
                 executor_config: queued_data.executor_config.clone(),
                 working_dir: working_dir.clone(),
+                // Queued follow-ups run headless; interactive runs are started
+                // explicitly via the start-interactive endpoint.
+                interactive: None,
             })
         } else {
             ExecutorActionType::CodingAgentInitialRequest(CodingAgentInitialRequest {
                 prompt: queued_data.message.clone(),
                 executor_config: queued_data.executor_config.clone(),
                 working_dir,
+                interactive: None,
             })
         };
 
@@ -1131,6 +1181,351 @@ fn failure_exit_status() -> std::process::ExitStatus {
     }
 }
 
+impl LocalContainerService {
+    /// Start an interactive (detached tmux) coding-agent execution: create the
+    /// tmux session running Claude's TUI in `current_dir`, attach the chosen
+    /// terminal emulator as a viewer, and begin mirroring the transcript into
+    /// the execution's MsgStore. Interactive mode currently supports Claude Code
+    /// only.
+    async fn start_detached_tmux(
+        &self,
+        execution_process: &ExecutionProcess,
+        executor_action: &ExecutorAction,
+        cfg: &InteractiveTmuxConfig,
+        current_dir: &Path,
+        env: ExecutionEnv,
+    ) -> Result<(), ContainerError> {
+        {
+            use executors::{executors::CodingAgent, profile::ExecutorConfigs};
+
+            let exec_id = execution_process.id;
+
+            // Resolve the (Claude) executor + the prompt / resume flag.
+            let (profile_id, has_overrides, executor_config, prompt, resume) =
+                match executor_action.typ() {
+                    ExecutorActionType::CodingAgentInitialRequest(req) => (
+                        req.executor_config.profile_id(),
+                        req.executor_config.has_overrides(),
+                        req.executor_config.clone(),
+                        req.prompt.clone(),
+                        false,
+                    ),
+                    ExecutorActionType::CodingAgentFollowUpRequest(req) => (
+                        req.executor_config.profile_id(),
+                        req.executor_config.has_overrides(),
+                        req.executor_config.clone(),
+                        req.prompt.clone(),
+                        true,
+                    ),
+                    _ => {
+                        return Err(ContainerError::Other(anyhow!(
+                            "Interactive mode requires a coding-agent action"
+                        )));
+                    }
+                };
+
+            let mut agent = ExecutorConfigs::get_cached()
+                .get_coding_agent(&profile_id)
+                .ok_or_else(|| {
+                    ContainerError::Other(anyhow!(
+                        "Unknown executor profile for interactive mode: {profile_id}"
+                    ))
+                })?;
+            if has_overrides {
+                agent.apply_overrides(&executor_config);
+            }
+            let claude = match agent {
+                CodingAgent::ClaudeCode(cc) => cc,
+                other => {
+                    return Err(ContainerError::Other(anyhow!(
+                        "Interactive terminal mode currently supports Claude Code only (got {:?})",
+                        other
+                    )));
+                }
+            };
+
+            // Build the interactive argv (no -p / stream-json; prompt positional).
+            let session_uuid = cfg.session_uuid.to_string();
+            let command = claude
+                .build_interactive_command(&session_uuid, &prompt, resume)
+                .map_err(|e| {
+                    ContainerError::Other(anyhow!("Failed to build interactive command: {e}"))
+                })?;
+            let (program, args) = command
+                .into_resolved()
+                .await
+                .map_err(ContainerError::ExecutorError)?;
+            let mut argv = vec![program.to_string_lossy().into_owned()];
+            argv.extend(args);
+
+            // Replicate the env the headless spawn injects (profile env +
+            // NPM_CONFIG_LOGLEVEL), and unset ANTHROPIC_API_KEY if requested.
+            let env = env.with_profile(&claude.cmd);
+            let mut env_map = env.vars.clone();
+            env_map.insert("NPM_CONFIG_LOGLEVEL".to_string(), "error".to_string());
+            let env_remove: Vec<String> = if claude.disable_api_key.unwrap_or(false) {
+                vec!["ANTHROPIC_API_KEY".to_string()]
+            } else {
+                vec![]
+            };
+
+            // Create the detached tmux session.
+            let tmux_session = interactive::tmux_session_name(exec_id);
+            terminal::tmux_new_session(&tmux_session, current_dir, &argv, &env_map, &env_remove)
+                .await
+                .map_err(|e| ContainerError::Other(anyhow!(e)))?;
+
+            // Attach the chosen terminal emulator as a viewer. A missing emulator
+            // is non-fatal: the session is alive and reachable via `tmux attach`.
+            if let Err(e) = terminal::open_in_terminal(cfg.terminal, &tmux_session).await {
+                tracing::warn!("Could not open terminal emulator for {tmux_session}: {e}");
+            }
+
+            // Begin mirroring + liveness tracking from the start of the transcript.
+            self.attach_detached_tracking(exec_id, current_dir, cfg, 0)
+                .await;
+
+            Ok(())
+        }
+    }
+
+    /// Re-establish the live pipeline for a detached execution: load already
+    /// persisted transcript lines into a fresh MsgStore for context, restart the
+    /// transcript tail at `from_line_offset` (so re-adoption never re-emits or
+    /// duplicates persisted lines), and start the liveness poller.
+    ///
+    /// Called with `from_line_offset == 0` at first start, and with the count of
+    /// already-mirrored lines during restart reconciliation.
+    async fn attach_detached_tracking(
+        &self,
+        exec_id: Uuid,
+        current_dir: &Path,
+        cfg: &InteractiveTmuxConfig,
+        from_line_offset: usize,
+    ) {
+        let tmux_session = interactive::tmux_session_name(exec_id);
+        let store = {
+            let map = self.msg_stores.read().await;
+            map.get(&exec_id).cloned()
+        };
+        let Some(store) = store else {
+            tracing::error!("MsgStore missing for detached execution {exec_id}");
+            return;
+        };
+
+        // Record the forced Claude session id so follow-ups can `--resume` it.
+        store.push_session_id(cfg.session_uuid.to_string());
+
+        let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+        let transcript_path =
+            interactive::claude_transcript_path(&home, current_dir, cfg.session_uuid);
+
+        let cancel = CancellationToken::new();
+        let tail_handle =
+            Self::spawn_transcript_tail(store, transcript_path, from_line_offset, cancel.clone());
+        let poll_handle = self.spawn_liveness_poller(exec_id, tmux_session.clone(), cancel.clone());
+
+        self.detached_store.write().await.insert(
+            exec_id,
+            DetachedHandle {
+                tmux_session,
+                cancel,
+                tail_handle,
+                poll_handle,
+            },
+        );
+    }
+
+    /// Re-adopt a detached execution whose tmux session survived a restart.
+    /// Rebuilds the live pipeline (fresh MsgStore + normalizer + raw-log
+    /// persistence) and resumes the transcript tail after the lines already
+    /// persisted, so nothing is duplicated. The MsgStore starts empty (history
+    /// stays in the persisted JSONL and is served on reload); reconnecting
+    /// viewers therefore see post-restart output live and full history on reload.
+    async fn readopt_detached(&self, process: &ExecutionProcess, cfg: &InteractiveTmuxConfig) {
+        {
+            use executors::profile::ExecutorConfigs;
+
+            let exec_id = process.id;
+            let Ok(ctx) = ExecutionProcess::load_context(&self.db.pool, exec_id).await else {
+                tracing::error!("Failed to load context for re-adopting {exec_id}");
+                return;
+            };
+            let workspace_root = self.workspace_to_current_dir(&ctx.workspace);
+            let Ok(action) = process.executor_action() else {
+                return;
+            };
+            let (profile_id, effective_dir) = match action.typ() {
+                ExecutorActionType::CodingAgentInitialRequest(r) => (
+                    r.executor_config.profile_id(),
+                    r.effective_dir(&workspace_root),
+                ),
+                ExecutorActionType::CodingAgentFollowUpRequest(r) => (
+                    r.executor_config.profile_id(),
+                    r.effective_dir(&workspace_root),
+                ),
+                _ => return,
+            };
+
+            // Fresh empty MsgStore: the normal persister appends only NEW lines
+            // (history is empty), so already-persisted lines are not duplicated.
+            self.msg_stores
+                .write()
+                .await
+                .insert(exec_id, Arc::new(MsgStore::new()));
+            let Some(store) = self.msg_stores.read().await.get(&exec_id).cloned() else {
+                return;
+            };
+
+            if let Some(executor) = ExecutorConfigs::get_cached().get_coding_agent(&profile_id) {
+                let _ = executor.normalize_logs(store, &effective_dir);
+            }
+            execution_process::spawn_stream_raw_logs_to_storage(
+                self.msg_stores.clone(),
+                self.db.clone(),
+                exec_id,
+                ctx.session.id,
+            );
+
+            // Resume the transcript tail after the lines already mirrored
+            // (= count of persisted Stdout lines).
+            let from_line_offset = execution_process::load_raw_log_messages(&self.db.pool, exec_id)
+                .await
+                .map(|msgs| {
+                    msgs.iter()
+                        .filter(|m| matches!(m, LogMsg::Stdout(_)))
+                        .count()
+                })
+                .unwrap_or(0);
+
+            self.attach_detached_tracking(exec_id, &effective_dir, cfg, from_line_offset)
+                .await;
+        }
+    }
+
+    /// Tail Claude's transcript JSONL, pushing each newly-appended complete line
+    /// into the MsgStore as `LogMsg::Stdout`. The existing Claude `normalize_logs`
+    /// pipeline then renders the timeline, and `spawn_stream_raw_logs_to_storage`
+    /// persists the lines (so history survives reload). Skips the first
+    /// `from_line_offset` complete lines for restart re-adoption.
+    fn spawn_transcript_tail(
+        store: Arc<MsgStore>,
+        path: PathBuf,
+        from_line_offset: usize,
+        cancel: CancellationToken,
+    ) -> JoinHandle<()> {
+        tokio::spawn(async move {
+            let mut pos: u64 = 0;
+            let mut lines_seen: usize = 0;
+            loop {
+                if cancel.is_cancelled() {
+                    // Final drain pass so trailing lines aren't lost on completion.
+                    Self::drain_transcript(
+                        &store,
+                        &path,
+                        &mut pos,
+                        &mut lines_seen,
+                        from_line_offset,
+                    )
+                    .await;
+                    return;
+                }
+                Self::drain_transcript(&store, &path, &mut pos, &mut lines_seen, from_line_offset)
+                    .await;
+                tokio::select! {
+                    _ = cancel.cancelled() => {
+                        Self::drain_transcript(
+                            &store, &path, &mut pos, &mut lines_seen, from_line_offset,
+                        )
+                        .await;
+                        return;
+                    }
+                    _ = tokio::time::sleep(Duration::from_millis(250)) => {}
+                }
+            }
+        })
+    }
+
+    /// Read any complete lines appended since byte offset `pos`, pushing those
+    /// past `from_line_offset` into the store. Tolerates a not-yet-created file.
+    async fn drain_transcript(
+        store: &Arc<MsgStore>,
+        path: &Path,
+        pos: &mut u64,
+        lines_seen: &mut usize,
+        from_line_offset: usize,
+    ) {
+        let Ok(file) = tokio::fs::File::open(path).await else {
+            return; // not created yet
+        };
+        let mut reader = BufReader::new(file);
+        if reader.seek(std::io::SeekFrom::Start(*pos)).await.is_err() {
+            return;
+        }
+        let mut line = String::new();
+        loop {
+            line.clear();
+            let n = match reader.read_line(&mut line).await {
+                Ok(0) => break, // EOF
+                Ok(n) => n,
+                Err(_) => break,
+            };
+            if !line.ends_with('\n') {
+                // Partial line — leave `pos` before it and wait for more.
+                break;
+            }
+            *pos += n as u64;
+            *lines_seen += 1;
+            if *lines_seen > from_line_offset {
+                store.push(LogMsg::Stdout(line.clone()));
+            }
+        }
+    }
+
+    /// Poll whether the tmux session is still alive; when it ends (and we did not
+    /// kill it via `stop_execution`), finalize the execution as completed and run
+    /// the same post-completion chain as an owned child exit.
+    fn spawn_liveness_poller(
+        &self,
+        exec_id: Uuid,
+        tmux_session: String,
+        cancel: CancellationToken,
+    ) -> JoinHandle<()> {
+        let container = self.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    // stop_execution owns status + teardown; just exit.
+                    _ = cancel.cancelled() => return,
+                    _ = tokio::time::sleep(DETACHED_POLL_INTERVAL) => {
+                        if terminal::tmux_has_session(&tmux_session).await {
+                            continue;
+                        }
+                        // Session ended on its own (user /exit or shell exit).
+                        // Give the tail a moment to flush trailing transcript
+                        // lines, then stop it and finalize.
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+                        let handle = container.detached_store.write().await.remove(&exec_id);
+                        if let Some(h) = handle {
+                            h.cancel.cancel();
+                        }
+                        if !ExecutionProcess::was_stopped(&container.db.pool, exec_id).await {
+                            container
+                                .finalize_completed_execution(
+                                    exec_id,
+                                    Some(0),
+                                    ExecutionProcessStatus::Completed,
+                                )
+                                .await;
+                        }
+                        return;
+                    }
+                }
+            }
+        })
+    }
+}
+
 #[async_trait]
 impl ContainerService for LocalContainerService {
     fn msg_stores(&self) -> &Arc<RwLock<HashMap<Uuid, Arc<MsgStore>>>> {
@@ -1147,6 +1542,94 @@ impl ContainerService for LocalContainerService {
 
     fn notification_service(&self) -> &NotificationService {
         &self.notification_service
+    }
+
+    /// On startup, reconcile DB-`running` processes with reality. Detached tmux
+    /// executions whose session is still alive are re-adopted (kept running);
+    /// detached sessions that ended while we were down are marked completed; all
+    /// other orphans are marked failed (the default behavior).
+    async fn cleanup_orphan_executions(&self) -> Result<(), ContainerError> {
+        let running_processes = ExecutionProcess::find_running(&self.db.pool).await?;
+        for process in running_processes {
+            // Interactive (detached tmux) executions may have outlived a restart.
+            if let Ok(action) = process.executor_action()
+                && let Some(cfg) = action.interactive_config().cloned()
+            {
+                let tmux_session = interactive::tmux_session_name(process.id);
+                if terminal::tmux_has_session(&tmux_session).await {
+                    tracing::info!("Re-adopting live detached tmux execution {}", process.id);
+                    self.readopt_detached(&process, &cfg).await;
+                    continue; // leave status = running
+                }
+                tracing::info!(
+                    "Detached tmux session for execution {} is gone; marking completed",
+                    process.id
+                );
+                if let Err(e) = ExecutionProcess::update_completion(
+                    &self.db.pool,
+                    process.id,
+                    ExecutionProcessStatus::Completed,
+                    Some(0),
+                )
+                .await
+                {
+                    tracing::error!(
+                        "Failed to mark ended detached execution {} completed: {}",
+                        process.id,
+                        e
+                    );
+                }
+                self.update_after_head_commits(process.id).await;
+                continue;
+            }
+
+            tracing::info!(
+                "Found orphaned execution process {} for session {}",
+                process.id,
+                process.session_id
+            );
+            if let Err(e) = ExecutionProcess::update_completion(
+                &self.db.pool,
+                process.id,
+                ExecutionProcessStatus::Failed,
+                None,
+            )
+            .await
+            {
+                tracing::error!(
+                    "Failed to update orphaned execution process {} status: {}",
+                    process.id,
+                    e
+                );
+                continue;
+            }
+            if let Ok(ctx) = ExecutionProcess::load_context(&self.db.pool, process.id).await
+                && let Some(ref container_ref) = ctx.workspace.container_ref
+            {
+                let workspace_root = PathBuf::from(container_ref);
+                for repo in &ctx.repos {
+                    let repo_path = workspace_root.join(&repo.name);
+                    if let Ok(head) = self.git.get_head_info(&repo_path)
+                        && let Err(err) = ExecutionProcessRepoState::update_after_head_commit(
+                            &self.db.pool,
+                            process.id,
+                            repo.id,
+                            &head.oid,
+                        )
+                        .await
+                    {
+                        tracing::warn!(
+                            "Failed to update after_head_commit for repo {} on process {}: {}",
+                            repo.id,
+                            process.id,
+                            err
+                        );
+                    }
+                }
+            }
+            tracing::info!("Marked orphaned execution process {} as failed", process.id);
+        }
+        Ok(())
     }
 
     async fn touch(&self, workspace: &Workspace) -> Result<(), ContainerError> {
@@ -1380,6 +1863,26 @@ impl ContainerService for LocalContainerService {
             env.insert("TELEGRAM_DEV", "1");
         }
 
+        // Interactive (detached tmux) path: run the agent's TUI in a tmux
+        // session instead of a headless child. The shared `start_execution`
+        // wrapper still creates the MsgStore + turn and wires up `normalize_logs`
+        // and raw-log persistence, so we only need to launch the session and
+        // start mirroring its transcript here.
+        if let Some(cfg) = executor_action.interactive_config() {
+            let effective_dir = match executor_action.typ() {
+                ExecutorActionType::CodingAgentInitialRequest(req) => {
+                    req.effective_dir(&current_dir)
+                }
+                ExecutorActionType::CodingAgentFollowUpRequest(req) => {
+                    req.effective_dir(&current_dir)
+                }
+                _ => current_dir.clone(),
+            };
+            return self
+                .start_detached_tmux(execution_process, executor_action, cfg, &effective_dir, env)
+                .await;
+        }
+
         // Create the child and stream, add to execution tracker with timeout
         let mut spawned = tokio::time::timeout(
             Duration::from_secs(30),
@@ -1421,6 +1924,53 @@ impl ContainerService for LocalContainerService {
         execution_process: &ExecutionProcess,
         status: ExecutionProcessStatus,
     ) -> Result<(), ContainerError> {
+        // Detached tmux execution: kill the tmux session instead of a child
+        // process group. Status is written BEFORE cancelling the poller so a
+        // racing liveness tick sees `was_stopped() == true` and does nothing.
+        if let Some(handle) = self
+            .detached_store
+            .write()
+            .await
+            .remove(&execution_process.id)
+        {
+            let exit_code = if status == ExecutionProcessStatus::Completed {
+                Some(0)
+            } else {
+                None
+            };
+            ExecutionProcess::update_completion(
+                &self.db.pool,
+                execution_process.id,
+                status,
+                exit_code,
+            )
+            .await?;
+
+            handle.cancel.cancel();
+            if let Err(e) = terminal::tmux_kill_session(&handle.tmux_session).await {
+                tracing::warn!("Failed to kill tmux session {}: {}", handle.tmux_session, e);
+            }
+            // Stop the tail/poller tasks promptly.
+            handle.tail_handle.abort();
+            handle.poll_handle.abort();
+
+            // Tear down MsgStore + db stream exactly like the owned-child path.
+            let db_stream_handle = self.take_db_stream_handle(&execution_process.id).await;
+            if let Some(msg) = self.msg_stores.write().await.remove(&execution_process.id) {
+                msg.push_finished();
+            }
+            if let Some(handle) = db_stream_handle {
+                let _ = tokio::time::timeout(Duration::from_secs(5), handle).await;
+            }
+
+            self.update_after_head_commits(execution_process.id).await;
+            tracing::debug!(
+                "Detached execution {} stopped successfully",
+                execution_process.id
+            );
+            return Ok(());
+        }
+
         let child = self
             .get_child_from_store(&execution_process.id)
             .await
@@ -1616,14 +2166,38 @@ impl ContainerService for LocalContainerService {
 
     async fn kill_all_running_processes(&self) -> Result<(), ContainerError> {
         tracing::info!("Killing all running processes");
+
+        // Detached tmux sessions intentionally OUTLIVE a vibe-kanban shutdown so
+        // they can be re-adopted on restart. Here (shutdown path) we only cancel
+        // their in-memory tail/poller tasks; we do NOT kill the tmux session or
+        // change their DB status. Explicit per-execution stop still kills them.
+        let detached_ids: std::collections::HashSet<Uuid> = {
+            let mut map = self.detached_store.write().await;
+            let ids: std::collections::HashSet<Uuid> = map.keys().copied().collect();
+            for (_, handle) in map.drain() {
+                handle.cancel.cancel();
+                handle.tail_handle.abort();
+                handle.poll_handle.abort();
+            }
+            ids
+        };
+
         let running_processes = ExecutionProcess::find_running(&self.db.pool).await?;
 
         tracing::info!(
-            "Found {} running processes to kill",
-            running_processes.len()
+            "Found {} running processes to kill ({} detached preserved)",
+            running_processes.len(),
+            detached_ids.len()
         );
 
         for process in running_processes {
+            if detached_ids.contains(&process.id) {
+                tracing::info!(
+                    "Preserving detached tmux execution {} across shutdown",
+                    process.id
+                );
+                continue;
+            }
             tracing::info!(
                 "Killing process: id={}, run_reason={:?}",
                 process.id,

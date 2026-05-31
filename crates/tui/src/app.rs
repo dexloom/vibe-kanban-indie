@@ -379,6 +379,9 @@ pub enum Modal {
         buffer: String,
         /// When true, queue after the current turn instead of sending now.
         queue: bool,
+        /// When true, run in an interactive terminal (detached tmux) instead of
+        /// headless. Toggled with Ctrl+T.
+        interactive: bool,
     },
     /// Create or edit a kanban card.
     CardForm {
@@ -927,16 +930,28 @@ impl App {
                 KeyCode::Enter => self.submit_answer(),
                 _ => {}
             },
-            Modal::FollowUp { buffer, queue, .. } => match k.code {
-                KeyCode::Esc => self.modal = None,
-                KeyCode::Tab => *queue = !*queue,
-                KeyCode::Enter => self.submit_followup(),
-                KeyCode::Backspace => {
-                    buffer.pop();
+            Modal::FollowUp {
+                buffer,
+                queue,
+                interactive,
+                ..
+            } => {
+                // Ctrl+T toggles interactive (detached tmux terminal) mode.
+                if k.code == KeyCode::Char('t') && k.modifiers.contains(KeyModifiers::CONTROL) {
+                    *interactive = !*interactive;
+                    return;
                 }
-                KeyCode::Char(c) => buffer.push(c),
-                _ => {}
-            },
+                match k.code {
+                    KeyCode::Esc => self.modal = None,
+                    KeyCode::Tab => *queue = !*queue,
+                    KeyCode::Enter => self.submit_followup(),
+                    KeyCode::Backspace => {
+                        buffer.pop();
+                    }
+                    KeyCode::Char(c) => buffer.push(c),
+                    _ => {}
+                }
+            }
             Modal::CardForm {
                 title,
                 description,
@@ -1572,6 +1587,7 @@ impl App {
                 .unwrap_or_else(|| "CLAUDE_CODE".to_string()),
             buffer: String::new(),
             queue: false,
+            interactive: false,
         });
     }
 
@@ -1581,6 +1597,7 @@ impl App {
             executor,
             buffer,
             queue,
+            interactive,
         }) = self.modal.take()
         else {
             return;
@@ -1614,11 +1631,18 @@ impl App {
                         &FollowUpRequest {
                             prompt,
                             executor_config: cfg,
+                            interactive: if interactive { Some(true) } else { None },
                         },
                     )
                     .await
                 {
-                    Ok(()) => "sent follow-up".to_string(),
+                    Ok(()) => {
+                        if interactive {
+                            "launched interactive terminal".to_string()
+                        } else {
+                            "sent follow-up".to_string()
+                        }
+                    }
                     Err(e) => format!("follow-up failed: {e}"),
                 }
             };

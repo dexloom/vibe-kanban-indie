@@ -340,7 +340,12 @@ export type RefreshRelaySigningSessionRequest = { client_id: string, timestamp: 
 
 export type RefreshRelaySigningSessionResponse = { signing_session_id: string, };
 
-export type CreateFollowUpAttempt = { prompt: string, executor_config: ExecutorConfig, retry_process_id: string | null, force_when_dirty: boolean | null, perform_git_reset: boolean | null, };
+export type CreateFollowUpAttempt = { prompt: string, executor_config: ExecutorConfig, retry_process_id: string | null, force_when_dirty: boolean | null, perform_git_reset: boolean | null, 
+/**
+ * When true, run the agent in an interactive terminal (detached tmux
+ * session) instead of headless mode. Claude Code only.
+ */
+interactive?: boolean, };
 
 export type ResetProcessRequest = { process_id: string, force_when_dirty: boolean | null, perform_git_reset: boolean | null, };
 
@@ -520,7 +525,11 @@ export type DirectoryListResponse = { entries: Array<DirectoryEntry>, current_pa
 
 export type SearchMode = "taskform" | "settings";
 
-export type Config = { config_version: string, theme: ThemeMode, executor_profile: ExecutorProfileId, disclaimer_acknowledged: boolean, onboarding_acknowledged: boolean, remote_onboarding_acknowledged: boolean, notifications: NotificationConfig, editor: EditorConfig, github: GitHubConfig, analytics_enabled: boolean, workspace_dir: string | null, last_app_version: string | null, show_release_notes: boolean, language: UiLanguage, git_branch_prefix: string, showcases: ShowcaseState, pr_auto_description_enabled: boolean, pr_auto_description_prompt: string | null, commit_reminder_enabled: boolean, commit_reminder_prompt: string | null, send_message_shortcut: SendMessageShortcut, relay_enabled: boolean, host_nickname: string | null, };
+export type Config = { config_version: string, theme: ThemeMode, executor_profile: ExecutorProfileId, disclaimer_acknowledged: boolean, onboarding_acknowledged: boolean, remote_onboarding_acknowledged: boolean, notifications: NotificationConfig, editor: EditorConfig, github: GitHubConfig, analytics_enabled: boolean, workspace_dir: string | null, last_app_version: string | null, show_release_notes: boolean, language: UiLanguage, git_branch_prefix: string, showcases: ShowcaseState, pr_auto_description_enabled: boolean, pr_auto_description_prompt: string | null, commit_reminder_enabled: boolean, commit_reminder_prompt: string | null, send_message_shortcut: SendMessageShortcut, relay_enabled: boolean, host_nickname: string | null, 
+/**
+ * Terminal emulator used to attach to interactive agent sessions.
+ */
+terminal: TerminalKind, };
 
 export type NotificationConfig = { sound_enabled: boolean, push_enabled: boolean, sound_file: SoundFile, };
 
@@ -697,6 +706,20 @@ export type DroidReasoningEffort = "none" | "dynamic" | "off" | "low" | "medium"
 
 export type AppendPrompt = string | null;
 
+export type TerminalKind = "I_TERM2" | "WEZ_TERM" | "TERMINAL_APP" | "GNOME_TERMINAL" | "XTERM" | "NONE";
+
+export type InteractiveTmuxConfig = { 
+/**
+ * Forced Claude session id (`claude --session-id <uuid>` / `--resume
+ * <uuid>`). Generated when the action is built so the caller can display
+ * it and so resume reattaches to the same conversation.
+ */
+session_uuid: string, 
+/**
+ * Terminal emulator to attach with, frozen at launch.
+ */
+terminal: TerminalKind, };
+
 export type CodingAgentInitialRequest = { prompt: string, 
 /**
  * Unified executor identity + overrides
@@ -706,7 +729,13 @@ executor_config: ExecutorConfig,
  * Optional relative path to execute the agent in (relative to container_ref).
  * If None, uses the container_ref directory directly.
  */
-working_dir: string | null, };
+working_dir: string | null, 
+/**
+ * When set, run the agent in an interactive terminal (detached tmux
+ * session) instead of the headless `-p` protocol. Backward compatible:
+ * existing actions deserialize as `None` and take the headless path.
+ */
+interactive?: InteractiveTmuxConfig | null, };
 
 export type CodingAgentFollowUpRequest = { prompt: string, session_id: string, reset_to_message_id: string | null, 
 /**
@@ -717,7 +746,12 @@ executor_config: ExecutorConfig,
  * Optional relative path to execute the agent in (relative to container_ref).
  * If None, uses the container_ref directory directly.
  */
-working_dir: string | null, };
+working_dir: string | null, 
+/**
+ * When set, resume the agent in an interactive terminal (detached tmux
+ * session) instead of the headless `-p` protocol. Backward compatible.
+ */
+interactive?: InteractiveTmuxConfig | null, };
 
 export type ReviewRequest = { 
 /**

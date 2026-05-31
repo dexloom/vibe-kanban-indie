@@ -196,6 +196,58 @@ impl ClaudeCode {
         apply_overrides(builder, &self.cmd)
     }
 
+    /// Build the command for running Claude in an INTERACTIVE terminal (the TUI)
+    /// rather than headless `-p` mode.
+    ///
+    /// Differences from [`Self::build_command_builder`]:
+    /// - no `-p` / `--output-format=stream-json` / `--input-format=stream-json`
+    ///   / `--include-partial-messages` / `--replay-user-messages` (those are
+    ///   headless-only; the user interacts with the TUI directly);
+    /// - no stdio permission-prompt tool (approvals are handled in the TUI);
+    /// - the forced session id is bound via `--session-id <uuid>` (or resumed
+    ///   via `--resume <uuid>`), so vibe-kanban can track and later resume it;
+    /// - the task prompt is delivered as the positional query argument
+    ///   (`claude [flags] "<prompt>"`), which is the only way to seed the
+    ///   conversation in interactive mode.
+    ///
+    /// Returns structured [`CommandParts`]; composing this into a tmux command
+    /// string (with escaping + env) is the container's responsibility.
+    pub fn build_interactive_command(
+        &self,
+        session_uuid: &str,
+        prompt: &str,
+        resume: bool,
+    ) -> Result<CommandParts, CommandBuildError> {
+        let mut builder =
+            CommandBuilder::new(base_command(self.claude_code_router.unwrap_or(false)));
+
+        if self.dangerously_skip_permissions.unwrap_or(false) {
+            builder = builder.extend_params(["--dangerously-skip-permissions"]);
+        } else {
+            builder =
+                builder.extend_params([format!("--permission-mode={}", self.permission_mode())]);
+        }
+        if let Some(model) = &self.model {
+            builder = builder.extend_params(["--model", model]);
+        }
+        if let Some(effort) = &self.effort {
+            builder = builder.extend_params(["--effort", effort.as_ref()]);
+        }
+        if let Some(agent) = &self.agent {
+            builder = builder.extend_params(["--agent", agent]);
+        }
+
+        if resume {
+            builder = builder.extend_params(["--resume", session_uuid]);
+        } else {
+            builder = builder.extend_params(["--session-id", session_uuid]);
+        }
+
+        let builder = apply_overrides(builder, &self.cmd)?;
+        // The prompt must be the final positional argument.
+        builder.build_follow_up(&[prompt.to_string()])
+    }
+
     pub fn permission_mode(&self) -> PermissionMode {
         if self.plan.unwrap_or(false) {
             PermissionMode::Plan
@@ -1936,6 +1988,18 @@ impl ClaudeLogProcessor {
                 }
             }
             ClaudeJson::Unknown { data } => {
+                // Interactive-mode transcripts (~/.claude/projects/.../<uuid>.jsonl)
+                // contain bookkeeping record types that never appear in the
+                // headless stream-json protocol. They carry no user-facing
+                // content, so skip them silently rather than rendering a noisy
+                // "Unrecognized JSON message" entry for each one.
+                if data
+                    .get("type")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(is_transcript_only_record_type)
+                {
+                    return patches;
+                }
                 let entry = NormalizedEntry {
                     timestamp: None,
                     entry_type: NormalizedEntryType::SystemMessage,
@@ -2250,6 +2314,25 @@ impl StreamingContentState {
             },
         }
     }
+}
+
+/// Record `type` values that appear only in Claude's interactive-mode session
+/// transcript (`~/.claude/projects/<encoded-cwd>/<uuid>.jsonl`) and not in the
+/// headless `--output-format=stream-json` protocol. These are session
+/// bookkeeping entries with no user-facing content, so the log normalizer skips
+/// them (otherwise they would each render as an "Unrecognized JSON message").
+pub fn is_transcript_only_record_type(record_type: &str) -> bool {
+    matches!(
+        record_type,
+        "mode"
+            | "permission-mode"
+            | "file-history-snapshot"
+            | "attachment"
+            | "ai-title"
+            | "last-prompt"
+            | "agent-name"
+            | "summary"
+    )
 }
 
 // Data structures for parsing Claude's JSON output format
@@ -2755,6 +2838,61 @@ impl ClaudeToolData {
 mod tests {
     use super::*;
     use crate::logs::utils::{EntryIndexProvider, patch::extract_normalized_entry_from_patch};
+
+    /// Interactive-mode transcript records (camelCase `sessionId`, extra fields)
+    /// must deserialize into the existing `ClaudeJson` variants so the headless
+    /// normalizer can render them unchanged — and the bookkeeping-only record
+    /// types must be skipped instead of rendered as "Unrecognized JSON message".
+    #[test]
+    fn transcript_records_map_to_claude_json() {
+        // A real interactive transcript assistant line (trimmed): camelCase
+        // sessionId, message payload identical to headless stream-json.
+        let line = r#"{"type":"assistant","sessionId":"11111111-1111-1111-1111-111111111111","uuid":"u1","parentUuid":"p0","cwd":"/repo","gitBranch":"vk/x","timestamp":"2026-01-01T00:00:00Z","message":{"id":"m1","type":"message","role":"assistant","model":"claude-opus-4-8","content":[{"type":"text","text":"hello"}],"stop_reason":"end_turn"}}"#;
+        let parsed: ClaudeJson = serde_json::from_str(line).expect("transcript assistant parses");
+        assert!(
+            matches!(parsed, ClaudeJson::Assistant { .. }),
+            "transcript assistant should map to ClaudeJson::Assistant, got {parsed:?}"
+        );
+
+        let mut processor = ClaudeLogProcessor::new();
+        let idx = EntryIndexProvider::test_new();
+        let patches = processor.normalize_entries(&parsed, "/repo", &idx);
+        let entries = patches_to_entries(&patches);
+        assert!(
+            entries.iter().any(
+                |e| matches!(e.entry_type, NormalizedEntryType::AssistantMessage)
+                    && e.content.contains("hello")
+            ),
+            "assistant text should normalize, got {entries:?}"
+        );
+
+        // Interactive-only bookkeeping types are skipped by the normalizer.
+        for t in [
+            "mode",
+            "permission-mode",
+            "file-history-snapshot",
+            "ai-title",
+            "last-prompt",
+        ] {
+            assert!(
+                is_transcript_only_record_type(t),
+                "{t} should be treated as transcript-only"
+            );
+        }
+        assert!(!is_transcript_only_record_type("assistant"));
+        assert!(!is_transcript_only_record_type("user"));
+
+        // A bookkeeping record produces no rendered entry.
+        let mode_line = r#"{"type":"permission-mode","permissionMode":"bypassPermissions","sessionId":"11111111-1111-1111-1111-111111111111"}"#;
+        let mode_json: ClaudeJson = serde_json::from_str(mode_line).unwrap();
+        let mut p2 = ClaudeLogProcessor::new();
+        let mode_patches =
+            p2.normalize_entries(&mode_json, "/repo", &EntryIndexProvider::test_new());
+        assert!(
+            patches_to_entries(&mode_patches).is_empty(),
+            "permission-mode record should be skipped"
+        );
+    }
 
     fn patches_to_entries(patches: &[json_patch::Patch]) -> Vec<NormalizedEntry> {
         patches

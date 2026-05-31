@@ -47,6 +47,7 @@ mod command;
 pub mod container;
 mod copy;
 pub mod pty;
+pub mod terminal;
 
 #[derive(Clone)]
 pub struct LocalDeployment {
