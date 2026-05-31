@@ -636,7 +636,6 @@ fn followup_modal_renders() {
         executor: "CLAUDE_CODE".to_string(),
         buffer: "please continue".to_string(),
         queue: false,
-        interactive: false,
     });
     let text = render_to_string(&app, 100, 24);
     assert!(text.contains("message to agent"), "modal title missing");
@@ -671,7 +670,6 @@ fn request_bodies_serialize_to_backend_shape() {
     let fu = FollowUpRequest {
         prompt: "next".to_string(),
         executor_config: ExecutorConfigInput::new("CODEX"),
-        interactive: None,
     };
     let v = serde_json::to_value(&fu).unwrap();
     assert_eq!(v["prompt"], "next");

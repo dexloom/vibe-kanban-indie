@@ -113,11 +113,6 @@ pub struct CreateFollowUpAttempt {
     pub retry_process_id: Option<Uuid>,
     pub force_when_dirty: Option<bool>,
     pub perform_git_reset: Option<bool>,
-    /// When true, run the agent in an interactive terminal (detached tmux
-    /// session) instead of headless mode. Claude Code only.
-    #[serde(default)]
-    #[ts(optional)]
-    pub interactive: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, TS)]
@@ -194,10 +189,13 @@ pub async fn follow_up(
         .filter(|dir| !dir.is_empty())
         .cloned();
 
-    // Build the interactive (detached tmux) config when requested. The forced
-    // Claude session id is the existing conversation's id for a follow-up (so
-    // `--resume` reattaches it) or a fresh uuid for an initial run.
-    let want_interactive = payload.interactive.unwrap_or(false);
+    // The "Claude Code Headed" agent runs in a detached tmux terminal rather
+    // than headless. When that executor is selected we attach an interactive
+    // config: the forced Claude session id is the existing conversation's id for
+    // a follow-up (so `--resume` reattaches it) or a fresh uuid for an initial
+    // run. The terminal emulator comes from the user config.
+    let want_interactive =
+        executor_profile_id.executor == executors::executors::BaseCodingAgent::ClaudeCodeHeaded;
     let interactive = if want_interactive {
         let terminal = deployment.config().read().await.terminal;
         let session_uuid = latest_session_info

@@ -1236,6 +1236,7 @@ impl LocalContainerService {
             }
             let claude = match agent {
                 CodingAgent::ClaudeCode(cc) => cc,
+                CodingAgent::ClaudeCodeHeaded(cch) => cch.inner,
                 other => {
                     return Err(ContainerError::Other(anyhow!(
                         "Interactive terminal mode currently supports Claude Code only (got {:?})",
@@ -1856,8 +1857,10 @@ impl ContainerService for LocalContainerService {
         // observer and never owns its channel. VK holds no bot token and passes
         // no chat id — the sombrax listener resolves/creates the forum topic
         // from the name and resolves the chat itself, owning all Bot API I/O.
-        if executor_action.base_executor() == Some(BaseCodingAgent::ClaudeCode)
-            && utils::telegram_topics::per_worktree_enabled()
+        if matches!(
+            executor_action.base_executor(),
+            Some(BaseCodingAgent::ClaudeCode | BaseCodingAgent::ClaudeCodeHeaded)
+        ) && utils::telegram_topics::per_worktree_enabled()
         {
             env.insert("TELEGRAM_TOPIC", &workspace.branch);
             env.insert("TELEGRAM_DEV", "1");

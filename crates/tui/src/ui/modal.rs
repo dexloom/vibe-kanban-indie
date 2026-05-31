@@ -24,12 +24,7 @@ pub fn render(f: &mut Frame, modal: &Modal, app: &App, area: Rect) {
             focus,
             ..
         } => render_answer(f, questions, selected, *focus, area),
-        Modal::FollowUp {
-            buffer,
-            queue,
-            interactive,
-            ..
-        } => render_followup(f, buffer, *queue, *interactive, area),
+        Modal::FollowUp { buffer, queue, .. } => render_followup(f, buffer, *queue, area),
         Modal::CardForm {
             editing,
             title,
@@ -319,29 +314,19 @@ fn label_span(label: &str, focused: bool) -> Span<'static> {
     }
 }
 
-fn render_followup(f: &mut Frame, buffer: &str, queue: bool, interactive: bool, area: Rect) {
-    let popup = centered(70, 9, area);
+fn render_followup(f: &mut Frame, buffer: &str, queue: bool, area: Rect) {
+    let popup = centered(70, 8, area);
     f.render_widget(Clear, popup);
     let (mode, color) = if queue {
         ("queue (after current turn)", Color::Yellow)
     } else {
         ("send now", Color::Green)
     };
-    let (target, target_color) = if interactive {
-        ("interactive terminal (tmux)", Color::Cyan)
-    } else {
-        ("headless", Color::Gray)
-    };
     let body = vec![
         Line::from(vec![
             Span::raw("mode: ").fg(Color::Gray),
             Span::raw(mode).fg(color).bold(),
             Span::raw("   (⇥ toggle)").dim(),
-        ]),
-        Line::from(vec![
-            Span::raw("run:  ").fg(Color::Gray),
-            Span::raw(target).fg(target_color).bold(),
-            Span::raw("   (^T toggle)").dim(),
         ]),
         Line::from(""),
         Line::from(vec![
@@ -353,7 +338,7 @@ fn render_followup(f: &mut Frame, buffer: &str, queue: bool, interactive: bool, 
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(color))
-        .title(" message to agent — ⏎ submit · ⇥ mode · ^T terminal · esc cancel ");
+        .title(" message to agent — ⏎ submit · ⇥ mode · esc cancel ");
     f.render_widget(
         Paragraph::new(body).block(block).wrap(Wrap { trim: false }),
         popup,
