@@ -21,6 +21,8 @@ pub enum TerminalError {
     TmuxNotInstalled,
     #[error("tmux command failed: {0}")]
     TmuxFailed(String),
+    #[error("tmux session '{0}' is no longer running")]
+    SessionGone(String),
     #[error(
         "terminal emulator '{kind:?}' is not available; the tmux session was created — \
          attach manually with: {attach_cmd}"
@@ -138,6 +140,71 @@ pub async fn tmux_kill_session(session_name: &str) -> Result<(), TerminalError> 
         }
     }
     Ok(())
+}
+
+/// Send a line of input to the foreground process of `session_name`'s first
+/// pane: type `text` literally, then press Enter. Used to answer questions /
+/// approve prompts in the agent's interactive TUI from outside the terminal.
+///
+/// Two `send-keys` calls keep the message and the submitting keystroke
+/// unambiguous: the first uses `-l` (literal) so nothing in `text` — `$VAR`,
+/// quotes, or key-names like `Enter` — is interpreted; the second sends the
+/// `Enter` key itself. `=session` is an exact-match target and `--` ends option
+/// parsing so a leading `-` in `text` is not treated as a flag.
+pub async fn tmux_send_keys(session_name: &str, text: &str) -> Result<(), TerminalError> {
+    // Type the literal text (no trailing newline).
+    let literal = Command::new("tmux")
+        .args(send_keys_literal_args(session_name, text))
+        .output()
+        .await
+        .map_err(map_tmux_io_err)?;
+    if !literal.status.success() {
+        return Err(classify_send_keys_err(session_name, &literal.stderr));
+    }
+
+    // Submit with a real Enter keystroke.
+    let enter = Command::new("tmux")
+        .args(send_keys_enter_args(session_name))
+        .output()
+        .await
+        .map_err(map_tmux_io_err)?;
+    if !enter.status.success() {
+        return Err(classify_send_keys_err(session_name, &enter.stderr));
+    }
+    Ok(())
+}
+
+/// Args for the literal-text `send-keys` call (typed verbatim, no newline).
+fn send_keys_literal_args(session_name: &str, text: &str) -> Vec<String> {
+    vec![
+        "send-keys".to_string(),
+        "-t".to_string(),
+        format!("={session_name}"),
+        "-l".to_string(),
+        "--".to_string(),
+        text.to_string(),
+    ]
+}
+
+/// Args for the `send-keys ... Enter` call that submits the typed line.
+fn send_keys_enter_args(session_name: &str) -> Vec<String> {
+    vec![
+        "send-keys".to_string(),
+        "-t".to_string(),
+        format!("={session_name}"),
+        "Enter".to_string(),
+    ]
+}
+
+/// Map a `send-keys` failure to `SessionGone` when tmux can't find the session,
+/// otherwise to a generic `TmuxFailed`.
+fn classify_send_keys_err(session_name: &str, stderr: &[u8]) -> TerminalError {
+    let stderr = String::from_utf8_lossy(stderr);
+    if stderr.contains("can't find session") || stderr.contains("no server running") {
+        TerminalError::SessionGone(session_name.to_string())
+    } else {
+        TerminalError::TmuxFailed(stderr.trim().to_string())
+    }
 }
 
 /// Open the chosen terminal emulator attached to the tmux session. For
@@ -271,5 +338,49 @@ mod tests {
     #[test]
     fn attach_command_format() {
         assert_eq!(attach_command("vk-x"), "tmux attach -t vk-x");
+    }
+
+    #[test]
+    fn send_keys_literal_passes_text_verbatim() {
+        // A tricky payload: a key-name word, a shell var, quotes, a leading dash,
+        // and spaces must all be passed as one literal argument so tmux's `-l`
+        // types them verbatim instead of interpreting them.
+        let text = "-y Enter $X \"quoted\"";
+        let args = send_keys_literal_args("vk-abc", text);
+        assert_eq!(
+            args,
+            vec![
+                "send-keys".to_string(),
+                "-t".to_string(),
+                "=vk-abc".to_string(),
+                "-l".to_string(),
+                "--".to_string(),
+                text.to_string(),
+            ]
+        );
+        // `--` must precede the payload so a leading `-` is not parsed as a flag.
+        let dd = args.iter().position(|a| a == "--").unwrap();
+        assert_eq!(args[dd + 1], text);
+    }
+
+    #[test]
+    fn send_keys_enter_targets_exact_session() {
+        assert_eq!(
+            send_keys_enter_args("vk-abc"),
+            vec![
+                "send-keys".to_string(),
+                "-t".to_string(),
+                "=vk-abc".to_string(),
+                "Enter".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn classify_send_keys_err_detects_missing_session() {
+        let gone = classify_send_keys_err("vk-abc", b"can't find session: vk-abc");
+        assert!(matches!(gone, TerminalError::SessionGone(s) if s == "vk-abc"));
+        let other = classify_send_keys_err("vk-abc", b"some other tmux error");
+        assert!(matches!(other, TerminalError::TmuxFailed(_)));
     }
 }

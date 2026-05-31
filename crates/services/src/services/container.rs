@@ -80,6 +80,12 @@ pub enum ContainerError {
     Io(#[from] std::io::Error),
     #[error("Failed to kill process: {0}")]
     KillFailed(std::io::Error),
+    #[error("execution is not an interactive (headed) session")]
+    NotInteractive,
+    #[error("interactive session is no longer running")]
+    InteractiveSessionGone,
+    #[error("terminal emulator unavailable; attach with: {0}")]
+    TerminalUnavailable(String),
     #[error(transparent)]
     Other(#[from] AnyhowError), // Catches any unclassified errors
 }
@@ -758,6 +764,27 @@ pub trait ContainerService {
         execution_process: &ExecutionProcess,
         status: ExecutionProcessStatus,
     ) -> Result<(), ContainerError>;
+
+    /// Open the configured terminal emulator attached to an interactive
+    /// (headed) execution's tmux session, so the user can drive its TUI
+    /// directly. Default: unsupported. Overridden by interactive backends.
+    async fn open_interactive_terminal(
+        &self,
+        _execution_process: &ExecutionProcess,
+    ) -> Result<(), ContainerError> {
+        Err(ContainerError::NotInteractive)
+    }
+
+    /// Type a line of input into an interactive (headed) execution's tmux
+    /// session (e.g. answer a question or approve a prompt) and submit it.
+    /// Default: unsupported. Overridden by interactive backends.
+    async fn send_interactive_input(
+        &self,
+        _execution_process: &ExecutionProcess,
+        _text: &str,
+    ) -> Result<(), ContainerError> {
+        Err(ContainerError::NotInteractive)
+    }
 
     async fn try_commit_changes(&self, ctx: &ExecutionContext) -> Result<bool, ContainerError>;
 

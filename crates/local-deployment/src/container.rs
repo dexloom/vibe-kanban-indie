@@ -1187,6 +1187,19 @@ impl LocalContainerService {
     /// terminal emulator as a viewer, and begin mirroring the transcript into
     /// the execution's MsgStore. Interactive mode currently supports Claude Code
     /// only.
+    /// Extract the interactive (detached tmux) config from an execution's
+    /// persisted action, erroring with `NotInteractive` if it is not a headed
+    /// coding-agent execution.
+    fn interactive_config_of(
+        execution_process: &ExecutionProcess,
+    ) -> Result<InteractiveTmuxConfig, ContainerError> {
+        execution_process
+            .executor_action()
+            .ok()
+            .and_then(|action| action.interactive_config().cloned())
+            .ok_or(ContainerError::NotInteractive)
+    }
+
     async fn start_detached_tmux(
         &self,
         execution_process: &ExecutionProcess,
@@ -1275,6 +1288,15 @@ impl LocalContainerService {
             terminal::tmux_new_session(&tmux_session, current_dir, &argv, &env_map, &env_remove)
                 .await
                 .map_err(|e| ContainerError::Other(anyhow!(e)))?;
+
+            // Surface the session identifier in the server log (plain ASCII).
+            // Intentionally NOT pushed into the MsgStore: the transcript tail
+            // re-adopts by stdout line offset, so an extra line would desync it.
+            tracing::info!(
+                "interactive session started: tmux={tmux_session} claude={session_uuid} \
+                 attach=`{}`",
+                terminal::attach_command(&tmux_session)
+            );
 
             // Attach the chosen terminal emulator as a viewer. A missing emulator
             // is non-fatal: the session is alive and reachable via `tmux attach`.
@@ -2041,6 +2063,44 @@ impl ContainerService for LocalContainerService {
         self.update_after_head_commits(execution_process.id).await;
 
         Ok(())
+    }
+
+    async fn open_interactive_terminal(
+        &self,
+        execution_process: &ExecutionProcess,
+    ) -> Result<(), ContainerError> {
+        let cfg = Self::interactive_config_of(execution_process)?;
+        let tmux_session = interactive::tmux_session_name(execution_process.id);
+        if !terminal::tmux_has_session(&tmux_session).await {
+            return Err(ContainerError::InteractiveSessionGone);
+        }
+        terminal::open_in_terminal(cfg.terminal, &tmux_session)
+            .await
+            .map_err(|e| match e {
+                terminal::TerminalError::TerminalUnavailable { attach_cmd, .. } => {
+                    ContainerError::TerminalUnavailable(attach_cmd)
+                }
+                other => ContainerError::Other(anyhow!(other)),
+            })
+    }
+
+    async fn send_interactive_input(
+        &self,
+        execution_process: &ExecutionProcess,
+        text: &str,
+    ) -> Result<(), ContainerError> {
+        // Confirm this is an interactive execution (ignore the config payload).
+        Self::interactive_config_of(execution_process)?;
+        let tmux_session = interactive::tmux_session_name(execution_process.id);
+        if !terminal::tmux_has_session(&tmux_session).await {
+            return Err(ContainerError::InteractiveSessionGone);
+        }
+        terminal::tmux_send_keys(&tmux_session, text)
+            .await
+            .map_err(|e| match e {
+                terminal::TerminalError::SessionGone(_) => ContainerError::InteractiveSessionGone,
+                other => ContainerError::Other(anyhow!(other)),
+            })
     }
 
     async fn stream_diff(

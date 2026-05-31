@@ -155,6 +155,15 @@ impl From<ContainerError> for ApiError {
             ContainerError::ExecutionProcess(e) => ApiError::ExecutionProcess(e),
             ContainerError::ExecutorError(e) => ApiError::Executor(e),
             ContainerError::Worktree(e) => e.into(),
+            ContainerError::NotInteractive => ApiError::BadRequest(
+                "This execution is not an interactive (headed) session".to_string(),
+            ),
+            ContainerError::InteractiveSessionGone => {
+                ApiError::Conflict("Interactive session is no longer running".to_string())
+            }
+            ContainerError::TerminalUnavailable(cmd) => ApiError::Conflict(format!(
+                "Terminal emulator unavailable; attach manually with: {cmd}"
+            )),
             other => ApiError::Container(other),
         }
     }

@@ -7,7 +7,12 @@ import {
 } from '@/shared/components/VirtualizedProcessLogs';
 import { useLogStream } from '@/shared/hooks/useLogStream';
 import { useLogsPanel } from '@/shared/hooks/useLogsPanel';
+import { useExecutionProcessesContext } from '@/shared/hooks/useExecutionProcessesContext';
 import { TerminalPanelContainer } from '@/shared/components/TerminalPanelContainer';
+import {
+  InteractiveControlBar,
+  getInteractiveConfig,
+} from './InteractiveControlBar';
 import { ArrowsInSimpleIcon } from '@phosphor-icons/react';
 
 export type LogsPanelContent =
@@ -33,9 +38,20 @@ export function LogsContentContainer({ className }: LogsContentContainerProps) {
     collapseTerminal,
   } = useLogsPanel();
   const { t } = useTranslation('common');
+  const { executionProcessesByIdVisible, executionProcessesByIdAll } =
+    useExecutionProcessesContext();
   // Get logs for process content (only when type is 'process')
   const processId = content?.type === 'process' ? content.processId : '';
   const { logs, error } = useLogStream(processId);
+
+  // Resolve the selected process so we can offer interactive (headed) controls.
+  const selectedProcess = processId
+    ? (executionProcessesByIdVisible[processId] ??
+      executionProcessesByIdAll[processId])
+    : undefined;
+  const interactiveConfig = selectedProcess
+    ? getInteractiveConfig(selectedProcess)
+    : null;
 
   // Get the current logs based on content type
   const currentLogs = useMemo(() => {
@@ -127,17 +143,26 @@ export function LogsContentContainer({ className }: LogsContentContainerProps) {
     );
   }
 
-  // Process logs - render with VirtualizedProcessLogs
+  // Process logs - render with VirtualizedProcessLogs, plus an interactive
+  // control bar for headed (detached tmux) executions.
   return (
-    <div className={cn('h-full bg-secondary', className)}>
-      <VirtualizedProcessLogs
-        key={processId}
-        logs={logs}
-        error={error}
-        searchQuery={searchQuery}
-        matchIndices={matchIndices}
-        currentMatchIndex={currentMatchIndex}
-      />
+    <div className={cn('h-full bg-secondary flex flex-col', className)}>
+      {selectedProcess && interactiveConfig && (
+        <InteractiveControlBar
+          process={selectedProcess}
+          config={interactiveConfig}
+        />
+      )}
+      <div className="flex-1 min-h-0">
+        <VirtualizedProcessLogs
+          key={processId}
+          logs={logs}
+          error={error}
+          searchQuery={searchQuery}
+          matchIndices={matchIndices}
+          currentMatchIndex={currentMatchIndex}
+        />
+      </div>
     </div>
   );
 }

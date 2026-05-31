@@ -812,6 +812,32 @@ export const executionProcessesApi = {
     );
     return handleApiResponse<void>(response);
   },
+
+  // Open the configured terminal emulator attached to an interactive (headed)
+  // execution's tmux session.
+  openTerminal: async (processId: string): Promise<void> => {
+    const response = await makeRequest(
+      `/api/execution-processes/${processId}/open-terminal`,
+      {
+        method: 'POST',
+      }
+    );
+    return handleApiResponse<void>(response);
+  },
+
+  // Type a line of input into an interactive (headed) execution's tmux session
+  // (e.g. answer a question or approve a prompt) and submit it.
+  sendInput: async (processId: string, text: string): Promise<void> => {
+    const response = await makeRequest(
+      `/api/execution-processes/${processId}/send-input`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      }
+    );
+    return handleApiResponse<void>(response);
+  },
 };
 
 // File System APIs

@@ -201,7 +201,8 @@
     "cancel": "Cancel",
     "saveChanges": "Save Changes",
     "copied": "Copied",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "copy": "Copy"
   },
   "comments": {
     "addReviewComment": "Add Review Comment",
@@ -271,7 +272,10 @@
   },
   "processes": {
     "noProcesses": "No processes",
-    "terminal": "Terminal"
+    "terminal": "Terminal",
+    "openInTerminal": "Open in Terminal",
+    "send": "Send",
+    "sendInputPlaceholder": "Answer or comment to the agent…"
   },
   "search": {
     "matchCount": "{{current}} of {{total}}",

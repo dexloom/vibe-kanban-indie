@@ -1,7 +1,7 @@
 use anyhow;
 use axum::{
     Extension, Router,
-    extract::{Path, Query, State, ws::Message},
+    extract::{Json, Path, Query, State, ws::Message},
     middleware::from_fn_with_state,
     response::{IntoResponse, Json as ResponseJson},
     routing::{get, post},
@@ -212,6 +212,54 @@ async fn stop_execution_process(
     Ok(ResponseJson(ApiResponse::success(())))
 }
 
+async fn open_terminal_process(
+    Extension(execution_process): Extension<ExecutionProcess>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
+    deployment
+        .container()
+        .open_interactive_terminal(&execution_process)
+        .await?;
+    Ok(ResponseJson(ApiResponse::success(())))
+}
+
+#[derive(Debug, Deserialize)]
+struct SendInputBody {
+    text: String,
+}
+
+/// Max length of a single line of interactive input (defensive guard; the UI is
+/// single-line and an answer/approval is always short).
+const MAX_INPUT_LEN: usize = 10_000;
+
+async fn send_input_process(
+    Extension(execution_process): Extension<ExecutionProcess>,
+    State(deployment): State<DeploymentImpl>,
+    Json(body): Json<SendInputBody>,
+) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
+    let text = body.text.trim();
+    if text.is_empty() {
+        return Err(ApiError::BadRequest("Input is empty".to_string()));
+    }
+    if text.len() > MAX_INPUT_LEN {
+        return Err(ApiError::BadRequest(format!(
+            "Input is too long (max {MAX_INPUT_LEN} characters)"
+        )));
+    }
+    // The UI is single-line; a newline would submit mid-message in the TUI, and
+    // other control chars could inject unintended keystrokes.
+    if text.chars().any(|c| c.is_control()) {
+        return Err(ApiError::BadRequest(
+            "Input must be a single line without control characters".to_string(),
+        ));
+    }
+    deployment
+        .container()
+        .send_interactive_input(&execution_process, text)
+        .await?;
+    Ok(ResponseJson(ApiResponse::success(())))
+}
+
 async fn stream_execution_processes_by_session_ws(
     ws: SignedWsUpgrade,
     State(deployment): State<DeploymentImpl>,
@@ -287,6 +335,8 @@ pub(super) fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     let workspace_id_router = Router::new()
         .route("/", get(get_execution_process_by_id))
         .route("/stop", post(stop_execution_process))
+        .route("/open-terminal", post(open_terminal_process))
+        .route("/send-input", post(send_input_process))
         .route("/repo-states", get(get_execution_process_repo_states))
         .route("/raw-logs/ws", get(stream_raw_logs_ws))
         .route("/normalized-logs/ws", get(stream_normalized_logs_ws))
