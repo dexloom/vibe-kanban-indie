@@ -1136,6 +1136,29 @@ impl LocalContainerService {
             .filter(|dir| !dir.is_empty())
             .cloned();
 
+        // The "Claude Code Headed" agent runs in a detached tmux terminal. The
+        // normal user flow (create session -> type prompt) queues that prompt and
+        // starts it here, so we must attach the interactive config in this path
+        // too — otherwise a Headed session would silently run headless. Mirrors
+        // the logic in the `follow_up` route: reuse the existing conversation id
+        // (so `--resume` reattaches) for a follow-up, or a fresh uuid for an
+        // initial run; the terminal emulator comes from the user config.
+        let want_interactive =
+            executor_profile_id.executor == executors::executors::BaseCodingAgent::ClaudeCodeHeaded;
+        let interactive = if want_interactive {
+            let terminal = self.config.read().await.terminal;
+            let session_uuid = latest_session_info
+                .as_ref()
+                .and_then(|info| Uuid::parse_str(&info.session_id).ok())
+                .unwrap_or_else(Uuid::new_v4);
+            Some(InteractiveTmuxConfig {
+                session_uuid,
+                terminal,
+            })
+        } else {
+            None
+        };
+
         let action_type = if let Some(info) = latest_session_info {
             ExecutorActionType::CodingAgentFollowUpRequest(CodingAgentFollowUpRequest {
                 prompt: queued_data.message.clone(),
@@ -1143,16 +1166,14 @@ impl LocalContainerService {
                 reset_to_message_id: None,
                 executor_config: queued_data.executor_config.clone(),
                 working_dir: working_dir.clone(),
-                // Queued follow-ups run headless; interactive runs are started
-                // explicitly via the start-interactive endpoint.
-                interactive: None,
+                interactive: interactive.clone(),
             })
         } else {
             ExecutorActionType::CodingAgentInitialRequest(CodingAgentInitialRequest {
                 prompt: queued_data.message.clone(),
                 executor_config: queued_data.executor_config.clone(),
                 working_dir,
-                interactive: None,
+                interactive,
             })
         };
 
