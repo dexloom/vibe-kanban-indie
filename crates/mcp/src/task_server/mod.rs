@@ -11,6 +11,18 @@ use uuid::Uuid;
 
 pub(crate) use crate::ApiResponseEnvelope;
 
+/// The single implicit organization used by the local-only fork. Mirrors
+/// `db::models::project::LOCAL_ORGANIZATION_ID` (`Uuid::from_u128(0xA001)`); kept
+/// as a literal here so the MCP crate doesn't depend on the db crate.
+const LOCAL_ORGANIZATION_ID: Uuid = Uuid::from_u128(0xA001);
+
+/// Local kanban response for `GET /api/workspace-issue-link`.
+#[derive(Debug, Clone, Deserialize)]
+struct WorkspaceIssueLink {
+    project_id: Option<Uuid>,
+    issue_id: Option<Uuid>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
 pub struct McpRepoContext {
     #[schemars(description = "The unique identifier of the repository")]
@@ -171,10 +183,13 @@ impl McpServer {
             None
         };
 
-        let (project_id, issue_id, organization_id) = self
-            .fetch_remote_workspace_context(workspace_id)
+        let (project_id, issue_id) = self
+            .fetch_workspace_issue_link(workspace_id)
             .await
-            .unwrap_or((None, None, None));
+            .unwrap_or((None, None));
+        // Local-only: a single implicit organization once a workspace resolves
+        // to a project.
+        let organization_id = project_id.map(|_| LOCAL_ORGANIZATION_ID);
 
         McpContext {
             organization_id,
@@ -187,13 +202,16 @@ impl McpServer {
         }
     }
 
-    async fn fetch_remote_workspace_context(
+    /// Resolve the project/issue a workspace is linked to via the local kanban
+    /// API. Returns `(project_id, issue_id)`, each `None` if the workspace isn't
+    /// linked to a kanban issue.
+    async fn fetch_workspace_issue_link(
         &self,
-        local_workspace_id: Uuid,
-    ) -> Option<(Option<Uuid>, Option<Uuid>, Option<Uuid>)> {
+        workspace_id: Uuid,
+    ) -> Option<(Option<Uuid>, Option<Uuid>)> {
         let url = self.url(&format!(
-            "/api/remote/workspaces/by-local-id/{}",
-            local_workspace_id
+            "/api/workspace-issue-link?workspace_id={}",
+            workspace_id
         ));
 
         let response = tokio::time::timeout(
@@ -208,38 +226,13 @@ impl McpServer {
             return None;
         }
 
-        let api_response: ApiResponseEnvelope<api_types::Workspace> = response.json().await.ok()?;
+        let api_response: ApiResponseEnvelope<WorkspaceIssueLink> = response.json().await.ok()?;
 
         if !api_response.success {
             return None;
         }
 
-        let remote_ws = api_response.data?;
-        let project_id = remote_ws.project_id;
-
-        // Fetch the project to get organization_id
-        let org_id = self.fetch_remote_organization_id(project_id).await;
-
-        Some((Some(project_id), remote_ws.issue_id, org_id))
-    }
-
-    async fn fetch_remote_organization_id(&self, project_id: Uuid) -> Option<Uuid> {
-        let url = self.url(&format!("/api/remote/projects/{}", project_id));
-
-        let response = tokio::time::timeout(
-            std::time::Duration::from_millis(2000),
-            self.client.get(&url).send(),
-        )
-        .await
-        .ok()?
-        .ok()?;
-
-        if !response.status().is_success() {
-            return None;
-        }
-
-        let api_response: ApiResponseEnvelope<api_types::Project> = response.json().await.ok()?;
-        let project = api_response.data?;
-        Some(project.organization_id)
+        let link = api_response.data?;
+        Some((link.project_id, link.issue_id))
     }
 }

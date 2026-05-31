@@ -362,7 +362,7 @@ async fn delete_project(
     Ok(deleted())
 }
 
-fn derive_key(name: &str) -> String {
+pub(crate) fn derive_key(name: &str) -> String {
     let key: String = name
         .chars()
         .filter(|c| c.is_alphanumeric())
@@ -499,7 +499,7 @@ async fn create_issue(
     Ok(mutation(issue))
 }
 
-async fn merge_and_update_issue(
+pub(crate) async fn merge_and_update_issue(
     pool: &sqlx::SqlitePool,
     id: Uuid,
     req: UpdateIssueRequest,

@@ -8,10 +8,14 @@ use uuid::Uuid;
 
 use super::McpServer;
 
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct McpListProjectsRequest {
-    #[schemars(description = "The ID of the organization to list projects from")]
-    organization_id: Uuid,
+    #[schemars(
+        description = "Optional organization ID. Ignored in local mode (a single implicit organization)."
+    )]
+    #[serde(default)]
+    #[allow(dead_code)] // accepted for compatibility; local mode has one org
+    organization_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
@@ -48,12 +52,11 @@ impl McpServer {
     #[tool(description = "List all the available projects")]
     async fn list_projects(
         &self,
-        Parameters(McpListProjectsRequest { organization_id }): Parameters<McpListProjectsRequest>,
+        Parameters(McpListProjectsRequest { organization_id: _ }): Parameters<
+            McpListProjectsRequest,
+        >,
     ) -> Result<CallToolResult, ErrorData> {
-        let url = self.url(&format!(
-            "/api/remote/projects?organization_id={}",
-            organization_id
-        ));
+        let url = self.url("/api/projects");
         let response: ListProjectsResponse = match self.send_json(self.client.get(&url)).await {
             Ok(r) => r,
             Err(e) => return Ok(Self::tool_error(e)),

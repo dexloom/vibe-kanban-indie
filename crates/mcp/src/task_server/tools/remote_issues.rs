@@ -304,7 +304,7 @@ impl McpServer {
             extension_metadata: serde_json::json!({}),
         };
 
-        let url = self.url("/api/remote/issues");
+        let url = self.url("/api/issues");
         let response: MutationResponse<Issue> =
             match self.send_json(self.client.post(&url).json(&payload)).await {
                 Ok(r) => r,
@@ -435,7 +435,7 @@ impl McpServer {
                 limit: Some(limit.unwrap_or(50).max(0)),
                 offset: Some(offset.unwrap_or(0).max(0)),
             };
-            let url = self.url("/api/remote/issues/search");
+            let url = self.url("/api/issues/search");
             match self.send_json(self.client.post(&url).json(&query)).await {
                 Ok(r) => r,
                 Err(e) => return Ok(McpServer::tool_error(e)),
@@ -469,7 +469,7 @@ impl McpServer {
         &self,
         Parameters(McpGetIssueRequest { issue_id }): Parameters<McpGetIssueRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let url = self.url(&format!("/api/remote/issues/{}", issue_id));
+        let url = self.url(&format!("/api/issues/{}", issue_id));
         let issue: Issue = match self.send_json(self.client.get(&url)).await {
             Ok(i) => i,
             Err(e) => return Ok(McpServer::tool_error(e)),
@@ -495,7 +495,7 @@ impl McpServer {
         }): Parameters<McpUpdateIssueRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         // First get the issue to know its project_id for status resolution
-        let get_url = self.url(&format!("/api/remote/issues/{}", issue_id));
+        let get_url = self.url(&format!("/api/issues/{}", issue_id));
         let existing_issue: Issue = match self.send_json(self.client.get(&get_url)).await {
             Ok(i) => i,
             Err(e) => return Ok(McpServer::tool_error(e)),
@@ -543,7 +543,7 @@ impl McpServer {
             extension_metadata: None,
         };
 
-        let url = self.url(&format!("/api/remote/issues/{}", issue_id));
+        let url = self.url(&format!("/api/issues/{}", issue_id));
         let response: MutationResponse<Issue> =
             match self.send_json(self.client.patch(&url).json(&payload)).await {
                 Ok(r) => r,
@@ -570,7 +570,7 @@ impl McpServer {
         &self,
         Parameters(McpDeleteIssueRequest { issue_id }): Parameters<McpDeleteIssueRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let url = self.url(&format!("/api/remote/issues/{}", issue_id));
+        let url = self.url(&format!("/api/issues/{}", issue_id));
         if let Err(e) = self.send_empty_json(self.client.delete(&url)).await {
             return Ok(McpServer::tool_error(e));
         }
@@ -699,7 +699,7 @@ impl McpServer {
     }
 
     async fn fetch_pull_requests(&self, issue_id: Uuid) -> ListPullRequestsResponse {
-        let url = self.url(&format!("/api/remote/pull-requests?issue_id={}", issue_id));
+        let url = self.url(&format!("/api/issues/{}/pull-requests", issue_id));
         match self
             .send_json::<ListPullRequestsResponse>(self.client.get(&url))
             .await
@@ -717,7 +717,7 @@ impl McpServer {
         project_id: Uuid,
         issue_id: Uuid,
     ) -> Vec<McpTagSummary> {
-        let tags_url = self.url(&format!("/api/remote/tags?project_id={}", project_id));
+        let tags_url = self.url(&format!("/api/project-tags?project_id={}", project_id));
         let project_tags: ListTagsResponse = match self.send_json(self.client.get(&tags_url)).await
         {
             Ok(r) => r,
@@ -726,7 +726,7 @@ impl McpServer {
         let tag_map: HashMap<Uuid, &api_types::Tag> =
             project_tags.tags.iter().map(|t| (t.id, t)).collect();
 
-        let url = self.url(&format!("/api/remote/issue-tags?issue_id={}", issue_id));
+        let url = self.url(&format!("/api/issue-tags?issue_id={}", issue_id));
         let response: ListIssueTagsResponse = match self.send_json(self.client.get(&url)).await {
             Ok(r) => r,
             Err(_) => return Vec::new(),
@@ -751,10 +751,7 @@ impl McpServer {
         project_id: Uuid,
         issue_id: Uuid,
     ) -> Vec<McpRelationshipSummary> {
-        let rel_url = self.url(&format!(
-            "/api/remote/issue-relationships?issue_id={}",
-            issue_id
-        ));
+        let rel_url = self.url(&format!("/api/issue-relationships?issue_id={}", issue_id));
         let response: ListIssueRelationshipsResponse =
             match self.send_json(self.client.get(&rel_url)).await {
                 Ok(r) => r,
@@ -765,7 +762,7 @@ impl McpServer {
             return Vec::new();
         }
 
-        let issues_url = self.url(&format!("/api/remote/issues?project_id={}", project_id));
+        let issues_url = self.url(&format!("/api/issues?project_id={}", project_id));
         let issues_response: api_types::ListIssuesResponse = self
             .send_json(self.client.get(&issues_url))
             .await
@@ -809,7 +806,7 @@ impl McpServer {
         project_id: Uuid,
         parent_issue_id: Uuid,
     ) -> Vec<McpSubIssueSummary> {
-        let url = self.url(&format!("/api/remote/issues?project_id={}", project_id));
+        let url = self.url(&format!("/api/issues?project_id={}", project_id));
         let response: api_types::ListIssuesResponse =
             match self.send_json(self.client.get(&url)).await {
                 Ok(r) => r,
@@ -873,7 +870,7 @@ impl McpServer {
         project_id: Uuid,
         tag_name: &str,
     ) -> Result<Vec<Uuid>, ToolError> {
-        let url = self.url(&format!("/api/remote/tags?project_id={}", project_id));
+        let url = self.url(&format!("/api/project-tags?project_id={}", project_id));
         let tags: ListTagsResponse = self.send_json(self.client.get(&url)).await?;
         Ok(Self::matching_ids_by_name(
             tags.tags.iter().map(|tag| (tag.id, tag.name.as_str())),

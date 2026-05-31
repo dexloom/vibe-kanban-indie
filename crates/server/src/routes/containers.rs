@@ -37,14 +37,24 @@ async fn get_container_info(
 async fn get_context(
     State(deployment): State<DeploymentImpl>,
     Query(payload): Query<ContainerQuery>,
-) -> Result<ResponseJson<ApiResponse<WorkspaceContext>>, ApiError> {
-    let info =
-        Workspace::resolve_container_ref_by_prefix(&deployment.db().pool, &payload.container_ref)
-            .await
-            .map_err(ApiError::Database)?;
+) -> Result<ResponseJson<ApiResponse<Option<WorkspaceContext>>>, ApiError> {
+    // A ref that isn't a registered workspace worktree is "no context", not an
+    // error. Returning a 200 with null data (instead of letting RowNotFound
+    // become a 500) keeps the MCP startup probe quiet — it polls this endpoint
+    // with its cwd on every (re)connect, which is usually not a worktree.
+    let info = match Workspace::resolve_container_ref_by_prefix(
+        &deployment.db().pool,
+        &payload.container_ref,
+    )
+    .await
+    {
+        Ok(info) => info,
+        Err(sqlx::Error::RowNotFound) => return Ok(ResponseJson(ApiResponse::success(None))),
+        Err(e) => return Err(ApiError::Database(e)),
+    };
 
     let ctx = Workspace::load_context(&deployment.db().pool, info.workspace_id).await?;
-    Ok(ResponseJson(ApiResponse::success(ctx)))
+    Ok(ResponseJson(ApiResponse::success(Some(ctx))))
 }
 
 pub(super) fn router(_deployment: &DeploymentImpl) -> Router<DeploymentImpl> {

@@ -2,7 +2,8 @@ use api_types::{
     AcceptInvitationResponse, CreateInvitationRequest, CreateInvitationResponse,
     CreateOrganizationRequest, CreateOrganizationResponse, GetInvitationResponse,
     GetOrganizationResponse, ListInvitationsResponse, ListMembersResponse,
-    ListOrganizationsResponse, Organization, RevokeInvitationRequest, UpdateMemberRoleRequest,
+    ListOrganizationsResponse, MemberRole, Organization, OrganizationMemberWithProfile,
+    OrganizationWithRole, RevokeInvitationRequest, UpdateMemberRoleRequest,
     UpdateMemberRoleResponse, UpdateOrganizationRequest,
 };
 use axum::{
@@ -12,6 +13,8 @@ use axum::{
     response::Json as ResponseJson,
     routing::{delete, get, patch, post},
 };
+use chrono::Utc;
+use db::models::{local_user::LocalUser, project::LOCAL_ORGANIZATION_ID};
 use deployment::Deployment;
 use utils::response::ApiResponse;
 use uuid::Uuid;
@@ -48,12 +51,22 @@ pub fn router() -> Router<DeploymentImpl> {
 }
 
 async fn list_organizations(
-    State(deployment): State<DeploymentImpl>,
+    State(_deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<ApiResponse<ListOrganizationsResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
-
-    let response = client.list_organizations().await?;
-
+    // Local-only fork: a single synthetic organization, no cloud account.
+    let now = Utc::now();
+    let response = ListOrganizationsResponse {
+        organizations: vec![OrganizationWithRole {
+            id: LOCAL_ORGANIZATION_ID,
+            name: "Local".to_string(),
+            slug: "local".to_string(),
+            is_personal: false,
+            issue_prefix: "LOCAL".to_string(),
+            created_at: now,
+            updated_at: now,
+            user_role: MemberRole::Admin,
+        }],
+    };
     Ok(ResponseJson(ApiResponse::success(response)))
 }
 
@@ -183,13 +196,26 @@ async fn accept_invitation(
 
 async fn list_members(
     State(deployment): State<DeploymentImpl>,
-    Path(org_id): Path<Uuid>,
+    Path(_org_id): Path<Uuid>,
 ) -> Result<ResponseJson<ApiResponse<ListMembersResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
-
-    let response = client.list_members(org_id).await?;
-
-    Ok(ResponseJson(ApiResponse::success(response)))
+    // Local-only fork: members are the local users in the single org.
+    let members = LocalUser::list_all(&deployment.db().pool)
+        .await?
+        .into_iter()
+        .map(|u| OrganizationMemberWithProfile {
+            user_id: u.id,
+            role: MemberRole::Admin,
+            joined_at: u.created_at,
+            first_name: u.first_name,
+            last_name: u.last_name,
+            username: u.username,
+            email: Some(u.email),
+            avatar_url: None,
+        })
+        .collect();
+    Ok(ResponseJson(ApiResponse::success(ListMembersResponse {
+        members,
+    })))
 }
 
 async fn remove_member(

@@ -102,6 +102,20 @@ impl IssueTag {
         .await
     }
 
+    pub async fn list_by_issue(
+        pool: &SqlitePool,
+        issue_id: Uuid,
+    ) -> Result<Vec<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            IssueTag,
+            r#"SELECT id as "id!: Uuid", issue_id as "issue_id!: Uuid", tag_id as "tag_id!: Uuid"
+               FROM issue_tags WHERE issue_id = $1"#,
+            issue_id
+        )
+        .fetch_all(pool)
+        .await
+    }
+
     pub async fn create(
         pool: &SqlitePool,
         id: Uuid,
@@ -151,6 +165,21 @@ impl IssueAssignee {
                JOIN issues i ON i.id = a.issue_id
                WHERE i.project_id = $1"#,
             project_id
+        )
+        .fetch_all(pool)
+        .await
+    }
+
+    pub async fn list_by_issue(
+        pool: &SqlitePool,
+        issue_id: Uuid,
+    ) -> Result<Vec<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            IssueAssignee,
+            r#"SELECT id as "id!: Uuid", issue_id as "issue_id!: Uuid",
+                      user_id as "user_id!: Uuid", assigned_at as "assigned_at!: DateTime<Utc>"
+               FROM issue_assignees WHERE issue_id = $1"#,
+            issue_id
         )
         .fetch_all(pool)
         .await

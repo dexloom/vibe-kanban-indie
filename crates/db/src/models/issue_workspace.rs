@@ -67,6 +67,25 @@ impl IssueWorkspace {
         Ok(result.rows_affected())
     }
 
+    /// Resolve the issue and its project for a workspace, if the workspace is
+    /// linked to a kanban issue. Used by the MCP server to derive project/issue
+    /// context for a running workspace without any cloud lookup.
+    pub async fn find_issue_and_project_by_workspace(
+        pool: &SqlitePool,
+        workspace_id: Uuid,
+    ) -> Result<Option<(Uuid, Uuid)>, sqlx::Error> {
+        let row = sqlx::query!(
+            r#"SELECT iw.issue_id as "issue_id!: Uuid", i.project_id as "project_id!: Uuid"
+               FROM issue_workspaces iw
+               JOIN issues i ON i.id = iw.issue_id
+               WHERE iw.workspace_id = $1"#,
+            workspace_id
+        )
+        .fetch_optional(pool)
+        .await?;
+        Ok(row.map(|r| (r.issue_id, r.project_id)))
+    }
+
     /// Linked workspaces for every issue in a project (for `project_workspaces`).
     pub async fn list_linked_by_project(
         pool: &SqlitePool,

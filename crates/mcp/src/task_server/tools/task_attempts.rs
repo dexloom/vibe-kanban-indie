@@ -149,7 +149,7 @@ impl McpServer {
             .collect();
 
         let (linked_issue, issue_prompt) = if let Some(issue_id) = issue_id {
-            let issue_url = self.url(&format!("/api/remote/issues/{issue_id}"));
+            let issue_url = self.url(&format!("/api/issues/{issue_id}"));
             let issue: api_types::Issue = match self.send_json(self.client.get(&issue_url)).await {
                 Ok(issue) => issue,
                 Err(e) => return Ok(Self::tool_error(e)),
