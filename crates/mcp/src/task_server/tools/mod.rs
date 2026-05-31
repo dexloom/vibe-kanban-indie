@@ -265,7 +265,8 @@ impl McpServer {
         ))
     }
 
-    // Resolves an organization_id from an explicit parameter or falls back to context.
+    // Resolves an organization_id from an explicit parameter or context, falling
+    // back to the single implicit local organization.
     fn resolve_organization_id(&self, explicit: Option<Uuid>) -> Result<Uuid, ToolError> {
         if let Some(id) = explicit {
             return Ok(id);
@@ -275,9 +276,7 @@ impl McpServer {
         {
             return Ok(id);
         }
-        Err(ToolError::message(
-            "organization_id is required (not available from workspace context)",
-        ))
+        Ok(super::LOCAL_ORGANIZATION_ID)
     }
 
     // Fetches project statuses for a project.
@@ -285,10 +284,7 @@ impl McpServer {
         &self,
         project_id: Uuid,
     ) -> Result<Vec<ProjectStatus>, ToolError> {
-        let url = self.url(&format!(
-            "/api/remote/project-statuses?project_id={}",
-            project_id
-        ));
+        let url = self.url(&format!("/api/project-statuses?project_id={}", project_id));
         let response: ListProjectStatusesResponse = self.send_json(self.client.get(&url)).await?;
         Ok(response.project_statuses)
     }
@@ -342,7 +338,7 @@ impl McpServer {
         workspace_id: Uuid,
         issue_id: Uuid,
     ) -> Result<(), ToolError> {
-        let issue_url = self.url(&format!("/api/remote/issues/{}", issue_id));
+        let issue_url = self.url(&format!("/api/issues/{}", issue_id));
         let issue: Issue = self.send_json(self.client.get(&issue_url)).await?;
 
         let link_url = self.url(&format!("/api/workspaces/{}/links", workspace_id));

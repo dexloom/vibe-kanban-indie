@@ -99,7 +99,7 @@ impl McpServer {
             Err(e) => return Ok(Self::tool_error(e)),
         };
 
-        let url = self.url(&format!("/api/remote/tags?project_id={}", project_id));
+        let url = self.url(&format!("/api/project-tags?project_id={}", project_id));
         let response: ListTagsResponse = match self.send_json(self.client.get(&url)).await {
             Ok(r) => r,
             Err(e) => return Ok(Self::tool_error(e)),
@@ -128,7 +128,7 @@ impl McpServer {
         &self,
         Parameters(McpListIssueTagsRequest { issue_id }): Parameters<McpListIssueTagsRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let url = self.url(&format!("/api/remote/issue-tags?issue_id={}", issue_id));
+        let url = self.url(&format!("/api/issue-tags?issue_id={}", issue_id));
         let response: ListIssueTagsResponse = match self.send_json(self.client.get(&url)).await {
             Ok(r) => r,
             Err(e) => return Ok(Self::tool_error(e)),
@@ -162,7 +162,7 @@ impl McpServer {
             tag_id,
         };
 
-        let url = self.url("/api/remote/issue-tags");
+        let url = self.url("/api/issue-tags");
         let response: MutationResponse<IssueTag> =
             match self.send_json(self.client.post(&url).json(&payload)).await {
                 Ok(r) => r,
@@ -179,7 +179,7 @@ impl McpServer {
         &self,
         Parameters(McpRemoveIssueTagRequest { issue_tag_id }): Parameters<McpRemoveIssueTagRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let url = self.url(&format!("/api/remote/issue-tags/{}", issue_tag_id));
+        let url = self.url(&format!("/api/issue-tags/{}", issue_tag_id));
         if let Err(e) = self.send_empty_json(self.client.delete(&url)).await {
             return Ok(Self::tool_error(e));
         }

@@ -69,10 +69,7 @@ impl McpServer {
             McpListIssueAssigneesRequest,
         >,
     ) -> Result<CallToolResult, ErrorData> {
-        let url = self.url(&format!(
-            "/api/remote/issue-assignees?issue_id={}",
-            issue_id
-        ));
+        let url = self.url(&format!("/api/issue-assignees?issue_id={}", issue_id));
         let response: ListIssueAssigneesResponse = match self.send_json(self.client.get(&url)).await
         {
             Ok(r) => r,
@@ -108,7 +105,7 @@ impl McpServer {
             user_id,
         };
 
-        let url = self.url("/api/remote/issue-assignees");
+        let url = self.url("/api/issue-assignees");
         let response: MutationResponse<IssueAssignee> =
             match self.send_json(self.client.post(&url).json(&payload)).await {
                 Ok(r) => r,
@@ -127,10 +124,7 @@ impl McpServer {
             McpUnassignIssueRequest,
         >,
     ) -> Result<CallToolResult, ErrorData> {
-        let url = self.url(&format!(
-            "/api/remote/issue-assignees/{}",
-            issue_assignee_id
-        ));
+        let url = self.url(&format!("/api/issue-assignees/{}", issue_assignee_id));
         if let Err(e) = self.send_empty_json(self.client.delete(&url)).await {
             return Ok(Self::tool_error(e));
         }

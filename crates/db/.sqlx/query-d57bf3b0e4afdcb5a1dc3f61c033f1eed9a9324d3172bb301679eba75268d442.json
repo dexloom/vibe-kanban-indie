@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT iw.issue_id as \"issue_id!: Uuid\", i.project_id as \"project_id!: Uuid\"\n               FROM issue_workspaces iw\n               JOIN issues i ON i.id = iw.issue_id\n               WHERE iw.workspace_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "issue_id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "project_id!: Uuid",
+        "ordinal": 1,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "d57bf3b0e4afdcb5a1dc3f61c033f1eed9a9324d3172bb301679eba75268d442"
+}
