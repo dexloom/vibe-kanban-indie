@@ -22,6 +22,7 @@ use executors::{
     actions::{
         ExecutorAction, ExecutorActionType, coding_agent_follow_up::CodingAgentFollowUpRequest,
     },
+    interactive::InteractiveTmuxConfig,
     profile::ExecutorConfig,
 };
 use serde::Deserialize;
@@ -112,6 +113,11 @@ pub struct CreateFollowUpAttempt {
     pub retry_process_id: Option<Uuid>,
     pub force_when_dirty: Option<bool>,
     pub perform_git_reset: Option<bool>,
+    /// When true, run the agent in an interactive terminal (detached tmux
+    /// session) instead of headless mode. Claude Code only.
+    #[serde(default)]
+    #[ts(optional)]
+    pub interactive: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, TS)]
@@ -188,6 +194,24 @@ pub async fn follow_up(
         .filter(|dir| !dir.is_empty())
         .cloned();
 
+    // Build the interactive (detached tmux) config when requested. The forced
+    // Claude session id is the existing conversation's id for a follow-up (so
+    // `--resume` reattaches it) or a fresh uuid for an initial run.
+    let want_interactive = payload.interactive.unwrap_or(false);
+    let interactive = if want_interactive {
+        let terminal = deployment.config().read().await.terminal;
+        let session_uuid = latest_session_info
+            .as_ref()
+            .and_then(|info| Uuid::parse_str(&info.session_id).ok())
+            .unwrap_or_else(Uuid::new_v4);
+        Some(InteractiveTmuxConfig {
+            session_uuid,
+            terminal,
+        })
+    } else {
+        None
+    };
+
     let action_type = if let Some(info) = latest_session_info {
         let is_reset = payload.retry_process_id.is_some();
         ExecutorActionType::CodingAgentFollowUpRequest(CodingAgentFollowUpRequest {
@@ -196,6 +220,7 @@ pub async fn follow_up(
             reset_to_message_id: if is_reset { info.message_id } else { None },
             executor_config: payload.executor_config.clone(),
             working_dir: working_dir.clone(),
+            interactive: interactive.clone(),
         })
     } else {
         ExecutorActionType::CodingAgentInitialRequest(
@@ -203,6 +228,7 @@ pub async fn follow_up(
                 prompt,
                 executor_config: payload.executor_config.clone(),
                 working_dir,
+                interactive,
             },
         )
     };

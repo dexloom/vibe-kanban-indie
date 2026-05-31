@@ -12,6 +12,8 @@ interface CreateSessionParams {
   workspaceId: string;
   prompt: string;
   executorConfig: ExecutorConfig;
+  /** Run the agent in an interactive terminal (detached tmux) instead of headless. */
+  interactive?: boolean;
 }
 
 /**
@@ -27,6 +29,7 @@ export function useCreateSession() {
       workspaceId,
       prompt,
       executorConfig,
+      interactive,
     }: CreateSessionParams): Promise<Session> => {
       const session = await sessionsApi.create({
         workspace_id: workspaceId,
@@ -38,6 +41,7 @@ export function useCreateSession() {
         retry_process_id: null,
         force_when_dirty: null,
         perform_git_reset: null,
+        interactive,
       };
       await sessionsApi.followUp(session.id, body);
 

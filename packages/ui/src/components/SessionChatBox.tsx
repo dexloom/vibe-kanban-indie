@@ -55,6 +55,8 @@ interface ActionsProps {
   onCancelQueue: () => void;
   onStop: () => void;
   onPasteFiles: (files: File[]) => void;
+  /** Optional: run the agent in an interactive terminal (detached tmux). */
+  onSendInteractive?: () => void;
 }
 
 export interface SessionOption<TExecutor extends string = string> {
@@ -504,11 +506,23 @@ export function SessionChatBox<TExecutor extends string = string>({
     switch (status) {
       case 'idle':
         return (
-          <PrimaryButton
-            onClick={actions.onSend}
-            disabled={!canSend}
-            value={t('conversation.actions.send')}
-          />
+          <>
+            {actions.onSendInteractive && (
+              <PrimaryButton
+                onClick={actions.onSendInteractive}
+                disabled={!canSend}
+                variant="secondary"
+                value={t('conversation.actions.terminal', {
+                  defaultValue: 'Terminal',
+                })}
+              />
+            )}
+            <PrimaryButton
+              onClick={actions.onSend}
+              disabled={!canSend}
+              value={t('conversation.actions.send')}
+            />
+          </>
         );
 
       case 'sending':

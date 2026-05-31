@@ -14,6 +14,7 @@ use crate::{
     approvals::ExecutorApprovalService,
     env::ExecutionEnv,
     executors::{BaseCodingAgent, ExecutorError, SpawnedChild},
+    interactive::InteractiveTmuxConfig,
 };
 pub mod coding_agent_follow_up;
 pub mod coding_agent_initial;
@@ -67,6 +68,18 @@ impl ExecutorAction {
             }
             ExecutorActionType::ReviewRequest(request) => Some(request.base_executor()),
             ExecutorActionType::ScriptRequest(_) => None,
+        }
+    }
+
+    /// Interactive (detached tmux) config for this action, if it is a coding
+    /// agent action configured to run interactively. Used by the container to
+    /// branch into the detached-execution path and by restart reconciliation to
+    /// recover the forced session id / terminal choice.
+    pub fn interactive_config(&self) -> Option<&InteractiveTmuxConfig> {
+        match self.typ() {
+            ExecutorActionType::CodingAgentInitialRequest(request) => request.interactive.as_ref(),
+            ExecutorActionType::CodingAgentFollowUpRequest(request) => request.interactive.as_ref(),
+            ExecutorActionType::ReviewRequest(_) | ExecutorActionType::ScriptRequest(_) => None,
         }
     }
 }

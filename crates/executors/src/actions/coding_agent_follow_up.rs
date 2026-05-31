@@ -11,6 +11,7 @@ use crate::{
     approvals::ExecutorApprovalService,
     env::ExecutionEnv,
     executors::{BaseCodingAgent, ExecutorError, SpawnedChild, StandardCodingAgentExecutor},
+    interactive::InteractiveTmuxConfig,
     profile::ExecutorConfig,
 };
 
@@ -27,6 +28,10 @@ pub struct CodingAgentFollowUpRequest {
     /// If None, uses the container_ref directory directly.
     #[serde(default)]
     pub working_dir: Option<String>,
+    /// When set, resume the agent in an interactive terminal (detached tmux
+    /// session) instead of the headless `-p` protocol. Backward compatible.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interactive: Option<InteractiveTmuxConfig>,
 }
 
 impl CodingAgentFollowUpRequest {
