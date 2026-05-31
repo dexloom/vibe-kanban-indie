@@ -668,6 +668,94 @@ impl StandardCodingAgentExecutor for ClaudeCode {
     }
 }
 
+/// Claude Code in **headed** mode: rather than the headless `-p` stream-json
+/// protocol, the agent runs in a real terminal (its interactive TUI) inside a
+/// detached tmux session, and vibe-kanban mirrors the session transcript
+/// read-only into the normalized-log timeline. It does NOT interact with the
+/// agent — it only spawns it, attaches a terminal emulator as a viewer, and
+/// tracks/resumes the session.
+///
+/// This is a thin wrapper around [`ClaudeCode`]: it shares the same config and
+/// log normalization. The container recognizes this executor type and launches
+/// it via the detached tmux path instead of [`Self::spawn`] (which is never
+/// called for headed executions).
+#[derive(Derivative, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[derivative(Debug, PartialEq)]
+pub struct ClaudeCodeHeaded {
+    #[serde(flatten)]
+    #[ts(flatten)]
+    #[schemars(flatten)]
+    pub inner: ClaudeCode,
+}
+
+#[async_trait]
+impl StandardCodingAgentExecutor for ClaudeCodeHeaded {
+    fn apply_overrides(&mut self, executor_config: &ExecutorConfig) {
+        self.inner.apply_overrides(executor_config);
+    }
+
+    fn use_approvals(&mut self, approvals: Arc<dyn ExecutorApprovalService>) {
+        self.inner.use_approvals(approvals);
+    }
+
+    async fn spawn(
+        &self,
+        current_dir: &Path,
+        prompt: &str,
+        env: &ExecutionEnv,
+    ) -> Result<SpawnedChild, ExecutorError> {
+        // Headed executions are launched via the container's detached tmux path;
+        // this is only reached if that interception is bypassed, in which case
+        // we fall back to the headless behaviour rather than failing.
+        self.inner.spawn(current_dir, prompt, env).await
+    }
+
+    async fn spawn_follow_up(
+        &self,
+        current_dir: &Path,
+        prompt: &str,
+        session_id: &str,
+        reset_to_message_id: Option<&str>,
+        env: &ExecutionEnv,
+    ) -> Result<SpawnedChild, ExecutorError> {
+        self.inner
+            .spawn_follow_up(current_dir, prompt, session_id, reset_to_message_id, env)
+            .await
+    }
+
+    fn normalize_logs(
+        &self,
+        msg_store: Arc<MsgStore>,
+        current_dir: &Path,
+    ) -> Vec<tokio::task::JoinHandle<()>> {
+        // Identical to headless: the transcript lines we mirror as stdout
+        // deserialize into the same ClaudeJson the processor already handles.
+        self.inner.normalize_logs(msg_store, current_dir)
+    }
+
+    async fn discover_options(
+        &self,
+        workdir: Option<&Path>,
+        repo_path: Option<&Path>,
+    ) -> Result<futures::stream::BoxStream<'static, json_patch::Patch>, ExecutorError> {
+        self.inner.discover_options(workdir, repo_path).await
+    }
+
+    fn get_preset_options(&self) -> ExecutorConfig {
+        let mut cfg = self.inner.get_preset_options();
+        cfg.executor = BaseCodingAgent::ClaudeCodeHeaded;
+        cfg
+    }
+
+    fn default_mcp_config_path(&self) -> Option<std::path::PathBuf> {
+        self.inner.default_mcp_config_path()
+    }
+
+    fn get_availability_info(&self) -> AvailabilityInfo {
+        self.inner.get_availability_info()
+    }
+}
+
 impl ClaudeCode {
     async fn spawn_internal(
         &self,

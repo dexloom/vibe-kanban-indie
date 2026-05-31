@@ -498,49 +498,40 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
     executorConfig,
   });
 
-  const handleSendWith = useCallback(
-    async (interactive: boolean) => {
-      const { prompt, isSlashCommand } = buildAgentPrompt(localMessage, [
-        reviewMarkdown,
-      ]);
-
-      onScrollToBottom('auto');
-
-      const success = await send(prompt, { interactive });
-      if (success) {
-        cancelDebouncedSave();
-        setLocalMessage('');
-        clearUploadedAttachments();
-        if (isNewSessionMode) await clearDraft();
-        if (!isSlashCommand) {
-          reviewContext?.clearComments();
-        }
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            onScrollToBottom('auto');
-          });
-        });
-      }
-    },
-    [
-      onScrollToBottom,
-      send,
-      localMessage,
+  const handleSend = useCallback(async () => {
+    const { prompt, isSlashCommand } = buildAgentPrompt(localMessage, [
       reviewMarkdown,
-      cancelDebouncedSave,
-      setLocalMessage,
-      clearUploadedAttachments,
-      isNewSessionMode,
-      clearDraft,
-      reviewContext,
-    ]
-  );
+    ]);
 
-  const handleSend = useCallback(() => handleSendWith(false), [handleSendWith]);
-  const handleSendInteractive = useCallback(
-    () => handleSendWith(true),
-    [handleSendWith]
-  );
+    onScrollToBottom('auto');
+
+    const success = await send(prompt);
+    if (success) {
+      cancelDebouncedSave();
+      setLocalMessage('');
+      clearUploadedAttachments();
+      if (isNewSessionMode) await clearDraft();
+      if (!isSlashCommand) {
+        reviewContext?.clearComments();
+      }
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          onScrollToBottom('auto');
+        });
+      });
+    }
+  }, [
+    onScrollToBottom,
+    send,
+    localMessage,
+    reviewMarkdown,
+    cancelDebouncedSave,
+    setLocalMessage,
+    clearUploadedAttachments,
+    isNewSessionMode,
+    clearDraft,
+    reviewContext,
+  ]);
 
   // Track previous process count for queue refresh
   const prevProcessCountRef = useRef(processes.length);
@@ -1040,7 +1031,6 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
       }}
       actions={{
         onSend: handleSend,
-        onSendInteractive: handleSendInteractive,
         onQueue: handleQueueMessage,
         onCancelQueue: handleCancelQueue,
         onStop: stopExecution,

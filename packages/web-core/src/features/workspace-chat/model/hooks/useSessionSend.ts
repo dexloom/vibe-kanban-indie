@@ -16,14 +16,9 @@ interface UseSessionSendOptions {
   executorConfig?: ExecutorConfig | null;
 }
 
-interface SendOptions {
-  /** Run the agent in an interactive terminal (detached tmux) instead of headless. */
-  interactive?: boolean;
-}
-
 interface UseSessionSendResult {
   /** Send a message. Returns true on success, false on failure. */
-  send: (message: string, opts?: SendOptions) => Promise<boolean>;
+  send: (message: string) => Promise<boolean>;
   /** Whether a send operation is in progress */
   isSending: boolean;
   /** Error message if send failed */
@@ -54,7 +49,7 @@ export function useSessionSend({
   const [error, setError] = useState<string | null>(null);
 
   const send = useCallback(
-    async (message: string, opts?: SendOptions): Promise<boolean> => {
+    async (message: string): Promise<boolean> => {
       const trimmed = message.trim();
       if (!trimmed) return false;
       if (!executorConfig) {
@@ -75,7 +70,6 @@ export function useSessionSend({
             workspaceId,
             prompt: trimmed,
             executorConfig,
-            interactive: opts?.interactive,
           });
           onSelectSession?.(session.id);
           return true;
@@ -97,7 +91,6 @@ export function useSessionSend({
             retry_process_id: null,
             force_when_dirty: null,
             perform_git_reset: null,
-            interactive: opts?.interactive,
           });
           return true;
         } catch (e: unknown) {

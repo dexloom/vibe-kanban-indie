@@ -22,8 +22,8 @@ use crate::{
     command::CommandBuildError,
     env::ExecutionEnv,
     executors::{
-        amp::Amp, claude::ClaudeCode, codex::Codex, copilot::Copilot, cursor::CursorAgent,
-        droid::Droid, gemini::Gemini, opencode::Opencode, qwen::QwenCode,
+        amp::Amp, claude::ClaudeCode, claude::ClaudeCodeHeaded, codex::Codex, copilot::Copilot,
+        cursor::CursorAgent, droid::Droid, gemini::Gemini, opencode::Opencode, qwen::QwenCode,
     },
     logs::utils::patch,
     mcp_config::McpConfig,
@@ -108,6 +108,7 @@ pub enum ExecutorError {
 )]
 pub enum CodingAgent {
     ClaudeCode,
+    ClaudeCodeHeaded,
     Amp,
     Gemini,
     Codex,
@@ -176,7 +177,7 @@ impl CodingAgent {
 
     pub fn capabilities(&self) -> Vec<BaseAgentCapability> {
         match self {
-            Self::ClaudeCode(_) => vec![
+            Self::ClaudeCode(_) | Self::ClaudeCodeHeaded(_) => vec![
                 BaseAgentCapability::SessionFork,
                 BaseAgentCapability::ContextUsage,
             ],

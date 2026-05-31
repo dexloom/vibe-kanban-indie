@@ -156,9 +156,6 @@ pub struct CreateAndStartResponse {
 pub struct FollowUpRequest {
     pub prompt: String,
     pub executor_config: ExecutorConfigInput,
-    /// When true, run the agent in an interactive terminal (detached tmux).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub interactive: Option<bool>,
 }
 
 /// Body for `POST /api/sessions/{id}/queue`.
