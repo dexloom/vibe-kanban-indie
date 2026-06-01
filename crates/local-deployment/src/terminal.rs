@@ -149,8 +149,13 @@ pub async fn tmux_kill_session(session_name: &str) -> Result<(), TerminalError> 
 /// Two `send-keys` calls keep the message and the submitting keystroke
 /// unambiguous: the first uses `-l` (literal) so nothing in `text` — `$VAR`,
 /// quotes, or key-names like `Enter` — is interpreted; the second sends the
-/// `Enter` key itself. `=session` is an exact-match target and `--` ends option
-/// parsing so a leading `-` in `text` is not treated as a flag.
+/// `Enter` key itself. `--` ends option parsing so a leading `-` in `text` is not
+/// treated as a flag.
+///
+/// The target is the bare session name (NOT `=name`): for `send-keys` the `-t`
+/// target is a *pane*, and the `=` exact-match prefix — valid for
+/// `has-session`/`kill-session` — makes tmux report "can't find pane". Session
+/// names are unique full UUIDs, so prefix matching resolves to the right pane.
 pub async fn tmux_send_keys(session_name: &str, text: &str) -> Result<(), TerminalError> {
     // Type the literal text (no trailing newline).
     let literal = Command::new("tmux")
@@ -179,7 +184,7 @@ fn send_keys_literal_args(session_name: &str, text: &str) -> Vec<String> {
     vec![
         "send-keys".to_string(),
         "-t".to_string(),
-        format!("={session_name}"),
+        session_name.to_string(),
         "-l".to_string(),
         "--".to_string(),
         text.to_string(),
@@ -191,7 +196,7 @@ fn send_keys_enter_args(session_name: &str) -> Vec<String> {
     vec![
         "send-keys".to_string(),
         "-t".to_string(),
-        format!("={session_name}"),
+        session_name.to_string(),
         "Enter".to_string(),
     ]
 }
@@ -200,7 +205,13 @@ fn send_keys_enter_args(session_name: &str) -> Vec<String> {
 /// otherwise to a generic `TmuxFailed`.
 fn classify_send_keys_err(session_name: &str, stderr: &[u8]) -> TerminalError {
     let stderr = String::from_utf8_lossy(stderr);
-    if stderr.contains("can't find session") || stderr.contains("no server running") {
+    // A session that exited takes its pane/window with it, so tmux may report any
+    // of these — all mean "the interactive session is gone" (→ a clean 409).
+    if stderr.contains("can't find session")
+        || stderr.contains("can't find pane")
+        || stderr.contains("can't find window")
+        || stderr.contains("no server running")
+    {
         TerminalError::SessionGone(session_name.to_string())
     } else {
         TerminalError::TmuxFailed(stderr.trim().to_string())
@@ -359,7 +370,9 @@ mod tests {
             vec![
                 "send-keys".to_string(),
                 "-t".to_string(),
-                "=vk-abc".to_string(),
+                // Bare session name, NOT `=vk-abc`: `=` is invalid as a send-keys
+                // pane target ("can't find pane").
+                "vk-abc".to_string(),
                 "-l".to_string(),
                 "--".to_string(),
                 text.to_string(),
@@ -371,13 +384,13 @@ mod tests {
     }
 
     #[test]
-    fn send_keys_enter_targets_exact_session() {
+    fn send_keys_enter_targets_bare_session() {
         assert_eq!(
             send_keys_enter_args("vk-abc"),
             vec![
                 "send-keys".to_string(),
                 "-t".to_string(),
-                "=vk-abc".to_string(),
+                "vk-abc".to_string(),
                 "Enter".to_string(),
             ]
         );
@@ -385,8 +398,22 @@ mod tests {
 
     #[test]
     fn classify_send_keys_err_detects_missing_session() {
-        let gone = classify_send_keys_err("vk-abc", b"can't find session: vk-abc");
-        assert!(matches!(gone, TerminalError::SessionGone(s) if s == "vk-abc"));
+        // A session that exited reports as missing session/pane/window — all gone.
+        for stderr in [
+            &b"can't find session: vk-abc"[..],
+            b"can't find pane: vk-abc",
+            b"can't find window: vk-abc",
+            b"no server running on /tmp/tmux-501/default",
+        ] {
+            assert!(
+                matches!(
+                    classify_send_keys_err("vk-abc", stderr),
+                    TerminalError::SessionGone(_)
+                ),
+                "expected SessionGone for {:?}",
+                String::from_utf8_lossy(stderr)
+            );
+        }
         let other = classify_send_keys_err("vk-abc", b"some other tmux error");
         assert!(matches!(other, TerminalError::TmuxFailed(_)));
     }
