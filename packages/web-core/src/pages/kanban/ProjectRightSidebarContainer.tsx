@@ -21,6 +21,7 @@ import { useWorkspaceRecord } from '@/shared/hooks/useWorkspaceRecord';
 import { SessionChatBoxContainer } from '@/features/workspace-chat/ui/SessionChatBoxContainer';
 import { CreateChatBoxContainer } from '@/shared/components/CreateChatBoxContainer';
 import { KanbanIssuePanelContainer } from './KanbanIssuePanelContainer';
+import { HeadedSessionIds } from './HeadedSessionIds';
 import {
   ConversationList,
   type ConversationListHandle,
@@ -279,6 +280,8 @@ function WorkspaceSessionPanel({
                   </button>
                 </div>
               </div>
+
+              <HeadedSessionIds />
 
               {workspaceWithSession ? (
                 <div className="flex flex-1 min-h-0 overflow-hidden justify-center">
