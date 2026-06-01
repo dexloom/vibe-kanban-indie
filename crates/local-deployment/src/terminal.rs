@@ -216,10 +216,17 @@ pub async fn open_in_terminal(kind: TerminalKind, session_name: &str) -> Result<
     match kind {
         TerminalKind::None => Ok(()),
         TerminalKind::ITerm2 => {
+            // Open a window with the default profile (a login shell, so `tmux` on
+            // PATH resolves) and TYPE the attach command into it, rather than
+            // `command "<attach>"` which runs with launchd's minimal PATH (no
+            // /opt/homebrew/bin) — there `tmux` is not found, the command exits,
+            // and iTerm closes the window immediately. `write text` also keeps the
+            // shell (and window) alive after `tmux attach` detaches.
             let script = format!(
                 "tell application \"iTerm\"\n\
                  activate\n\
-                 create window with default profile command \"{attach}\"\n\
+                 set newWindow to (create window with default profile)\n\
+                 tell current session of newWindow to write text \"{attach}\"\n\
                  end tell"
             );
             run_osascript(kind, &script, &attach).await

@@ -1361,8 +1361,15 @@ impl LocalContainerService {
         store.push_session_id(cfg.session_uuid.to_string());
 
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+        // Claude derives its transcript directory name from the *canonical* cwd
+        // (e.g. macOS `/var/...` -> `/private/var/...`). Our worktree path is the
+        // un-resolved symlink path, so canonicalize before encoding or the tail
+        // would watch a non-existent file (no agent output, spinner never stops).
+        let canonical_dir = tokio::fs::canonicalize(current_dir)
+            .await
+            .unwrap_or_else(|_| current_dir.to_path_buf());
         let transcript_path =
-            interactive::claude_transcript_path(&home, current_dir, cfg.session_uuid);
+            interactive::claude_transcript_path(&home, &canonical_dir, cfg.session_uuid);
 
         let cancel = CancellationToken::new();
         let tail_handle =
