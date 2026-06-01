@@ -1588,6 +1588,10 @@ impl ContainerService for LocalContainerService {
         &self.notification_service
     }
 
+    fn config(&self) -> &Arc<RwLock<Config>> {
+        &self.config
+    }
+
     /// On startup, reconcile DB-`running` processes with reality. Detached tmux
     /// executions whose session is still alive are re-adopted (kept running);
     /// detached sessions that ended while we were down are marked completed; all

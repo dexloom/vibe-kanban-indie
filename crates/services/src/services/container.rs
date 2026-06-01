@@ -33,7 +33,8 @@ use executors::{
         coding_agent_initial::CodingAgentInitialRequest,
         script::{ScriptContext, ScriptRequest, ScriptRequestLanguage},
     },
-    executors::{ExecutorError, StandardCodingAgentExecutor},
+    executors::{BaseCodingAgent, ExecutorError, StandardCodingAgentExecutor},
+    interactive::InteractiveTmuxConfig,
     logs::{
         NormalizedEntry, NormalizedEntryError, NormalizedEntryType,
         utils::{
@@ -55,6 +56,8 @@ use utils::{
     text::{git_branch_id, short_uuid},
 };
 use uuid::Uuid;
+
+use crate::services::config::Config;
 use worktree_manager::WorktreeError;
 
 use crate::services::{execution_process, notification::NotificationService};
@@ -99,6 +102,8 @@ pub trait ContainerService {
     fn git(&self) -> &GitService;
 
     fn notification_service(&self) -> &NotificationService;
+
+    fn config(&self) -> &Arc<RwLock<Config>>;
 
     async fn touch(&self, workspace: &Workspace) -> Result<(), ContainerError>;
 
@@ -1110,12 +1115,25 @@ pub trait ContainerService {
             .filter(|dir| !dir.is_empty())
             .cloned();
 
+        // "Claude Code Headed" runs in a detached tmux terminal. This is an
+        // initial run (new session), so use a fresh Claude session id; the
+        // terminal emulator comes from the user config. Without this, starting a
+        // workspace with the headed agent would silently run headless.
+        let interactive = if executor_config.executor == BaseCodingAgent::ClaudeCodeHeaded {
+            Some(InteractiveTmuxConfig {
+                session_uuid: Uuid::new_v4(),
+                terminal: self.config().read().await.terminal,
+            })
+        } else {
+            None
+        };
+
         let coding_action = ExecutorAction::new(
             ExecutorActionType::CodingAgentInitialRequest(CodingAgentInitialRequest {
                 prompt,
                 executor_config: executor_config.clone(),
                 working_dir,
-                interactive: None,
+                interactive,
             }),
             cleanup_action.map(Box::new),
         );
