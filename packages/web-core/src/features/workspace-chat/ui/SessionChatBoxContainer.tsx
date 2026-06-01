@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
 import {
@@ -62,7 +62,8 @@ import { useActionVisibilityContext } from '@/shared/hooks/useActionVisibilityCo
 import { PrCommentsDialog } from '@/shared/dialogs/tasks/PrCommentsDialog';
 import type { NormalizedComment } from '@vibe/ui/components/pr-comment-node';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
-import { sessionsApi } from '@/shared/lib/api';
+import { sessionsApi, executionProcessesApi } from '@/shared/lib/api';
+import { getInteractiveConfig } from '@/shared/lib/interactive';
 import { RenameSessionDialog } from '@vibe/ui/components/RenameSessionDialog';
 import type { TurnNavigationItem } from '@vibe/ui/components/TurnNavigationPopup';
 
@@ -533,6 +534,75 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
     reviewContext,
   ]);
 
+  // --- Headed (interactive tmux) live input ---------------------------------
+  // A headed session stays `running` across turns, so queueing never flushes.
+  // When it is idle between turns, Send types the message straight into the live
+  // agent via send-input; while mid-turn, Send is disabled. Headless is unchanged.
+  const [liveSendError, setLiveSendError] = useState<string | null>(null);
+  const [isSendingLiveInput, setIsSendingLiveInput] = useState(false);
+
+  // Latest running coding-agent process that is headed (`processes` is sorted
+  // created_at ascending, so take the last match).
+  const headedLiveProcess = useMemo(
+    () =>
+      processes.findLast(
+        (p) =>
+          p.run_reason === 'codingagent' &&
+          p.status === 'running' &&
+          getInteractiveConfig(p) != null
+      ) ?? null,
+    [processes]
+  );
+
+  // Busy = the spinner's loading patch is present for this process (the same
+  // signal that drives the timeline spinner).
+  const headedLoadingPresent = useMemo(
+    () =>
+      !!headedLiveProcess &&
+      entries.some(
+        (e) =>
+          e.type === 'NORMALIZED_ENTRY' &&
+          e.content.entry_type.type === 'loading' &&
+          e.executionProcessId === headedLiveProcess.id
+      ),
+    [entries, headedLiveProcess]
+  );
+
+  // Hand off the local "pending" guard to the real loading signal once it lands.
+  useEffect(() => {
+    if (headedLoadingPresent) setIsSendingLiveInput(false);
+  }, [headedLoadingPresent]);
+
+  const headedLive = headedLiveProcess
+    ? {
+        processId: headedLiveProcess.id,
+        idle: !(headedLoadingPresent || isSendingLiveInput),
+      }
+    : null;
+
+  const handleSendLive = useCallback(async () => {
+    const text = localMessage.trim();
+    if (!text || isSendingLiveInput || !headedLiveProcess) return;
+    setIsSendingLiveInput(true);
+    setLiveSendError(null);
+    try {
+      await executionProcessesApi.sendInput(headedLiveProcess.id, text);
+      cancelDebouncedSave();
+      setLocalMessage('');
+      requestAnimationFrame(() => onScrollToBottom('auto'));
+    } catch (err) {
+      setLiveSendError(err instanceof Error ? err.message : String(err));
+      setIsSendingLiveInput(false);
+    }
+  }, [
+    localMessage,
+    isSendingLiveInput,
+    headedLiveProcess,
+    cancelDebouncedSave,
+    setLocalMessage,
+    onScrollToBottom,
+  ]);
+
   // Track previous process count for queue refresh
   const prevProcessCountRef = useRef(processes.length);
 
@@ -887,6 +957,14 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
     isAttemptRunning,
   });
 
+  // Headed-live overrides: idle -> normal Send compose (routed to send-input via
+  // onSend below); mid-turn -> a disabled "Agent is working…" Send.
+  const effectiveStatus: ExecutionStatus = headedLive
+    ? headedLive.idle
+      ? 'idle'
+      : 'headed-busy'
+    : status;
+
   // During loading, render with empty editor to preserve container UI
   // In approval mode, don't show queued message - it's for follow-up, not approval response
   const editorValue = useMemo(() => {
@@ -1000,7 +1078,8 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
 
   return (
     <SessionChatBox<BaseCodingAgent>
-      status={status}
+      status={effectiveStatus}
+      disableContentInsert={!!headedLive}
       onViewCode={disableViewCode ? undefined : handleViewCode}
       onOpenWorkspace={
         showOpenWorkspaceButton && workspaceId ? handleOpenWorkspace : undefined
@@ -1030,11 +1109,13 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
         onChange: handleEditorChange,
       }}
       actions={{
-        onSend: handleSend,
+        // Headed-live: Send types into the live tmux session (idle only); files
+        // are not uploadable for live input, so onPasteFiles is a no-op.
+        onSend: headedLive ? handleSendLive : handleSend,
         onQueue: handleQueueMessage,
         onCancelQueue: handleCancelQueue,
         onStop: stopExecution,
-        onPasteFiles: uploadFiles,
+        onPasteFiles: headedLive ? () => {} : uploadFiles,
       }}
       session={{
         sessions,
@@ -1048,7 +1129,11 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
         items: toolbarActionItems,
       }}
       onPrCommentClick={
-        actionCtx.hasOpenPR ? handleInsertPrComments : undefined
+        headedLive
+          ? undefined
+          : actionCtx.hasOpenPR
+            ? handleInsertPrComments
+            : undefined
       }
       stats={{
         filesChanged,
@@ -1058,7 +1143,7 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
         conflictedFilesCount,
         onResolveConflicts: handleResolveConflicts,
       }}
-      error={sendError}
+      error={liveSendError ?? sendError}
       agent={effectiveExecutor}
       todos={todos}
       inProgressTodo={inProgressTodo}
@@ -1114,13 +1199,17 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
         isSubmitting: editRetryMutation.isPending,
       }}
       reviewComments={
-        hasReviewComments && reviewContext
-          ? {
-              count: reviewContext.comments.length,
-              previewMarkdown: reviewMarkdown,
-              onClear: reviewContext.clearComments,
-            }
-          : undefined
+        // Not supported in headed-live mode (would feed hasContent / banner and
+        // could be re-sent or left staged); gated off there.
+        headedLive
+          ? undefined
+          : hasReviewComments && reviewContext
+            ? {
+                count: reviewContext.comments.length,
+                previewMarkdown: reviewMarkdown,
+                onClear: reviewContext.clearComments,
+              }
+            : undefined
       }
       localAttachments={localAttachments}
       dropzone={{ getRootProps, getInputProps, isDragActive }}

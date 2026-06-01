@@ -47,7 +47,13 @@ export type ExecutionStatus =
   | 'stopping'
   | 'queue-loading'
   | 'feedback'
-  | 'edit';
+  | 'edit'
+  // A headed (interactive tmux) session that is running but mid-turn: the
+  // editor stays usable but Send is disabled until the turn settles. It is NOT
+  // a "running" state for animation/stop purposes (the live agent is driven via
+  // send-input, not stopped here). Headed-idle reuses 'idle' with onSend routed
+  // to the live send-input endpoint.
+  | 'headed-busy';
 
 interface ActionsProps {
   onSend: () => void;
@@ -193,6 +199,12 @@ interface SessionChatBoxProps<TExecutor extends string = string> {
   tokenUsageInfo?: ContextUsageInfo | null;
   supportsContextUsage?: boolean;
   dropzone?: DropzoneProps;
+  /**
+   * Disable all content-insertion affordances (attachment paperclip + dropzone).
+   * Used by headed-live (interactive) sessions where input is plain tmux typing
+   * and files cannot be uploaded. Default false.
+   */
+  disableContentInsert?: boolean;
 }
 
 function defaultExecutorLabel(executor: string) {
@@ -255,6 +267,7 @@ export function SessionChatBox<TExecutor extends string = string>({
   tokenUsageInfo,
   supportsContextUsage,
   dropzone,
+  disableContentInsert = false,
 }: SessionChatBoxProps<TExecutor>) {
   const { t } = useTranslation('tasks');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -292,7 +305,8 @@ export function SessionChatBox<TExecutor extends string = string>({
     hasContent && !['sending', 'stopping', 'queue-loading'].includes(status);
   const isQueued = status === 'queued';
   const isRunning = status === 'running' || status === 'queued';
-  const areContentInsertActionsDisabled = isDisabled || isQueued;
+  const areContentInsertActionsDisabled =
+    isDisabled || isQueued || disableContentInsert;
   const showRunningAnimation =
     (status === 'running' || status === 'queued' || status === 'sending') &&
     !isInApprovalMode &&
@@ -570,6 +584,15 @@ export function SessionChatBox<TExecutor extends string = string>({
             actionIcon="spinner"
           />
         );
+      case 'headed-busy':
+        // Headed session mid-turn: editor stays usable, Send disabled until the
+        // turn settles (the live agent is driven via send-input on idle).
+        return (
+          <PrimaryButton
+            disabled
+            value={t('conversation.actions.agentWorking')}
+          />
+        );
       case 'feedback':
       case 'edit':
         return null;
@@ -670,7 +693,7 @@ export function SessionChatBox<TExecutor extends string = string>({
       banner={renderBanner()}
       visualVariant={getVisualVariant()}
       isRunning={showRunningAnimation}
-      dropzone={dropzone}
+      dropzone={disableContentInsert ? undefined : dropzone}
       modelSelector={modelSelector}
       headerLeft={
         <>

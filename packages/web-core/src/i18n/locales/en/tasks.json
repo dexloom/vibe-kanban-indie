@@ -138,6 +138,7 @@
       "loading": "Loading",
       "send": "Send",
       "sending": "Sending",
+      "agentWorking": "Agent is working…",
       "queue": "Queue",
       "cancelQueue": "Cancel Queue",
       "requestChanges": "Request Changes",
