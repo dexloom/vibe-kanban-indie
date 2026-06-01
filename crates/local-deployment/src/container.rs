@@ -1268,9 +1268,12 @@ impl LocalContainerService {
             if has_overrides {
                 agent.apply_overrides(&executor_config);
             }
-            let claude = match agent {
-                CodingAgent::ClaudeCode(cc) => cc,
-                CodingAgent::ClaudeCodeHeaded(cch) => cch.inner,
+            let (claude, telegram_channel) = match agent {
+                CodingAgent::ClaudeCode(cc) => (cc, false),
+                CodingAgent::ClaudeCodeHeaded(cch) => {
+                    let telegram_channel = cch.telegram_channel_enabled();
+                    (cch.inner, telegram_channel)
+                }
                 other => {
                     return Err(ContainerError::Other(anyhow!(
                         "Interactive terminal mode currently supports Claude Code only (got {:?})",
@@ -1292,6 +1295,17 @@ impl LocalContainerService {
                 .map_err(ContainerError::ExecutorError)?;
             let mut argv = vec![program.to_string_lossy().into_owned()];
             argv.extend(args);
+
+            // When the Telegram channel option is enabled, load the Sombrax dev
+            // channel. Inserted just before the trailing positional prompt; the
+            // `=value` form keeps the (variadic) flag from swallowing the prompt.
+            if telegram_channel {
+                let pos = argv.len().saturating_sub(1);
+                argv.insert(
+                    pos,
+                    executors::executors::claude::TELEGRAM_CHANNEL_FLAG.to_string(),
+                );
+            }
 
             // Replicate the env the headless spawn injects (profile env +
             // NPM_CONFIG_LOGLEVEL), and unset ANTHROPIC_API_KEY if requested.
@@ -1325,12 +1339,70 @@ impl LocalContainerService {
                 tracing::warn!("Could not open terminal emulator for {tmux_session}: {e}");
             }
 
+            // With the Telegram channel enabled, the headed session opens behind
+            // up to two confirmation prompts (folder-trust, then the dev-channel
+            // warning). Auto-confirm them in the background so the agent reaches
+            // the prompt without the operator needing to press Enter manually.
+            if telegram_channel {
+                let session = tmux_session.clone();
+                tokio::spawn(async move {
+                    Self::auto_confirm_headed_startup(session).await;
+                });
+            }
+
             // Begin mirroring + liveness tracking from the start of the transcript.
             self.attach_detached_tracking(exec_id, current_dir, cfg, 0)
                 .await;
 
             Ok(())
         }
+    }
+
+    /// Auto-confirm the headed Claude startup prompts by pressing Enter when each
+    /// is detected on screen. Two prompts may appear in sequence:
+    ///   1. the workspace folder-trust check, then
+    ///   2. the `--dangerously-load-development-channels` warning.
+    /// We poll the pane and press Enter once per prompt (the safe option is the
+    /// highlighted default). Matching is by signature text and pinned to the
+    /// Claude version we ship; if the text changes we simply stop confirming
+    /// (the operator can still press Enter), never sending a wrong keystroke.
+    async fn auto_confirm_headed_startup(tmux_session: String) {
+        const TRUST_PROMPT: &str = "Is this a project you";
+        const CHANNEL_PROMPT: &str = "Loading development channels";
+        const POLL_INTERVAL: Duration = Duration::from_millis(500);
+        const TIMEOUT: Duration = Duration::from_secs(40);
+
+        let deadline = Instant::now() + TIMEOUT;
+        let mut trust_done = false;
+        while Instant::now() < deadline {
+            tokio::time::sleep(POLL_INTERVAL).await;
+            let pane = match terminal::tmux_capture_pane(&tmux_session).await {
+                Ok(pane) => pane,
+                // Session gone (or no longer reachable): nothing left to confirm.
+                Err(_) => return,
+            };
+
+            if !trust_done && pane.contains(TRUST_PROMPT) {
+                if terminal::tmux_send_enter(&tmux_session).await.is_err() {
+                    return;
+                }
+                trust_done = true;
+                // Let the next screen render before re-inspecting.
+                tokio::time::sleep(Duration::from_millis(800)).await;
+                continue;
+            }
+
+            if pane.contains(CHANNEL_PROMPT) {
+                // The channel warning is the last prompt in the sequence; confirm
+                // it and we are done.
+                let _ = terminal::tmux_send_enter(&tmux_session).await;
+                return;
+            }
+        }
+        tracing::warn!(
+            "auto-confirm timed out for headed session {tmux_session}; \
+             operator may need to press Enter to continue"
+        );
     }
 
     /// Re-establish the live pipeline for a detached execution: load already

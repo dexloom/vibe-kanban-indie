@@ -96,8 +96,15 @@
       "additionalProperties": {
         "type": "string"
       }
+    },
+    "telegram_channel": {
+      "title": "Load Telegram channel",
+      "description": "Load the Sombrax Telegram channel and auto-confirm the startup prompts",
+      "type": [
+        "boolean",
+        "null"
+      ]
     }
   },
-  "description": "Claude Code in **headed** mode: rather than the headless `-p` stream-json\nprotocol, the agent runs in a real terminal (its interactive TUI) inside a\ndetached tmux session, and vibe-kanban mirrors the session transcript\nread-only into the normalized-log timeline. It does NOT interact with the\nagent — it only spawns it, attaches a terminal emulator as a viewer, and\ntracks/resumes the session.\n\nThis is a thin wrapper around [`ClaudeCode`]: it shares the same config and\nlog normalization. The container recognizes this executor type and launches\nit via the detached tmux path instead of [`Self::spawn`] (which is never\ncalled for headed executions).",
   "type": "object"
 }

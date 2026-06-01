@@ -702,6 +702,14 @@ impl StandardCodingAgentExecutor for ClaudeCode {
 /// log normalization. The container recognizes this executor type and launches
 /// it via the detached tmux path instead of [`Self::spawn`] (which is never
 /// called for headed executions).
+/// CLI flag (in `=value` form) that loads the Sombrax Telegram development
+/// channel into a headed Claude session. The `=` form is deliberate: the
+/// underlying `--dangerously-load-development-channels` flag is *variadic*, so
+/// the space-separated form would swallow the trailing positional prompt. See
+/// [`ClaudeCodeHeaded::telegram_channel`].
+pub const TELEGRAM_CHANNEL_FLAG: &str =
+    "--dangerously-load-development-channels=plugin:sombrax-telegram@sombrax-plugins";
+
 #[derive(Derivative, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[derivative(Debug, PartialEq)]
 pub struct ClaudeCodeHeaded {
@@ -709,6 +717,24 @@ pub struct ClaudeCodeHeaded {
     #[ts(flatten)]
     #[schemars(flatten)]
     pub inner: ClaudeCode,
+
+    /// Load the Sombrax Telegram channel into the headed session. When enabled,
+    /// vibe-kanban appends [`TELEGRAM_CHANNEL_FLAG`] to the interactive command
+    /// and auto-confirms the startup prompts (folder-trust + the dev-channel
+    /// warning) by pressing Enter in the tmux session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        title = "Load Telegram channel",
+        description = "Load the Sombrax Telegram channel and auto-confirm the startup prompts"
+    )]
+    pub telegram_channel: Option<bool>,
+}
+
+impl ClaudeCodeHeaded {
+    /// Whether the Telegram channel option is enabled for this headed session.
+    pub fn telegram_channel_enabled(&self) -> bool {
+        self.telegram_channel.unwrap_or(false)
+    }
 }
 
 #[async_trait]

@@ -179,6 +179,36 @@ pub async fn tmux_send_keys(session_name: &str, text: &str) -> Result<(), Termin
     Ok(())
 }
 
+/// Send a single Enter keystroke to `session_name`'s pane (no typed text).
+/// Used to confirm/accept the interactive startup prompts (folder-trust, the
+/// dev-channel warning) where the safe option is already the highlighted default.
+pub async fn tmux_send_enter(session_name: &str) -> Result<(), TerminalError> {
+    let enter = Command::new("tmux")
+        .args(send_keys_enter_args(session_name))
+        .output()
+        .await
+        .map_err(map_tmux_io_err)?;
+    if !enter.status.success() {
+        return Err(classify_send_keys_err(session_name, &enter.stderr));
+    }
+    Ok(())
+}
+
+/// Capture the visible text of `session_name`'s pane (best-effort snapshot).
+/// Used to detect which startup prompt is currently on screen before auto-
+/// confirming it. The target is the bare session name (see [`tmux_send_keys`]).
+pub async fn tmux_capture_pane(session_name: &str) -> Result<String, TerminalError> {
+    let output = Command::new("tmux")
+        .args(["capture-pane", "-p", "-t", session_name])
+        .output()
+        .await
+        .map_err(map_tmux_io_err)?;
+    if !output.status.success() {
+        return Err(classify_send_keys_err(session_name, &output.stderr));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
 /// Args for the literal-text `send-keys` call (typed verbatim, no newline).
 fn send_keys_literal_args(session_name: &str, text: &str) -> Vec<String> {
     vec![
