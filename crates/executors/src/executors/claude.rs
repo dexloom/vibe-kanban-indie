@@ -315,6 +315,17 @@ impl ClaudeCode {
     }
 }
 
+/// Sentinel model id meaning "don't pass `--model`; use Claude's own default".
+/// Chosen non-empty on purpose: the frontend model selector treats falsy ids as
+/// "no selection", so an empty string could not be selected or set as default.
+pub const DEFAULT_MODEL_ID: &str = "default";
+
+/// Whether a configured model id means "use Claude's default model" (omit
+/// `--model`). Covers the explicit sentinel and an empty/blank value.
+fn is_default_model(model_id: &str) -> bool {
+    model_id.trim().is_empty() || model_id == DEFAULT_MODEL_ID
+}
+
 fn default_discovered_options() -> crate::executor_discovery::ExecutorDiscoveredOptions {
     use crate::{
         executor_discovery::ExecutorDiscoveredOptions,
@@ -324,12 +335,18 @@ fn default_discovered_options() -> crate::executor_discovery::ExecutorDiscovered
     let effort_options =
         ReasoningOption::from_names(["low", "medium", "high", "xhigh", "max"].map(String::from));
 
-    let supports_effort = |id: &str| -> bool { id.contains("opus") || id.contains("sonnet") };
+    // `DEFAULT_MODEL_ID` is a sentinel, not a Claude alias: when selected we pass
+    // no `--model`, so Claude uses its own current default (the latest model).
+    // This keeps the choice future-proof instead of pinning to a versioned alias.
+    let supports_effort = |id: &str| -> bool {
+        id == DEFAULT_MODEL_ID || id.contains("opus") || id.contains("sonnet")
+    };
 
     ExecutorDiscoveredOptions {
         model_selector: ModelSelectorConfig {
             providers: vec![],
             models: [
+                (DEFAULT_MODEL_ID, "Default (latest)"),
                 ("opus", "Opus"),
                 ("opus[1m]", "Opus (1M context)"),
                 ("sonnet", "Sonnet"),
@@ -347,7 +364,7 @@ fn default_discovered_options() -> crate::executor_discovery::ExecutorDiscovered
                 },
             })
             .collect(),
-            default_model: Some("opus".to_string()),
+            default_model: Some(DEFAULT_MODEL_ID.to_string()),
             agents: vec![],
             permissions: vec![
                 PermissionPolicy::Auto,
@@ -367,7 +384,13 @@ fn default_discovered_options() -> crate::executor_discovery::ExecutorDiscovered
 impl StandardCodingAgentExecutor for ClaudeCode {
     fn apply_overrides(&mut self, executor_config: &ExecutorConfig) {
         if let Some(model_id) = &executor_config.model_id {
-            self.model = Some(model_id.clone());
+            // The "Default (latest)" sentinel (or a blank value) means: omit
+            // `--model` so Claude picks its own current default model.
+            self.model = if is_default_model(model_id) {
+                None
+            } else {
+                Some(model_id.clone())
+            };
         }
         if let Some(agent) = &executor_config.agent_id {
             self.agent = Some(agent.clone());
@@ -2926,6 +2949,51 @@ impl ClaudeToolData {
 mod tests {
     use super::*;
     use crate::logs::utils::{EntryIndexProvider, patch::extract_normalized_entry_from_patch};
+
+    fn override_config(model_id: Option<&str>) -> ExecutorConfig {
+        ExecutorConfig {
+            executor: BaseCodingAgent::ClaudeCode,
+            variant: None,
+            model_id: model_id.map(str::to_string),
+            agent_id: None,
+            reasoning_id: None,
+            permission_policy: None,
+        }
+    }
+
+    #[test]
+    fn default_model_sentinel_omits_model_flag() {
+        // Sentinel + blank values mean "use Claude's default" (omit --model).
+        assert!(is_default_model(DEFAULT_MODEL_ID));
+        assert!(is_default_model(""));
+        assert!(is_default_model("   "));
+        assert!(!is_default_model("opus"));
+        assert!(!is_default_model("opus[1m]"));
+
+        // The discovered default selection is the sentinel, and it appears in the
+        // model list (so the UI can show/select "Default (latest)").
+        let opts = default_discovered_options();
+        assert_eq!(
+            opts.model_selector.default_model.as_deref(),
+            Some(DEFAULT_MODEL_ID)
+        );
+        assert!(
+            opts.model_selector
+                .models
+                .iter()
+                .any(|m| m.id == DEFAULT_MODEL_ID && !m.reasoning_options.is_empty()),
+            "Default option should exist and keep effort options"
+        );
+
+        // apply_overrides: sentinel -> no model; a real id -> set verbatim.
+        let mut cc: ClaudeCode = serde_json::from_value(serde_json::json!({})).unwrap();
+        cc.apply_overrides(&override_config(Some(DEFAULT_MODEL_ID)));
+        assert!(cc.model.is_none(), "sentinel must omit --model");
+
+        let mut cc2: ClaudeCode = serde_json::from_value(serde_json::json!({})).unwrap();
+        cc2.apply_overrides(&override_config(Some("opus")));
+        assert_eq!(cc2.model.as_deref(), Some("opus"));
+    }
 
     /// Interactive-mode transcript records (camelCase `sessionId`, extra fields)
     /// must deserialize into the existing `ClaudeJson` variants so the headless
