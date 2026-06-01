@@ -1619,6 +1619,25 @@ impl ClaudeLogProcessor {
                         ClaudeContentItem::ToolResult { .. } => {}
                     }
                 }
+
+                // Emit a non-visible marker when this assistant message ends the
+                // conversational turn. Interactive (headed) sessions stay
+                // `running` across turns, so the frontend uses this — not the
+                // process status — to stop/restart the per-turn "working"
+                // spinner. Only `end_turn` (not tool_use / max_tokens) closes a
+                // turn. Harmless for headless (it completes via process exit).
+                if message.stop_reason.as_deref() == Some("end_turn") {
+                    let idx = entry_index_provider.next();
+                    patches.push(ConversationPatch::add_normalized_entry(
+                        idx,
+                        NormalizedEntry {
+                            timestamp: None,
+                            entry_type: NormalizedEntryType::TurnComplete,
+                            content: String::new(),
+                            metadata: None,
+                        },
+                    ));
+                }
             }
             ClaudeJson::User {
                 message,
@@ -3112,6 +3131,43 @@ mod tests {
             NormalizedEntryType::AssistantMessage
         ));
         assert_eq!(entries[0].content, "Hello world");
+    }
+
+    #[test]
+    fn assistant_end_turn_emits_turn_complete_marker() {
+        // end_turn -> a TurnComplete marker follows the assistant text.
+        let end_turn = r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"done"}],"stop_reason":"end_turn"}}"#;
+        let entries = normalize(&serde_json::from_str(end_turn).unwrap(), "");
+        assert!(
+            matches!(entries[0].entry_type, NormalizedEntryType::AssistantMessage),
+            "first entry is the assistant text"
+        );
+        assert!(
+            entries
+                .iter()
+                .any(|e| matches!(e.entry_type, NormalizedEntryType::TurnComplete)),
+            "end_turn should emit a TurnComplete marker, got {entries:?}"
+        );
+
+        // tool_use (turn continues) -> no marker.
+        let tool_use = r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"calling"}],"stop_reason":"tool_use"}}"#;
+        let entries = normalize(&serde_json::from_str(tool_use).unwrap(), "");
+        assert!(
+            !entries
+                .iter()
+                .any(|e| matches!(e.entry_type, NormalizedEntryType::TurnComplete)),
+            "tool_use must not emit a TurnComplete marker"
+        );
+
+        // no stop_reason -> no marker.
+        let no_stop = r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"partial"}]}}"#;
+        let entries = normalize(&serde_json::from_str(no_stop).unwrap(), "");
+        assert!(
+            !entries
+                .iter()
+                .any(|e| matches!(e.entry_type, NormalizedEntryType::TurnComplete)),
+            "missing stop_reason must not emit a TurnComplete marker"
+        );
     }
 
     #[test]

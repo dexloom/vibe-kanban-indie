@@ -87,6 +87,12 @@ pub enum NormalizedEntryType {
     },
     Thinking,
     Loading,
+    /// Non-visible marker emitted when an assistant message ends a conversational
+    /// turn (`stop_reason == "end_turn"`). Used by interactive (headed) sessions,
+    /// which stay `running` across turns, to drive the per-turn "working" spinner
+    /// from the transcript instead of the process status. Filtered out of the
+    /// rendered timeline; never shown to the user.
+    TurnComplete,
     NextAction {
         failed: bool,
         execution_processes: usize,

@@ -433,6 +433,11 @@ function DisplayConversationEntry(props: Props) {
     case 'loading':
       return <LoadingEntry />;
 
+    // Non-visible per-turn marker (filtered from visibleEntries before render;
+    // handled here only to satisfy the exhaustive check).
+    case 'turn_complete':
+      return null;
+
     default: {
       // Exhaustive check - TypeScript will error if a case is missing
       const _exhaustiveCheck: never = entryType;

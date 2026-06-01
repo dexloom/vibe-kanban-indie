@@ -96,7 +96,10 @@ export function deriveConversationSemanticTimeline(
         (entry) =>
           entry.type !== 'NORMALIZED_ENTRY' ||
           (entry.content.entry_type.type !== 'user_message' &&
-            entry.content.entry_type.type !== 'token_usage_info')
+            entry.content.entry_type.type !== 'token_usage_info' &&
+            // Non-visible per-turn marker; kept in rawEntries for the spinner
+            // derivation (see deriveConversationTurns) but never rendered.
+            entry.content.entry_type.type !== 'turn_complete')
       );
 
       const hasPendingApprovalEntry = visibleEntries.some((entry) => {

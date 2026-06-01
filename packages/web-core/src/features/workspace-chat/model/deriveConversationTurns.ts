@@ -15,6 +15,26 @@ type ScriptTurnKind =
   | 'archive_script'
   | 'tool_install_script';
 
+/**
+ * Whether the latest turn of a (headed) running process is finished — i.e. the
+ * most recent turn-significant normalized entry is the non-visible
+ * `turn_complete` marker. `token_usage_info` entries are skipped because they can
+ * trail the marker. Returns false when there is no marker (headless, or a turn
+ * still in progress), preserving the existing always-spinning behavior there.
+ */
+export function isHeadedTurnIdle(
+  rawEntries: ConversationSemanticProcessItem['rawEntries']
+): boolean {
+  for (let i = rawEntries.length - 1; i >= 0; i--) {
+    const entry = rawEntries[i];
+    if (entry.type !== 'NORMALIZED_ENTRY') continue;
+    const entryType = entry.content.entry_type.type;
+    if (entryType === 'token_usage_info') continue;
+    return entryType === 'turn_complete';
+  }
+  return false;
+}
+
 export interface ConversationAgentTurn {
   readonly key: string;
   readonly kind:
@@ -155,7 +175,11 @@ function deriveAgentTurn(
       shouldEmitUserMessage,
       visibleEntries: process.visibleEntries,
       latestTokenUsageInfo: getLatestTokenUsageInfo(process),
-      shouldEmitLoading: true,
+      // Interactive (headed) sessions stay `running` across turns, so the
+      // process status alone would spin the loader forever. Suppress it once
+      // Claude finishes a turn (a `turn_complete` marker is the latest
+      // transcript entry); a later user/assistant entry restarts it.
+      shouldEmitLoading: !isHeadedTurnIdle(process.rawEntries),
       failedOrKilled: false,
       needsSetup: false,
     };
