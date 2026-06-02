@@ -13,6 +13,7 @@ import {
   InteractiveControlBar,
   getInteractiveConfig,
 } from './InteractiveControlBar';
+import { HeadedApprovalsPanel } from './HeadedApprovalsPanel';
 import { ArrowsInSimpleIcon } from '@phosphor-icons/react';
 
 export type LogsPanelContent =
@@ -148,10 +149,13 @@ export function LogsContentContainer({ className }: LogsContentContainerProps) {
   return (
     <div className={cn('h-full bg-secondary flex flex-col', className)}>
       {selectedProcess && interactiveConfig && (
-        <InteractiveControlBar
-          process={selectedProcess}
-          config={interactiveConfig}
-        />
+        <>
+          <InteractiveControlBar
+            process={selectedProcess}
+            config={interactiveConfig}
+          />
+          <HeadedApprovalsPanel executionProcessId={selectedProcess.id} />
+        </>
       )}
       <div className="flex-1 min-h-0">
         <VirtualizedProcessLogs

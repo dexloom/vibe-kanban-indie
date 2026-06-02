@@ -737,6 +737,25 @@ impl ClaudeCodeHeaded {
     }
 }
 
+/// Build the `--settings` JSON that wires a `PreToolUse` **command** hook into a
+/// headed session, routing tool approvals through `hook_command` (e.g. a `curl`
+/// to vibe-kanban's headed-approval endpoint). The matcher mirrors the headless
+/// "approvals" (Supervised) deny-list — everything except safe read-only tools
+/// requires approval — so headed and headless gate the same set of tools.
+///
+/// Returned as a value; the caller serializes it and passes it as the single
+/// argument to `--settings`.
+pub fn headed_approval_settings(hook_command: &str) -> serde_json::Value {
+    serde_json::json!({
+        "hooks": {
+            "PreToolUse": [{
+                "matcher": "^(?!(Glob|Grep|NotebookRead|Read|Task|TodoWrite)$).*",
+                "hooks": [{ "type": "command", "command": hook_command }]
+            }]
+        }
+    })
+}
+
 #[async_trait]
 impl StandardCodingAgentExecutor for ClaudeCodeHeaded {
     fn apply_overrides(&mut self, executor_config: &ExecutorConfig) {
@@ -3363,6 +3382,22 @@ mod tests {
             patch_count > 0,
             "Expected JsonPatch messages to be generated from streaming processing"
         );
+    }
+
+    #[test]
+    fn headed_approval_settings_embeds_command_and_denylist_matcher() {
+        let settings = headed_approval_settings("curl -sS http://x/req --data-binary @-");
+        let hook = &settings["hooks"]["PreToolUse"][0];
+        // Deny-list matcher mirrors the headless "approvals" mode: safe read-only
+        // tools are excluded, everything else is gated.
+        let matcher = hook["matcher"].as_str().unwrap();
+        assert!(matcher.contains("Read"));
+        assert!(matcher.contains("Grep"));
+        assert!(matcher.starts_with("^(?!"));
+        // The command hook carries our exact curl invocation.
+        let cmd = hook["hooks"][0]["command"].as_str().unwrap();
+        assert_eq!(cmd, "curl -sS http://x/req --data-binary @-");
+        assert_eq!(hook["hooks"][0]["type"].as_str().unwrap(), "command");
     }
 
     #[test]

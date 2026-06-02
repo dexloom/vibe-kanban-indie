@@ -524,6 +524,11 @@ impl LocalContainerService {
         let analytics = &self.analytics;
         let container = self;
 
+        // Resolve any approvals still parked on this execution (e.g. a headed
+        // session that exited while a tool approval was pending) so the headed
+        // bridge's blocked HTTP request returns promptly rather than timing out.
+        self.approvals.cancel_for_execution_process(exec_id);
+
         if !ExecutionProcess::was_stopped(&db.pool, exec_id).await
             && let Err(e) =
                 ExecutionProcess::update_completion(&db.pool, exec_id, status, exit_code).await
@@ -1282,6 +1287,14 @@ impl LocalContainerService {
                 }
             };
 
+            // Headed approval bridge: when the session runs in approvals
+            // (Supervised) mode, gate tool use through a PreToolUse command hook
+            // that calls back into vibe-kanban so approvals surface in the web UI
+            // (same store/UI as the headless path). Auto/bypass sessions are
+            // unaffected. `permission_mode()` already returns Default here, so the
+            // interactive command is built with `--permission-mode=default`.
+            let approvals_enabled = claude.approvals.unwrap_or(false);
+
             // Build the interactive argv (no -p / stream-json; prompt positional).
             let session_uuid = cfg.session_uuid.to_string();
             let command = claude
@@ -1305,6 +1318,40 @@ impl LocalContainerService {
                     pos,
                     executors::executors::claude::TELEGRAM_CHANNEL_FLAG.to_string(),
                 );
+            }
+
+            // Inject the approval hook via `--settings <json>` (two tokens before
+            // the positional prompt). The hook command is a self-contained curl
+            // with the backend URL baked in — NOT an env var — because a
+            // `command` hook is run via `sh -c "$cmd"` and a nested `$VAR` inside
+            // would not be re-expanded. The backend port is discovered from the
+            // port file the server writes at startup.
+            if approvals_enabled {
+                match utils::port_file::read_port_file("vibe-kanban").await {
+                    Ok(port) => {
+                        let url = format!(
+                            "http://127.0.0.1:{port}/api/headed-approvals/{exec_id}/request"
+                        );
+                        let hook_cmd = format!(
+                            "curl -sS -X POST {url} --data-binary @- --max-time {}",
+                            utils::approvals::APPROVAL_TIMEOUT_SECONDS
+                        );
+                        let settings =
+                            executors::executors::claude::headed_approval_settings(&hook_cmd)
+                                .to_string();
+                        let pos = argv.len().saturating_sub(1);
+                        argv.insert(pos, settings);
+                        argv.insert(pos, "--settings".to_string());
+                    }
+                    Err(e) => {
+                        // Without the port we cannot wire approvals; fall back to
+                        // the TUI's own prompts rather than failing the spawn.
+                        tracing::warn!(
+                            "headed approvals enabled but backend port unavailable ({e}); \
+                             tool approvals will use the in-TUI prompt for {exec_id}"
+                        );
+                    }
+                }
             }
 
             // Replicate the env the headless spawn injects (profile env +

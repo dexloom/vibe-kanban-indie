@@ -126,6 +126,27 @@ impl Approvals {
         Ok((request, waiter))
     }
 
+    /// Create an approval and block until it is resolved, returning the outcome.
+    ///
+    /// Resolves when any of these happen (all converge on the shared waiter):
+    /// - the operator responds via [`Self::respond`] (Approved/Denied/Answered),
+    /// - the timeout watcher fires (`TimedOut`), or
+    /// - [`Self::cancel`] removes the pending entry (dropping the sender, which
+    ///   the waiter maps to `TimedOut`).
+    ///
+    /// Used by the headed (interactive tmux) approval bridge, where a Claude
+    /// `PreToolUse` command hook parks an HTTP request here until the operator
+    /// decides in the web UI — reusing the exact same store, WS stream, and
+    /// `respond` path as the headless control-protocol flow.
+    pub async fn create_and_wait(
+        &self,
+        request: ApprovalRequest,
+        is_question: bool,
+    ) -> Result<ApprovalOutcome, ApprovalError> {
+        let (_, waiter) = self.create_with_waiter(request, is_question).await?;
+        Ok(waiter.await)
+    }
+
     fn validate_approval_response(
         outcome: &ApprovalOutcome,
         is_question: bool,
@@ -215,6 +236,37 @@ impl Approvals {
         });
     }
 
+    /// Cancel every pending approval belonging to `execution_process_id`,
+    /// resolving each waiter as `Denied`. Used when an execution ends (e.g. a
+    /// headed tmux session exits) so any parked `create_and_wait` returns
+    /// promptly instead of waiting out the timeout.
+    pub fn cancel_for_execution_process(&self, execution_process_id: Uuid) {
+        let ids: Vec<String> = self
+            .pending
+            .iter()
+            .filter(|entry| entry.value().execution_process_id == execution_process_id)
+            .map(|entry| entry.key().clone())
+            .collect();
+
+        for id in ids {
+            if let Some((_, pending_approval)) = self.pending.remove(&id) {
+                let outcome = ApprovalOutcome::Denied {
+                    reason: Some("Execution ended".to_string()),
+                };
+                self.completed.insert(id.clone(), outcome.clone());
+                let _ = pending_approval.response_tx.send(outcome);
+                let _ = self.patches_tx.send(
+                    crate::services::events::patches::approvals_patch::resolved(&id),
+                );
+                tracing::debug!(
+                    "Cancelled approval '{}' (execution {} ended)",
+                    id,
+                    execution_process_id
+                );
+            }
+        }
+    }
+
     pub(crate) async fn cancel(&self, id: &str) {
         if let Some((_, _pending_approval)) = self.pending.remove(id) {
             let outcome = ApprovalOutcome::Denied {
@@ -272,6 +324,11 @@ impl Approvals {
             .collect()
     }
 
+    #[cfg(test)]
+    fn pending_count(&self) -> usize {
+        self.pending.len()
+    }
+
     fn pending_infos(&self) -> Vec<ApprovalInfo> {
         self.pending
             .iter()
@@ -287,5 +344,71 @@ impl Approvals {
                 }
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    /// Spin until the create_and_wait task has registered its pending entry, so
+    /// the test resolves it deterministically (no fixed-sleep flakiness).
+    async fn wait_until_pending(approvals: &Approvals) {
+        for _ in 0..200 {
+            if approvals.pending_count() > 0 {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        panic!("approval never registered as pending");
+    }
+
+    #[tokio::test]
+    async fn create_and_wait_resolves_on_respond() {
+        let approvals = Approvals::new();
+        let exec = Uuid::new_v4();
+        let request = ApprovalRequest::new("Bash".to_string(), exec);
+        let id = request.id.clone();
+
+        let task = {
+            let approvals = approvals.clone();
+            tokio::spawn(async move { approvals.create_and_wait(request, false).await })
+        };
+
+        wait_until_pending(&approvals).await;
+        approvals
+            .respond(
+                &id,
+                ApprovalResponse {
+                    execution_process_id: exec,
+                    status: ApprovalOutcome::Approved,
+                },
+            )
+            .await
+            .unwrap();
+
+        let outcome = task.await.unwrap().unwrap();
+        assert!(matches!(outcome, ApprovalOutcome::Approved));
+    }
+
+    #[tokio::test]
+    async fn cancel_for_execution_process_resolves_waiter_as_denied() {
+        let approvals = Approvals::new();
+        let exec = Uuid::new_v4();
+        let request = ApprovalRequest::new("Bash".to_string(), exec);
+
+        let task = {
+            let approvals = approvals.clone();
+            tokio::spawn(async move { approvals.create_and_wait(request, false).await })
+        };
+
+        wait_until_pending(&approvals).await;
+        approvals.cancel_for_execution_process(exec);
+
+        let outcome = task.await.unwrap().unwrap();
+        assert!(matches!(outcome, ApprovalOutcome::Denied { .. }));
+        assert_eq!(approvals.pending_count(), 0);
     }
 }
