@@ -1369,8 +1369,13 @@ impl LocalContainerService {
     async fn auto_confirm_headed_startup(tmux_session: String) {
         const TRUST_PROMPT: &str = "Is this a project you";
         const CHANNEL_PROMPT: &str = "Loading development channels";
+        const INITIAL_DELAY: Duration = Duration::from_secs(5);
         const POLL_INTERVAL: Duration = Duration::from_millis(500);
         const TIMEOUT: Duration = Duration::from_secs(40);
+
+        // Grace period before the first Enter, so the prompt is fully rendered
+        // (and to leave a window for manual interaction).
+        tokio::time::sleep(INITIAL_DELAY).await;
 
         let deadline = Instant::now() + TIMEOUT;
         let mut trust_done = false;
