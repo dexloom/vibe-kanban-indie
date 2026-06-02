@@ -1,0 +1,74 @@
+# Changelog
+
+All notable changes to **vibe-kanban-indie** are documented here. This fork is
+local-only and single-developer focused; releases are cut by pushing a `v<version>`
+tag that matches `npx-cli/package.json` (see `.github/workflows/release-indie.yml`).
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.2.3] - 2026-06-02
+
+The headline is **Claude Code Headed**: a new executor that runs Claude Code in a
+real interactive terminal (detached tmux) instead of the headless `-p` stream,
+mirrors the live transcript read-only into the timeline, and gives the operator a
+full control surface from the web UI.
+
+### Added
+
+- **Claude Code Headed agent** — a new executor type, a thin wrapper over Claude
+  Code that the container launches via a detached tmux session with an attached
+  terminal viewer.
+- Run Claude Code in a spawned terminal via detached tmux (interactive mode).
+- Operator control surface for the headed agent: `open-terminal` + `send-input`
+  REST endpoints, tmux `send-keys`, and a frontend `InteractiveControlBar`; tmux
+  and Claude session IDs are surfaced in the panel header.
+- Chat box sends straight to the live agent when it is idle, instead of queueing.
+- Tool approvals from a headed session are bridged to the web UI via a `PreToolUse`
+  hook, so headed and headless gate the same set of tools.
+- Optional Sombrax Telegram channel for headed sessions, with auto-confirmed
+  startup (waits 5s before auto-confirming the folder-trust / dev-channel prompts).
+- Turn duration shown in seconds for headed turns.
+- New **"Default (latest)"** model option that omits `--model` so Claude uses its
+  own current default model.
+- `vibe-kanban-mcp` is now fully local — the project/issue/org tools no longer call
+  the disabled cloud API.
+- `Makefile` with an `install` target for `vibe-kanban-mcp`.
+- PM intake agent that turns channel requests into vibe-kanban issues.
+
+### Changed
+
+- Pinned Claude Code bumped to 2.1.159 (defaults to Opus 4.8).
+- Config: DB restored as the source of truth; TOML is now export/import-only.
+
+### Fixed
+
+- Headed `send-keys` now targets the bare tmux session, not the `=name` form
+  (which swallowed input).
+- Stop the headed "working" spinner when Claude finishes a turn.
+- Canonicalize the transcript cwd; keep the iTerm2 window open.
+- Attach the interactive config in both the `start_workspace` and queued-start
+  paths.
+
+## [0.2.2] - 2026-05-28
+
+- Migrate to the stable Rust toolchain.
+- i18n parity fix for the new Telegram keys.
+- Skip backend-remote-checks in CI for the indie fork.
+
+## [0.2.1] - 2026-05-28
+
+- Fix CI toolchain mismatches: pin `sqlx-cli` to 0.8.6, install the pinned
+  toolchain explicitly in `release-indie`, and pin `mlugg/setup-zig` to 0.13.0 so
+  transient mirror 404s don't break the linux-musl matrix legs.
+
+## [0.2.0] - 2026-05-26
+
+- Local-first **vibe-kanban-indie**: TUI cockpit, Telegram orchestration, and the
+  npm release pipeline. First independent, self-hosted (no team, no cloud, no auth)
+  release of the fork.
+
+[0.2.3]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.3
+[0.2.2]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.2
+[0.2.1]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.1
+[0.2.0]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.0
