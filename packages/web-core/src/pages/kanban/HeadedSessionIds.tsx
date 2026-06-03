@@ -4,22 +4,28 @@ import { useExecutionProcessesContext } from '@/shared/hooks/useExecutionProcess
 import { getInteractiveConfig } from '@/shared/lib/interactive';
 import { writeClipboardViaBridge } from '@/shared/lib/clipboard';
 
-/** A single click-to-copy chip: `label value` with a copy/check affordance. */
+/**
+ * A single click-to-copy chip: `label value` with a copy/check affordance.
+ * Displays `value` but copies `copyValue` when provided (defaults to `value`),
+ * so a chip can show a bare id while copying a fuller command.
+ */
 function CopyChip({
   label,
   value,
+  copyValue,
   title,
 }: {
   label: string;
   value: string;
+  copyValue?: string;
   title: string;
 }) {
   const [copied, setCopied] = useState(false);
   const onCopy = useCallback(async () => {
-    await writeClipboardViaBridge(value);
+    await writeClipboardViaBridge(copyValue ?? value);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
-  }, [value]);
+  }, [copyValue, value]);
   return (
     <button
       type="button"
@@ -76,7 +82,8 @@ export function HeadedSessionIds() {
       <CopyChip
         label="tmux"
         value={headed.tmuxSession}
-        title={`Copy tmux session ${headed.tmuxSession}`}
+        copyValue={`tmux attach -t ${headed.tmuxSession}`}
+        title={`Copy attach command for tmux session ${headed.tmuxSession}`}
       />
       <CopyChip
         label="claude"

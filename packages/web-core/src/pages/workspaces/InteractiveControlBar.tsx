@@ -90,7 +90,7 @@ export function InteractiveControlBar({
       {/* Session identifiers (feature: id visible in frontend) */}
       <div className="flex items-center gap-2 font-mono text-xs text-low min-w-0">
         <span className="text-normal shrink-0">{tmuxSession}</span>
-        <CopyButton value={tmuxSession} title={t('actions.copy')} />
+        <CopyButton value={attachCommand} title={t('actions.copy')} />
         <span
           className="truncate"
           title={`claude session ${config.session_uuid}`}
@@ -98,11 +98,6 @@ export function InteractiveControlBar({
           claude: {config.session_uuid}
         </span>
         <CopyButton value={config.session_uuid} title={t('actions.copy')} />
-        <span className="text-low/60 shrink-0">·</span>
-        <span className="truncate" title={attachCommand}>
-          {attachCommand}
-        </span>
-        <CopyButton value={attachCommand} title={t('actions.copy')} />
       </div>
 
       {/* Actions: open terminal + send input */}

@@ -6,6 +6,7 @@ import { PreviewControlsContainer } from './PreviewControlsContainer';
 import { GitPanelContainer } from './GitPanelContainer';
 import { TerminalPanelContainer } from '@/shared/components/TerminalPanelContainer';
 import { WorkspaceNotesContainer } from './WorkspaceNotesContainer';
+import { HeadedSessionIds } from '@/pages/kanban/HeadedSessionIds';
 import { useDiffs } from '@/shared/stores/useWorkspaceDiffStore';
 import { ArrowsOutSimpleIcon } from '@phosphor-icons/react';
 import { useLogsPanel } from '@/shared/hooks/useLogsPanel';
@@ -194,6 +195,8 @@ export const RightSidebar = memo(function RightSidebar({
 
   return (
     <div className="h-full border-l bg-secondary overflow-y-auto">
+      {/* Headed (interactive tmux) session ids; renders null for non-headed sessions */}
+      <HeadedSessionIds />
       <div className="divide-y border-b">
         {sections
           .filter((section) => section.visible)
