@@ -3,38 +3,37 @@ import { CheckIcon, CopyIcon } from '@phosphor-icons/react';
 import { useExecutionProcessesContext } from '@/shared/hooks/useExecutionProcessesContext';
 import { getInteractiveConfig } from '@/shared/lib/interactive';
 import { writeClipboardViaBridge } from '@/shared/lib/clipboard';
+import { cn } from '@/shared/lib/utils';
 
-/**
- * A single click-to-copy chip: `label value` with a copy/check affordance.
- * Displays `value` but copies `copyValue` when provided (defaults to `value`),
- * so a chip can show a bare id while copying a fuller command.
- */
-function CopyChip({
-  label,
-  value,
+/** A copy-on-click target showing `text`, copying `copyValue` to the clipboard. */
+function CopyTarget({
+  children,
   copyValue,
   title,
+  className,
 }: {
-  label: string;
-  value: string;
-  copyValue?: string;
+  children: React.ReactNode;
+  copyValue: string;
   title: string;
+  className?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const onCopy = useCallback(async () => {
-    await writeClipboardViaBridge(copyValue ?? value);
+    await writeClipboardViaBridge(copyValue);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
-  }, [copyValue, value]);
+  }, [copyValue]);
   return (
     <button
       type="button"
       onClick={onCopy}
       title={title}
-      className="group flex items-center gap-1 min-w-0 rounded-sm px-1 py-0.5 text-low hover:text-normal hover:bg-panel transition-colors"
+      className={cn(
+        'group inline-flex items-center gap-1 min-w-0 rounded-sm px-1 py-0.5 text-low hover:text-normal hover:bg-panel transition-colors',
+        className
+      )}
     >
-      <span className="text-low/70 shrink-0">{label}</span>
-      <span className="truncate">{value}</span>
+      {children}
       {copied ? (
         <CheckIcon className="size-icon-sm shrink-0" weight="bold" />
       ) : (
@@ -44,6 +43,36 @@ function CopyChip({
         />
       )}
     </button>
+  );
+}
+
+/**
+ * A click-to-copy chip with two independent targets: clicking the `label`
+ * copies the `command` (e.g. the full attach/resume command), while clicking
+ * the displayed `value` copies just the bare id.
+ */
+function CopyChip({
+  label,
+  value,
+  command,
+  labelTitle,
+  valueTitle,
+}: {
+  label: string;
+  value: string;
+  command: string;
+  labelTitle: string;
+  valueTitle: string;
+}) {
+  return (
+    <span className="inline-flex items-center min-w-0">
+      <CopyTarget copyValue={command} title={labelTitle} className="shrink-0">
+        <span className="text-low/70">{label}</span>
+      </CopyTarget>
+      <CopyTarget copyValue={value} title={valueTitle} className="min-w-0">
+        <span className="truncate">{value}</span>
+      </CopyTarget>
+    </span>
   );
 }
 
@@ -82,13 +111,16 @@ export function HeadedSessionIds() {
       <CopyChip
         label="tmux"
         value={headed.tmuxSession}
-        copyValue={`tmux attach -t ${headed.tmuxSession}`}
-        title={`Copy attach command for tmux session ${headed.tmuxSession}`}
+        command={`tmux attach -t ${headed.tmuxSession}`}
+        labelTitle={`Copy attach command: tmux attach -t ${headed.tmuxSession}`}
+        valueTitle={`Copy tmux session id ${headed.tmuxSession}`}
       />
       <CopyChip
         label="claude"
         value={headed.sessionUuid}
-        title={`Copy Claude session ${headed.sessionUuid}`}
+        command={`claude --resume ${headed.sessionUuid}`}
+        labelTitle={`Copy resume command: claude --resume ${headed.sessionUuid}`}
+        valueTitle={`Copy Claude session id ${headed.sessionUuid}`}
       />
     </div>
   );
