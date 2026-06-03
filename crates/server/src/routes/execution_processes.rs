@@ -13,7 +13,7 @@ use db::models::{
 use deployment::Deployment;
 use futures_util::{StreamExt, TryStreamExt};
 use serde::Deserialize;
-use services::services::container::ContainerService;
+use services::services::container::{AgentProgress, ContainerService};
 use utils::{log_msg::LogMsg, response::ApiResponse};
 use uuid::Uuid;
 
@@ -321,6 +321,20 @@ async fn handle_execution_processes_by_session_ws(
     Ok(())
 }
 
+/// One-shot snapshot of a running (or finished) agent's progress: the latest
+/// assistant message plus, for Claude Code Headed runs, the direct-access
+/// identifiers. Consumed by the MCP layer (`get_execution`).
+async fn get_agent_progress(
+    Extension(execution_process): Extension<ExecutionProcess>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<AgentProgress>>, ApiError> {
+    let progress = deployment
+        .container()
+        .agent_progress(&execution_process)
+        .await;
+    Ok(ResponseJson(ApiResponse::success(progress)))
+}
+
 async fn get_execution_process_repo_states(
     Extension(execution_process): Extension<ExecutionProcess>,
     State(deployment): State<DeploymentImpl>,
@@ -338,6 +352,7 @@ pub(super) fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .route("/open-terminal", post(open_terminal_process))
         .route("/send-input", post(send_input_process))
         .route("/repo-states", get(get_execution_process_repo_states))
+        .route("/agent-progress", get(get_agent_progress))
         .route("/raw-logs/ws", get(stream_raw_logs_ws))
         .route("/normalized-logs/ws", get(stream_normalized_logs_ws))
         .layer(from_fn_with_state(

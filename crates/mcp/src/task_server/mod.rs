@@ -65,26 +65,34 @@ pub struct McpServer {
     tool_router: ToolRouter<McpServer>,
     context: Option<McpContext>,
     mode: McpMode,
+    /// Opt-in "headed local control" capability (launcher `--headed-local-control`).
+    /// When enabled, Claude-Code-Headed direct-access identifiers (claude session
+    /// id, `vk-<exec_id>` tmux name, transcript path) are surfaced to the
+    /// orchestrator; when disabled, only the portable last-message progress is
+    /// returned. Off by default to keep the default MCP surface host-agnostic.
+    headed_local_control: bool,
 }
 
 impl McpServer {
-    pub fn new_global(base_url: &str) -> Self {
+    pub fn new_global(base_url: &str, headed_local_control: bool) -> Self {
         Self {
             client: reqwest::Client::new(),
             base_url: base_url.to_string(),
             tool_router: Self::global_mode_router(),
             context: None,
             mode: McpMode::Global,
+            headed_local_control,
         }
     }
 
-    pub fn new_orchestrator(base_url: &str) -> Self {
+    pub fn new_orchestrator(base_url: &str, headed_local_control: bool) -> Self {
         Self {
             client: reqwest::Client::new(),
             base_url: base_url.to_string(),
             tool_router: Self::orchestrator_mode_router(),
             context: None,
             mode: McpMode::Orchestrator,
+            headed_local_control,
         }
     }
 
@@ -112,6 +120,11 @@ impl McpServer {
 
     pub fn mode(&self) -> &McpMode {
         &self.mode
+    }
+
+    /// Whether the opt-in "headed local control" capability is enabled.
+    pub fn headed_local_control(&self) -> bool {
+        self.headed_local_control
     }
 
     async fn fetch_context_at_startup(&self) -> anyhow::Result<Option<McpContext>> {

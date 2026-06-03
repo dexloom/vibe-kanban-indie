@@ -34,7 +34,7 @@ use executors::{
         script::{ScriptContext, ScriptRequest, ScriptRequestLanguage},
     },
     executors::{BaseCodingAgent, ExecutorError, StandardCodingAgentExecutor},
-    interactive::InteractiveTmuxConfig,
+    interactive::{InteractiveTmuxConfig, claude_transcript_path, tmux_session_name},
     logs::{
         NormalizedEntry, NormalizedEntryError, NormalizedEntryType,
         utils::{
@@ -47,6 +47,7 @@ use executors::{
 use futures::{StreamExt, future, stream::BoxStream};
 use git::{GitService, GitServiceError};
 use json_patch::Patch;
+use serde::{Deserialize, Serialize};
 use sqlx::Error as SqlxError;
 use thiserror::Error;
 use tokio::{sync::RwLock, task::JoinHandle};
@@ -91,6 +92,72 @@ pub enum ContainerError {
     TerminalUnavailable(String),
     #[error(transparent)]
     Other(#[from] AnyhowError), // Catches any unclassified errors
+}
+
+/// Live progress snapshot for a running (or finished) execution, surfaced to
+/// the orchestrator via the MCP layer.
+///
+/// `latest_message` is portable across executors. The remaining fields are the
+/// "headed local control" identifiers and are populated **only** for a Claude
+/// Code Headed (detached tmux) execution; for every other executor they are
+/// `None`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentProgress {
+    /// Content of the most recent assistant message in the normalized log,
+    /// skipping tool-call/result/thinking frames. `None` if the agent has not
+    /// produced an assistant message yet.
+    pub latest_message: Option<String>,
+    /// Forced Claude session id (`claude --session-id <uuid>`). Claude Code
+    /// Headed only.
+    pub claude_session_id: Option<String>,
+    /// Deterministic tmux session name `vk-<execution_id>`. Claude Code Headed
+    /// only.
+    pub tmux_session_name: Option<String>,
+    /// Resolved absolute path to Claude's transcript JSONL for this session
+    /// (best-effort; encodes the canonical worktree cwd). Claude Code Headed
+    /// only.
+    pub transcript_path: Option<String>,
+}
+
+/// Reconstruct the normalized entries document from `patches` and return the
+/// content of the highest-index `assistant_message` entry, or `None` if there
+/// is no (non-empty) assistant message. Pure so it can be unit-tested without a
+/// running execution. Non-assistant frames (tool_use/result/thinking/stdout)
+/// are skipped.
+pub fn latest_assistant_message_from_patches(patches: &[Patch]) -> Option<String> {
+    let mut doc = serde_json::json!({ "entries": {} });
+    for p in patches {
+        let _ = json_patch::patch(&mut doc, p);
+    }
+
+    let entries = doc.get("entries")?.as_object()?;
+    let mut best: Option<(usize, String)> = None;
+    for (key, value) in entries {
+        let Ok(idx) = key.parse::<usize>() else {
+            continue;
+        };
+        if value.get("type").and_then(|t| t.as_str()) != Some("NORMALIZED_ENTRY") {
+            continue;
+        }
+        let content = value.get("content");
+        let is_assistant = content
+            .and_then(|c| c.get("entry_type"))
+            .and_then(|et| et.get("type"))
+            .and_then(|t| t.as_str())
+            == Some("assistant_message");
+        if !is_assistant {
+            continue;
+        }
+        if best.as_ref().map(|(i, _)| idx > *i).unwrap_or(true) {
+            let text = content
+                .and_then(|c| c.get("content"))
+                .and_then(|t| t.as_str())
+                .unwrap_or_default()
+                .to_string();
+            best = Some((idx, text));
+        }
+    }
+    best.map(|(_, text)| text).filter(|s| !s.is_empty())
 }
 
 #[async_trait]
@@ -1076,6 +1143,99 @@ pub trait ContainerService {
         }
     }
 
+    /// Snapshot the normalized log for `id` and return the content of the most
+    /// recent `AssistantMessage` entry, skipping tool-call/result/thinking
+    /// frames. Returns `None` if no assistant message has been produced yet.
+    ///
+    /// Reads the in-memory `MsgStore` history when the execution is live (no
+    /// blocking on the stream's live tail), otherwise the persisted/normalized
+    /// historical source via `stream_normalized_logs` (which terminates with
+    /// `Finished`).
+    async fn latest_assistant_message(&self, id: &Uuid) -> Option<String> {
+        let patches: Vec<Patch> = if let Some(store) = self.get_msg_store_by_id(id).await {
+            store
+                .get_history()
+                .into_iter()
+                .filter_map(|m| match m {
+                    LogMsg::JsonPatch(p) => Some(p),
+                    _ => None,
+                })
+                .collect()
+        } else {
+            let stream = self.stream_normalized_logs(id).await?;
+            stream
+                .take_while(|m| future::ready(!matches!(m, Ok(LogMsg::Finished))))
+                .filter_map(|m| {
+                    future::ready(match m {
+                        Ok(LogMsg::JsonPatch(p)) => Some(p),
+                        _ => None,
+                    })
+                })
+                .collect::<Vec<_>>()
+                .await
+        };
+
+        latest_assistant_message_from_patches(&patches)
+    }
+
+    /// Assemble the orchestrator-facing progress snapshot for `process`: the
+    /// portable latest assistant message plus, for Claude Code Headed runs only,
+    /// the direct-access identifiers (claude session id, `vk-<exec_id>` tmux
+    /// name, resolved transcript path).
+    async fn agent_progress(&self, process: &ExecutionProcess) -> AgentProgress {
+        let latest_message = self.latest_assistant_message(&process.id).await;
+
+        let action = process.executor_action().ok();
+        let is_headed_claude = action
+            .map(|a| {
+                a.interactive_config().is_some()
+                    && a.base_executor() == Some(BaseCodingAgent::ClaudeCodeHeaded)
+            })
+            .unwrap_or(false);
+
+        if !is_headed_claude {
+            return AgentProgress {
+                latest_message,
+                claude_session_id: None,
+                tmux_session_name: None,
+                transcript_path: None,
+            };
+        }
+
+        let cfg = action.and_then(|a| a.interactive_config());
+        let claude_session_id = cfg.map(|c| c.session_uuid.to_string());
+        let tmux_session_name = Some(tmux_session_name(process.id));
+
+        // Best-effort: resolve the absolute transcript path the way the headed
+        // launcher does (canonical worktree cwd + home), so the orchestrator
+        // does not have to reconstruct Claude's cwd encoding itself.
+        let transcript_path = match (
+            cfg,
+            process.parent_workspace_and_session(&self.db().pool).await,
+        ) {
+            (Some(cfg), Ok(Some((workspace, _session)))) => {
+                let current_dir = self.workspace_to_current_dir(&workspace);
+                let canonical_dir = tokio::fs::canonicalize(&current_dir)
+                    .await
+                    .unwrap_or(current_dir);
+                let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+                Some(
+                    claude_transcript_path(&home, &canonical_dir, cfg.session_uuid)
+                        .to_string_lossy()
+                        .to_string(),
+                )
+            }
+            _ => None,
+        };
+
+        AgentProgress {
+            latest_message,
+            claude_session_id,
+            tmux_session_name,
+            transcript_path,
+        }
+    }
+
     async fn start_workspace(
         &self,
         workspace: &Workspace,
@@ -1434,5 +1594,80 @@ pub trait ContainerService {
 
         tracing::debug!("Started next action: {:?}", next_action);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod latest_assistant_message_tests {
+    use executors::logs::{
+        ActionType, NormalizedEntry, NormalizedEntryType, ToolStatus, utils::ConversationPatch,
+    };
+
+    use super::latest_assistant_message_from_patches;
+
+    fn assistant(content: &str) -> NormalizedEntry {
+        NormalizedEntry {
+            timestamp: None,
+            entry_type: NormalizedEntryType::AssistantMessage,
+            content: content.to_string(),
+            metadata: None,
+        }
+    }
+
+    fn tool_use() -> NormalizedEntry {
+        NormalizedEntry {
+            timestamp: None,
+            entry_type: NormalizedEntryType::ToolUse {
+                tool_name: "bash".to_string(),
+                action_type: ActionType::CommandRun {
+                    command: "ls".to_string(),
+                    result: None,
+                    category: Default::default(),
+                },
+                status: ToolStatus::Created,
+            },
+            content: "running ls".to_string(),
+            metadata: None,
+        }
+    }
+
+    #[test]
+    fn returns_last_assistant_skipping_tool_frames() {
+        let patches = vec![
+            ConversationPatch::add_normalized_entry(0, assistant("first")),
+            ConversationPatch::add_normalized_entry(1, tool_use()),
+            ConversationPatch::add_normalized_entry(2, assistant("second")),
+            ConversationPatch::add_normalized_entry(3, tool_use()),
+        ];
+        assert_eq!(
+            latest_assistant_message_from_patches(&patches),
+            Some("second".to_string())
+        );
+    }
+
+    #[test]
+    fn replace_at_index_updates_content() {
+        let patches = vec![
+            ConversationPatch::add_normalized_entry(0, assistant("draft")),
+            ConversationPatch::replace(0, assistant("final")),
+        ];
+        assert_eq!(
+            latest_assistant_message_from_patches(&patches),
+            Some("final".to_string())
+        );
+    }
+
+    #[test]
+    fn no_assistant_message_returns_none() {
+        let patches = vec![
+            ConversationPatch::add_normalized_entry(0, tool_use()),
+            ConversationPatch::add_stdout(1, "some raw output".to_string()),
+        ];
+        assert_eq!(latest_assistant_message_from_patches(&patches), None);
+    }
+
+    #[test]
+    fn empty_patches_returns_none() {
+        assert_eq!(latest_assistant_message_from_patches(&[]), None);
     }
 }

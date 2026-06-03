@@ -129,6 +129,16 @@ struct GetExecutionRequest {
     execution_id: Uuid,
 }
 
+/// Mirror of the backend `AgentProgress` payload returned by
+/// `GET /api/execution-processes/{id}/agent-progress`.
+#[derive(Debug, Deserialize)]
+struct AgentProgress {
+    latest_message: Option<String>,
+    claude_session_id: Option<String>,
+    tmux_session_name: Option<String>,
+    transcript_path: Option<String>,
+}
+
 #[derive(Debug, Serialize, schemars::JsonSchema)]
 struct GetExecutionResponse {
     execution_id: String,
@@ -136,8 +146,25 @@ struct GetExecutionResponse {
     status: String,
     is_finished: bool,
     execution: serde_json::Value,
-    #[schemars(description = "Final assistant message/summary when execution has finished")]
+    #[schemars(
+        description = "Most recent assistant message from the agent (updates live as it works); null until the agent produces one"
+    )]
     final_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Claude Code session id (`claude --session-id`). Only present for a Claude Code Headed execution when the headed-local-control capability is enabled."
+    )]
+    claude_session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Deterministic tmux session name `vk-<execution_id>` you can reach with `tmux send-keys`. Only present for a Claude Code Headed execution when the headed-local-control capability is enabled."
+    )]
+    tmux_session_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Absolute path to Claude's transcript JSONL for live tailing. Only present for a Claude Code Headed execution when the headed-local-control capability is enabled."
+    )]
+    claude_transcript_path: Option<String>,
 }
 
 #[tool_router(router = session_tools_router, vis = "pub")]
@@ -345,13 +372,33 @@ impl McpServer {
             Err(error_result) => return Ok(Self::tool_error(error_result)),
         };
 
+        // Latest assistant message (Option A) + headed identifiers (Option B).
+        // The backend always resolves both; the B-side identifiers are surfaced
+        // only when the headed-local-control capability is enabled.
+        let progress_url = self.url(&format!(
+            "/api/execution-processes/{execution_id}/agent-progress"
+        ));
+        let progress: AgentProgress = match self.send_json(self.client.get(&progress_url)).await {
+            Ok(value) => value,
+            Err(error_result) => return Ok(Self::tool_error(error_result)),
+        };
+
+        let expose_headed = self.headed_local_control();
+
         Self::success(&GetExecutionResponse {
             execution_id: execution_process.id.to_string(),
             session_id: execution_process.session_id.to_string(),
             status: Self::execution_process_status_label(&execution_process.status).to_string(),
             is_finished,
             execution: execution_process_value,
-            final_message: None,
+            final_message: progress.latest_message,
+            claude_session_id: expose_headed
+                .then_some(progress.claude_session_id)
+                .flatten(),
+            tmux_session_name: expose_headed
+                .then_some(progress.tmux_session_name)
+                .flatten(),
+            claude_transcript_path: expose_headed.then_some(progress.transcript_path).flatten(),
         })
     }
 }

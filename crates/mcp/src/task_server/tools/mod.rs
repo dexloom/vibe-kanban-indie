@@ -461,6 +461,7 @@ mod tests {
                 }],
             }),
             mode: McpMode::Global,
+            headed_local_control: false,
         };
 
         assert_eq!(server.orchestrator_session_id(), Some(session_id));
@@ -476,6 +477,7 @@ mod tests {
             tool_router: ToolRouter::default(),
             context: None,
             mode: McpMode::Orchestrator,
+            headed_local_control: false,
         };
 
         assert_eq!(server.orchestrator_session_id(), None);

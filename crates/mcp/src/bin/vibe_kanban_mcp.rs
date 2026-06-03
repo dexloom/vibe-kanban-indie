@@ -18,6 +18,11 @@ enum McpLaunchMode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LaunchConfig {
     mode: McpLaunchMode,
+    /// Opt-in to the "headed local control" capability: surface Claude Code
+    /// Headed direct-access identifiers (claude session id, tmux session name,
+    /// transcript path) to the orchestrator. Off unless `--headed-local-control`
+    /// is passed.
+    headed_local_control: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -32,11 +37,16 @@ fn main() -> anyhow::Result<()> {
             init_process_logging("vibe-kanban-mcp", version);
 
             let base_url = resolve_base_url("vibe-kanban-mcp").await?;
-            let LaunchConfig { mode } = launch_config;
+            let LaunchConfig {
+                mode,
+                headed_local_control,
+            } = launch_config;
 
             let server = match mode {
-                McpLaunchMode::Global => McpServer::new_global(&base_url),
-                McpLaunchMode::Orchestrator => McpServer::new_orchestrator(&base_url),
+                McpLaunchMode::Global => McpServer::new_global(&base_url, headed_local_control),
+                McpLaunchMode::Orchestrator => {
+                    McpServer::new_orchestrator(&base_url, headed_local_control)
+                }
             };
 
             let service = server.init().await?.serve(stdio()).await.map_err(|error| {
@@ -58,6 +68,7 @@ where
     I: Iterator<Item = String>,
 {
     let mut mode = None;
+    let mut headed_local_control = false;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -66,13 +77,18 @@ where
                     anyhow::anyhow!("Missing value for --mode. Expected 'global' or 'orchestrator'")
                 })?);
             }
+            "--headed-local-control" => {
+                headed_local_control = true;
+            }
             "-h" | "--help" => {
-                println!("Usage: vibe-kanban-mcp --mode <global|orchestrator>");
+                println!(
+                    "Usage: vibe-kanban-mcp --mode <global|orchestrator> [--headed-local-control]"
+                );
                 std::process::exit(0);
             }
             _ => {
                 return Err(anyhow::anyhow!(
-                    "Unknown argument '{arg}'. Usage: vibe-kanban-mcp --mode <global|orchestrator>"
+                    "Unknown argument '{arg}'. Usage: vibe-kanban-mcp --mode <global|orchestrator> [--headed-local-control]"
                 ));
             }
         }
@@ -94,7 +110,10 @@ where
         }
     };
 
-    Ok(LaunchConfig { mode })
+    Ok(LaunchConfig {
+        mode,
+        headed_local_control,
+    })
 }
 
 async fn resolve_base_url(log_prefix: &str) -> anyhow::Result<String> {
@@ -170,9 +189,41 @@ mod tests {
         assert_eq!(
             config,
             LaunchConfig {
-                mode: McpLaunchMode::Orchestrator
+                mode: McpLaunchMode::Orchestrator,
+                headed_local_control: false,
             }
         );
+    }
+
+    #[test]
+    fn headed_local_control_flag_is_parsed() {
+        let config = resolve_launch_config_from_iter(
+            [
+                "--mode".to_string(),
+                "orchestrator".to_string(),
+                "--headed-local-control".to_string(),
+            ]
+            .into_iter(),
+        )
+        .expect("config should parse");
+
+        assert_eq!(
+            config,
+            LaunchConfig {
+                mode: McpLaunchMode::Orchestrator,
+                headed_local_control: true,
+            }
+        );
+    }
+
+    #[test]
+    fn headed_local_control_defaults_off() {
+        let config = resolve_launch_config_from_iter(
+            ["--mode".to_string(), "global".to_string()].into_iter(),
+        )
+        .expect("config should parse");
+
+        assert!(!config.headed_local_control);
     }
 
     #[test]
