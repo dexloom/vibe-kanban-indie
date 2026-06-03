@@ -9,6 +9,13 @@ use utils::{
 const HOST_ENV: &str = "MCP_HOST";
 const PORT_ENV: &str = "MCP_PORT";
 
+/// Env fallback for `--headed-local-control`. Truthy values (`1`/`true`/`yes`/
+/// `on`, case-insensitive) enable the capability when the CLI flag is absent.
+const HEADED_LOCAL_CONTROL_ENV: &str = "VIBE_HEADED_LOCAL_CONTROL";
+/// Env fallback for `--mode`. Accepts `global` or `orchestrator` when `--mode`
+/// is absent.
+const MODE_ENV: &str = "VIBE_MCP_MODE";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum McpLaunchMode {
     Global,
@@ -60,15 +67,31 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn resolve_launch_config() -> anyhow::Result<LaunchConfig> {
-    resolve_launch_config_from_iter(std::env::args().skip(1))
+    resolve_launch_config_from_iter(std::env::args().skip(1), |key| std::env::var(key).ok())
 }
 
-fn resolve_launch_config_from_iter<I>(mut args: I) -> anyhow::Result<LaunchConfig>
+/// Interpret an env value as a boolean toggle. Truthy values are `1`, `true`,
+/// `yes`, and `on` (case-insensitive); anything else — including an unset or
+/// empty value — is false.
+fn env_flag_is_truthy(value: Option<&str>) -> bool {
+    matches!(
+        value.map(|v| v.trim().to_ascii_lowercase()).as_deref(),
+        Some("1" | "true" | "yes" | "on")
+    )
+}
+
+/// Resolve the launch configuration from CLI args, falling back to env vars.
+///
+/// Precedence mirrors `resolve_base_url`: an explicit CLI flag/arg wins, the
+/// env var is the fallback, and the built-in default is used last. `env` is
+/// injected so tests can drive it without mutating the process environment.
+fn resolve_launch_config_from_iter<I, F>(mut args: I, env: F) -> anyhow::Result<LaunchConfig>
 where
     I: Iterator<Item = String>,
+    F: Fn(&str) -> Option<String>,
 {
     let mut mode = None;
-    let mut headed_local_control = false;
+    let mut headed_local_control_flag = false;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -78,23 +101,25 @@ where
                 })?);
             }
             "--headed-local-control" => {
-                headed_local_control = true;
+                headed_local_control_flag = true;
             }
             "-h" | "--help" => {
-                println!(
-                    "Usage: vibe-kanban-mcp --mode <global|orchestrator> [--headed-local-control]"
-                );
+                println!("{}", usage());
                 std::process::exit(0);
             }
             _ => {
-                return Err(anyhow::anyhow!(
-                    "Unknown argument '{arg}'. Usage: vibe-kanban-mcp --mode <global|orchestrator> [--headed-local-control]"
-                ));
+                return Err(anyhow::anyhow!("Unknown argument '{arg}'. {}", usage()));
             }
         }
     }
 
-    let mode = match mode
+    // CLI flag wins; env var (truthy) is the fallback; default is off.
+    let headed_local_control =
+        headed_local_control_flag || env_flag_is_truthy(env(HEADED_LOCAL_CONTROL_ENV).as_deref());
+
+    // CLI `--mode` wins; `VIBE_MCP_MODE` env is the fallback; default is global.
+    let mode_value = mode.or_else(|| env(MODE_ENV));
+    let mode = match mode_value
         .as_deref()
         .unwrap_or("global")
         .trim()
@@ -114,6 +139,15 @@ where
         mode,
         headed_local_control,
     })
+}
+
+fn usage() -> String {
+    format!(
+        "Usage: vibe-kanban-mcp --mode <global|orchestrator> [--headed-local-control]\n\
+         Env fallbacks (CLI flag/arg takes precedence):\n  \
+         {MODE_ENV}=<global|orchestrator>  (fallback for --mode)\n  \
+         {HEADED_LOCAL_CONTROL_ENV}=<1|true|yes|on>  (fallback for --headed-local-control; case-insensitive, anything else is off)"
+    )
 }
 
 async fn resolve_base_url(log_prefix: &str) -> anyhow::Result<String> {
@@ -177,12 +211,31 @@ fn init_process_logging(log_prefix: &str, version: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{LaunchConfig, McpLaunchMode, resolve_launch_config_from_iter};
+    use super::{
+        HEADED_LOCAL_CONTROL_ENV, LaunchConfig, MODE_ENV, McpLaunchMode, env_flag_is_truthy,
+        resolve_launch_config_from_iter,
+    };
+
+    /// Env lookup that always returns nothing (no env fallback).
+    fn no_env(_key: &str) -> Option<String> {
+        None
+    }
+
+    /// Env lookup backed by a fixed list of key/value pairs.
+    fn env_map(pairs: &'static [(&'static str, &'static str)]) -> impl Fn(&str) -> Option<String> {
+        move |key| {
+            pairs
+                .iter()
+                .find(|(k, _)| *k == key)
+                .map(|(_, v)| v.to_string())
+        }
+    }
 
     #[test]
     fn orchestrator_mode_does_not_require_session_id() {
         let config = resolve_launch_config_from_iter(
             ["--mode".to_string(), "orchestrator".to_string()].into_iter(),
+            no_env,
         )
         .expect("config should parse");
 
@@ -204,6 +257,7 @@ mod tests {
                 "--headed-local-control".to_string(),
             ]
             .into_iter(),
+            no_env,
         )
         .expect("config should parse");
 
@@ -220,6 +274,7 @@ mod tests {
     fn headed_local_control_defaults_off() {
         let config = resolve_launch_config_from_iter(
             ["--mode".to_string(), "global".to_string()].into_iter(),
+            no_env,
         )
         .expect("config should parse");
 
@@ -236,6 +291,7 @@ mod tests {
                 "x".to_string(),
             ]
             .into_iter(),
+            no_env,
         )
         .expect_err("session id flag should be rejected");
 
@@ -244,5 +300,92 @@ mod tests {
                 .to_string()
                 .contains("Unknown argument '--session-id'")
         );
+    }
+
+    #[test]
+    fn headed_local_control_env_enables_without_flag() {
+        let config = resolve_launch_config_from_iter(
+            std::iter::empty(),
+            env_map(&[(HEADED_LOCAL_CONTROL_ENV, "true")]),
+        )
+        .expect("config should parse");
+
+        assert!(config.headed_local_control);
+        assert_eq!(config.mode, McpLaunchMode::Global);
+    }
+
+    #[test]
+    fn headed_local_control_flag_wins_over_unset_env() {
+        let config = resolve_launch_config_from_iter(
+            ["--headed-local-control".to_string()].into_iter(),
+            no_env,
+        )
+        .expect("config should parse");
+
+        assert!(config.headed_local_control);
+    }
+
+    #[test]
+    fn headed_local_control_flag_wins_over_falsey_env() {
+        let config = resolve_launch_config_from_iter(
+            ["--headed-local-control".to_string()].into_iter(),
+            env_map(&[(HEADED_LOCAL_CONTROL_ENV, "0")]),
+        )
+        .expect("config should parse");
+
+        assert!(config.headed_local_control);
+    }
+
+    #[test]
+    fn headed_local_control_neither_set_defaults_off() {
+        let config =
+            resolve_launch_config_from_iter(std::iter::empty(), no_env).expect("config parses");
+
+        assert!(!config.headed_local_control);
+    }
+
+    #[test]
+    fn truthy_env_values_are_parsed_case_insensitively() {
+        for value in ["1", "true", "TRUE", "Yes", "on", "ON"] {
+            assert!(env_flag_is_truthy(Some(value)), "{value} should be truthy");
+        }
+        for value in ["0", "false", "no", "off", "", "  ", "enabled"] {
+            assert!(
+                !env_flag_is_truthy(Some(value)),
+                "{value:?} should be falsey"
+            );
+        }
+        assert!(!env_flag_is_truthy(None));
+    }
+
+    #[test]
+    fn mode_env_selects_orchestrator_without_flag() {
+        let config = resolve_launch_config_from_iter(
+            std::iter::empty(),
+            env_map(&[(MODE_ENV, "orchestrator")]),
+        )
+        .expect("config should parse");
+
+        assert_eq!(config.mode, McpLaunchMode::Orchestrator);
+    }
+
+    #[test]
+    fn mode_flag_overrides_mode_env() {
+        let config = resolve_launch_config_from_iter(
+            ["--mode".to_string(), "global".to_string()].into_iter(),
+            env_map(&[(MODE_ENV, "orchestrator")]),
+        )
+        .expect("config should parse");
+
+        assert_eq!(config.mode, McpLaunchMode::Global);
+    }
+
+    #[test]
+    fn invalid_mode_env_is_rejected() {
+        let error =
+            resolve_launch_config_from_iter(std::iter::empty(), env_map(&[(MODE_ENV, "bogus")]))
+                .expect_err("invalid mode env should error");
+
+        assert!(error.to_string().contains("Invalid MCP mode 'bogus'"));
     }
 }
