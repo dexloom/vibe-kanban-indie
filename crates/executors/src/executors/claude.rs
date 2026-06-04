@@ -2556,6 +2556,10 @@ impl StreamingContentState {
 /// headless `--output-format=stream-json` protocol. These are session
 /// bookkeeping entries with no user-facing content, so the log normalizer skips
 /// them (otherwise they would each render as an "Unrecognized JSON message").
+///
+/// `queue-operation` records track queued-prompt bookkeeping (the user queuing
+/// or removing a queued prompt; observed `operation` values `enqueue` and
+/// `remove`) and carry no content worth rendering, so they are skipped too.
 pub fn is_transcript_only_record_type(record_type: &str) -> bool {
     matches!(
         record_type,
@@ -2567,6 +2571,7 @@ pub fn is_transcript_only_record_type(record_type: &str) -> bool {
             | "last-prompt"
             | "agent-name"
             | "summary"
+            | "queue-operation"
     )
 }
 
@@ -3202,6 +3207,48 @@ mod tests {
         assert!(
             patches_to_entries(&mode_patches).is_empty(),
             "permission-mode record should be skipped"
+        );
+
+        // queue-operation records (queued-prompt bookkeeping) are skipped for
+        // every operation value — keyed on the record `type`, not `operation`.
+        assert!(is_transcript_only_record_type("queue-operation"));
+        for op_line in [
+            r#"{"type":"queue-operation","operation":"enqueue","content":"do the thing","sessionId":"11111111-1111-1111-1111-111111111111","timestamp":"2026-01-01T00:00:00Z"}"#,
+            r#"{"type":"queue-operation","operation":"remove","content":"do the thing","sessionId":"11111111-1111-1111-1111-111111111111","timestamp":"2026-01-01T00:00:01Z"}"#,
+        ] {
+            let qj: ClaudeJson = serde_json::from_str(op_line).unwrap();
+            assert!(
+                matches!(qj, ClaudeJson::Unknown { .. }),
+                "queue-operation should stay on the Unknown path, got {qj:?}"
+            );
+            let mut pq = ClaudeLogProcessor::new();
+            let q_patches = pq.normalize_entries(&qj, "/repo", &EntryIndexProvider::test_new());
+            assert!(
+                patches_to_entries(&q_patches).is_empty(),
+                "queue-operation record should be skipped: {op_line}"
+            );
+        }
+
+        // Regression: a genuinely unknown type still renders one "Unrecognized
+        // JSON message" entry.
+        assert!(!is_transcript_only_record_type("totally-made-up"));
+        let unknown_line =
+            r#"{"type":"totally-made-up","sessionId":"11111111-1111-1111-1111-111111111111"}"#;
+        let unknown_json: ClaudeJson = serde_json::from_str(unknown_line).unwrap();
+        let mut p3 = ClaudeLogProcessor::new();
+        let unknown_patches =
+            p3.normalize_entries(&unknown_json, "/repo", &EntryIndexProvider::test_new());
+        let unknown_entries = patches_to_entries(&unknown_patches);
+        assert_eq!(
+            unknown_entries.len(),
+            1,
+            "unknown type should render exactly one entry, got {unknown_entries:?}"
+        );
+        assert!(
+            unknown_entries[0]
+                .content
+                .contains("Unrecognized JSON message"),
+            "unknown type should render an Unrecognized JSON message entry, got {unknown_entries:?}"
         );
     }
 
