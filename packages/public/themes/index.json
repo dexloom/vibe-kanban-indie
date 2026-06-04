@@ -1,0 +1,20 @@
+{
+  "$comment": "Drop-in theme manifest for Vibe Kanban (local web). Add a new entry + a matching <id>.css file in this folder to register a custom theme; no rebuild required. Each CSS file scopes its token overrides to html[data-theme-variant=\"<id>\"].",
+  "themes": [
+    {
+      "id": "navy-hud",
+      "name": "Navy HUD",
+      "description": "Cyan-on-navy sci-fi HUD with CRT scanlines and glow."
+    },
+    {
+      "id": "phosphor",
+      "name": "Phosphor",
+      "description": "Classic green-CRT terminal, heavy scanlines, monochrome mono."
+    },
+    {
+      "id": "amber",
+      "name": "Amber Terminal",
+      "description": "Amber command-line aesthetic on deep navy, CRT texture."
+    }
+  ]
+}

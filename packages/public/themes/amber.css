@@ -1,0 +1,136 @@
+/* ============================================================
+   Vibe Kanban theme — "Amber Terminal"
+   Amber command-line aesthetic on deep navy. CRT texture + amber
+   glow, monospace throughout.
+
+   Scoped to html[data-theme-variant="amber"]. Overrides the private
+   design tokens (--_*) + bg/text/brand tokens so every component
+   inherits the palette automatically.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+html[data-theme-variant='amber'] {
+  color-scheme: dark;
+
+  /* --- core surfaces / text --- */
+  --_background: 214 47% 6%;
+  --_foreground: 41 51% 78%;
+  --_primary: 36 89% 59%;
+  --_primary-foreground: 214 47% 6%;
+  --_secondary: 218 46% 10%;
+  --_secondary-foreground: 41 51% 78%;
+  --_muted: 217 49% 8%;
+  --_muted-foreground: 42 24% 44%;
+  --_accent: 216 44% 13%;
+  --_accent-foreground: 41 51% 78%;
+  --_destructive: 352 83% 65%;
+  --_destructive-foreground: 0 0% 100%;
+  --_border: 40 37% 21%;
+  --_input: 218 46% 10%;
+  --_ring: 36 89% 59%;
+
+  /* --- status --- */
+  --_success: 144 61% 65%;
+  --_success-foreground: 144 61% 14%;
+  --_warning: 36 89% 59%;
+  --_warning-foreground: 36 89% 14%;
+  --_info: 36 89% 59%;
+  --_info-foreground: 214 47% 6%;
+  --_neutral: 216 44% 13%;
+  --_neutral-foreground: 41 51% 78%;
+
+  /* --- console / terminal --- */
+  --_console-background: 214 47% 4%;
+  --_console-foreground: 41 51% 78%;
+  --_console-success: 144 61% 65%;
+  --_console-error: 352 83% 65%;
+
+  /* --- text levels --- */
+  --text-high: 41 60% 84%;
+  --text-normal: 41 51% 78%;
+  --text-low: 42 24% 44%;
+
+  /* --- surfaces --- */
+  --_bg-primary-default: 214 47% 6%;
+  --_bg-secondary-default: 217 49% 8%;
+  --_bg-panel-default: 218 46% 10%;
+
+  /* --- brand / accent --- */
+  --brand: 36 89% 59%;
+  --brand-hover: 36 89% 68%;
+  --brand-secondary: 40 64% 37%;
+  --error: 352 83% 65%;
+  --success: 144 61% 65%;
+  --merged: 271 81% 66%;
+  --text-on-brand: 214 47% 6%;
+
+  /* --- syntax highlighting (warm dark palette) --- */
+  --_syntax-keyword: #f0596d;
+  --_syntax-function: #f3a83a;
+  --_syntax-constant: #f3c14a;
+  --_syntax-string: #6fdc9a;
+  --_syntax-variable: #e4d2ab;
+  --_syntax-comment: #8a7a55;
+  --_syntax-tag: #f3a83a;
+  --_syntax-punctuation: #e4d2ab;
+  --_syntax-deleted: #f0596d;
+}
+
+/* ===== monospace everywhere =====
+   The base layer sets font-family explicitly on html/body/#root, so we must
+   override all three (+ the .font-ibm-plex-sans utility) to beat it. */
+html[data-theme-variant='amber'],
+html[data-theme-variant='amber'] body,
+html[data-theme-variant='amber'] #root,
+html[data-theme-variant='amber'] .font-ibm-plex-sans {
+  font-family:
+    'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo,
+    monospace !important;
+  letter-spacing: 0.01em;
+}
+
+/* Form controls don't inherit font-family by default */
+html[data-theme-variant='amber'] button,
+html[data-theme-variant='amber'] input,
+html[data-theme-variant='amber'] textarea,
+html[data-theme-variant='amber'] select {
+  font-family: inherit;
+}
+
+/* ===== CRT texture (static) ===== */
+html[data-theme-variant='amber']::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9000;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.16) 3px,
+    rgba(0, 0, 0, 0.16) 4px
+  );
+  mix-blend-mode: multiply;
+}
+html[data-theme-variant='amber']::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9002;
+  background: radial-gradient(
+    120% 90% at 50% 50%,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+}
+
+/* ===== accent glow ===== */
+html[data-theme-variant='amber'] .text-brand,
+html[data-theme-variant='amber'] .text-high {
+  text-shadow:
+    0 0 6px hsl(var(--brand) / 0.45),
+    0 0 16px hsl(var(--brand) / 0.18);
+}

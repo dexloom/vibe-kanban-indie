@@ -1,0 +1,136 @@
+/* ============================================================
+   Vibe Kanban theme — "Phosphor"
+   Classic green-CRT terminal. Heavier scanlines than Navy HUD,
+   green glow, monospace throughout.
+
+   Scoped to html[data-theme-variant="phosphor"]. Overrides the
+   private design tokens (--_*) + bg/text/brand tokens so every
+   component inherits the palette automatically.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+html[data-theme-variant='phosphor'] {
+  color-scheme: dark;
+
+  /* --- core surfaces / text --- */
+  --_background: 146 47% 3%;
+  --_foreground: 141 64% 73%;
+  --_primary: 146 86% 59%;
+  --_primary-foreground: 146 47% 4%;
+  --_secondary: 154 47% 6%;
+  --_secondary-foreground: 141 64% 73%;
+  --_muted: 148 48% 5%;
+  --_muted-foreground: 145 27% 43%;
+  --_accent: 147 45% 8%;
+  --_accent-foreground: 141 64% 73%;
+  --_destructive: 352 83% 65%;
+  --_destructive-foreground: 0 0% 100%;
+  --_border: 149 49% 17%;
+  --_input: 154 47% 6%;
+  --_ring: 146 86% 59%;
+
+  /* --- status --- */
+  --_success: 145 100% 77%;
+  --_success-foreground: 150 66% 14%;
+  --_warning: 42 88% 62%;
+  --_warning-foreground: 42 88% 14%;
+  --_info: 146 86% 59%;
+  --_info-foreground: 146 47% 4%;
+  --_neutral: 147 45% 8%;
+  --_neutral-foreground: 141 64% 73%;
+
+  /* --- console / terminal --- */
+  --_console-background: 146 47% 2%;
+  --_console-foreground: 141 64% 73%;
+  --_console-success: 145 100% 77%;
+  --_console-error: 352 83% 65%;
+
+  /* --- text levels --- */
+  --text-high: 145 80% 80%;
+  --text-normal: 141 64% 73%;
+  --text-low: 145 27% 43%;
+
+  /* --- surfaces --- */
+  --_bg-primary-default: 146 47% 3%;
+  --_bg-secondary-default: 148 48% 5%;
+  --_bg-panel-default: 154 47% 6%;
+
+  /* --- brand / accent --- */
+  --brand: 146 86% 59%;
+  --brand-hover: 145 100% 77%;
+  --brand-secondary: 150 66% 33%;
+  --error: 352 83% 65%;
+  --success: 145 100% 77%;
+  --merged: 271 81% 66%;
+  --text-on-brand: 146 47% 4%;
+
+  /* --- syntax highlighting (green-tinted dark palette) --- */
+  --_syntax-keyword: #ff7b9c;
+  --_syntax-function: #88ffba;
+  --_syntax-constant: #6fdc9a;
+  --_syntax-string: #3bf08a;
+  --_syntax-variable: #f3c14a;
+  --_syntax-comment: #4f8a68;
+  --_syntax-tag: #3bf08a;
+  --_syntax-punctuation: #8fe6ad;
+  --_syntax-deleted: #f0596d;
+}
+
+/* ===== monospace everywhere =====
+   The base layer sets font-family explicitly on html/body/#root, so we must
+   override all three (+ the .font-ibm-plex-sans utility) to beat it. */
+html[data-theme-variant='phosphor'],
+html[data-theme-variant='phosphor'] body,
+html[data-theme-variant='phosphor'] #root,
+html[data-theme-variant='phosphor'] .font-ibm-plex-sans {
+  font-family:
+    'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo,
+    monospace !important;
+  letter-spacing: 0.01em;
+}
+
+/* Form controls don't inherit font-family by default */
+html[data-theme-variant='phosphor'] button,
+html[data-theme-variant='phosphor'] input,
+html[data-theme-variant='phosphor'] textarea,
+html[data-theme-variant='phosphor'] select {
+  font-family: inherit;
+}
+
+/* ===== CRT texture (static — heavier scanlines for phosphor) ===== */
+html[data-theme-variant='phosphor']::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9000;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 1px,
+    rgba(0, 0, 0, 0.28) 2px,
+    rgba(0, 0, 0, 0.28) 3px
+  );
+  mix-blend-mode: multiply;
+}
+html[data-theme-variant='phosphor']::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9002;
+  background: radial-gradient(
+    120% 90% at 50% 50%,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+}
+
+/* ===== accent glow ===== */
+html[data-theme-variant='phosphor'] .text-brand,
+html[data-theme-variant='phosphor'] .text-high {
+  text-shadow:
+    0 0 6px hsl(var(--brand) / 0.5),
+    0 0 16px hsl(var(--brand) / 0.22);
+}

@@ -1,0 +1,144 @@
+/* ============================================================
+   Vibe Kanban theme — "Navy HUD"
+   Cyan-on-navy sci-fi HUD. Heavy CRT (static scanlines + vignette
+   + accent glow), monospace throughout.
+
+   Drop-in theme: everything is scoped to
+   html[data-theme-variant="navy-hud"] so it only applies when this
+   variant is selected. It overrides the private design tokens
+   (--_*) plus the bg/text/brand tokens, so every component, status,
+   console and syntax colour inherits automatically.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+html[data-theme-variant='navy-hud'] {
+  color-scheme: dark;
+
+  /* --- core surfaces / text (private shadcn tokens) --- */
+  --_background: 211 60% 7%;
+  --_foreground: 197 54% 82%;
+  --_primary: 190 86% 58%;
+  --_primary-foreground: 209 57% 8%;
+  --_secondary: 209 57% 12%;
+  --_secondary-foreground: 197 54% 82%;
+  --_muted: 209 57% 10%;
+  --_muted-foreground: 203 24% 48%;
+  --_accent: 207 54% 14%;
+  --_accent-foreground: 197 54% 82%;
+  --_destructive: 352 83% 65%;
+  --_destructive-foreground: 0 0% 100%;
+  --_border: 207 56% 19%;
+  --_input: 209 57% 12%;
+  --_ring: 190 86% 58%;
+
+  /* --- status --- */
+  --_success: 155 71% 58%;
+  --_success-foreground: 155 71% 14%;
+  --_warning: 37 88% 62%;
+  --_warning-foreground: 37 88% 14%;
+  --_info: 190 86% 58%;
+  --_info-foreground: 209 57% 8%;
+  --_neutral: 207 54% 14%;
+  --_neutral-foreground: 197 54% 82%;
+
+  /* --- console / terminal --- */
+  --_console-background: 211 60% 5%;
+  --_console-foreground: 197 54% 82%;
+  --_console-success: 155 71% 58%;
+  --_console-error: 352 83% 65%;
+
+  /* --- text levels (drive tailwind text-high/normal/low + foreground) --- */
+  --text-high: 197 60% 88%;
+  --text-normal: 197 54% 82%;
+  --text-low: 203 24% 48%;
+
+  /* --- surfaces (drive tailwind bg-primary/secondary/panel + background) --- */
+  --_bg-primary-default: 211 60% 7%;
+  --_bg-secondary-default: 209 57% 10%;
+  --_bg-panel-default: 209 57% 12%;
+
+  /* --- brand / accent --- */
+  --brand: 190 86% 58%;
+  --brand-hover: 190 86% 68%;
+  --brand-secondary: 192 69% 35%;
+  --error: 352 83% 65%;
+  --success: 155 71% 58%;
+  --merged: 271 81% 66%;
+  --text-on-brand: 209 57% 8%;
+
+  /* --- syntax highlighting (dark palette tuned for navy) --- */
+  --_syntax-keyword: #ff7b9c;
+  --_syntax-function: #7fd6ff;
+  --_syntax-constant: #79c0ff;
+  --_syntax-string: #46e0a0;
+  --_syntax-variable: #f3b34a;
+  --_syntax-comment: #5d8197;
+  --_syntax-tag: #38d2f0;
+  --_syntax-punctuation: #b9dcea;
+  --_syntax-deleted: #f0596d;
+}
+
+/* ===== monospace everywhere (overrides the IBM Plex Sans default) =====
+   The base layer sets font-family explicitly on html/body/#root, so we must
+   override all three (+ the .font-ibm-plex-sans utility) to beat it. */
+html[data-theme-variant='navy-hud'],
+html[data-theme-variant='navy-hud'] body,
+html[data-theme-variant='navy-hud'] #root,
+html[data-theme-variant='navy-hud'] .font-ibm-plex-sans {
+  font-family:
+    'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo,
+    monospace !important;
+  letter-spacing: 0.01em;
+}
+
+/* Form controls don't inherit font-family by default */
+html[data-theme-variant='navy-hud'] button,
+html[data-theme-variant='navy-hud'] input,
+html[data-theme-variant='navy-hud'] textarea,
+html[data-theme-variant='navy-hud'] select {
+  font-family: inherit;
+}
+
+/* ===== CRT texture (static — no motion) ===== */
+/* scanlines */
+html[data-theme-variant='navy-hud']::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9000;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.16) 3px,
+    rgba(0, 0, 0, 0.16) 4px
+  );
+  mix-blend-mode: multiply;
+}
+/* vignette */
+html[data-theme-variant='navy-hud']::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9002;
+  background: radial-gradient(
+    120% 90% at 50% 50%,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+}
+
+/* ===== accent glow ===== */
+html[data-theme-variant='navy-hud'] .text-brand,
+html[data-theme-variant='navy-hud'] .text-high {
+  text-shadow:
+    0 0 6px hsl(var(--brand) / 0.45),
+    0 0 14px hsl(var(--brand) / 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* nothing animated here, kept for parity with the design intent */
+}

@@ -30,9 +30,12 @@ import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import { TagManager } from '@/shared/components/TagManager';
 import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import {
+  DEFAULT_THEME_VARIANT,
   type MobileFontScale,
   useMobileFontScale,
+  useThemeVariant,
 } from '@/shared/stores/useUiPreferencesStore';
+import { useThemeManifest } from '@/shared/lib/themeVariant';
 import { cn, playSound } from '@/shared/lib/utils';
 import { PrimaryButton } from '@vibe/ui/components/PrimaryButton';
 import { IconButton } from '@vibe/ui/components/IconButton';
@@ -60,6 +63,8 @@ export function GeneralSettingsSection() {
 
   const isMobile = useIsMobile();
   const [mobileFontScale, setMobileFontScale] = useMobileFontScale();
+  const [themeVariant, setThemeVariant] = useThemeVariant();
+  const { themes: themeVariantManifest } = useThemeManifest();
   const languageOptions = getLanguageOptions(
     t('language.browserDefault', {
       ns: 'common',
@@ -238,6 +243,14 @@ export function GeneralSettingsSection() {
     label: toPrettyCase(theme),
   }));
 
+  const themeVariantOptions = [
+    { value: DEFAULT_THEME_VARIANT, label: 'Default' },
+    ...themeVariantManifest.map((variant) => ({
+      value: variant.id,
+      label: variant.name,
+    })),
+  ];
+
   const editorOptions = Object.values(EditorType).map((editor) => ({
     value: editor,
     label: toPrettyCase(editor),
@@ -277,6 +290,17 @@ export function GeneralSettingsSection() {
             options={themeOptions}
             onChange={(value) => updateDraft({ theme: value })}
             placeholder={t('settings.general.appearance.theme.placeholder')}
+          />
+        </SettingsField>
+
+        <SettingsField
+          label="Theme variant"
+          description="Optional CRT/terminal skin applied on top of the light/dark mode. Applies immediately."
+        >
+          <SettingsSelect
+            value={themeVariant}
+            options={themeVariantOptions}
+            onChange={(value) => setThemeVariant(value)}
           />
         </SettingsField>
 

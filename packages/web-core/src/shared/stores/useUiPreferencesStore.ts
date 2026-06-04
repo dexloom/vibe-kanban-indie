@@ -37,6 +37,24 @@ const loadMobileFontScale = (): MobileFontScale => {
   return 'default';
 };
 
+// Theme variant ("skin") is a client-side visual preference applied on top
+// of the Light/Dark/System mode. 'default' means no extra theme (the built-in
+// look). Other values map to a drop-in CSS file under /themes/<id>.css.
+export type ThemeVariant = string;
+export const DEFAULT_THEME_VARIANT: ThemeVariant = 'default';
+
+const THEME_VARIANT_KEY = 'vk-theme-variant';
+
+const loadThemeVariant = (): ThemeVariant => {
+  try {
+    const stored = localStorage.getItem(THEME_VARIANT_KEY);
+    if (stored && stored !== DEFAULT_THEME_VARIANT) return stored;
+  } catch {
+    // localStorage may be unavailable
+  }
+  return DEFAULT_THEME_VARIANT;
+};
+
 export type KanbanViewMode = 'kanban' | 'list';
 
 export type ContextBarPosition =
@@ -350,6 +368,9 @@ type State = {
   // Mobile font scale
   mobileFontScale: MobileFontScale;
 
+  // Theme variant ("skin"), applied on top of the light/dark mode
+  themeVariant: ThemeVariant;
+
   // Last selected organization and project (persisted via scratch store)
   selectedOrgId: string | null;
   selectedProjectId: string | null;
@@ -438,6 +459,9 @@ type State = {
   // Mobile font scale actions
   setMobileFontScale: (scale: MobileFontScale) => void;
 
+  // Theme variant actions
+  setThemeVariant: (variant: ThemeVariant) => void;
+
   // Last selected organization and project actions
   setSelectedOrgId: (orgId: string | null) => void;
   clearSelectedOrgId: () => void;
@@ -481,6 +505,9 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
 
   // Mobile font scale
   mobileFontScale: loadMobileFontScale(),
+
+  // Theme variant
+  themeVariant: loadThemeVariant(),
 
   // Last selected organization and project
   selectedOrgId: null,
@@ -836,6 +863,20 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
     set({ mobileFontScale: scale });
   },
 
+  // Theme variant actions
+  setThemeVariant: (variant) => {
+    try {
+      if (variant === DEFAULT_THEME_VARIANT) {
+        localStorage.removeItem(THEME_VARIANT_KEY);
+      } else {
+        localStorage.setItem(THEME_VARIANT_KEY, variant);
+      }
+    } catch {
+      // localStorage may be unavailable
+    }
+    set({ themeVariant: variant });
+  },
+
   // Last selected organization and project actions
   setSelectedOrgId: (orgId) => set({ selectedOrgId: orgId }),
   clearSelectedOrgId: () => set({ selectedOrgId: null }),
@@ -945,6 +986,13 @@ export function useMobileFontScale() {
   const scale = useUiPreferencesStore((s) => s.mobileFontScale);
   const set = useUiPreferencesStore((s) => s.setMobileFontScale);
   return [scale, set] as const;
+}
+
+// Hook for theme variant ("skin")
+export function useThemeVariant() {
+  const variant = useUiPreferencesStore((s) => s.themeVariant);
+  const set = useUiPreferencesStore((s) => s.setThemeVariant);
+  return [variant, set] as const;
 }
 
 // Hook for workspace-specific panel state
