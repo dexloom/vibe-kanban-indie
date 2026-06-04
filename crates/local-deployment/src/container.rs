@@ -2374,6 +2374,34 @@ impl ContainerService for LocalContainerService {
             })
     }
 
+    async fn send_interactive_message(
+        &self,
+        execution_process: &ExecutionProcess,
+        text: &str,
+    ) -> Result<(), ContainerError> {
+        // Confirm this is an interactive execution (ignore the config payload).
+        Self::interactive_config_of(execution_process)?;
+        let tmux_session = interactive::tmux_session_name(execution_process.id);
+        if !terminal::tmux_has_session(&tmux_session).await {
+            return Err(ContainerError::InteractiveSessionGone);
+        }
+        terminal::tmux_paste_message(&tmux_session, text)
+            .await
+            .map_err(|e| match e {
+                terminal::TerminalError::SessionGone(_) => ContainerError::InteractiveSessionGone,
+                other => ContainerError::Other(anyhow!(other)),
+            })
+    }
+
+    async fn is_interactive_session_live(&self, execution_process: &ExecutionProcess) -> bool {
+        // Only headed (interactive) executions have a tmux session to be live.
+        if Self::interactive_config_of(execution_process).is_err() {
+            return false;
+        }
+        let tmux_session = interactive::tmux_session_name(execution_process.id);
+        terminal::tmux_has_session(&tmux_session).await
+    }
+
     async fn stream_diff(
         &self,
         workspace: &Workspace,

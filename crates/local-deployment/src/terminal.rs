@@ -179,6 +179,48 @@ pub async fn tmux_send_keys(session_name: &str, text: &str) -> Result<(), Termin
     Ok(())
 }
 
+/// Submit a full (possibly multi-line) message into `session_name`'s pane as a
+/// single bracketed-paste block, then press Enter to send it.
+///
+/// Unlike [`tmux_send_keys`], a newline inside `text` does NOT submit the message
+/// mid-way: the `ESC[200~ … ESC[201~` wrappers tell the TUI to treat the whole
+/// block as one paste (the same bytes a real terminal emits when you paste), so a
+/// multi-line prompt lands as one input. A separate `Enter` keystroke then
+/// submits it. Used to deliver an MCP / orchestrator prompt into a live headed
+/// agent without reusing the single-line operator-input guard.
+///
+/// This relies on the TUI having bracketed-paste mode enabled (Claude Code does);
+/// if it is not, the markers would be typed literally.
+pub async fn tmux_paste_message(session_name: &str, text: &str) -> Result<(), TerminalError> {
+    let wrapped = bracketed_paste(text);
+    // Type the wrapped block literally so the ESC bytes reach the pane verbatim.
+    let literal = Command::new("tmux")
+        .args(send_keys_literal_args(session_name, &wrapped))
+        .output()
+        .await
+        .map_err(map_tmux_io_err)?;
+    if !literal.status.success() {
+        return Err(classify_send_keys_err(session_name, &literal.stderr));
+    }
+
+    // Submit with a real Enter keystroke.
+    let enter = Command::new("tmux")
+        .args(send_keys_enter_args(session_name))
+        .output()
+        .await
+        .map_err(map_tmux_io_err)?;
+    if !enter.status.success() {
+        return Err(classify_send_keys_err(session_name, &enter.stderr));
+    }
+    Ok(())
+}
+
+/// Wrap `text` in the bracketed-paste markers a terminal emits around pasted
+/// content (`ESC[200~` … `ESC[201~`).
+fn bracketed_paste(text: &str) -> String {
+    format!("\u{1b}[200~{text}\u{1b}[201~")
+}
+
 /// Send a single Enter keystroke to `session_name`'s pane (no typed text).
 /// Used to confirm/accept the interactive startup prompts (folder-trust, the
 /// dev-channel warning) where the safe option is already the highlighted default.
@@ -424,6 +466,23 @@ mod tests {
                 "Enter".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn bracketed_paste_wraps_multiline_as_single_block() {
+        let text = "line one\nline two\nline three";
+        let wrapped = bracketed_paste(text);
+        // Starts/ends with the paste markers...
+        assert!(wrapped.starts_with("\u{1b}[200~"));
+        assert!(wrapped.ends_with("\u{1b}[201~"));
+        // ...and the original (newlines included) is preserved verbatim between
+        // them, so the TUI inserts it as one multi-line input rather than
+        // submitting on the first newline.
+        assert_eq!(wrapped, format!("\u{1b}[200~{text}\u{1b}[201~"));
+        assert!(wrapped.contains("line one\nline two\nline three"));
+        // The wrapped payload is what gets typed literally (-l) before Enter.
+        let args = send_keys_literal_args("vk-abc", &wrapped);
+        assert_eq!(args.last().unwrap(), &wrapped);
     }
 
     #[test]

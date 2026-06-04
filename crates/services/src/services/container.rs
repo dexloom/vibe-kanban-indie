@@ -858,6 +858,28 @@ pub trait ContainerService {
         Err(ContainerError::NotInteractive)
     }
 
+    /// Submit a full (possibly multi-line) message into an interactive (headed)
+    /// execution's tmux session as a single bracketed-paste block and press
+    /// Enter. Unlike [`Self::send_interactive_input`] (a single-line operator
+    /// keystroke), this is for delivering an orchestrator/MCP prompt into the
+    /// live TUI without the prompt's newlines submitting it mid-message.
+    /// Default: unsupported. Overridden by interactive backends.
+    async fn send_interactive_message(
+        &self,
+        _execution_process: &ExecutionProcess,
+        _text: &str,
+    ) -> Result<(), ContainerError> {
+        Err(ContainerError::NotInteractive)
+    }
+
+    /// Whether an interactive (headed) execution's tmux session is currently
+    /// alive (the process is still attached to a live `vk-<id>` tmux session).
+    /// Used to decide whether a headed follow-up can be delivered in-place rather
+    /// than spawning a new execution. Default: false (no interactive session).
+    async fn is_interactive_session_live(&self, _execution_process: &ExecutionProcess) -> bool {
+        false
+    }
+
     async fn try_commit_changes(&self, ctx: &ExecutionContext) -> Result<bool, ContainerError>;
 
     async fn copy_project_files(

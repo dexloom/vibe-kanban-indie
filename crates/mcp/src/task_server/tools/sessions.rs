@@ -96,11 +96,25 @@ struct ExecutorConfigPayload {
     permission_policy: Option<String>,
 }
 
+/// Backend `POST /api/sessions/{id}/follow-up` response: the execution process
+/// fields are flattened in, plus `delivered_to_live_session`.
+#[derive(Debug, Deserialize)]
+struct FollowUpResult {
+    #[serde(flatten)]
+    execution_process: ExecutionProcess,
+    #[serde(default)]
+    delivered_to_live_session: bool,
+}
+
 #[derive(Debug, Serialize, schemars::JsonSchema)]
 struct RunCodingAgentInSessionResponse {
     session_id: String,
     execution_id: String,
     execution: serde_json::Value,
+    #[schemars(
+        description = "True when the prompt was injected into an already-live Claude Code Headed tmux session (execution_id is that existing live execution, not a new one). False when a fresh execution was started."
+    )]
+    delivered_to_live_session: bool,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -325,7 +339,7 @@ impl McpServer {
     }
 
     #[tool(
-        description = "Run a coding agent turn in an existing session and return immediately with the execution process."
+        description = "Run a coding agent turn in an existing session and return immediately with the execution process. For a Claude Code Headed session that already has a live interactive terminal, the prompt is injected into that running session (its TUI / conversation) instead of starting a second agent; `delivered_to_live_session` is true and `execution_id` is the existing live execution. Otherwise a fresh execution is started."
     )]
     async fn run_session_prompt(
         &self,
@@ -370,14 +384,14 @@ impl McpServer {
         };
 
         let url = self.url(&format!("/api/sessions/{session_id}/follow-up"));
-        let execution_process: ExecutionProcess =
+        let result: FollowUpResult =
             match self.send_json(self.client.post(&url).json(&payload)).await {
                 Ok(value) => value,
                 Err(error_result) => return Ok(Self::tool_error(error_result)),
             };
 
-        let execution_id = execution_process.id.to_string();
-        let execution = match Self::serialize_execution_process(&execution_process) {
+        let execution_id = result.execution_process.id.to_string();
+        let execution = match Self::serialize_execution_process(&result.execution_process) {
             Ok(value) => value,
             Err(error_result) => return Ok(Self::tool_error(error_result)),
         };
@@ -386,6 +400,7 @@ impl McpServer {
             session_id: session_id.to_string(),
             execution_id,
             execution,
+            delivered_to_live_session: result.delivered_to_live_session,
         })
     }
 

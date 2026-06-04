@@ -25,8 +25,8 @@ use executors::{
     interactive::InteractiveTmuxConfig,
     profile::ExecutorConfig,
 };
-use serde::Deserialize;
-use services::services::container::ContainerService;
+use serde::{Deserialize, Serialize};
+use services::services::container::{ContainerError, ContainerService};
 use ts_rs::TS;
 use utils::response::ApiResponse;
 use uuid::Uuid;
@@ -122,11 +122,45 @@ pub struct ResetProcessRequest {
     pub perform_git_reset: Option<bool>,
 }
 
+/// Response for a session follow-up.
+///
+/// Flattens the [`ExecutionProcess`] so existing callers that parse the
+/// execution process directly keep working, and adds `delivered_to_live_session`
+/// so an orchestrator can tell whether the prompt was injected into an
+/// already-live headed tmux session (the returned execution is the *existing*
+/// one) versus a freshly spawned execution.
+#[derive(Debug, Serialize)]
+pub struct FollowUpResponse {
+    #[serde(flatten)]
+    pub execution_process: ExecutionProcess,
+    pub delivered_to_live_session: bool,
+}
+
+/// Whether a headed follow-up should be delivered into an existing live tmux
+/// session instead of spawning a new execution.
+///
+/// True only when (a) the incoming request is itself headed, (b) the session's
+/// latest running coding-agent execution is an interactive (headed) execution
+/// (`candidate_action` carries an `InteractiveTmuxConfig`), and (c) its tmux
+/// session is currently alive. `tmux_alive` is supplied by the container's
+/// liveness check (`tmux_has_session`).
+fn should_deliver_to_live_session(
+    want_interactive: bool,
+    candidate_action: Option<&ExecutorAction>,
+    tmux_alive: bool,
+) -> bool {
+    want_interactive
+        && tmux_alive
+        && candidate_action
+            .map(|action| action.interactive_config().is_some())
+            .unwrap_or(false)
+}
+
 pub async fn follow_up(
     Extension(session): Extension<Session>,
     State(deployment): State<DeploymentImpl>,
     Json(payload): Json<CreateFollowUpAttempt>,
-) -> Result<ResponseJson<ApiResponse<ExecutionProcess>>, ApiError> {
+) -> Result<ResponseJson<ApiResponse<FollowUpResponse>>, ApiError> {
     let pool = &deployment.db().pool;
 
     // Load workspace from session
@@ -210,6 +244,57 @@ pub async fn follow_up(
         None
     };
 
+    // Headed live-delivery gate: when this is a headed follow-up (not a
+    // retry/reset) and the session already has a *live* interactive execution,
+    // inject the prompt into that running tmux/Claude TUI instead of spawning a
+    // second `--resume` agent. Falls back to the normal spawn path when no live
+    // session exists, or if the session dies between the liveness check and the
+    // send (so the prompt is never silently dropped).
+    if want_interactive
+        && payload.retry_process_id.is_none()
+        && let Some(candidate) =
+            ExecutionProcess::find_latest_running_coding_agent_for_session(pool, session.id).await?
+    {
+        let tmux_alive = deployment
+            .container()
+            .is_interactive_session_live(&candidate)
+            .await;
+        let candidate_action = candidate.executor_action().ok();
+        if should_deliver_to_live_session(want_interactive, candidate_action, tmux_alive) {
+            match deployment
+                .container()
+                .send_interactive_message(&candidate, &prompt)
+                .await
+            {
+                Ok(()) => {
+                    // Best-effort: clear the draft follow-up scratch.
+                    if let Err(e) =
+                        Scratch::delete(pool, session.id, &ScratchType::DraftFollowUp).await
+                    {
+                        tracing::debug!(
+                            "Failed to delete draft follow-up scratch for session {}: {}",
+                            session.id,
+                            e
+                        );
+                    }
+                    return Ok(ResponseJson(ApiResponse::success(FollowUpResponse {
+                        execution_process: candidate,
+                        delivered_to_live_session: true,
+                    })));
+                }
+                Err(ContainerError::InteractiveSessionGone) => {
+                    tracing::info!(
+                        "Live headed session for {} vanished before delivery; \
+                         spawning a fresh execution",
+                        session.id
+                    );
+                    // fall through to the normal spawn path
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
+    }
+
     let action_type = if let Some(info) = latest_session_info {
         let is_reset = payload.retry_process_id.is_some();
         ExecutorActionType::CodingAgentFollowUpRequest(CodingAgentFollowUpRequest {
@@ -254,7 +339,10 @@ pub async fn follow_up(
         );
     }
 
-    Ok(ResponseJson(ApiResponse::success(execution_process)))
+    Ok(ResponseJson(ApiResponse::success(FollowUpResponse {
+        execution_process,
+        delivered_to_live_session: false,
+    })))
 }
 
 pub async fn reset_process(
@@ -353,4 +441,63 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .nest("/{session_id}/queue", queue::router(deployment));
 
     Router::new().nest("/sessions", sessions_router)
+}
+
+#[cfg(test)]
+mod tests {
+    use executors::{executors::BaseCodingAgent, interactive::TerminalKind};
+    use uuid::Uuid;
+
+    use super::*;
+
+    fn follow_up_action(interactive: bool) -> ExecutorAction {
+        let interactive = interactive.then(|| InteractiveTmuxConfig {
+            session_uuid: Uuid::new_v4(),
+            terminal: TerminalKind::None,
+        });
+        ExecutorAction::new(
+            ExecutorActionType::CodingAgentFollowUpRequest(CodingAgentFollowUpRequest {
+                prompt: "hi".to_string(),
+                session_id: "claude-session".to_string(),
+                reset_to_message_id: None,
+                executor_config: ExecutorConfig::new(BaseCodingAgent::ClaudeCodeHeaded),
+                working_dir: None,
+                interactive,
+            }),
+            None,
+        )
+    }
+
+    #[test]
+    fn delivers_when_headed_and_tmux_alive_and_candidate_interactive() {
+        let action = follow_up_action(true);
+        assert!(should_deliver_to_live_session(true, Some(&action), true));
+    }
+
+    #[test]
+    fn spawns_when_tmux_not_alive() {
+        // The session died (tmux_has_session == false) → fall back to spawning,
+        // never inject into a dead pane.
+        let action = follow_up_action(true);
+        assert!(!should_deliver_to_live_session(true, Some(&action), false));
+    }
+
+    #[test]
+    fn spawns_when_request_not_headed() {
+        let action = follow_up_action(true);
+        assert!(!should_deliver_to_live_session(false, Some(&action), true));
+    }
+
+    #[test]
+    fn spawns_when_candidate_not_interactive() {
+        // Latest running execution exists but is a headless (non-interactive)
+        // coding agent → there is no live tmux TUI to deliver into.
+        let action = follow_up_action(false);
+        assert!(!should_deliver_to_live_session(true, Some(&action), true));
+    }
+
+    #[test]
+    fn spawns_when_no_candidate() {
+        assert!(!should_deliver_to_live_session(true, None, true));
+    }
 }

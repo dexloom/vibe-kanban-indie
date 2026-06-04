@@ -289,6 +289,41 @@ impl ExecutionProcess {
         Ok(count > 0)
     }
 
+    /// Find the latest running coding-agent execution process for a session.
+    ///
+    /// Used to route a headed follow-up into an already-live interactive session
+    /// (the caller still confirms the action is interactive and its tmux session
+    /// is alive) instead of spawning a second `--resume` agent.
+    pub async fn find_latest_running_coding_agent_for_session(
+        pool: &SqlitePool,
+        session_id: Uuid,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            ExecutionProcess,
+            r#"SELECT
+                    ep.id as "id!: Uuid",
+                    ep.session_id as "session_id!: Uuid",
+                    ep.run_reason as "run_reason!: ExecutionProcessRunReason",
+                    ep.executor_action as "executor_action!: sqlx::types::Json<ExecutorActionField>",
+                    ep.status as "status!: ExecutionProcessStatus",
+                    ep.exit_code,
+                    ep.dropped as "dropped!: bool",
+                    ep.started_at as "started_at!: DateTime<Utc>",
+                    ep.completed_at as "completed_at?: DateTime<Utc>",
+                    ep.created_at as "created_at!: DateTime<Utc>",
+                    ep.updated_at as "updated_at!: DateTime<Utc>"
+               FROM execution_processes ep
+               WHERE ep.session_id = $1
+                 AND ep.status = 'running'
+                 AND ep.run_reason = 'codingagent'
+                 AND ep.dropped = FALSE
+               ORDER BY ep.created_at DESC LIMIT 1"#,
+            session_id
+        )
+        .fetch_optional(pool)
+        .await
+    }
+
     /// Check if there are running processes (excluding dev servers) for a workspace (across all sessions)
     pub async fn has_running_non_dev_server_processes_for_workspace(
         pool: &SqlitePool,
