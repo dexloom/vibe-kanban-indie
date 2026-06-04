@@ -1292,6 +1292,7 @@ impl LocalContainerService {
         executor_action: &ExecutorAction,
         cfg: &InteractiveTmuxConfig,
         current_dir: &Path,
+        branch: &str,
         env: ExecutionEnv,
     ) -> Result<(), ContainerError> {
         {
@@ -1361,9 +1362,20 @@ impl LocalContainerService {
             let bridge_enabled = approvals_enabled || plan_enabled;
 
             // Build the interactive argv (no -p / stream-json; prompt positional).
+            // On an *initial* headed launch with the Telegram channel enabled,
+            // extend the seed prompt so the agent reports progress to its
+            // per-branch channel; the helper owns the `telegram_channel && !resume`
+            // gate, so resumed follow-ups and channel-off sessions get a
+            // byte-identical prompt.
             let session_uuid = cfg.session_uuid.to_string();
+            let effective_prompt = executors::executors::claude::build_headed_seed_prompt(
+                &prompt,
+                telegram_channel,
+                resume,
+                branch,
+            );
             let command = claude
-                .build_interactive_command(&session_uuid, &prompt, resume)
+                .build_interactive_command(&session_uuid, &effective_prompt, resume)
                 .map_err(|e| {
                     ContainerError::Other(anyhow!("Failed to build interactive command: {e}"))
                 })?;
@@ -2156,7 +2168,14 @@ impl ContainerService for LocalContainerService {
                 _ => current_dir.clone(),
             };
             return self
-                .start_detached_tmux(execution_process, executor_action, cfg, &effective_dir, env)
+                .start_detached_tmux(
+                    execution_process,
+                    executor_action,
+                    cfg,
+                    &effective_dir,
+                    &workspace.branch,
+                    env,
+                )
                 .await;
         }
 

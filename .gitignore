@@ -101,3 +101,5 @@ Caddyfile.dev
 
 # Claude Code local session state (locks, scheduled tasks, settings) - never commit
 .claude/
+
+IMPLEMENTATION_PLAN.md

@@ -710,6 +710,42 @@ impl StandardCodingAgentExecutor for ClaudeCode {
 pub const TELEGRAM_CHANNEL_FLAG: &str =
     "--dangerously-load-development-channels=plugin:sombrax-telegram@sombrax-plugins";
 
+/// Reporting directive appended to a headed session's *initial* seed prompt when
+/// the Telegram channel option is enabled. `{branch}` is substituted with the
+/// workspace branch (the same value passed to `TELEGRAM_TOPIC`), so the agent
+/// reports into the channel named after its branch. The leading blank lines keep
+/// the directive visually separated from the task prompt it is appended to.
+const TELEGRAM_REPORT_INSTRUCTION_TEMPLATE: &str = "\n\n---\nReport your progress to BOTH your console/transcript output AND your Telegram channel \"{branch}\" (the channel named after this workspace branch). Post a brief update when you start, at meaningful milestones, and when you finish.";
+
+/// Build the seed prompt for a headed Claude session.
+///
+/// When the Telegram channel option is enabled **and** this is the initial launch
+/// (`!resume`), append [`TELEGRAM_REPORT_INSTRUCTION_TEMPLATE`] (with `branch`
+/// substituted) telling the agent to report progress to both its console and its
+/// per-branch Telegram channel. In every other case — option off, a resumed
+/// follow-up, etc. — the prompt is returned **byte-identical**.
+///
+/// The helper owns the full `telegram_channel && !resume` gate so the call site
+/// stays trivial and one unit test proves the composed behavior end-to-end. It
+/// builds a fresh, temporary [`AppendPrompt`] purely to reuse `combine_prompt`;
+/// it deliberately does **not** apply the user-configured `claude.append_prompt`
+/// (interactive headed commands already ignore that field).
+pub fn build_headed_seed_prompt(
+    prompt: &str,
+    telegram_channel: bool,
+    resume: bool,
+    branch: &str,
+) -> String {
+    // Only the *initial* launch (`!resume`) with the option on gets the
+    // instruction; every other case returns the prompt byte-identical.
+    if telegram_channel && !resume {
+        let instruction = TELEGRAM_REPORT_INSTRUCTION_TEMPLATE.replace("{branch}", branch);
+        AppendPrompt(Some(instruction)).combine_prompt(prompt)
+    } else {
+        prompt.to_string()
+    }
+}
+
 #[derive(Derivative, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[derivative(Debug, PartialEq)]
 pub struct ClaudeCodeHeaded {
@@ -3051,6 +3087,33 @@ mod tests {
             reasoning_id: None,
             permission_policy: None,
         }
+    }
+
+    #[test]
+    fn headed_seed_prompt_telegram_gate_truth_table() {
+        const BASE: &str = "Implement the feature.";
+        const BRANCH: &str = "vk/9999-foo";
+
+        // (telegram_channel = true, resume = false): initial seed launch with the
+        // option on -> the reporting instruction is appended.
+        let enabled = build_headed_seed_prompt(BASE, true, false, BRANCH);
+        let expected = format!(
+            "{BASE}{}",
+            TELEGRAM_REPORT_INSTRUCTION_TEMPLATE.replace("{branch}", BRANCH)
+        );
+        assert_eq!(enabled, expected);
+        // The literal branch name and the reporting directive must both be present.
+        assert!(enabled.contains("vk/9999-foo"));
+        assert!(enabled.contains(
+            "Report your progress to BOTH your console/transcript output AND your Telegram channel"
+        ));
+
+        // Every other combination returns the prompt byte-identical.
+        // (true, resume = true): a resumed follow-up -> NOT appended (initial-only).
+        assert_eq!(build_headed_seed_prompt(BASE, true, true, BRANCH), BASE);
+        // (false, _): option off -> never appended, regardless of resume.
+        assert_eq!(build_headed_seed_prompt(BASE, false, false, BRANCH), BASE);
+        assert_eq!(build_headed_seed_prompt(BASE, false, true, BRANCH), BASE);
     }
 
     #[test]
