@@ -17,7 +17,6 @@ import { isTauriMac } from '@/shared/lib/platform';
 
 import { NavbarContainer } from './NavbarContainer';
 import { AppBar, type AppBarHostStatus } from '@vibe/ui/components/AppBar';
-import { FeatherCaret } from '@vibe/ui/components/Logo';
 import { MobileDrawer } from '@vibe/ui/components/MobileDrawer';
 import { AppBarUserPopoverContainer } from './AppBarUserPopoverContainer';
 import { useUserOrganizations } from '@/shared/hooks/useUserOrganizations';
@@ -303,14 +302,12 @@ export function SharedAppLayout() {
       >
         {!isMobile && (
           <>
-            {/* Desktop corner spacer — Feather Caret brand mark above the icon rail. */}
+            {/* Desktop corner spacer (top of the full-height left rail). */}
             <div
               data-tauri-drag-region
-              className="bg-secondary flex items-center justify-center"
+              className="bg-secondary"
               style={isTauriMac() ? { minWidth: 56 } : undefined}
-            >
-              <FeatherCaret size={22} className="text-brand" />
-            </div>
+            />
             {/* Desktop navbar. */}
             <NavbarContainer
               onOrgSelect={setSelectedOrgId}

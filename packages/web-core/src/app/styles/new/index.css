@@ -7,6 +7,9 @@
 /* Disable macOS elastic overscroll bounce (visible in Tauri desktop app) */
 html {
   overscroll-behavior: none;
+  /* App-wide text scale: shrink all rem-based type/spacing for a denser UI.
+     Fixed-px elements (e.g. the brand logo) keep their original size. */
+  font-size: 87.5%;
 }
 
 /* 1) THEME TOKENS */

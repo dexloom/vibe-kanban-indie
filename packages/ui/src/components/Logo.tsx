@@ -40,24 +40,24 @@ export function FeatherCaret({
 
 /**
  * The VIBE KANBAN wordmark with the bordered INDIE tag, on a single line.
- * Header tier (VIBE / KANBAN) and the INDIE tag are kept deliberately
- * small so the lockup stays compact in the navbar.
+ * Sizes are fixed in px (matching the original design lockup) so the
+ * wordmark keeps its size even when the app's root font scale changes.
  */
 export function BrandWordmark({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        'flex items-baseline gap-1.5 font-ibm-plex-mono select-none',
+        'flex items-baseline gap-2.5 font-ibm-plex-mono select-none',
         className
       )}
     >
-      <span className="text-[13px] font-extrabold leading-none tracking-[0.12em] text-high">
+      <span className="text-[21px] font-extrabold leading-none tracking-[0.14em] text-high">
         VIBE
       </span>
-      <span className="text-[13px] font-extrabold leading-none tracking-[0.12em] text-brand">
+      <span className="text-[21px] font-extrabold leading-none tracking-[0.14em] text-brand">
         KANBAN
       </span>
-      <span className="self-center rounded-[2px] border border-border px-1 py-px text-[7px] font-semibold leading-none tracking-[0.25em] text-low">
+      <span className="self-center rounded-[3px] border border-border px-1.5 py-0.5 text-[9px] font-semibold leading-none tracking-[0.3em] text-low">
         INDIE
       </span>
     </span>
@@ -66,12 +66,12 @@ export function BrandWordmark({ className }: { className?: string }) {
 
 /**
  * Full lockup: feather caret beside the wordmark. Used where both the
- * mark and the wordmark should appear together.
+ * mark and the wordmark should appear together (e.g. the header rail).
  */
 export function BrandLockup({ className }: { className?: string }) {
   return (
-    <span className={cn('flex items-center gap-2', className)}>
-      <FeatherCaret size={20} className="text-brand" />
+    <span className={cn('flex items-center gap-3', className)}>
+      <FeatherCaret size={32} className="text-brand" />
       <BrandWordmark />
     </span>
   );
