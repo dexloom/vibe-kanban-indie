@@ -20,6 +20,7 @@ import { IssueCommentsSectionContainer } from './IssueCommentsSectionContainer';
 import { IssueSubIssuesSectionContainer } from './IssueSubIssuesSectionContainer';
 import { IssueRelationshipsSectionContainer } from './IssueRelationshipsSectionContainer';
 import { IssueWorkspacesSectionContainer } from './IssueWorkspacesSectionContainer';
+import { IssueIntakeSection } from './IssueIntakeSection';
 import {
   KanbanIssuePanel,
   type IssueFormData,
@@ -338,6 +339,13 @@ export function KanbanIssuePanelContainer({
     displayData.description ?? null
   );
   latestDescriptionRef.current = displayData.description ?? null;
+
+  // Provenance from a "Generate spec" run, stashed until the card is created.
+  // Keyed by composer key so switching/closing the composer resets it.
+  const intakeMetadataRef = useRef<unknown>(null);
+  useEffect(() => {
+    intakeMetadataRef.current = null;
+  }, [issueComposerKey]);
 
   const isCreateDraftDirty = useMemo(() => {
     return selectIsCreateDraftDirty({
@@ -814,6 +822,21 @@ export function KanbanIssuePanelContainer({
     ]
   );
 
+  // Fill the title/description from a generated spec and stash its provenance
+  // so it lands in the issue's extension_metadata when the card is created.
+  const handleSpecGenerated = useCallback(
+    (title: string, description: string, intakeMetadata: unknown) => {
+      intakeMetadataRef.current = intakeMetadata;
+      latestDescriptionRef.current = description;
+      void handlePropertyChange('title', title);
+      void handlePropertyChange(
+        'description',
+        description as IssueFormData['description']
+      );
+    },
+    [handlePropertyChange]
+  );
+
   // Submit handler
   const handleSubmit = useCallback(async () => {
     if (!displayData.title.trim() || hasPendingAttachments) return;
@@ -842,11 +865,13 @@ export function KanbanIssuePanelContainer({
           completed_at: null,
           parent_issue_id: kanbanCreateDefaultParentIssueId,
           parent_issue_sort_order: null,
-          extension_metadata: null,
+          extension_metadata: intakeMetadataRef.current ?? {},
         });
 
         // Wait for the issue to be confirmed by the backend and get the synced entity
         const syncedIssue = await persisted;
+        // Provenance consumed; clear it so a subsequent card doesn't inherit it.
+        intakeMetadataRef.current = null;
 
         // Commit only attachments still referenced in the description
         const allUploadedIds = getAttachmentIds();
@@ -972,6 +997,7 @@ export function KanbanIssuePanelContainer({
   }, [mode, handleSubmit]);
 
   const handleDeleteDraft = useCallback(() => {
+    intakeMetadataRef.current = null;
     dispatchFormState({
       type: 'setCreateFormData',
       createFormData: createModeDefaults,
@@ -1095,6 +1121,13 @@ export function KanbanIssuePanelContainer({
       onDismissAttachmentError={clearUploadError}
       renderDescriptionEditor={(props) => (
         <WYSIWYGEditor {...props} localAttachments={localAttachments} />
+      )}
+      renderIntake={() => (
+        <IssueIntakeSection
+          projectId={projectId}
+          disabled={isSubmitting}
+          onGenerated={handleSpecGenerated}
+        />
       )}
       renderWorkspacesSection={(issueId) => (
         <IssueWorkspacesSectionContainer issueId={issueId} />

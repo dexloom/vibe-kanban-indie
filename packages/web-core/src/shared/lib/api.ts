@@ -89,6 +89,8 @@ import {
   CreateFromPrError,
   CreateAndStartWorkspaceRequest,
   CreateAndStartWorkspaceResponse,
+  GenerateSpecRequest,
+  GenerateSpecResponse,
   RelayPairedClient,
   ListRelayPairedClientsResponse,
   RemoveRelayPairedClientResponse,
@@ -399,6 +401,37 @@ export const sessionsApi = {
 };
 
 // Workspace APIs
+export const specApi = {
+  /**
+   * Expand a rough brief into a development-ready technical task by running a
+   * coding agent in a throwaway multi-repo workspace. Long-running (~20-60s);
+   * the client timeout (180s) strictly exceeds the 120s server timeout so the
+   * server's own timeout error surfaces rather than a client abort.
+   */
+  generate: async (
+    data: GenerateSpecRequest,
+    signal?: AbortSignal
+  ): Promise<GenerateSpecResponse> => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 180_000);
+    if (signal) {
+      signal.addEventListener('abort', () => controller.abort(), {
+        once: true,
+      });
+    }
+    try {
+      const response = await makeRequest(`/api/spec/generate`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+        signal: controller.signal,
+      });
+      return handleApiResponse<GenerateSpecResponse>(response);
+    } finally {
+      clearTimeout(timeout);
+    }
+  },
+};
+
 export const workspacesApi = {
   createAndStart: async (
     data: CreateAndStartWorkspaceRequest

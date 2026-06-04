@@ -1336,6 +1336,68 @@ pub trait ContainerService {
         Ok(execution_process)
     }
 
+    /// Start a single coding-agent run in this workspace WITHOUT repo setup or
+    /// cleanup scripts, returning the coding-agent execution process directly.
+    ///
+    /// Unlike [`start_workspace`], this never chains setup/cleanup actions, so
+    /// the returned `ExecutionProcess` is always the coding agent itself (not a
+    /// setup-script process). Used by the spec-intake flow, where the workspace
+    /// is ephemeral and we only want the agent's text output. Setup/cleanup
+    /// scripts would be unnecessary and potentially side-effecting here.
+    async fn start_oneshot_coding_agent(
+        &self,
+        workspace: &Workspace,
+        executor_config: ExecutorConfig,
+        prompt: String,
+    ) -> Result<ExecutionProcess, ContainerError> {
+        // Create container (worktrees)
+        self.create(workspace).await?;
+
+        let workspace = Workspace::find_by_id(&self.db().pool, workspace.id)
+            .await?
+            .ok_or(SqlxError::RowNotFound)?;
+
+        let session = Session::create(
+            &self.db().pool,
+            &CreateSession {
+                executor: Some(executor_config.executor.to_string()),
+                name: None,
+            },
+            Uuid::new_v4(),
+            workspace.id,
+        )
+        .await?;
+
+        let working_dir = session
+            .agent_working_dir
+            .as_ref()
+            .filter(|dir| !dir.is_empty())
+            .cloned();
+
+        // Always headless: the spec-intake allowlist excludes interactive
+        // executors, so no InteractiveTmuxConfig.
+        let coding_action = ExecutorAction::new(
+            ExecutorActionType::CodingAgentInitialRequest(CodingAgentInitialRequest {
+                prompt,
+                executor_config,
+                working_dir,
+                interactive: None,
+            }),
+            None,
+        );
+
+        let execution_process = self
+            .start_execution(
+                &workspace,
+                &session,
+                &coding_action,
+                &ExecutionProcessRunReason::CodingAgent,
+            )
+            .await?;
+
+        Ok(execution_process)
+    }
+
     async fn start_execution(
         &self,
         workspace: &Workspace,

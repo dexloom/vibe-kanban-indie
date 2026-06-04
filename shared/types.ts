@@ -156,9 +156,21 @@ export type CreateScratch = { payload: ScratchPayload, };
 
 export type UpdateScratch = { payload: ScratchPayload, };
 
-export type Workspace = { id: string, task_id: string | null, container_ref: string | null, branch: string, setup_completed_at: string | null, created_at: string, updated_at: string, archived: boolean, pinned: boolean, name: string | null, worktree_deleted: boolean, };
+export type Workspace = { id: string, task_id: string | null, container_ref: string | null, branch: string, setup_completed_at: string | null, created_at: string, updated_at: string, archived: boolean, pinned: boolean, name: string | null, worktree_deleted: boolean, 
+/**
+ * Throwaway workspace (e.g. spec-intake generation). Excluded from list/
+ * kanban queries and event streams; skips normal finalize side effects;
+ * reaped on startup.
+ */
+ephemeral: boolean, };
 
-export type WorkspaceWithStatus = { is_running: boolean, is_errored: boolean, id: string, task_id: string | null, container_ref: string | null, branch: string, setup_completed_at: string | null, created_at: string, updated_at: string, archived: boolean, pinned: boolean, name: string | null, worktree_deleted: boolean, };
+export type WorkspaceWithStatus = { is_running: boolean, is_errored: boolean, id: string, task_id: string | null, container_ref: string | null, branch: string, setup_completed_at: string | null, created_at: string, updated_at: string, archived: boolean, pinned: boolean, name: string | null, worktree_deleted: boolean, 
+/**
+ * Throwaway workspace (e.g. spec-intake generation). Excluded from list/
+ * kanban queries and event streams; skips normal finalize side effects;
+ * reaped on startup.
+ */
+ephemeral: boolean, };
 
 export type Session = { id: string, workspace_id: string, name: string | null, executor: string | null, agent_working_dir: string | null, created_at: string, updated_at: string, };
 
@@ -433,6 +445,34 @@ export type GetPrCommentsQuery = { repo_id: string, };
 export type CreateAndStartWorkspaceRequest = { name: string | null, repos: Array<WorkspaceRepoInput>, linked_issue: LinkedIssueInfo | null, executor_config: ExecutorConfig, prompt: string, attachment_ids: Array<string> | null, };
 
 export type CreateAndStartWorkspaceResponse = { workspace: Workspace, execution_process: ExecutionProcess, };
+
+export type GenerateSpecRequest = { 
+/**
+ * Project the card will belong to. Provenance/context only — the local
+ * backend does not validate remote repo membership against it.
+ */
+project_id: string, 
+/**
+ * The rough, minimal task brief from the user.
+ */
+brief: string, 
+/**
+ * Selected agent parameters (executor/variant/model), same shape as
+ * the create-workspace flow.
+ */
+executor_config: ExecutorConfig, 
+/**
+ * Repos (with target branch) to mount in the ephemeral workspace so the
+ * agent can explore the codebase.
+ */
+repos: Array<WorkspaceRepoInput>, };
+
+export type GenerateSpecResponse = { title: string, description: string, 
+/**
+ * `{ "intake": { brief, executor_config, repos } }` — drop verbatim into
+ * `CreateIssueRequest.extension_metadata`.
+ */
+intake_metadata: JsonValue, };
 
 export type UnifiedPrComment = { "comment_type": "general", id: string, author: string, author_association: string | null, body: string, created_at: string, url: string | null, } | { "comment_type": "review", id: bigint, author: string, author_association: string | null, body: string, created_at: string, url: string | null, path: string, line: bigint | null, side: string | null, diff_hunk: string | null, };
 

@@ -49,6 +49,8 @@ impl EventService {
         if let Some(session) = Session::find_by_id(pool, session_id).await?
             && let Some(workspace_with_status) =
                 Workspace::find_by_id_with_status(pool, session.workspace_id).await?
+            // Ephemeral workspaces (e.g. spec-intake) never surface in the live UI.
+            && !workspace_with_status.ephemeral
         {
             msg_store.push_patch(workspace_patch::replace(&workspace_with_status));
         }
@@ -207,6 +209,11 @@ impl EventService {
                                     return;
                                 }
                                 RecordTypes::Workspace(workspace) => {
+                                    // Ephemeral workspaces (e.g. spec-intake) are
+                                    // throwaway and must never surface in the live UI.
+                                    if workspace.ephemeral {
+                                        return;
+                                    }
                                     // Emit workspace patch with status
                                     if let Ok(Some(workspace_with_status)) =
                                         Workspace::find_by_id_with_status(&db.pool, workspace.id)

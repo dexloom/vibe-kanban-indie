@@ -329,6 +329,12 @@ async fn proxy_request(
         }
     }
 
+    // Inject a trusted relay marker AFTER stripping any client-provided value
+    // above. The backend uses this to reject requests that must not run over a
+    // relay (e.g. long-running spec-intake generation that exceeds the relay's
+    // 30s request timeout). The relay-tunnel transport sets the same header.
+    req_builder = req_builder.header("x-vk-relayed", "1");
+
     if let Some(body_b64) = &request.body_b64 {
         use base64::Engine as _;
         match base64::engine::general_purpose::STANDARD.decode(body_b64) {

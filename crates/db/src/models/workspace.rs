@@ -51,6 +51,10 @@ pub struct Workspace {
     pub pinned: bool,
     pub name: Option<String>,
     pub worktree_deleted: bool,
+    /// Throwaway workspace (e.g. spec-intake generation). Excluded from list/
+    /// kanban queries and event streams; skips normal finalize side effects;
+    /// reaped on startup.
+    pub ephemeral: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -102,7 +106,8 @@ impl Workspace {
                           archived AS "archived!: bool",
                           pinned AS "pinned!: bool",
                           name,
-                          worktree_deleted AS "worktree_deleted!: bool"
+                          worktree_deleted AS "worktree_deleted!: bool",
+                          ephemeral AS "ephemeral!: bool"
                    FROM workspaces
                    ORDER BY created_at DESC"#
         )
@@ -204,7 +209,8 @@ impl Workspace {
                        archived          AS "archived!: bool",
                        pinned            AS "pinned!: bool",
                        name,
-                       worktree_deleted  AS "worktree_deleted!: bool"
+                       worktree_deleted  AS "worktree_deleted!: bool",
+                       ephemeral         AS "ephemeral!: bool"
                FROM    workspaces
                WHERE   id = $1"#,
             id
@@ -226,7 +232,8 @@ impl Workspace {
                        archived          AS "archived!: bool",
                        pinned            AS "pinned!: bool",
                        name,
-                       worktree_deleted  AS "worktree_deleted!: bool"
+                       worktree_deleted  AS "worktree_deleted!: bool",
+                       ephemeral         AS "ephemeral!: bool"
                FROM    workspaces
                WHERE   rowid = $1"#,
             rowid
@@ -269,7 +276,8 @@ impl Workspace {
                 w.archived as "archived!: bool",
                 w.pinned as "pinned!: bool",
                 w.name,
-                w.worktree_deleted as "worktree_deleted!: bool"
+                w.worktree_deleted as "worktree_deleted!: bool",
+                w.ephemeral as "ephemeral!: bool"
             FROM workspaces w
             LEFT JOIN sessions s ON w.id = s.workspace_id
             LEFT JOIN execution_processes ep ON s.id = ep.session_id AND ep.completed_at IS NOT NULL
@@ -317,7 +325,7 @@ impl Workspace {
             Workspace,
             r#"INSERT INTO workspaces (id, task_id, container_ref, branch, setup_completed_at, name)
                VALUES ($1, $2, $3, $4, $5, $6)
-               RETURNING id as "id!: Uuid", task_id as "task_id: Uuid", container_ref, branch, setup_completed_at as "setup_completed_at: DateTime<Utc>", created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>", archived as "archived!: bool", pinned as "pinned!: bool", name, worktree_deleted as "worktree_deleted!: bool""#,
+               RETURNING id as "id!: Uuid", task_id as "task_id: Uuid", container_ref, branch, setup_completed_at as "setup_completed_at: DateTime<Utc>", created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>", archived as "archived!: bool", pinned as "pinned!: bool", name, worktree_deleted as "worktree_deleted!: bool", ephemeral as "ephemeral!: bool""#,
             id,
             Option::<Uuid>::None,
             Option::<String>::None,
@@ -327,6 +335,56 @@ impl Workspace {
         )
         .fetch_one(pool)
         .await?)
+    }
+
+    /// Create a throwaway (ephemeral) workspace, e.g. for spec-intake spec
+    /// generation. Excluded from list/kanban queries and event streams; reaped
+    /// on startup. Normal workspace creation must never set this.
+    pub async fn create_ephemeral(
+        pool: &SqlitePool,
+        data: &CreateWorkspace,
+        id: Uuid,
+    ) -> Result<Self, WorkspaceError> {
+        Ok(sqlx::query_as!(
+            Workspace,
+            r#"INSERT INTO workspaces (id, task_id, container_ref, branch, setup_completed_at, name, ephemeral)
+               VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+               RETURNING id as "id!: Uuid", task_id as "task_id: Uuid", container_ref, branch, setup_completed_at as "setup_completed_at: DateTime<Utc>", created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>", archived as "archived!: bool", pinned as "pinned!: bool", name, worktree_deleted as "worktree_deleted!: bool", ephemeral as "ephemeral!: bool""#,
+            id,
+            Option::<Uuid>::None,
+            Option::<String>::None,
+            data.branch,
+            Option::<DateTime<Utc>>::None,
+            data.name
+        )
+        .fetch_one(pool)
+        .await?)
+    }
+
+    /// Find all ephemeral workspaces (used by the startup reaper).
+    pub async fn find_ephemeral(pool: &SqlitePool) -> Result<Vec<Self>, WorkspaceError> {
+        let workspaces = sqlx::query_as!(
+            Workspace,
+            r#"SELECT id AS "id!: Uuid",
+                      task_id AS "task_id: Uuid",
+                      container_ref,
+                      branch,
+                      setup_completed_at AS "setup_completed_at: DateTime<Utc>",
+                      created_at AS "created_at!: DateTime<Utc>",
+                      updated_at AS "updated_at!: DateTime<Utc>",
+                      archived AS "archived!: bool",
+                      pinned AS "pinned!: bool",
+                      name,
+                      worktree_deleted AS "worktree_deleted!: bool",
+                      ephemeral AS "ephemeral!: bool"
+               FROM workspaces
+               WHERE ephemeral = TRUE"#
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(WorkspaceError::Database)?;
+
+        Ok(workspaces)
     }
 
     pub async fn update_branch_name(
@@ -514,6 +572,7 @@ impl Workspace {
                 w.pinned AS "pinned!: bool",
                 w.name,
                 w.worktree_deleted AS "worktree_deleted!: bool",
+                w.ephemeral AS "ephemeral!: bool",
 
                 CASE WHEN EXISTS (
                     SELECT 1
@@ -536,6 +595,7 @@ impl Workspace {
                 ) IN ('failed','killed') THEN 1 ELSE 0 END AS "is_errored!: i64"
 
             FROM workspaces w
+            WHERE w.ephemeral = FALSE
             ORDER BY w.updated_at DESC"#
         )
         .fetch_all(pool)
@@ -556,6 +616,7 @@ impl Workspace {
                     pinned: rec.pinned,
                     name: rec.name,
                     worktree_deleted: rec.worktree_deleted,
+                    ephemeral: rec.ephemeral,
                 },
                 is_running: rec.is_running != 0,
                 is_errored: rec.is_errored != 0,
@@ -608,6 +669,7 @@ impl Workspace {
                 w.pinned AS "pinned!: bool",
                 w.name,
                 w.worktree_deleted AS "worktree_deleted!: bool",
+                w.ephemeral AS "ephemeral!: bool",
 
                 CASE WHEN EXISTS (
                     SELECT 1
@@ -653,6 +715,7 @@ impl Workspace {
                 pinned: rec.pinned,
                 name: rec.name,
                 worktree_deleted: rec.worktree_deleted,
+                ephemeral: rec.ephemeral,
             },
             is_running: rec.is_running != 0,
             is_errored: rec.is_errored != 0,
@@ -672,9 +735,77 @@ impl Workspace {
 
 #[cfg(test)]
 mod tests {
+    use sqlx::sqlite::SqlitePoolOptions;
     use uuid::Uuid;
 
-    use super::Workspace;
+    use super::{CreateWorkspace, SqlitePool, Workspace};
+
+    async fn pool() -> SqlitePool {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        pool
+    }
+
+    #[tokio::test]
+    async fn create_marks_normal_workspace_non_ephemeral() {
+        let pool = pool().await;
+        let ws = Workspace::create(
+            &pool,
+            &CreateWorkspace {
+                branch: "vk/normal".to_string(),
+                name: Some("normal".to_string()),
+            },
+            Uuid::new_v4(),
+        )
+        .await
+        .unwrap();
+        assert!(!ws.ephemeral);
+    }
+
+    #[tokio::test]
+    async fn ephemeral_workspaces_are_flagged_findable_and_excluded_from_list() {
+        let pool = pool().await;
+
+        let normal = Workspace::create(
+            &pool,
+            &CreateWorkspace {
+                branch: "vk/normal".to_string(),
+                name: Some("normal".to_string()),
+            },
+            Uuid::new_v4(),
+        )
+        .await
+        .unwrap();
+
+        let ephemeral = Workspace::create_ephemeral(
+            &pool,
+            &CreateWorkspace {
+                branch: "vk/spec-intake".to_string(),
+                name: Some("spec-intake".to_string()),
+            },
+            Uuid::new_v4(),
+        )
+        .await
+        .unwrap();
+        assert!(ephemeral.ephemeral);
+
+        // find_ephemeral returns only the ephemeral workspace.
+        let found = Workspace::find_ephemeral(&pool).await.unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].id, ephemeral.id);
+
+        // The kanban/UI list excludes ephemeral workspaces.
+        let listed = Workspace::find_all_with_status(&pool, None, None)
+            .await
+            .unwrap();
+        let listed_ids: Vec<Uuid> = listed.iter().map(|w| w.workspace.id).collect();
+        assert!(listed_ids.contains(&normal.id));
+        assert!(!listed_ids.contains(&ephemeral.id));
+    }
 
     #[test]
     fn best_matching_container_ref_prefers_deepest_match() {

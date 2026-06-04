@@ -121,6 +121,11 @@ export interface KanbanIssuePanelProps {
     props: KanbanIssueDescriptionEditorProps
   ) => ReactNode;
 
+  // Optional "Generate spec" intake controls, rendered in create mode only
+  // (brief input + agent/repo selectors + Generate button). Logic lives in the
+  // container; this is just a render slot.
+  renderIntake?: () => ReactNode;
+
   // Loading states
   isSubmitting?: boolean;
 
@@ -178,6 +183,7 @@ export function KanbanIssuePanel({
   onCreateTag,
   renderAddTagControl,
   renderDescriptionEditor,
+  renderIntake,
   isSubmitting,
   descriptionSaveStatus,
   titleInputRef,
@@ -484,6 +490,9 @@ export function KanbanIssuePanel({
             )}
           </div>
         </div>
+
+        {/* "Generate spec" intake controls (Create mode only) */}
+        {isCreateMode && renderIntake && renderIntake()}
 
         {/* Create Draft Workspace Toggle (Create mode only) */}
         {isCreateMode && (
