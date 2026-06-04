@@ -68,7 +68,10 @@ impl McpServer {
     pub fn orchestrator_mode_router() -> rmcp::handler::server::tool::ToolRouter<Self> {
         let mut router = Self::context_tools_router()
             + Self::workspaces_tools_router()
-            + Self::session_tools_router();
+            + Self::session_tools_router()
+            // Orchestrators need to answer questions / approve plans (and stop
+            // runaway executions) for the headed agents they drive.
+            + Self::approvals_tools_router();
         router.remove_route("list_workspaces");
         router.remove_route("delete_workspace");
         router

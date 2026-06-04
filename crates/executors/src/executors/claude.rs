@@ -739,18 +739,37 @@ impl ClaudeCodeHeaded {
 
 /// Build the `--settings` JSON that wires a `PreToolUse` **command** hook into a
 /// headed session, routing tool approvals through `hook_command` (e.g. a `curl`
-/// to vibe-kanban's headed-approval endpoint). The matcher mirrors the headless
-/// "approvals" (Supervised) deny-list — everything except safe read-only tools
-/// requires approval — so headed and headless gate the same set of tools.
+/// to vibe-kanban's headed-approval endpoint).
+///
+/// The matcher mirrors the corresponding headless [`ClaudeCode::get_hooks`] mode:
+/// - **plan** (`plan == true`): only `ExitPlanMode`/`AskUserQuestion` are gated —
+///   everything else auto-runs (and `--permission-mode=plan` already blocks
+///   mutations), so the operator answers plan questions / plan approval through
+///   vibe-kanban instead of the in-TUI prompt.
+/// - **approvals** (Supervised, `plan == false`): the deny-list gates everything
+///   except safe read-only tools, matching the headless "approvals" set.
 ///
 /// Returned as a value; the caller serializes it and passes it as the single
 /// argument to `--settings`.
-pub fn headed_approval_settings(hook_command: &str) -> serde_json::Value {
+pub fn headed_approval_settings(hook_command: &str, plan: bool) -> serde_json::Value {
+    let matcher = if plan {
+        "^(ExitPlanMode|AskUserQuestion)$"
+    } else {
+        "^(?!(Glob|Grep|NotebookRead|Read|Task|TodoWrite)$).*"
+    };
+    // Pin the hook's own timeout to the approval-store deadline so Claude waits
+    // exactly as long as the parked request can live (the operator may take a
+    // while to answer). Without this, Claude's default 600s hook timeout would
+    // fire first, drop to the in-TUI prompt, and leave a stale pending entry.
     serde_json::json!({
         "hooks": {
             "PreToolUse": [{
-                "matcher": "^(?!(Glob|Grep|NotebookRead|Read|Task|TodoWrite)$).*",
-                "hooks": [{ "type": "command", "command": hook_command }]
+                "matcher": matcher,
+                "hooks": [{
+                    "type": "command",
+                    "command": hook_command,
+                    "timeout": workspace_utils::approvals::APPROVAL_TIMEOUT_SECONDS,
+                }]
             }]
         }
     })
@@ -3386,7 +3405,8 @@ mod tests {
 
     #[test]
     fn headed_approval_settings_embeds_command_and_denylist_matcher() {
-        let settings = headed_approval_settings("curl -sS http://x/req --data-binary @-");
+        // approvals (Supervised) mode: plan == false.
+        let settings = headed_approval_settings("curl -sS http://x/req --data-binary @-", false);
         let hook = &settings["hooks"]["PreToolUse"][0];
         // Deny-list matcher mirrors the headless "approvals" mode: safe read-only
         // tools are excluded, everything else is gated.
@@ -3395,6 +3415,21 @@ mod tests {
         assert!(matcher.contains("Grep"));
         assert!(matcher.starts_with("^(?!"));
         // The command hook carries our exact curl invocation.
+        let cmd = hook["hooks"][0]["command"].as_str().unwrap();
+        assert_eq!(cmd, "curl -sS http://x/req --data-binary @-");
+        assert_eq!(hook["hooks"][0]["type"].as_str().unwrap(), "command");
+    }
+
+    #[test]
+    fn headed_approval_settings_plan_mode_gates_only_plan_and_question_tools() {
+        // plan mode: only ExitPlanMode/AskUserQuestion are gated (everything else
+        // auto-runs; `--permission-mode=plan` already blocks mutations), mirroring
+        // the headless plan-mode `get_hooks` matcher.
+        let settings = headed_approval_settings("curl -sS http://x/req --data-binary @-", true);
+        let hook = &settings["hooks"]["PreToolUse"][0];
+        let matcher = hook["matcher"].as_str().unwrap();
+        assert_eq!(matcher, "^(ExitPlanMode|AskUserQuestion)$");
+        // Same command-hook wiring regardless of mode.
         let cmd = hook["hooks"][0]["command"].as_str().unwrap();
         assert_eq!(cmd, "curl -sS http://x/req --data-binary @-");
         assert_eq!(hook["hooks"][0]["type"].as_str().unwrap(), "command");

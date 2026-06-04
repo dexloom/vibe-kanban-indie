@@ -1348,12 +1348,17 @@ impl LocalContainerService {
             };
 
             // Headed approval bridge: when the session runs in approvals
-            // (Supervised) mode, gate tool use through a PreToolUse command hook
-            // that calls back into vibe-kanban so approvals surface in the web UI
-            // (same store/UI as the headless path). Auto/bypass sessions are
-            // unaffected. `permission_mode()` already returns Default here, so the
-            // interactive command is built with `--permission-mode=default`.
+            // (Supervised) OR plan mode, gate tool use through a PreToolUse command
+            // hook that calls back into vibe-kanban so approvals/questions surface
+            // in the web UI (same store/UI as the headless path). Auto/bypass
+            // sessions are unaffected. In approvals mode `permission_mode()` returns
+            // Default (`--permission-mode=default`) and the deny-list matcher gates
+            // everything but read-only tools; in plan mode it returns Plan
+            // (`--permission-mode=plan`) and only ExitPlanMode/AskUserQuestion are
+            // gated (see `headed_approval_settings`).
             let approvals_enabled = claude.approvals.unwrap_or(false);
+            let plan_enabled = claude.plan.unwrap_or(false);
+            let bridge_enabled = approvals_enabled || plan_enabled;
 
             // Build the interactive argv (no -p / stream-json; prompt positional).
             let session_uuid = cfg.session_uuid.to_string();
@@ -1386,7 +1391,7 @@ impl LocalContainerService {
             // `command` hook is run via `sh -c "$cmd"` and a nested `$VAR` inside
             // would not be re-expanded. The backend port is discovered from the
             // port file the server writes at startup.
-            if approvals_enabled {
+            if bridge_enabled {
                 match utils::port_file::read_port_file("vibe-kanban").await {
                     Ok(port) => {
                         let url = format!(
@@ -1396,19 +1401,21 @@ impl LocalContainerService {
                             "curl -sS -X POST {url} --data-binary @- --max-time {}",
                             utils::approvals::APPROVAL_TIMEOUT_SECONDS
                         );
-                        let settings =
-                            executors::executors::claude::headed_approval_settings(&hook_cmd)
-                                .to_string();
+                        let settings = executors::executors::claude::headed_approval_settings(
+                            &hook_cmd,
+                            plan_enabled,
+                        )
+                        .to_string();
                         let pos = argv.len().saturating_sub(1);
                         argv.insert(pos, settings);
                         argv.insert(pos, "--settings".to_string());
                     }
                     Err(e) => {
-                        // Without the port we cannot wire approvals; fall back to
+                        // Without the port we cannot wire the bridge; fall back to
                         // the TUI's own prompts rather than failing the spawn.
                         tracing::warn!(
-                            "headed approvals enabled but backend port unavailable ({e}); \
-                             tool approvals will use the in-TUI prompt for {exec_id}"
+                            "headed approval bridge enabled but backend port unavailable ({e}); \
+                             tool approvals/questions will use the in-TUI prompt for {exec_id}"
                         );
                     }
                 }
@@ -1467,8 +1474,10 @@ impl LocalContainerService {
 
     /// Auto-confirm the headed Claude startup prompts by pressing Enter when each
     /// is detected on screen. Two prompts may appear in sequence:
-    ///   1. the workspace folder-trust check, then
-    ///   2. the `--dangerously-load-development-channels` warning.
+    ///
+    /// 1. the workspace folder-trust check, then
+    /// 2. the `--dangerously-load-development-channels` warning.
+    ///
     /// We poll the pane and press Enter once per prompt (the safe option is the
     /// highlighted default). Matching is by signature text and pinned to the
     /// Claude version we ship; if the text changes we simply stop confirming

@@ -14,14 +14,75 @@ use thiserror::Error;
 use tokio::sync::{broadcast, oneshot};
 use tokio_stream::wrappers::BroadcastStream;
 use ts_rs::TS;
-use utils::approvals::{ApprovalOutcome, ApprovalRequest, ApprovalResponse};
+use utils::approvals::{
+    ApprovalKind, ApprovalOutcome, ApprovalQuestion, ApprovalRequest, ApprovalResponse,
+};
 use uuid::Uuid;
+
+/// Extra content attached to an approval at creation time so the web UI / MCP
+/// can render and resolve it without consulting the transcript. For headless
+/// tool gating the defaults (no `tool_use_id`, no content) preserve the prior
+/// behavior; the headed bridge fills these in from the `PreToolUse` payload.
+#[derive(Debug, Clone, Default)]
+pub struct ApprovalDetails {
+    pub tool_use_id: Option<String>,
+    pub kind: ApprovalKind,
+    /// Populated for [`ApprovalKind::Question`].
+    pub questions: Option<Vec<ApprovalQuestion>>,
+    /// Populated for [`ApprovalKind::PlanApproval`] (the plan markdown).
+    pub plan_content: Option<String>,
+}
+
+impl ApprovalDetails {
+    /// Back-compat constructor for the headless path, which only knows whether
+    /// the approval is a question and carries no inline content.
+    pub fn from_is_question(is_question: bool) -> Self {
+        Self {
+            kind: if is_question {
+                ApprovalKind::Question
+            } else {
+                ApprovalKind::Tool
+            },
+            ..Default::default()
+        }
+    }
+
+    pub fn tool(tool_use_id: Option<String>) -> Self {
+        Self {
+            tool_use_id,
+            kind: ApprovalKind::Tool,
+            ..Default::default()
+        }
+    }
+
+    pub fn question(tool_use_id: Option<String>, questions: Vec<ApprovalQuestion>) -> Self {
+        Self {
+            tool_use_id,
+            kind: ApprovalKind::Question,
+            questions: Some(questions),
+            plan_content: None,
+        }
+    }
+
+    pub fn plan(tool_use_id: Option<String>, plan_content: Option<String>) -> Self {
+        Self {
+            tool_use_id,
+            kind: ApprovalKind::PlanApproval,
+            questions: None,
+            plan_content,
+        }
+    }
+}
 
 #[derive(Debug)]
 struct PendingApproval {
     execution_process_id: Uuid,
     tool_name: String,
     is_question: bool,
+    tool_use_id: Option<String>,
+    kind: ApprovalKind,
+    questions: Option<Vec<ApprovalQuestion>>,
+    plan_content: Option<String>,
     created_at: DateTime<Utc>,
     timeout_at: DateTime<Utc>,
     response_tx: oneshot::Sender<ApprovalOutcome>,
@@ -35,13 +96,24 @@ pub struct ToolContext {
     pub execution_process_id: Uuid,
 }
 
-/// Info about a currently pending approval, sent to the frontend via WebSocket.
+/// Info about a currently pending approval, sent to the frontend via WebSocket
+/// (and exposed to MCP over HTTP). For headed questionnaires/plan approvals the
+/// `kind` + `questions`/`plan_content` let the operator answer from the web UI.
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 pub struct ApprovalInfo {
     pub approval_id: String,
     pub tool_name: String,
     pub execution_process_id: Uuid,
     pub is_question: bool,
+    pub kind: ApprovalKind,
+    #[ts(optional)]
+    pub tool_use_id: Option<String>,
+    /// Present for [`ApprovalKind::Question`].
+    #[ts(optional)]
+    pub questions: Option<Vec<ApprovalQuestion>>,
+    /// Present for [`ApprovalKind::PlanApproval`] (the plan markdown).
+    #[ts(optional)]
+    pub plan_content: Option<String>,
     pub created_at: DateTime<Utc>,
     pub timeout_at: DateTime<Utc>,
 }
@@ -86,7 +158,7 @@ impl Approvals {
     pub(crate) async fn create_with_waiter(
         &self,
         request: ApprovalRequest,
-        is_question: bool,
+        details: ApprovalDetails,
     ) -> Result<(ApprovalRequest, ApprovalWaiter), ApprovalError> {
         let (tx, rx) = oneshot::channel();
         let default_timeout = ApprovalOutcome::TimedOut;
@@ -95,12 +167,17 @@ impl Approvals {
             .boxed()
             .shared();
         let req_id = request.id.clone();
+        let is_question = details.kind.is_question();
 
         let info = ApprovalInfo {
             approval_id: req_id.clone(),
             tool_name: request.tool_name.clone(),
             execution_process_id: request.execution_process_id,
             is_question,
+            kind: details.kind,
+            tool_use_id: details.tool_use_id.clone(),
+            questions: details.questions.clone(),
+            plan_content: details.plan_content.clone(),
             created_at: request.created_at,
             timeout_at: request.timeout_at,
         };
@@ -109,6 +186,10 @@ impl Approvals {
             execution_process_id: request.execution_process_id,
             tool_name: request.tool_name.clone(),
             is_question,
+            tool_use_id: details.tool_use_id,
+            kind: details.kind,
+            questions: details.questions,
+            plan_content: details.plan_content,
             created_at: request.created_at,
             timeout_at: request.timeout_at,
             response_tx: tx,
@@ -143,7 +224,20 @@ impl Approvals {
         request: ApprovalRequest,
         is_question: bool,
     ) -> Result<ApprovalOutcome, ApprovalError> {
-        let (_, waiter) = self.create_with_waiter(request, is_question).await?;
+        self.create_and_wait_with_details(request, ApprovalDetails::from_is_question(is_question))
+            .await
+    }
+
+    /// Like [`Self::create_and_wait`] but with full [`ApprovalDetails`] (kind +
+    /// inline question/plan content). Used by the headed bridge so the operator
+    /// can answer an `AskUserQuestion` / approve an `ExitPlanMode` from the web
+    /// UI or MCP.
+    pub async fn create_and_wait_with_details(
+        &self,
+        request: ApprovalRequest,
+        details: ApprovalDetails,
+    ) -> Result<ApprovalOutcome, ApprovalError> {
+        let (_, waiter) = self.create_with_waiter(request, details).await?;
         Ok(waiter.await)
     }
 
@@ -339,10 +433,24 @@ impl Approvals {
                     tool_name: p.tool_name.clone(),
                     execution_process_id: p.execution_process_id,
                     is_question: p.is_question,
+                    kind: p.kind,
+                    tool_use_id: p.tool_use_id.clone(),
+                    questions: p.questions.clone(),
+                    plan_content: p.plan_content.clone(),
                     created_at: p.created_at,
                     timeout_at: p.timeout_at,
                 }
             })
+            .collect()
+    }
+
+    /// Snapshot of pending approvals for a specific execution process — backs the
+    /// HTTP read route that MCP fetches (MCP is an out-of-process HTTP client and
+    /// cannot read the store directly).
+    pub fn pending_infos_for_execution(&self, execution_process_id: Uuid) -> Vec<ApprovalInfo> {
+        self.pending_infos()
+            .into_iter()
+            .filter(|info| info.execution_process_id == execution_process_id)
             .collect()
     }
 }
@@ -391,6 +499,62 @@ mod tests {
 
         let outcome = task.await.unwrap().unwrap();
         assert!(matches!(outcome, ApprovalOutcome::Approved));
+    }
+
+    #[tokio::test]
+    async fn question_details_surface_in_pending_infos_for_execution() {
+        let approvals = Approvals::new();
+        let exec = Uuid::new_v4();
+        let request = ApprovalRequest::new("AskUserQuestion".to_string(), exec);
+        let id = request.id.clone();
+        let question = ApprovalQuestion {
+            question: "Pick a storage backend".to_string(),
+            header: Some("Storage".to_string()),
+            options: vec![],
+            multi_select: false,
+        };
+
+        let task = {
+            let approvals = approvals.clone();
+            tokio::spawn(async move {
+                approvals
+                    .create_and_wait_with_details(
+                        request,
+                        ApprovalDetails::question(Some("toolu_1".to_string()), vec![question]),
+                    )
+                    .await
+            })
+        };
+
+        wait_until_pending(&approvals).await;
+
+        let infos = approvals.pending_infos_for_execution(exec);
+        assert_eq!(infos.len(), 1);
+        assert_eq!(infos[0].kind, ApprovalKind::Question);
+        assert!(infos[0].is_question);
+        assert_eq!(infos[0].tool_use_id.as_deref(), Some("toolu_1"));
+        assert_eq!(infos[0].questions.as_ref().map(|q| q.len()), Some(1));
+        // A different execution sees nothing.
+        assert!(
+            approvals
+                .pending_infos_for_execution(Uuid::new_v4())
+                .is_empty()
+        );
+
+        // Answer it so the waiter resolves and the entry clears.
+        approvals
+            .respond(
+                &id,
+                ApprovalResponse {
+                    execution_process_id: exec,
+                    status: ApprovalOutcome::Answered { answers: vec![] },
+                },
+            )
+            .await
+            .unwrap();
+        let outcome = task.await.unwrap().unwrap();
+        assert!(matches!(outcome, ApprovalOutcome::Answered { .. }));
+        assert!(approvals.pending_infos_for_execution(exec).is_empty());
     }
 
     #[tokio::test]

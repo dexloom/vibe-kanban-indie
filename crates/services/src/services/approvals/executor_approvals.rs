@@ -47,7 +47,10 @@ impl ExecutorApprovalBridge {
 
         let (request, waiter) = self
             .approvals
-            .create_with_waiter(request, is_question)
+            .create_with_waiter(
+                request,
+                crate::services::approvals::ApprovalDetails::from_is_question(is_question),
+            )
             .await
             .map_err(ExecutorApprovalError::request_failed)?;
 

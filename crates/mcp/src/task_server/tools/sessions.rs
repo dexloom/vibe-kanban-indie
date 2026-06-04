@@ -139,6 +139,47 @@ struct AgentProgress {
     transcript_path: Option<String>,
 }
 
+/// One selectable option of a [`PendingApprovalQuestion`].
+#[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
+struct PendingApprovalOption {
+    label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+}
+
+/// A single question awaiting an answer (from an `AskUserQuestion` tool call).
+#[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
+struct PendingApprovalQuestion {
+    question: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    header: Option<String>,
+    #[serde(default)]
+    options: Vec<PendingApprovalOption>,
+    #[serde(rename = "multiSelect", default)]
+    multi_select: bool,
+}
+
+/// A pending approval blocking a (typically headed) execution — surfaced so an
+/// orchestrator can see and answer questionnaires / plan approvals via
+/// `respond_to_approval`. Mirror of the backend `ApprovalInfo`.
+#[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
+struct PendingApproval {
+    approval_id: String,
+    tool_name: String,
+    /// "tool" | "question" | "plan_approval".
+    kind: String,
+    is_question: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tool_use_id: Option<String>,
+    /// Present for `kind == "question"`: the questions to answer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    questions: Option<Vec<PendingApprovalQuestion>>,
+    /// Present for `kind == "plan_approval"`: the plan markdown to approve/deny.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    plan_content: Option<String>,
+    timeout_at: String,
+}
+
 #[derive(Debug, Serialize, schemars::JsonSchema)]
 struct GetExecutionResponse {
     execution_id: String,
@@ -165,6 +206,10 @@ struct GetExecutionResponse {
         description = "Absolute path to Claude's transcript JSONL for live tailing. Only present for a Claude Code Headed execution when the headed-local-control capability is enabled."
     )]
     claude_transcript_path: Option<String>,
+    #[schemars(
+        description = "Approvals currently blocking this execution (empty when none). A headed plan-mode agent blocks here on AskUserQuestion / ExitPlanMode; answer or approve/deny each via the respond_to_approval tool using its approval_id."
+    )]
+    pending_approvals: Vec<PendingApproval>,
 }
 
 #[tool_router(router = session_tools_router, vis = "pub")]
@@ -385,6 +430,16 @@ impl McpServer {
 
         let expose_headed = self.headed_local_control();
 
+        // Pending approvals (question / plan / tool) blocking this execution.
+        // Portable status, so surfaced regardless of headed-local-control — the
+        // orchestrator answers them via `respond_to_approval`.
+        let pending_url = self.url(&format!("/api/approvals/pending/{execution_id}"));
+        let pending_approvals: Vec<PendingApproval> =
+            match self.send_json(self.client.get(&pending_url)).await {
+                Ok(value) => value,
+                Err(error_result) => return Ok(Self::tool_error(error_result)),
+            };
+
         Self::success(&GetExecutionResponse {
             execution_id: execution_process.id.to_string(),
             session_id: execution_process.session_id.to_string(),
@@ -399,6 +454,7 @@ impl McpServer {
                 .then_some(progress.tmux_session_name)
                 .flatten(),
             claude_transcript_path: expose_headed.then_some(progress.transcript_path).flatten(),
+            pending_approvals,
         })
     }
 }

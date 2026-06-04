@@ -198,9 +198,23 @@ export type MergeStatus = "open" | "merged" | "closed" | "unknown";
 
 export type PullRequestInfo = { number: bigint, url: string, status: MergeStatus, merged_at: string | null, merge_commit_sha: string | null, };
 
-export type ApprovalInfo = { approval_id: string, tool_name: string, execution_process_id: string, is_question: boolean, created_at: string, timeout_at: string, };
+export type ApprovalInfo = { approval_id: string, tool_name: string, execution_process_id: string, is_question: boolean, kind: ApprovalKind, tool_use_id?: string, 
+/**
+ * Present for [`ApprovalKind::Question`].
+ */
+questions?: Array<ApprovalQuestion>, 
+/**
+ * Present for [`ApprovalKind::PlanApproval`] (the plan markdown).
+ */
+plan_content?: string, created_at: string, timeout_at: string, };
 
 export type ApprovalStatus = { "status": "pending" } | { "status": "approved" } | { "status": "denied", reason?: string, } | { "status": "timed_out" };
+
+export type ApprovalKind = "tool" | "question" | "plan_approval";
+
+export type ApprovalQuestion = { question: string, header?: string, options: Array<ApprovalQuestionOption>, multiSelect: boolean, };
+
+export type ApprovalQuestionOption = { label: string, description?: string, };
 
 export type QuestionAnswer = { question: string, answer: Array<string>, };
 
