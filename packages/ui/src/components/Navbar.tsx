@@ -161,6 +161,8 @@ export interface NavbarProps {
   rightItems?: NavbarSectionItem[];
   // Optional additional content for left side (after leftItems)
   leftSlot?: ReactNode;
+  // Optional brand/logo element pinned to the far left (desktop only)
+  brand?: ReactNode;
   // Sync errors shown in the right section
   syncErrors?: readonly SyncErrorIndicatorError[] | null;
   className?: string;
@@ -188,6 +190,7 @@ export function Navbar({
   leftItems = [],
   rightItems = [],
   leftSlot,
+  brand,
   syncErrors,
   className,
   mobileMode = false,
@@ -425,8 +428,9 @@ export function Navbar({
         className
       )}
     >
-      {/* Left - Archive & Old UI Link + optional slot */}
+      {/* Left - Brand + Archive & Old UI Link + optional slot */}
       <div data-tauri-drag-region className="flex-1 flex items-center gap-base">
+        {brand}
         {leftItems.map((item, index) =>
           renderItem(
             item,

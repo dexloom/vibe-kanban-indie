@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DropResult } from '@hello-pangea/dnd';
 import { Outlet, useNavigate, useParams } from '@tanstack/react-router';
-import { siDiscord, siGithub } from 'simple-icons';
+import { siGithub } from 'simple-icons';
 import {
   XIcon,
   PlusIcon,
@@ -17,12 +17,12 @@ import { isTauriMac } from '@/shared/lib/platform';
 
 import { NavbarContainer } from './NavbarContainer';
 import { AppBar, type AppBarHostStatus } from '@vibe/ui/components/AppBar';
+import { FeatherCaret } from '@vibe/ui/components/Logo';
 import { MobileDrawer } from '@vibe/ui/components/MobileDrawer';
 import { AppBarUserPopoverContainer } from './AppBarUserPopoverContainer';
 import { useUserOrganizations } from '@/shared/hooks/useUserOrganizations';
 import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
-import { useDiscordOnlineCount } from '@/shared/hooks/useDiscordOnlineCount';
 import { useGitHubStars } from '@/shared/hooks/useGitHubStars';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import { useAppUpdateStore } from '@/shared/stores/useAppUpdateStore';
@@ -66,7 +66,6 @@ export function SharedAppLayout() {
   const { appVersion } = useUserSystem();
   const updateVersion = useAppUpdateStore((s) => s.updateVersion);
   const restartForUpdate = useAppUpdateStore((s) => s.restart);
-  const { data: onlineCount } = useDiscordOnlineCount();
   const { data: starCount } = useGitHubStars();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isAppBarHovered, setIsAppBarHovered] = useState(false);
@@ -304,12 +303,14 @@ export function SharedAppLayout() {
       >
         {!isMobile && (
           <>
-            {/* Desktop corner spacer. */}
+            {/* Desktop corner spacer — Feather Caret brand mark above the icon rail. */}
             <div
               data-tauri-drag-region
-              className="bg-secondary"
+              className="bg-secondary flex items-center justify-center"
               style={isTauriMac() ? { minWidth: 56 } : undefined}
-            />
+            >
+              <FeatherCaret size={22} className="text-brand" />
+            </div>
             {/* Desktop navbar. */}
             <NavbarContainer
               onOrgSelect={setSelectedOrgId}
@@ -347,12 +348,10 @@ export function SharedAppLayout() {
                 />
               }
               starCount={starCount}
-              onlineCount={onlineCount}
               appVersion={appVersion}
               updateVersion={updateVersion}
               onUpdateClick={restartForUpdate ?? undefined}
               githubIconPath={siGithub.path}
-              discordIconPath={siDiscord.path}
             />
             {/* Desktop content. */}
             <div className="relative min-h-0 overflow-hidden">

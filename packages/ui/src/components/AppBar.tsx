@@ -67,12 +67,10 @@ interface AppBarProps {
   notificationBell?: ReactNode;
   userPopover?: ReactNode;
   starCount?: number | null;
-  onlineCount?: number | null;
   appVersion?: string | null;
   updateVersion?: string | null;
   onUpdateClick?: () => void;
   githubIconPath: string;
-  discordIconPath: string;
 }
 
 export interface AppBarProject {
@@ -219,12 +217,10 @@ export function AppBar({
   notificationBell,
   userPopover,
   starCount,
-  onlineCount,
   appVersion,
   updateVersion,
   onUpdateClick,
   githubIconPath,
-  discordIconPath,
 }: AppBarProps) {
   const { t } = useTranslation('common');
   const sections: AppBarSection[] = [];
@@ -533,12 +529,12 @@ export function AppBar({
         </div>
       ))}
 
-      {/* Bottom section: Notifications + User popover + GitHub + Discord */}
+      {/* Bottom section: Notifications + User popover + GitHub */}
       <div className="mt-auto pt-base flex flex-col items-center gap-4">
         {notificationBell}
         {userPopover}
         <AppBarSocialLink
-          href="https://github.com/BloopAI/vibe-kanban"
+          href="https://github.com/dexloom/vibe-kanban-indie"
           label="Star on GitHub"
           iconPath={githubIconPath}
           badge={
@@ -548,14 +544,6 @@ export function AppBar({
                 {formatStarCount(starCount)}
               </>
             )
-          }
-        />
-        <AppBarSocialLink
-          href="https://discord.gg/AC4nwVtJM3"
-          label="Join our Discord"
-          iconPath={discordIconPath}
-          badge={
-            onlineCount != null && (onlineCount > 999 ? '999+' : onlineCount)
           }
         />
         {updateVersion ? (

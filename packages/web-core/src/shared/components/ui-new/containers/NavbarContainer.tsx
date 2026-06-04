@@ -12,6 +12,7 @@ import {
   type NavbarBreadcrumbItem,
   type MobileTabId,
 } from '@vibe/ui/components/Navbar';
+import { BrandWordmark } from '@vibe/ui/components/Logo';
 import { useAllOrganizationProjects } from '@/shared/hooks/useAllOrganizationProjects';
 import { useShape } from '@/shared/integrations/electric/hooks';
 import { PROJECT_ISSUES_SHAPE } from 'shared/remote-types';
@@ -328,6 +329,7 @@ export function NavbarContainer({
     <Navbar
       workspaceTitle={navbarTitle}
       breadcrumbs={breadcrumbs}
+      brand={<BrandWordmark />}
       leftItems={leftItems}
       rightItems={rightItems}
       syncErrors={syncErrors}
