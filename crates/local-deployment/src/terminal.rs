@@ -6,11 +6,21 @@
 //! terminal window. The emulator (iTerm2 / WezTerm / Terminal.app /
 //! gnome-terminal / xterm) merely attaches via `tmux attach -t <name>`.
 
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path, sync::OnceLock};
 
 use executors::interactive::TerminalKind;
 use thiserror::Error;
-use tokio::process::Command;
+use tokio::{process::Command, sync::Mutex};
+
+/// Process-global slot tracking the iTerm2 window VK reuses for headed-session
+/// tabs. `None` means "no VK window yet"; a stored id may also be stale (the
+/// user closed the window), in which case the AppleScript falls back to creating
+/// a fresh window and reports its id. The [`Mutex`] is held across the
+/// `osascript` call so concurrent opens don't each spawn their own window.
+fn iterm_window_slot() -> &'static Mutex<Option<i64>> {
+    static SLOT: OnceLock<Mutex<Option<i64>>> = OnceLock::new();
+    SLOT.get_or_init(|| Mutex::new(None))
+}
 
 #[derive(Debug, Error)]
 pub enum TerminalError {
@@ -294,26 +304,19 @@ fn classify_send_keys_err(session_name: &str, stderr: &[u8]) -> TerminalError {
 /// [`TerminalKind::None`] this is a no-op. If the emulator is unavailable,
 /// returns [`TerminalError::TerminalUnavailable`] — the caller should keep the
 /// detached session and surface the attach command.
-pub async fn open_in_terminal(kind: TerminalKind, session_name: &str) -> Result<(), TerminalError> {
+///
+/// `iterm_tabs` only affects [`TerminalKind::ITerm2`]: when true (default),
+/// sessions are grouped as tabs of one VK window; when false, each session opens
+/// in its own window (the legacy behavior).
+pub async fn open_in_terminal(
+    kind: TerminalKind,
+    session_name: &str,
+    iterm_tabs: bool,
+) -> Result<(), TerminalError> {
     let attach = attach_command(session_name);
     match kind {
         TerminalKind::None => Ok(()),
-        TerminalKind::ITerm2 => {
-            // Open a window with the default profile (a login shell, so `tmux` on
-            // PATH resolves) and TYPE the attach command into it, rather than
-            // `command "<attach>"` which runs with launchd's minimal PATH (no
-            // /opt/homebrew/bin) — there `tmux` is not found, the command exits,
-            // and iTerm closes the window immediately. `write text` also keeps the
-            // shell (and window) alive after `tmux attach` detaches.
-            let script = format!(
-                "tell application \"iTerm\"\n\
-                 activate\n\
-                 set newWindow to (create window with default profile)\n\
-                 tell current session of newWindow to write text \"{attach}\"\n\
-                 end tell"
-            );
-            run_osascript(kind, &script, &attach).await
-        }
+        TerminalKind::ITerm2 => open_iterm_tab(&attach, iterm_tabs).await,
         TerminalKind::TerminalApp => {
             let script = format!(
                 "tell application \"Terminal\"\n\
@@ -321,7 +324,7 @@ pub async fn open_in_terminal(kind: TerminalKind, session_name: &str) -> Result<
                  do script \"{attach}\"\n\
                  end tell"
             );
-            run_osascript(kind, &script, &attach).await
+            run_osascript(kind, &script, &attach).await.map(|_| ())
         }
         TerminalKind::WezTerm => {
             run_emulator(
@@ -353,18 +356,79 @@ pub async fn open_in_terminal(kind: TerminalKind, session_name: &str) -> Result<
     }
 }
 
+/// Open the attach command in iTerm2. When `group_tabs` is true, reuse the
+/// single VK-owned window as a TAB host (creating that window the first time, or
+/// whenever the previous one was closed); the lock serializes concurrent opens
+/// so they share one window, and the AppleScript returns the id of the window it
+/// used, which we remember for the next tab. When false, each call opens a fresh
+/// window (the `-1` sentinel skips the lookup) and no id is tracked.
+async fn open_iterm_tab(attach: &str, group_tabs: bool) -> Result<(), TerminalError> {
+    if !group_tabs {
+        // Legacy: a separate window per session, no shared-window tracking.
+        let script = build_iterm_tab_script(-1, attach);
+        run_osascript(TerminalKind::ITerm2, &script, attach).await?;
+        return Ok(());
+    }
+    let slot = iterm_window_slot();
+    let mut guard = slot.lock().await;
+    let known_id = guard.unwrap_or(-1);
+    let script = build_iterm_tab_script(known_id, attach);
+    let stdout = run_osascript(TerminalKind::ITerm2, &script, attach).await?;
+    // osascript prints the script's return value (the window id) on stdout.
+    if let Some(id) = stdout
+        .lines()
+        .next_back()
+        .and_then(|line| line.trim().parse::<i64>().ok())
+    {
+        *guard = Some(id);
+    }
+    Ok(())
+}
+
+/// Build the AppleScript that reuses VK's iTerm window (by `known_id`, or `-1`
+/// for "none yet") as a tab host. It finds the window by id; if it's gone (or
+/// none is known) it creates a fresh window instead; either way it types the
+/// attach command into the new session and returns the window id used.
+///
+/// `write text` (rather than `command "<attach>"`) is deliberate: it runs in a
+/// login shell so `tmux` resolves on PATH, and keeps the shell alive after
+/// `tmux attach` detaches — see the original single-window rationale.
+fn build_iterm_tab_script(known_id: i64, attach: &str) -> String {
+    format!(
+        "tell application \"iTerm\"\n\
+         activate\n\
+         set targetWindow to missing value\n\
+         if {known_id} is not -1 then\n\
+           repeat with w in windows\n\
+             if (id of w) is {known_id} then\n\
+               set targetWindow to w\n\
+               exit repeat\n\
+             end if\n\
+           end repeat\n\
+         end if\n\
+         if targetWindow is missing value then\n\
+           set targetWindow to (create window with default profile)\n\
+         else\n\
+           tell targetWindow to create tab with default profile\n\
+         end if\n\
+         tell current session of targetWindow to write text \"{attach}\"\n\
+         return id of targetWindow\n\
+         end tell"
+    )
+}
+
 async fn run_osascript(
     kind: TerminalKind,
     script: &str,
     attach: &str,
-) -> Result<(), TerminalError> {
+) -> Result<String, TerminalError> {
     match Command::new("osascript")
         .arg("-e")
         .arg(script)
         .output()
         .await
     {
-        Ok(out) if out.status.success() => Ok(()),
+        Ok(out) if out.status.success() => Ok(String::from_utf8_lossy(&out.stdout).into_owned()),
         Ok(_) | Err(_) => Err(TerminalError::TerminalUnavailable {
             kind,
             attach_cmd: attach.to_string(),
@@ -428,6 +492,29 @@ mod tests {
     #[test]
     fn attach_command_format() {
         assert_eq!(attach_command("vk-x"), "tmux attach -t vk-x");
+    }
+
+    #[test]
+    fn iterm_tab_script_creates_window_when_none_known() {
+        let script = build_iterm_tab_script(-1, "tmux attach -t vk-abc");
+        // With the -1 sentinel the lookup loop is skipped and a fresh window is
+        // created; the attach command is typed and the window id is returned.
+        assert!(script.contains("if -1 is not -1 then"));
+        assert!(script.contains("create window with default profile"));
+        assert!(script.contains("write text \"tmux attach -t vk-abc\""));
+        assert!(script.contains("return id of targetWindow"));
+    }
+
+    #[test]
+    fn iterm_tab_script_reuses_known_window_as_tab() {
+        let script = build_iterm_tab_script(42, "tmux attach -t vk-def");
+        // A known id is matched against open windows; the match path adds a tab
+        // rather than a new window.
+        assert!(script.contains("if 42 is not -1 then"));
+        assert!(script.contains("if (id of w) is 42 then"));
+        assert!(script.contains("tell targetWindow to create tab with default profile"));
+        // The new-window fallback is still present for the stale-id case.
+        assert!(script.contains("create window with default profile"));
     }
 
     #[test]

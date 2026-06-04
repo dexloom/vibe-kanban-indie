@@ -1461,7 +1461,10 @@ impl LocalContainerService {
 
             // Attach the chosen terminal emulator as a viewer. A missing emulator
             // is non-fatal: the session is alive and reachable via `tmux attach`.
-            if let Err(e) = terminal::open_in_terminal(cfg.terminal, &tmux_session).await {
+            let iterm_tabs = self.config.read().await.iterm_tabs;
+            if let Err(e) =
+                terminal::open_in_terminal(cfg.terminal, &tmux_session, iterm_tabs).await
+            {
                 tracing::warn!("Could not open terminal emulator for {tmux_session}: {e}");
             }
 
@@ -2345,7 +2348,8 @@ impl ContainerService for LocalContainerService {
         if !terminal::tmux_has_session(&tmux_session).await {
             return Err(ContainerError::InteractiveSessionGone);
         }
-        terminal::open_in_terminal(cfg.terminal, &tmux_session)
+        let iterm_tabs = self.config.read().await.iterm_tabs;
+        terminal::open_in_terminal(cfg.terminal, &tmux_session, iterm_tabs)
             .await
             .map_err(|e| match e {
                 terminal::TerminalError::TerminalUnavailable { attach_cmd, .. } => {

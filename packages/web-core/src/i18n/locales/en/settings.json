@@ -115,6 +115,14 @@
           "notFound": "Not found in PATH"
         }
       },
+      "terminal": {
+        "title": "Interactive Terminal",
+        "description": "Configure how headed (interactive) agent terminal sessions are displayed.",
+        "itermTabs": {
+          "label": "Group iTerm2 sessions as tabs",
+          "helper": "When enabled, interactive agent sessions open as tabs of a single iTerm2 window instead of a separate window per session. Only affects iTerm2."
+        }
+      },
       "github": {
         "title": "GitHub Integration",
         "cliSetup": {

@@ -452,6 +452,20 @@ export function GeneralSettingsSection() {
         )}
       </SettingsCard>
 
+      {/* Interactive Terminal */}
+      <SettingsCard
+        title={t('settings.general.terminal.title')}
+        description={t('settings.general.terminal.description')}
+      >
+        <SettingsCheckbox
+          id="iterm-tabs"
+          label={t('settings.general.terminal.itermTabs.label')}
+          description={t('settings.general.terminal.itermTabs.helper')}
+          checked={draft?.iterm_tabs ?? true}
+          onChange={(checked) => updateDraft({ iterm_tabs: checked })}
+        />
+      </SettingsCard>
+
       {/* Default Coding Agent */}
       <SettingsCard
         title={t('settings.general.taskExecution.title')}

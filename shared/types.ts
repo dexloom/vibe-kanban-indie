@@ -587,7 +587,12 @@ export type Config = { config_version: string, theme: ThemeMode, executor_profil
 /**
  * Terminal emulator used to attach to interactive agent sessions.
  */
-terminal: TerminalKind, };
+terminal: TerminalKind, 
+/**
+ * When the terminal is iTerm2, group sessions as tabs of one window
+ * instead of opening a new window per session.
+ */
+iterm_tabs: boolean, };
 
 export type NotificationConfig = { sound_enabled: boolean, push_enabled: boolean, sound_file: SoundFile, };
 

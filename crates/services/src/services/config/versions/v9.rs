@@ -34,6 +34,12 @@ fn default_terminal() -> TerminalKind {
     TerminalKind::platform_default()
 }
 
+/// Whether iTerm2 groups interactive agent sessions as tabs of a single VK
+/// window (default) instead of opening a separate window per session.
+fn default_iterm_tabs() -> bool {
+    true
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 pub struct Config {
     pub config_version: String,
@@ -73,6 +79,10 @@ pub struct Config {
     /// Terminal emulator used to attach to interactive agent sessions.
     #[serde(default = "default_terminal")]
     pub terminal: TerminalKind,
+    /// When the terminal is iTerm2, group sessions as tabs of one window
+    /// instead of opening a new window per session.
+    #[serde(default = "default_iterm_tabs")]
+    pub iterm_tabs: bool,
 }
 
 impl Config {
@@ -102,6 +112,7 @@ impl Config {
             relay_enabled: old_config.relay_enabled,
             host_nickname: old_config.host_nickname,
             terminal: default_terminal(),
+            iterm_tabs: default_iterm_tabs(),
         }
     }
 
@@ -159,6 +170,7 @@ impl Default for Config {
             relay_enabled: true,
             host_nickname: None,
             terminal: default_terminal(),
+            iterm_tabs: default_iterm_tabs(),
         }
     }
 }
