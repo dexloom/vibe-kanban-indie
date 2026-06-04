@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   GitBranch as GitBranchIcon,
+  GitCommitVertical,
   GitPullRequest,
   RefreshCw,
   Settings,
@@ -59,9 +60,11 @@ function GitOperations({
 
   // Local state for git operations
   const [merging, setMerging] = useState(false);
+  const [committing, setCommitting] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [rebasing, setRebasing] = useState(false);
   const [mergeSuccess, setMergeSuccess] = useState(false);
+  const [commitSuccess, setCommitSuccess] = useState(false);
   const [pushSuccess, setPushSuccess] = useState(false);
 
   // Target branch change handlers
@@ -150,6 +153,12 @@ function GitOperations({
     return t('git.states.merge');
   }, [mergeSuccess, merging, t]);
 
+  const commitButtonLabel = useMemo(() => {
+    if (commitSuccess) return t('git.states.committed');
+    if (committing) return t('git.states.committing');
+    return t('git.states.commit');
+  }, [commitSuccess, committing, t]);
+
   const rebaseButtonLabel = useMemo(() => {
     if (rebasing) return t('git.states.rebasing');
     return t('git.states.rebase');
@@ -169,6 +178,22 @@ function GitOperations({
   const handleMergeClick = async () => {
     // Directly perform merge without checking branch status
     await performMerge();
+  };
+
+  const handleCommitClick = async () => {
+    try {
+      setCommitting(true);
+      const repoId = getSelectedRepoId();
+      if (!repoId) return;
+      const result = await git.actions.commit({ repoId });
+      // `committed === false` means the worktree was clean — not an error.
+      if (result?.committed) {
+        setCommitSuccess(true);
+        setTimeout(() => setCommitSuccess(false), 2000);
+      }
+    } finally {
+      setCommitting(false);
+    }
   };
 
   const handlePushClick = async () => {
@@ -468,6 +493,24 @@ function GitOperations({
           </div>
         ) : selectedRepoStatus ? (
           <div className={actionsClasses}>
+            <Button
+              onClick={handleCommitClick}
+              disabled={
+                committing ||
+                isAttemptRunning ||
+                hasConflictsCalculated ||
+                selectedRepoStatus?.is_rebase_in_progress ||
+                (!selectedRepoStatus?.has_uncommitted_changes && !commitSuccess)
+              }
+              variant="outline"
+              size="xs"
+              className="border-foreground/30 text-foreground hover:bg-muted gap-1 shrink-0"
+              aria-label={commitButtonLabel}
+            >
+              <GitCommitVertical className="h-3.5 w-3.5" />
+              <span className="truncate max-w-[10ch]">{commitButtonLabel}</span>
+            </Button>
+
             <Button
               onClick={handleMergeClick}
               disabled={

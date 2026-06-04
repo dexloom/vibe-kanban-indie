@@ -1720,3 +1720,39 @@ pub fn compute_line_change_counts(old: &str, new: &str) -> (usize, usize) {
         }
     }
 }
+
+#[cfg(test)]
+mod commit_tests {
+    use std::fs;
+
+    use tempfile::TempDir;
+
+    use super::*;
+
+    /// `GitService::commit` is the plumbing behind the `POST /commit` route:
+    /// a dirty worktree produces a new commit (returns `true` and HEAD moves),
+    /// while a clean worktree is a no-op (returns `false`, HEAD unchanged).
+    #[test]
+    fn commit_reports_changes_on_dirty_and_noop_on_clean() {
+        let git = GitService::new();
+        let tmp = TempDir::new().unwrap();
+        let repo_path = tmp.path();
+
+        git.initialize_repo_with_main_branch(repo_path).unwrap();
+        let head_before = git.get_head_info(repo_path).unwrap().oid;
+
+        // Clean worktree: nothing to commit.
+        assert!(!git.commit(repo_path, "noop").unwrap());
+        assert_eq!(git.get_head_info(repo_path).unwrap().oid, head_before);
+
+        // Dirty worktree: a new commit is created and HEAD advances.
+        fs::write(repo_path.join("file.txt"), "hello").unwrap();
+        assert!(git.commit(repo_path, "add file").unwrap());
+        let head_after = git.get_head_info(repo_path).unwrap().oid;
+        assert_ne!(head_after, head_before);
+
+        // Worktree clean again after commit: no further commit.
+        assert!(!git.commit(repo_path, "noop again").unwrap());
+        assert_eq!(git.get_head_info(repo_path).unwrap().oid, head_after);
+    }
+}

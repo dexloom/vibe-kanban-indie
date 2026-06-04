@@ -380,6 +380,15 @@ export type AddWorkspaceRepoResponse = { workspace: Workspace, repo: RepoWithTar
 
 export type MergeWorkspaceRequest = { repo_id: string, };
 
+export type CommitWorkspaceRequest = { repo_id: string, };
+
+export type CommitWorkspaceResponse = { 
+/**
+ * Whether a new commit was created. `false` means the worktree was clean
+ * (nothing to commit) — not an error.
+ */
+committed: boolean, };
+
 export type PushWorkspaceRequest = { repo_id: string, };
 
 export type RenameBranchRequest = { new_branch_name: string, };

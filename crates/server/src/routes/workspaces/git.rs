@@ -62,6 +62,18 @@ pub struct MergeWorkspaceRequest {
 }
 
 #[derive(Debug, Deserialize, Serialize, TS)]
+pub struct CommitWorkspaceRequest {
+    pub repo_id: Uuid,
+}
+
+#[derive(Debug, Serialize, Deserialize, TS)]
+pub struct CommitWorkspaceResponse {
+    /// Whether a new commit was created. `false` means the worktree was clean
+    /// (nothing to commit) — not an error.
+    pub committed: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize, TS)]
 pub struct PushWorkspaceRequest {
     pub repo_id: Uuid,
 }
@@ -139,6 +151,7 @@ pub fn router() -> Router<DeploymentImpl> {
         .route("/status", get(get_workspace_branch_status))
         .route("/diff/ws", get(stream_diff_ws))
         .route("/merge", post(merge_workspace))
+        .route("/commit", post(commit_workspace))
         .route("/push", post(push_workspace_branch))
         .route("/push/force", post(force_push_workspace_branch))
         .route("/rebase", post(rebase_workspace))
@@ -263,6 +276,95 @@ pub async fn merge_workspace(
         .await;
 
     Ok(ResponseJson(ApiResponse::success(())))
+}
+
+/// Commit all currently-uncommitted changes in the selected repo's worktree to
+/// the task branch, reusing the same git plumbing as the coding-agent
+/// auto-commit path (`GitService::commit` stages everything and skips when the
+/// worktree is clean). This is the reliable way to capture work left behind by
+/// headed (interactive) sessions, which do not auto-commit per turn.
+#[axum::debug_handler]
+pub async fn commit_workspace(
+    Extension(workspace): Extension<Workspace>,
+    State(deployment): State<DeploymentImpl>,
+    Json(request): Json<CommitWorkspaceRequest>,
+) -> Result<ResponseJson<ApiResponse<CommitWorkspaceResponse>>, ApiError> {
+    let pool = &deployment.db().pool;
+
+    let workspace_repo =
+        WorkspaceRepo::find_by_workspace_and_repo_id(pool, workspace.id, request.repo_id)
+            .await?
+            .ok_or(RepoError::NotFound)?;
+
+    let repo = Repo::find_by_id(pool, workspace_repo.repo_id)
+        .await?
+        .ok_or(RepoError::NotFound)?;
+
+    let container_ref = deployment
+        .container()
+        .ensure_container_exists(&workspace)
+        .await?;
+    let workspace_path = Path::new(&container_ref);
+    let worktree_path = workspace_path.join(&repo.name);
+
+    // Refuse to commit while the worktree is mid-rebase or has unresolved
+    // conflicts — committing there would capture a half-resolved state.
+    if deployment
+        .git()
+        .is_rebase_in_progress(&worktree_path)
+        .unwrap_or(false)
+    {
+        return Err(ApiError::BadRequest(
+            "Cannot commit while a rebase is in progress.".to_string(),
+        ));
+    }
+    if !deployment
+        .git()
+        .get_conflicted_files(&worktree_path)
+        .unwrap_or_default()
+        .is_empty()
+    {
+        return Err(ApiError::BadRequest(
+            "Cannot commit while there are unresolved conflicts.".to_string(),
+        ));
+    }
+
+    let workspace_label = workspace.name.as_deref().unwrap_or(&workspace.branch);
+    let vk_id = resolve_vibe_kanban_identifier(&deployment, workspace.id).await;
+    let commit_message = format!(
+        "Commit uncommitted changes for {} (vibe-kanban {})",
+        workspace_label, vk_id
+    );
+
+    let committed = deployment.git().commit(&worktree_path, &commit_message)?;
+
+    if committed {
+        if let Ok(client) = deployment.remote_client() {
+            let pool = deployment.db().pool.clone();
+            let git = deployment.git().clone();
+            let mut ws = workspace.clone();
+            ws.container_ref = Some(container_ref.clone());
+            tokio::spawn(async move {
+                let stats = diff_stream::compute_diff_stats(&pool, &git, &ws).await;
+                remote_sync::sync_workspace_to_remote(&client, ws.id, None, None, stats.as_ref())
+                    .await;
+            });
+        }
+
+        deployment
+            .track_if_analytics_allowed(
+                "task_attempt_committed",
+                serde_json::json!({
+                    "workspace_id": workspace.id.to_string(),
+                    "repo_id": request.repo_id.to_string(),
+                }),
+            )
+            .await;
+    }
+
+    Ok(ResponseJson(ApiResponse::success(
+        CommitWorkspaceResponse { committed },
+    )))
 }
 
 pub async fn push_workspace_branch(
