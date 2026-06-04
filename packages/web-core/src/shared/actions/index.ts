@@ -27,6 +27,7 @@ import {
   SpinnerIcon,
   GitPullRequestIcon,
   GitMergeIcon,
+  GitCommitIcon,
   GitForkIcon,
   ArrowsClockwiseIcon,
   CrosshairIcon,
@@ -849,6 +850,28 @@ export const Actions = {
   },
 
   // === Git Actions ===
+  GitCommit: {
+    id: 'git-commit',
+    label: 'Commit',
+    icon: GitCommitIcon,
+    shortcut: 'X C',
+    requiresTarget: ActionTargetType.GIT,
+    isVisible: (ctx) =>
+      ctx.hasWorkspace && ctx.hasGitRepos && ctx.hasUncommittedChanges,
+    execute: async (ctx, workspaceId, repoId) => {
+      const result = await workspacesApi.commit(workspaceId, {
+        repo_id: repoId,
+      });
+      // `committed === false` means the worktree was clean — not an error.
+      if (result.committed) {
+        invalidateWorkspaceQueries(ctx.queryClient, workspaceId);
+        ctx.queryClient.invalidateQueries({
+          queryKey: ['branchStatus', workspaceId],
+        });
+      }
+    },
+  },
+
   GitCreatePR: {
     id: 'git-create-pr',
     label: 'Create Pull Request',

@@ -98,6 +98,7 @@ export function GitPanelContainer({
           prUrl,
           prStatus,
           isTargetRemote: repoStatus?.is_target_remote ?? false,
+          hasUncommittedChanges: repoStatus?.has_uncommitted_changes ?? false,
         };
       }),
     [repos, branchStatus, summaryPr]
@@ -217,6 +218,7 @@ export function GitPanelContainer({
 
       // Map RepoAction to Action definitions
       const actionMap = {
+        commit: Actions.GitCommit,
         'pull-request': Actions.GitCreatePR,
         'link-pr': Actions.GitLinkPR,
         merge: Actions.GitMerge,

@@ -8,6 +8,7 @@ import {
   CrosshairIcon,
   ArrowSquareOutIcon,
   GitMergeIcon,
+  GitCommitIcon,
   CheckCircleIcon,
   SpinnerGapIcon,
   WarningCircleIcon,
@@ -24,6 +25,7 @@ import {
 import { SplitButton, type SplitButtonOption } from './SplitButton';
 
 export type RepoAction =
+  | 'commit'
   | 'pull-request'
   | 'link-pr'
   | 'merge'
@@ -32,6 +34,7 @@ export type RepoAction =
   | 'push';
 
 const repoActionOptions: SplitButtonOption<RepoAction>[] = [
+  { value: 'commit', label: 'Commit', icon: GitCommitIcon },
   {
     value: 'pull-request',
     label: 'Open pull request',
@@ -55,6 +58,7 @@ interface RepoCardProps {
   isPushSuccess?: boolean;
   isPushError?: boolean;
   isTargetRemote?: boolean;
+  hasUncommittedChanges?: boolean;
   branchDropdownContent?: ReactNode;
   selectedAction?: RepoAction;
   onSelectedActionChange?: (action: RepoAction) => void;
@@ -78,6 +82,7 @@ export function RepoCard({
   isPushSuccess = false,
   isPushError = false,
   isTargetRemote = false,
+  hasUncommittedChanges = false,
   branchDropdownContent,
   selectedAction = 'pull-request',
   onSelectedActionChange,
@@ -90,6 +95,7 @@ export function RepoCard({
   const { t } = useTranslation('tasks');
   const { t: tCommon } = useTranslation('common');
 
+  // Hide "Commit" when the worktree has no uncommitted changes
   // Hide "Open pull request" and "Link pull request" when PR is already open
   // Hide "Link pull request" when any PR is already linked (open or merged)
   // Hide "merge" option when PR is already open or target branch is remote
@@ -98,13 +104,14 @@ export function RepoCard({
   const availableActionOptions = useMemo(
     () =>
       repoActionOptions.filter((opt) => {
+        if (opt.value === 'commit' && !hasUncommittedChanges) return false;
         if (opt.value === 'pull-request' && hasPrOpen) return false;
         if (opt.value === 'link-pr' && hasPrLinked) return false;
         if (opt.value === 'merge' && (hasPrOpen || isTargetRemote))
           return false;
         return true;
       }),
-    [hasPrOpen, hasPrLinked, isTargetRemote]
+    [hasUncommittedChanges, hasPrOpen, hasPrLinked, isTargetRemote]
   );
 
   // If current selection is unavailable, fall back to the first available option.

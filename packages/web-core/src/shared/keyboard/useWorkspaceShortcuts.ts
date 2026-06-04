@@ -65,6 +65,7 @@ export function useWorkspaceShortcuts() {
   useHotkeys('v>s', () => execute(Actions.ToggleLeftSidebar), OPTIONS);
   useHotkeys('v>h', () => execute(Actions.ToggleLeftMainPanel), OPTIONS);
 
+  useHotkeys('x>c', () => execute(Actions.GitCommit), OPTIONS);
   useHotkeys('x>p', () => execute(Actions.GitCreatePR), OPTIONS);
   useHotkeys('x>m', () => execute(Actions.GitMerge), OPTIONS);
   useHotkeys('x>r', () => execute(Actions.GitRebase), OPTIONS);

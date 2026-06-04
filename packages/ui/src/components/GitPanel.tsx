@@ -20,6 +20,7 @@ export interface RepoInfo {
   isPushSuccess?: boolean;
   isPushError?: boolean;
   isTargetRemote?: boolean;
+  hasUncommittedChanges?: boolean;
 }
 
 interface GitPanelProps {
@@ -75,6 +76,7 @@ export function GitPanel({
             isPushSuccess={repo.isPushSuccess}
             isPushError={repo.isPushError}
             isTargetRemote={repo.isTargetRemote}
+            hasUncommittedChanges={repo.hasUncommittedChanges}
             selectedAction={repoSelectedActions?.[repo.id] ?? 'pull-request'}
             onSelectedActionChange={(action) =>
               onRepoActionChange?.(repo.id, action)

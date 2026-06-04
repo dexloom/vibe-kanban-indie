@@ -134,6 +134,7 @@ export interface ActionVisibilityContext {
   hasMultipleRepos: boolean;
   hasOpenPR: boolean;
   hasUnpushedCommits: boolean;
+  hasUncommittedChanges: boolean;
 
   // Execution state
   isAttemptRunning: boolean;

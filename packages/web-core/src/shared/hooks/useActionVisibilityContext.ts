@@ -123,6 +123,9 @@ export function useActionVisibilityContext(
       branchStatus?.some((repo) => (repo.remote_commits_ahead ?? 0) > 0) ??
       false;
 
+    const hasUncommittedChanges =
+      branchStatus?.some((repo) => repo.has_uncommitted_changes) ?? false;
+
     return {
       layoutMode,
       rightMainPanelMode: panelState.rightMainPanelMode,
@@ -142,6 +145,7 @@ export function useActionVisibilityContext(
       hasMultipleRepos: repos.length > 1,
       hasOpenPR,
       hasUnpushedCommits,
+      hasUncommittedChanges,
       isAttemptRunning: isAttemptRunningVisible,
       logsPanelContent,
       hasSelectedKanbanIssue,
