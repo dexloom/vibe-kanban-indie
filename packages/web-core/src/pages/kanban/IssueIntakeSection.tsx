@@ -11,6 +11,10 @@ import { repoApi, specApi, ApiError } from '@/shared/lib/api';
 
 interface IssueIntakeSectionProps {
   projectId: string;
+  /** The issue's current title (header) — used as the brief to expand. */
+  title: string;
+  /** The issue's current description — appended to the brief for context. */
+  description: string | null;
   /** Disabled when the dialog is submitting the card. */
   disabled?: boolean;
   /** True when running over a remote relay (feature is local-only). */
@@ -38,13 +42,16 @@ function prettyExecutor(executor: BaseCodingAgent): string {
 }
 
 /**
- * "Generate spec" intake controls for the New Issue dialog (create mode). Lets
- * the user type a rough brief, pick agent parameters + repos, and run a coding
- * agent that expands it into a development-ready title + spec. Synchronous
- * (spinner) — fills the dialog fields on success via `onGenerated`.
+ * "Generate spec" intake controls for the New Issue dialog (create mode). Takes
+ * the issue's own title + description as the brief, lets the user pick agent
+ * parameters + repos, and runs a coding agent that expands it into a
+ * development-ready title + spec. Synchronous (spinner) — overwrites the dialog's
+ * title and description on success via `onGenerated`.
  */
 export function IssueIntakeSection({
   projectId,
+  title,
+  description,
   disabled,
   relayDisabled,
   onGenerated,
@@ -67,14 +74,15 @@ export function IssueIntakeSection({
     configExecutorProfile: config?.executor_profile,
   });
 
-  // Interactive executors can't run headless here; mirror the server allowlist.
-  const allowedExecutors = useMemo(
-    () =>
-      executorOptions.filter((e) => e !== BaseCodingAgent.CLAUDE_CODE_HEADED),
-    [executorOptions]
-  );
+  // The brief is the issue's own header + description. Headed runs the read-only
+  // spec step headless server-side, so every executor (including Claude Code
+  // Headed) is selectable — the choice is the agent that later generates code.
+  const brief = useMemo(() => {
+    const header = title.trim();
+    const body = (description ?? '').trim();
+    return body ? `${header}\n\n${body}` : header;
+  }, [title, description]);
 
-  const [brief, setBrief] = useState('');
   const [candidates, setCandidates] = useState<CandidateRepo[]>([]);
   const [selectedRepoIds, setSelectedRepoIds] = useState<Set<string>>(
     new Set()
@@ -148,7 +156,7 @@ export function IssueIntakeSection({
     !disabled &&
     !relayDisabled &&
     !isGenerating &&
-    brief.trim().length > 0 &&
+    title.trim().length > 0 &&
     selectedRepos.length > 0 &&
     !!executorConfig;
 
@@ -190,11 +198,11 @@ export function IssueIntakeSection({
     <div className="p-base border-t space-y-base">
       <div>
         <div className="text-sm font-medium text-high">
-          Generate spec from a brief
+          Generate spec from the brief
         </div>
         <p className="text-xs text-low mt-half">
-          Describe the task in a line or two; an agent explores the selected
-          repos and drafts a full technical task into the title and description.
+          Uses the title and description above as the brief; an agent explores
+          the selected repos and rewrites them into a full technical task.
         </p>
       </div>
 
@@ -205,14 +213,12 @@ export function IssueIntakeSection({
         </p>
       ) : (
         <>
-          <textarea
-            value={brief}
-            onChange={(e) => setBrief(e.target.value)}
-            disabled={disabled || isGenerating}
-            rows={2}
-            placeholder="e.g. add exponential-backoff retry to the webhook sender"
-            className="w-full rounded-sm border bg-panel/40 px-half py-half text-sm text-high placeholder:text-low disabled:opacity-50"
-          />
+          {title.trim().length === 0 && (
+            <p className="text-xs text-low">
+              Add a title (and optionally a description) above to use as the
+              brief.
+            </p>
+          )}
 
           <div className="flex flex-wrap items-center gap-half">
             <label className="text-xs text-low">Agent</label>
@@ -222,7 +228,7 @@ export function IssueIntakeSection({
               onChange={(e) => setExecutor(e.target.value as BaseCodingAgent)}
               className="rounded-sm border bg-panel/40 px-half py-half text-sm text-high disabled:opacity-50"
             >
-              {allowedExecutors.map((exec) => (
+              {executorOptions.map((exec) => (
                 <option key={exec} value={exec}>
                   {prettyExecutor(exec)}
                 </option>

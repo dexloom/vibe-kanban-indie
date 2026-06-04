@@ -39,10 +39,17 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     Router::new().route("/spec/generate", post(generate_spec))
 }
 
-/// Executors that may run the intake. Excludes interactive executors
-/// (`CLAUDE_CODE_HEADED` runs a tmux session and would never return text here).
-fn is_executor_allowed(executor: &BaseCodingAgent) -> bool {
-    !matches!(executor, BaseCodingAgent::ClaudeCodeHeaded)
+/// Spec generation always runs headless: it's a read-only, one-shot run whose
+/// output is parsed from the agent's final message. The interactive "Claude Code
+/// Headed" executor (a detached tmux session) is normalized to its headless
+/// counterpart for this run. The user's original choice is still recorded in the
+/// issue's intake metadata, so the later "generate code from the spec" step can
+/// run with Claude Code Headed if that's what they picked.
+fn headless_for_intake(mut config: ExecutorConfig) -> ExecutorConfig {
+    if config.executor == BaseCodingAgent::ClaudeCodeHeaded {
+        config.executor = BaseCodingAgent::ClaudeCode;
+    }
+    config
 }
 
 pub async fn generate_spec(
@@ -83,12 +90,11 @@ pub async fn generate_spec(
             "Each repository needs a target branch.".to_string(),
         ));
     }
-    if !is_executor_allowed(&executor_config.executor) {
-        return Err(ApiError::BadRequest(format!(
-            "Executor {:?} is not supported for spec generation (interactive executors can't run headless).",
-            executor_config.executor
-        )));
-    }
+
+    // The user's executor choice is preserved in `intake_metadata` (it's the
+    // agent that will later generate code from the spec); the read-only spec run
+    // itself is forced headless.
+    let run_config = headless_for_intake(executor_config.clone());
 
     let prompt = DEFAULT_SPEC_INTAKE_PROMPT.replace("{brief}", &brief);
 
@@ -128,7 +134,7 @@ pub async fn generate_spec(
 
     let (title, description) = tokio::time::timeout(
         SPEC_INTAKE_TIMEOUT,
-        run_intake(&deployment, &workspace, executor_config.clone(), prompt),
+        run_intake(&deployment, &workspace, run_config, prompt),
     )
     .await
     .map_err(|_| {
@@ -315,8 +321,8 @@ async fn cleanup_ephemeral_workspace(deployment: &DeploymentImpl, workspace_id: 
 
 #[cfg(test)]
 mod tests {
-    use super::{is_executor_allowed, parse_spec};
-    use executors::executors::BaseCodingAgent;
+    use super::{headless_for_intake, parse_spec};
+    use executors::{executors::BaseCodingAgent, profile::ExecutorConfig};
 
     #[test]
     fn parses_json_fence() {
@@ -350,9 +356,19 @@ mod tests {
     }
 
     #[test]
-    fn allowlist_excludes_headed() {
-        assert!(is_executor_allowed(&BaseCodingAgent::ClaudeCode));
-        assert!(is_executor_allowed(&BaseCodingAgent::Codex));
-        assert!(!is_executor_allowed(&BaseCodingAgent::ClaudeCodeHeaded));
+    fn headed_is_normalized_to_headless_claude() {
+        let headed = ExecutorConfig::new(BaseCodingAgent::ClaudeCodeHeaded);
+        assert_eq!(
+            headless_for_intake(headed).executor,
+            BaseCodingAgent::ClaudeCode
+        );
+    }
+
+    #[test]
+    fn headless_executors_pass_through_unchanged() {
+        for executor in [BaseCodingAgent::ClaudeCode, BaseCodingAgent::Codex] {
+            let config = ExecutorConfig::new(executor);
+            assert_eq!(headless_for_intake(config).executor, executor);
+        }
     }
 }

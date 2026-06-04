@@ -1125,6 +1125,8 @@ export function KanbanIssuePanelContainer({
       renderIntake={() => (
         <IssueIntakeSection
           projectId={projectId}
+          title={displayData.title}
+          description={displayData.description}
           disabled={isSubmitting}
           onGenerated={handleSpecGenerated}
         />
