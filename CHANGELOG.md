@@ -7,6 +7,51 @@ tag that matches `npx-cli/package.json` (see `.github/workflows/release-indie.ym
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-06-05
+
+A follow-up to the Claude Code Headed release: deeper orchestration hooks for
+headed sessions, a spec-intake flow, configurable terminal-window grouping, new
+CRT theme skins, and in-app Git commit actions.
+
+### Added
+
+- **Generate spec from a brief** — the New Issue flow can expand a short brief
+  into a full technical task by running an agent in an ephemeral throwaway
+  workspace.
+- **Headed questionnaire bridge** — headed agents in plan mode now surface
+  `AskUserQuestion` / `ExitPlanMode` prompts to the UI and MCP.
+- **CRT / terminal theme variants** — three drop-in "skins" (Navy HUD, Phosphor,
+  Amber) applied as a client-side theme axis orthogonal to Light/Dark/System
+  (local web only). New skins can be added by dropping a CSS file plus manifest
+  entry, no rebuild required.
+- Expose Claude Code Headed agent progress and identifiers to the orchestrator
+  via MCP, and route MCP headed follow-ups into the live tmux session instead of
+  spawning a new agent.
+- Accept MCP launcher options (`headed-local-control`, `mode`) as env vars for a
+  declarative `.mcp.json`.
+- Headed sessions can report to their branch's Telegram channel (VIBE-8).
+- Show Claude Code Headed session IDs in the workspace right pane, with a button
+  to copy the full `tmux attach` command.
+- Group headed iTerm2 sessions as tabs of a single VK-owned window, controlled by
+  a new `iterm_tabs` config option (default on, Settings → General → Interactive
+  Terminal); turning it off restores one-window-per-session behavior.
+- **Commit** action for uncommitted worktree changes, available both in the Git
+  toolbar and the per-repo RepoCard git-actions dropdown (shown only when the
+  repo has uncommitted changes).
+- A product-manager agent.
+
+### Changed
+
+- Updated branding: new logo, restored wordmark/lockup sizing, and the
+  feather+wordmark lockup moved beside the left rail in the navbar.
+- Reduced the app-wide text scale (root font-size to 87.5%) so rem-based text and
+  spacing shrink across the app.
+
+### Fixed
+
+- Suppress noisy "Unrecognized JSON message" log entries for `queue-operation`
+  transcript records emitted by headed interactive sessions.
+
 ## [0.2.3] - 2026-06-02
 
 The headline is **Claude Code Headed**: a new executor that runs Claude Code in a
@@ -68,6 +113,7 @@ full control surface from the web UI.
   npm release pipeline. First independent, self-hosted (no team, no cloud, no auth)
   release of the fork.
 
+[0.2.4]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.4
 [0.2.3]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.3
 [0.2.2]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.2
 [0.2.1]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.1
