@@ -17,6 +17,8 @@ use db::{
             ExecutionContext, ExecutionProcess, ExecutionProcessRunReason, ExecutionProcessStatus,
         },
         execution_process_repo_state::ExecutionProcessRepoState,
+        issue::Issue,
+        issue_workspace::IssueWorkspace,
         repo::Repo,
         scratch::{DraftFollowUpData, Scratch, ScratchType},
         session::{Session, SessionError},
@@ -1462,8 +1464,10 @@ impl LocalContainerService {
             // Attach the chosen terminal emulator as a viewer. A missing emulator
             // is non-fatal: the session is alive and reachable via `tmux attach`.
             let iterm_tabs = self.config.read().await.iterm_tabs;
+            let tab_title = self.interactive_tab_title(exec_id, &tmux_session).await;
             if let Err(e) =
-                terminal::open_in_terminal(cfg.terminal, &tmux_session, iterm_tabs).await
+                terminal::open_in_terminal(cfg.terminal, &tmux_session, &tab_title, iterm_tabs)
+                    .await
             {
                 tracing::warn!("Could not open terminal emulator for {tmux_session}: {e}");
             }
@@ -1497,6 +1501,38 @@ impl LocalContainerService {
     /// highlighted default). Matching is by signature text and pinned to the
     /// Claude version we ship; if the text changes we simply stop confirming
     /// (the operator can still press Enter), never sending a wrong keystroke.
+    /// Human-readable title for an interactive terminal tab: the kanban card id
+    /// (issue `simple_id`) followed by the workspace branch, e.g. `VK-42
+    /// feat/login`. Falls back to just the branch, or to `fallback` (the tmux
+    /// session name) when the workspace/branch can't be resolved. Titling is
+    /// cosmetic, so any DB hiccup degrades to the fallback rather than failing.
+    async fn interactive_tab_title(&self, exec_id: Uuid, fallback: &str) -> String {
+        let Ok(ctx) = ExecutionProcess::load_context(&self.db.pool, exec_id).await else {
+            return fallback.to_string();
+        };
+        let branch = ctx.workspace.branch.trim();
+        if branch.is_empty() {
+            return fallback.to_string();
+        }
+        let card_id = match IssueWorkspace::find_issue_and_project_by_workspace(
+            &self.db.pool,
+            ctx.workspace.id,
+        )
+        .await
+        {
+            Ok(Some((issue_id, _project_id))) => Issue::find_by_id(&self.db.pool, issue_id)
+                .await
+                .ok()
+                .flatten()
+                .map(|issue| issue.simple_id),
+            _ => None,
+        };
+        match card_id {
+            Some(id) => format!("{id} {branch}"),
+            None => branch.to_string(),
+        }
+    }
+
     async fn auto_confirm_headed_startup(tmux_session: String) {
         const TRUST_PROMPT: &str = "Is this a project you";
         const CHANNEL_PROMPT: &str = "Loading development channels";
@@ -2349,7 +2385,10 @@ impl ContainerService for LocalContainerService {
             return Err(ContainerError::InteractiveSessionGone);
         }
         let iterm_tabs = self.config.read().await.iterm_tabs;
-        terminal::open_in_terminal(cfg.terminal, &tmux_session, iterm_tabs)
+        let title = self
+            .interactive_tab_title(execution_process.id, &tmux_session)
+            .await;
+        terminal::open_in_terminal(cfg.terminal, &tmux_session, &title, iterm_tabs)
             .await
             .map_err(|e| match e {
                 terminal::TerminalError::TerminalUnavailable { attach_cmd, .. } => {

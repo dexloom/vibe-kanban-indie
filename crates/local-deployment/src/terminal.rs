@@ -305,35 +305,31 @@ fn classify_send_keys_err(session_name: &str, stderr: &[u8]) -> TerminalError {
 /// returns [`TerminalError::TerminalUnavailable`] — the caller should keep the
 /// detached session and surface the attach command.
 ///
+/// `title` is the human-readable label shown on the iTerm2 tab/window (e.g. the
+/// kanban card id + branch); it is purely cosmetic and distinct from
+/// `session_name`, which is the tmux session used to attach.
+///
 /// `iterm_tabs` only affects [`TerminalKind::ITerm2`]: when true (default),
 /// sessions are grouped as tabs of one VK window; when false, each session opens
 /// in its own window (the legacy behavior).
 pub async fn open_in_terminal(
     kind: TerminalKind,
     session_name: &str,
+    title: &str,
     iterm_tabs: bool,
 ) -> Result<(), TerminalError> {
     let attach = attach_command(session_name);
     match kind {
         TerminalKind::None => Ok(()),
-        TerminalKind::ITerm2 => open_iterm_tab(&attach, iterm_tabs).await,
+        TerminalKind::ITerm2 => open_iterm_tab(&attach, title, iterm_tabs).await,
         TerminalKind::TerminalApp => {
-            let script = format!(
-                "tell application \"Terminal\"\n\
-                 activate\n\
-                 do script \"{attach}\"\n\
-                 end tell"
-            );
+            let script = build_terminal_app_script(&attach, title);
             run_osascript(kind, &script, &attach).await.map(|_| ())
         }
         TerminalKind::WezTerm => {
-            run_emulator(
-                kind,
-                "wezterm",
-                &["start", "--", "tmux", "attach", "-t", session_name],
-                &attach,
-            )
-            .await
+            let args = wezterm_attach_args(session_name, title);
+            let args: Vec<&str> = args.iter().map(String::as_str).collect();
+            run_emulator(kind, "wezterm", &args, &attach).await
         }
         TerminalKind::GnomeTerminal => {
             run_emulator(
@@ -362,17 +358,20 @@ pub async fn open_in_terminal(
 /// so they share one window, and the AppleScript returns the id of the window it
 /// used, which we remember for the next tab. When false, each call opens a fresh
 /// window (the `-1` sentinel skips the lookup) and no id is tracked.
-async fn open_iterm_tab(attach: &str, group_tabs: bool) -> Result<(), TerminalError> {
+///
+/// `title` is set as the tab/session title so grouped tabs (or per-session
+/// windows) are distinguishable at a glance.
+async fn open_iterm_tab(attach: &str, title: &str, group_tabs: bool) -> Result<(), TerminalError> {
     if !group_tabs {
         // Legacy: a separate window per session, no shared-window tracking.
-        let script = build_iterm_tab_script(-1, attach);
+        let script = build_iterm_tab_script(-1, attach, title);
         run_osascript(TerminalKind::ITerm2, &script, attach).await?;
         return Ok(());
     }
     let slot = iterm_window_slot();
     let mut guard = slot.lock().await;
     let known_id = guard.unwrap_or(-1);
-    let script = build_iterm_tab_script(known_id, attach);
+    let script = build_iterm_tab_script(known_id, attach, title);
     let stdout = run_osascript(TerminalKind::ITerm2, &script, attach).await?;
     // osascript prints the script's return value (the window id) on stdout.
     if let Some(id) = stdout
@@ -388,12 +387,17 @@ async fn open_iterm_tab(attach: &str, group_tabs: bool) -> Result<(), TerminalEr
 /// Build the AppleScript that reuses VK's iTerm window (by `known_id`, or `-1`
 /// for "none yet") as a tab host. It finds the window by id; if it's gone (or
 /// none is known) it creates a fresh window instead; either way it types the
-/// attach command into the new session and returns the window id used.
+/// attach command into the new session, titles the session with `title` (so its
+/// tab — the "card header" — identifies it), and returns the window id used.
 ///
 /// `write text` (rather than `command "<attach>"`) is deliberate: it runs in a
 /// login shell so `tmux` resolves on PATH, and keeps the shell alive after
 /// `tmux attach` detaches — see the original single-window rationale.
-fn build_iterm_tab_script(known_id: i64, attach: &str) -> String {
+///
+/// Setting `name` pins a manual title on the session so tmux's own title updates
+/// don't overwrite it; this is what lets grouped tabs be told apart at a glance.
+fn build_iterm_tab_script(known_id: i64, attach: &str, title: &str) -> String {
+    let title = applescript_quote(title);
     format!(
         "tell application \"iTerm\"\n\
          activate\n\
@@ -411,10 +415,53 @@ fn build_iterm_tab_script(known_id: i64, attach: &str) -> String {
          else\n\
            tell targetWindow to create tab with default profile\n\
          end if\n\
-         tell current session of targetWindow to write text \"{attach}\"\n\
+         tell current session of targetWindow\n\
+           write text \"{attach}\"\n\
+           set name to \"{title}\"\n\
+         end tell\n\
          return id of targetWindow\n\
          end tell"
     )
+}
+
+/// Build the AppleScript that opens a Terminal.app tab attached to the session
+/// and pins `title` as its custom tab title. `do script` returns the new tab, so
+/// `set custom title of` it labels exactly the tab we just created.
+fn build_terminal_app_script(attach: &str, title: &str) -> String {
+    let title = applescript_quote(title);
+    format!(
+        "tell application \"Terminal\"\n\
+         activate\n\
+         set vkTab to do script \"{attach}\"\n\
+         set custom title of vkTab to \"{title}\"\n\
+         end tell"
+    )
+}
+
+/// Build the `wezterm start` argv that attaches to the tmux session with `title`
+/// as the tab title. WezTerm adopts the OSC-0 title the program emits, so we run
+/// a tiny shell that prints the title escape, then `exec`s `tmux attach`. The
+/// title and session are passed as positional `$1`/`$2` (never interpolated into
+/// the script) so a branch with spaces or shell metacharacters can't break out.
+///
+/// tmux only rewrites the terminal title when `set-titles` is on (off by
+/// default), so the title we set before attaching normally sticks.
+fn wezterm_attach_args(session_name: &str, title: &str) -> Vec<String> {
+    // `\033]0;<title>\007` is the OSC sequence that sets the window/tab title;
+    // `printf` interprets the octal escapes from the single-quoted format.
+    let inner = "printf '\\033]0;%s\\007' \"$1\"; exec tmux attach -t \"$2\"";
+    ["start", "--", "sh", "-c", inner, "sh", title, session_name]
+        .into_iter()
+        .map(String::from)
+        .collect()
+}
+
+/// Escape a string for embedding inside an AppleScript double-quoted literal.
+/// Tab titles are a card id + branch name, which can in principle contain a
+/// double-quote or backslash, so escape them to keep the generated script
+/// well-formed.
+fn applescript_quote(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 async fn run_osascript(
@@ -496,18 +543,20 @@ mod tests {
 
     #[test]
     fn iterm_tab_script_creates_window_when_none_known() {
-        let script = build_iterm_tab_script(-1, "tmux attach -t vk-abc");
+        let script = build_iterm_tab_script(-1, "tmux attach -t vk-abc", "vk-abc");
         // With the -1 sentinel the lookup loop is skipped and a fresh window is
         // created; the attach command is typed and the window id is returned.
         assert!(script.contains("if -1 is not -1 then"));
         assert!(script.contains("create window with default profile"));
         assert!(script.contains("write text \"tmux attach -t vk-abc\""));
         assert!(script.contains("return id of targetWindow"));
+        // The session is titled after the tmux session so its tab is identifiable.
+        assert!(script.contains("set name to \"vk-abc\""));
     }
 
     #[test]
     fn iterm_tab_script_reuses_known_window_as_tab() {
-        let script = build_iterm_tab_script(42, "tmux attach -t vk-def");
+        let script = build_iterm_tab_script(42, "tmux attach -t vk-def", "vk-def");
         // A known id is matched against open windows; the match path adds a tab
         // rather than a new window.
         assert!(script.contains("if 42 is not -1 then"));
@@ -515,6 +564,46 @@ mod tests {
         assert!(script.contains("tell targetWindow to create tab with default profile"));
         // The new-window fallback is still present for the stale-id case.
         assert!(script.contains("create window with default profile"));
+        // The new tab is titled after its tmux session.
+        assert!(script.contains("set name to \"vk-def\""));
+    }
+
+    #[test]
+    fn terminal_app_script_sets_custom_tab_title() {
+        let script = build_terminal_app_script("tmux attach -t vk-abc", "VK-42 feat/login");
+        // Opens the attach command and names exactly the tab it just created.
+        assert!(script.contains("set vkTab to do script \"tmux attach -t vk-abc\""));
+        assert!(script.contains("set custom title of vkTab to \"VK-42 feat/login\""));
+    }
+
+    #[test]
+    fn wezterm_args_set_title_before_attaching() {
+        let args = wezterm_attach_args("vk-abc", "VK-42 feat/login");
+        // Launches a GUI window running a shell that sets the OSC title, then
+        // execs the attach. Title/session ride as positional args, not inlined.
+        assert_eq!(
+            args,
+            vec![
+                "start".to_string(),
+                "--".to_string(),
+                "sh".to_string(),
+                "-c".to_string(),
+                "printf '\\033]0;%s\\007' \"$1\"; exec tmux attach -t \"$2\"".to_string(),
+                "sh".to_string(),
+                "VK-42 feat/login".to_string(),
+                "vk-abc".to_string(),
+            ]
+        );
+        // $1 is the title and $2 is the session — order matters.
+        assert_eq!(args[args.len() - 2], "VK-42 feat/login");
+        assert_eq!(args[args.len() - 1], "vk-abc");
+    }
+
+    #[test]
+    fn applescript_quote_escapes_quotes_and_backslashes() {
+        assert_eq!(applescript_quote("vk-abc"), "vk-abc");
+        assert_eq!(applescript_quote("a\"b"), "a\\\"b");
+        assert_eq!(applescript_quote("a\\b"), "a\\\\b");
     }
 
     #[test]
