@@ -205,8 +205,10 @@ mod tests {
 
     #[test]
     fn v9_round_trips_terminal() {
-        let mut cfg = Config::default();
-        cfg.terminal = TerminalKind::WezTerm;
+        let cfg = Config {
+            terminal: TerminalKind::WezTerm,
+            ..Default::default()
+        };
         let raw = serde_json::to_string(&cfg).unwrap();
         let back = Config::from(raw);
         assert_eq!(back.terminal, TerminalKind::WezTerm);

@@ -406,7 +406,8 @@
       "edit": "メッセージを編集",
       "scrollToPreviousMessage": "Go to previous message",
       "reset": "リセット",
-      "resetTooltip": "この時点にリセット"
+      "resetTooltip": "この時点にリセット",
+      "agentWorking": "Agent is working…"
     },
     "approval": {
       "conflictWarning": "競合するファイルは手動で解決する必要があります",

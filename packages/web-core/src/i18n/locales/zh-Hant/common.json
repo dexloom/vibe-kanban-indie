@@ -187,7 +187,8 @@
     "cancel": "取消",
     "saveChanges": "儲存變更",
     "copied": "已複製",
-    "collapse": "收起"
+    "collapse": "收起",
+    "copy": "Copy"
   },
   "comments": {
     "addReviewComment": "新增審查評論",
@@ -257,7 +258,10 @@
   },
   "processes": {
     "noProcesses": "無程序",
-    "terminal": "終端機"
+    "terminal": "終端機",
+    "openInTerminal": "Open in Terminal",
+    "send": "Send",
+    "sendInputPlaceholder": "Answer or comment to the agent…"
   },
   "search": {
     "matchCount": "{{current}} / {{total}}",

@@ -7,6 +7,23 @@ tag that matches `npx-cli/package.json` (see `.github/workflows/release-indie.ym
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2026-06-06
+
+A maintenance release tightening the release process and polishing interactive
+sessions.
+
+### Added
+
+- **Interactive terminal tab titles** — headed terminal tabs are now titled with
+  the card id + branch so multiple live sessions are easy to tell apart.
+- **`make release-check`** — a local mirror of the CI test workflow to run before
+  pushing a `v*` tag, since the release workflow publishes without running tests.
+- **`agentWorking` status string** — added across all locale bundles.
+
+### Fixed
+
+- Cleaned up the v9 config round-trip test to use struct-update syntax.
+
 ## [0.2.4] - 2026-06-05
 
 A follow-up to the Claude Code Headed release: deeper orchestration hooks for

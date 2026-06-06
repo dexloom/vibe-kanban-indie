@@ -187,7 +187,8 @@
     "cancel": "取消",
     "saveChanges": "保存更改",
     "copied": "已复制",
-    "collapse": "收起"
+    "collapse": "收起",
+    "copy": "Copy"
   },
   "comments": {
     "addReviewComment": "添加审查评论",
@@ -257,7 +258,10 @@
   },
   "processes": {
     "noProcesses": "无进程",
-    "terminal": "终端"
+    "terminal": "终端",
+    "openInTerminal": "Open in Terminal",
+    "send": "Send",
+    "sendInputPlaceholder": "Answer or comment to the agent…"
   },
   "search": {
     "matchCount": "{{current}} / {{total}}",

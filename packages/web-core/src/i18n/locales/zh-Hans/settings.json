@@ -293,6 +293,14 @@
           "label": "启用工作区 Beta",
           "helper": "查看任务尝试时使用新的工作区界面。任务将首先在任务视图中打开，尝试将在新的工作区视图中打开。"
         }
+      },
+      "terminal": {
+        "title": "Interactive Terminal",
+        "description": "Configure how headed (interactive) agent terminal sessions are displayed.",
+        "itermTabs": {
+          "label": "Group iTerm2 sessions as tabs",
+          "helper": "When enabled, interactive agent sessions open as tabs of a single iTerm2 window instead of a separate window per session. Only affects iTerm2."
+        }
       }
     },
     "agents": {

@@ -406,7 +406,8 @@
       "edit": "Editar mensaje",
       "scrollToPreviousMessage": "Go to previous message",
       "reset": "Restablecer",
-      "resetTooltip": "Restablecer a este punto"
+      "resetTooltip": "Restablecer a este punto",
+      "agentWorking": "Agent is working…"
     },
     "approval": {
       "conflictWarning": "Los archivos en conflicto necesitan resolución manual",

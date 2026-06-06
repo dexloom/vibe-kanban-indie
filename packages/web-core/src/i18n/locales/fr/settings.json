@@ -293,6 +293,14 @@
           "label": "Activer la bêta des espaces de travail",
           "helper": "Utiliser la nouvelle interface des espaces de travail lors de la visualisation des tentatives de tâches. Les tâches s'ouvriront d'abord en vue tâche, et les tentatives s'ouvriront dans la nouvelle vue des espaces de travail."
         }
+      },
+      "terminal": {
+        "title": "Interactive Terminal",
+        "description": "Configure how headed (interactive) agent terminal sessions are displayed.",
+        "itermTabs": {
+          "label": "Group iTerm2 sessions as tabs",
+          "helper": "When enabled, interactive agent sessions open as tabs of a single iTerm2 window instead of a separate window per session. Only affects iTerm2."
+        }
       }
     },
     "agents": {

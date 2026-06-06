@@ -187,7 +187,8 @@
     "cancel": "キャンセル",
     "saveChanges": "変更を保存",
     "copied": "コピーしました",
-    "collapse": "折りたたむ"
+    "collapse": "折りたたむ",
+    "copy": "Copy"
   },
   "comments": {
     "addReviewComment": "レビューコメントを追加",
@@ -257,7 +258,10 @@
   },
   "processes": {
     "noProcesses": "プロセスがありません",
-    "terminal": "ターミナル"
+    "terminal": "ターミナル",
+    "openInTerminal": "Open in Terminal",
+    "send": "Send",
+    "sendInputPlaceholder": "Answer or comment to the agent…"
   },
   "search": {
     "matchCount": "{{current}} / {{total}}",

@@ -406,7 +406,8 @@
       "edit": "메시지 편집",
       "scrollToPreviousMessage": "Go to previous message",
       "reset": "초기화",
-      "resetTooltip": "이 시점으로 초기화"
+      "resetTooltip": "이 시점으로 초기화",
+      "agentWorking": "Agent is working…"
     },
     "approval": {
       "conflictWarning": "충돌하는 파일은 수동으로 해결해야 합니다",

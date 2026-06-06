@@ -293,6 +293,14 @@
           "label": "Habilitar Beta de Workspaces",
           "helper": "Usa la nueva interfaz de workspaces al ver intentos de tareas. Las tareas se abrirán primero en la vista de tareas, y los intentos se abrirán en la nueva vista de workspaces."
         }
+      },
+      "terminal": {
+        "title": "Interactive Terminal",
+        "description": "Configure how headed (interactive) agent terminal sessions are displayed.",
+        "itermTabs": {
+          "label": "Group iTerm2 sessions as tabs",
+          "helper": "When enabled, interactive agent sessions open as tabs of a single iTerm2 window instead of a separate window per session. Only affects iTerm2."
+        }
       }
     },
     "agents": {

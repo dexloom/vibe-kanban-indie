@@ -123,9 +123,20 @@ git checkout main && git pull
 git commit -am "release: v0.1.1"
 git push
 
+# Verify the release passes the same gates as CI BEFORE tagging. The release
+# workflow publishes on the tag without running tests, so this is your only
+# guard against shipping a broken main (see Makefile `release-check`).
+make release-check          # or: make release-check SKIP_TAURI=1
+
 git tag v0.1.1
 git push origin v0.1.1
 ```
+
+> **Why the `make release-check` step matters.** `release-indie.yml` triggers on
+> the tag and goes straight to build → publish — it does *not* run the `Test`
+> workflow. The `Test` workflow runs separately on the `main` push, so nothing
+> stops you from tagging a commit whose tests are red. `make release-check`
+> mirrors every `Test` job locally; only push the tag once it's green.
 
 Pushing the `v0.1.1` tag triggers `release-indie.yml`, which now runs end to end:
 build → GitHub Release (binaries + manifest) → `npm publish` via OIDC (with

@@ -187,7 +187,8 @@
     "cancel": "취소",
     "saveChanges": "변경사항 저장",
     "copied": "복사됨",
-    "collapse": "접기"
+    "collapse": "접기",
+    "copy": "Copy"
   },
   "comments": {
     "addReviewComment": "리뷰 코멘트 추가",
@@ -257,7 +258,10 @@
   },
   "processes": {
     "noProcesses": "프로세스 없음",
-    "terminal": "터미널"
+    "terminal": "터미널",
+    "openInTerminal": "Open in Terminal",
+    "send": "Send",
+    "sendInputPlaceholder": "Answer or comment to the agent…"
   },
   "search": {
     "matchCount": "{{current}} / {{total}}",

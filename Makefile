@@ -29,7 +29,12 @@ MCP_MODE         ?= global
 .DEFAULT_GOAL := help
 
 .PHONY: help install install-server install-all build build-mcp build-server \
-        mcp-register mcp-unregister uninstall clean
+        mcp-register mcp-unregister uninstall clean \
+        release-check check-backend check-schema check-test check-frontend \
+        check-tauri
+
+# cargo-nextest is what CI uses; fall back to plain `cargo test` if it's absent.
+NEXTEST := $(shell command -v cargo-nextest 2>/dev/null)
 
 help: ## Show this help
 	@echo "vibe-kanban-indie Makefile"
@@ -82,3 +87,50 @@ uninstall: ## Remove installed binaries from BINDIR
 
 clean: ## cargo clean
 	$(CARGO) clean
+
+# ---------------------------------------------------------------------------
+# Release verification — mirror of .github/workflows/test.yml
+#
+# Run `make release-check` BEFORE pushing a `v*` tag. The release workflow
+# (release-indie.yml) triggers on the tag and publishes binaries + npm WITHOUT
+# running tests, so a broken `main` ships unless you catch it here first.
+# (v0.2.4 carried a clippy error + missing i18n keys that only CI caught.)
+#
+#   make release-check                # full gate (backend + frontend + tauri)
+#   make release-check SKIP_TAURI=1   # skip the heavy tauri leg
+#
+# Frontend gates assume `pnpm install` has already been run.
+# ---------------------------------------------------------------------------
+
+release-check: check-backend check-schema check-test check-frontend $(if $(SKIP_TAURI),,check-tauri) ## Run all CI gates locally before tagging a release
+	@echo
+	@echo "✅ release-check passed — safe to tag and push."
+
+check-backend: ## fmt + clippy (mirrors the backend-clippy CI job)
+	$(CARGO) fmt --all -- --check
+	$(CARGO) clippy --workspace --all-targets --exclude vibe-kanban-tauri -- -D warnings
+
+check-schema: ## generated types + sqlx offline data (mirrors backend-schema-checks)
+	pnpm run generate-types:check
+	pnpm run prepare-db:check
+
+check-test: ## workspace tests (mirrors backend-test)
+ifeq ($(NEXTEST),)
+	$(CARGO) test --workspace --exclude vibe-kanban-tauri
+else
+	$(CARGO) nextest run --workspace --exclude vibe-kanban-tauri
+endif
+
+check-frontend: ## lint / format / build / i18n (mirrors frontend-checks)
+	cd packages/local-web && npm run lint && npm run format:check && npm run build
+	cd packages/remote-web && npm run format:check && npm run build
+	cd packages/ui && npm run check && npm run lint && npm run format:check
+	cd packages/web-core && npm run check && npm run format:check
+	GITHUB_BASE_REF=main ./scripts/check-i18n.sh
+	node scripts/check-unused-i18n-keys.mjs
+	./scripts/check-legacy-frontend-paths.sh
+
+check-tauri: ## tauri fmt / clippy / check (mirrors tauri-checks)
+	$(CARGO) fmt --all --manifest-path crates/tauri-app/Cargo.toml -- --check
+	$(CARGO) clippy --all-targets --manifest-path crates/tauri-app/Cargo.toml -- -D warnings
+	$(CARGO) check -p vibe-kanban-tauri

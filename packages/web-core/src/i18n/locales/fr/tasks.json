@@ -146,7 +146,8 @@
       "edit": "Modifier le message",
       "scrollToPreviousMessage": "Go to previous message",
       "reset": "Réinitialiser",
-      "resetTooltip": "Réinitialiser à ce point"
+      "resetTooltip": "Réinitialiser à ce point",
+      "agentWorking": "Agent is working…"
     },
     "approval": {
       "conflictWarning": "Les fichiers en conflit nécessitent une résolution manuelle",

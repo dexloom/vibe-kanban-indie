@@ -406,7 +406,8 @@
       "edit": "編輯訊息",
       "scrollToPreviousMessage": "Go to previous message",
       "reset": "重設",
-      "resetTooltip": "重設到此時點"
+      "resetTooltip": "重設到此時點",
+      "agentWorking": "Agent is working…"
     },
     "approval": {
       "conflictWarning": "衝突檔案需要手動解決",

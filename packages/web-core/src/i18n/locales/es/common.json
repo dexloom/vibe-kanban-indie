@@ -187,7 +187,8 @@
     "cancel": "Cancelar",
     "saveChanges": "Guardar cambios",
     "copied": "Copiado",
-    "collapse": "Contraer"
+    "collapse": "Contraer",
+    "copy": "Copy"
   },
   "comments": {
     "addReviewComment": "Agregar comentario de revisión",
@@ -257,7 +258,10 @@
   },
   "processes": {
     "noProcesses": "Sin procesos",
-    "terminal": "Terminal"
+    "terminal": "Terminal",
+    "openInTerminal": "Open in Terminal",
+    "send": "Send",
+    "sendInputPlaceholder": "Answer or comment to the agent…"
   },
   "search": {
     "matchCount": "{{current}} de {{total}}",

@@ -293,6 +293,14 @@
           "label": "ワークスペースベータを有効化",
           "helper": "タスク試行を表示する際に新しいワークスペースインターフェースを使用します。タスクは最初にタスクビューで開き、試行は新しいワークスペースビューで開きます。"
         }
+      },
+      "terminal": {
+        "title": "Interactive Terminal",
+        "description": "Configure how headed (interactive) agent terminal sessions are displayed.",
+        "itermTabs": {
+          "label": "Group iTerm2 sessions as tabs",
+          "helper": "When enabled, interactive agent sessions open as tabs of a single iTerm2 window instead of a separate window per session. Only affects iTerm2."
+        }
       }
     },
     "agents": {
