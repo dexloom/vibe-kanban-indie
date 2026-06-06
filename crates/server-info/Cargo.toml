@@ -1,6 +1,6 @@
 [package]
 name = "server-info"
-version = "0.1.36"
+version = "0.2.4"
 edition = "2024"
 
 [dependencies]
