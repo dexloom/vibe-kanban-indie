@@ -7,6 +7,19 @@ tag that matches `npx-cli/package.json` (see `.github/workflows/release-indie.ym
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2026-06-06
+
+A CI hygiene release.
+
+### Removed
+
+- **Upstream BloopAI deploy/release workflows** — the relay/remote
+  deploy + release workflows (which dispatched to BloopAI's private deployment
+  repo or used BloopAI custom actions), the old `pre-release.yml`/`publish.yml`
+  binary+npm pipelines, and the now-orphaned `setup-jsign` action. Two of them
+  ran on every push to `main` and failed. This fork's CI is `test.yml` and it
+  ships via `release-indie.yml` — neither touches upstream infrastructure.
+
 ## [0.2.5] - 2026-06-06
 
 A maintenance release tightening the release process and polishing interactive
