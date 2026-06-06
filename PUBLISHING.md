@@ -178,5 +178,8 @@ npx vibe-kanban-indie@0.1.1-rc.1
   platforms.
 - **Desktop (`--desktop`) is not published** for this fork (CLI binaries only);
   it falls back to browser mode on installed copies.
-- The upstream `publish.yml` / `pre-release.yml` (Cloudflare R2 flow) are
-  disabled (manual-only) and unused here.
+- The upstream relay/remote deploy + release workflows (`relay-deploy-*`,
+  `remote-deploy-*`, `relay-release`, `remote-release`) and the old binary/npm
+  release pipelines (`pre-release.yml`, `publish.yml`) have been **removed** —
+  they dispatched to BloopAI's private deployment repo / used BloopAI custom
+  actions. This fork ships via `release-indie.yml` only. CI is `test.yml`.
