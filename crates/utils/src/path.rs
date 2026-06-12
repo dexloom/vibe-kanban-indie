@@ -124,6 +124,24 @@ pub fn get_vibe_kanban_temp_dir() -> std::path::PathBuf {
     }
 }
 
+/// Persistent vibe-kanban home directory: `~/.vibe-kanban` (or `~/.vibe-kanban-dev`
+/// for debug builds, so dev and release worktrees/state never collide). This is
+/// the same `~/.vibe-kanban` convention used for `telegram.toml`/`projects.toml`.
+///
+/// Falls back to [`get_vibe_kanban_temp_dir`] when the home directory can't be
+/// determined, preserving the previous temp-dir behaviour in that edge case.
+pub fn get_vibe_kanban_home_dir() -> std::path::PathBuf {
+    let dir_name = if cfg!(debug_assertions) {
+        ".vibe-kanban-dev"
+    } else {
+        ".vibe-kanban"
+    };
+
+    dirs::home_dir()
+        .map(|home| home.join(dir_name))
+        .unwrap_or_else(get_vibe_kanban_temp_dir)
+}
+
 /// Expand leading ~ to user's home directory.
 pub fn expand_tilde(path_str: &str) -> std::path::PathBuf {
     shellexpand::tilde(path_str).as_ref().into()

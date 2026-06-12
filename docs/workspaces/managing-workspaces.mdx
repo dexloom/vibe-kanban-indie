@@ -95,13 +95,13 @@ Each workspace creates a **git worktree** - a separate working directory with a 
 
 ### Where Worktrees Are Stored
 
-Worktrees are stored in a platform-specific directory by default:
+By default, worktrees are stored under your home directory at `~/.vibe-kanban/worktrees` on all platforms. This persistent location keeps worktrees safe from system temp-directory cleanup.
 
 | Platform | Default Location |
 |----------|-----------------|
-| **macOS** | `/var/folders/.../T/vibe-kanban/worktrees` (system temp) |
-| **Linux** | `/var/tmp/vibe-kanban/worktrees` |
-| **Windows** | `%TEMP%\vibe-kanban\worktrees` |
+| **macOS** | `~/.vibe-kanban/worktrees` |
+| **Linux** | `~/.vibe-kanban/worktrees` |
+| **Windows** | `%USERPROFILE%\.vibe-kanban\worktrees` |
 
 You can configure a custom location in **Settings → General → Workspace Directory**. When set, worktrees are stored in `{your-path}/.vibe-kanban-workspaces`.
 
@@ -110,17 +110,17 @@ You can configure a custom location in **Settings → General → Workspace Dire
 <Tabs>
 <Tab title="macOS">
 ```bash
-du -sh $TMPDIR/vibe-kanban/worktrees
+du -sh ~/.vibe-kanban/worktrees
 ```
 </Tab>
 <Tab title="Linux">
 ```bash
-du -sh /var/tmp/vibe-kanban/worktrees
+du -sh ~/.vibe-kanban/worktrees
 ```
 </Tab>
 <Tab title="Windows">
 ```powershell
-Get-ChildItem "$env:TEMP\vibe-kanban\worktrees" -Recurse | Measure-Object -Property Length -Sum
+Get-ChildItem "$env:USERPROFILE\.vibe-kanban\worktrees" -Recurse | Measure-Object -Property Length -Sum
 ```
 </Tab>
 </Tabs>

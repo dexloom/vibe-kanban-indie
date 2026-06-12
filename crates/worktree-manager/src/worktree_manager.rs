@@ -517,9 +517,13 @@ impl WorktreeManager {
         Self::get_default_worktree_base_dir()
     }
 
-    /// Get the default base directory (ignoring any override)
+    /// Get the default base directory (ignoring any override).
+    ///
+    /// Worktrees live under the persistent `~/.vibe-kanban/worktrees` home
+    /// directory so they survive temp-dir cleanup. Override via the
+    /// `workspace_dir` config option (see [`Self::get_worktree_base_dir`]).
     pub fn get_default_worktree_base_dir() -> std::path::PathBuf {
-        utils::path::get_vibe_kanban_temp_dir().join("worktrees")
+        utils::path::get_vibe_kanban_home_dir().join("worktrees")
     }
 
     pub async fn cleanup_suspected_worktree(path: &Path) -> Result<bool, WorktreeError> {
