@@ -396,6 +396,14 @@ async fn open_iterm_tab(attach: &str, title: &str, group_tabs: bool) -> Result<(
 ///
 /// Setting `name` pins a manual title on the session so tmux's own title updates
 /// don't overwrite it; this is what lets grouped tabs be told apart at a glance.
+///
+/// We bind the session that `create window`/`create tab` returns into
+/// `targetSession` and write into *that*, rather than `current session of
+/// targetWindow`. The latter resolves to whichever tab is *selected* when the
+/// `write text` runs, so under a focus race (or if VK's window isn't frontmost)
+/// the attach command could be typed into an unrelated, already-open tab — the
+/// agent would appear "somewhere else" while the freshly created tab stayed a
+/// blank shell. Referencing the created session removes that ambiguity.
 fn build_iterm_tab_script(known_id: i64, attach: &str, title: &str) -> String {
     let title = applescript_quote(title);
     format!(
@@ -412,10 +420,14 @@ fn build_iterm_tab_script(known_id: i64, attach: &str, title: &str) -> String {
          end if\n\
          if targetWindow is missing value then\n\
            set targetWindow to (create window with default profile)\n\
+           set targetSession to (current session of targetWindow)\n\
          else\n\
-           tell targetWindow to create tab with default profile\n\
+           tell targetWindow\n\
+             set newTab to (create tab with default profile)\n\
+           end tell\n\
+           set targetSession to (current session of newTab)\n\
          end if\n\
-         tell current session of targetWindow\n\
+         tell targetSession\n\
            write text \"{attach}\"\n\
            set name to \"{title}\"\n\
          end tell\n\
@@ -548,6 +560,10 @@ mod tests {
         // created; the attach command is typed and the window id is returned.
         assert!(script.contains("if -1 is not -1 then"));
         assert!(script.contains("create window with default profile"));
+        // The attach is written into the session we just created (bound), not
+        // `current session of targetWindow`, so a focus race can't misroute it.
+        assert!(script.contains("set targetSession to (current session of targetWindow)"));
+        assert!(script.contains("tell targetSession"));
         assert!(script.contains("write text \"tmux attach -t vk-abc\""));
         assert!(script.contains("return id of targetWindow"));
         // The session is titled after the tmux session so its tab is identifiable.
@@ -561,7 +577,11 @@ mod tests {
         // rather than a new window.
         assert!(script.contains("if 42 is not -1 then"));
         assert!(script.contains("if (id of w) is 42 then"));
-        assert!(script.contains("tell targetWindow to create tab with default profile"));
+        assert!(script.contains("set newTab to (create tab with default profile)"));
+        // The attach targets the session of the tab we just created, so it can't
+        // be misrouted to whatever tab happens to be selected at that moment.
+        assert!(script.contains("set targetSession to (current session of newTab)"));
+        assert!(script.contains("tell targetSession"));
         // The new-window fallback is still present for the stale-id case.
         assert!(script.contains("create window with default profile"));
         // The new tab is titled after its tmux session.

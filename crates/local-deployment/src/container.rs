@@ -1502,19 +1502,17 @@ impl LocalContainerService {
     /// Claude version we ship; if the text changes we simply stop confirming
     /// (the operator can still press Enter), never sending a wrong keystroke.
     /// Human-readable title for an interactive terminal tab: the kanban card id
-    /// (issue `simple_id`) followed by the workspace branch, e.g. `VK-42
-    /// feat/login`. Falls back to just the branch, or to `fallback` (the tmux
-    /// session name) when the workspace/branch can't be resolved. Titling is
-    /// cosmetic, so any DB hiccup degrades to the fallback rather than failing.
+    /// (issue `simple_id`) followed by the card title, e.g. `VIBE-3 iTerm tab
+    /// name`. Falls back to the workspace branch when no card is linked, or to
+    /// `fallback` (the tmux session name) when nothing else can be resolved.
+    /// Titling is cosmetic, so any DB hiccup degrades to the fallback rather
+    /// than failing.
     async fn interactive_tab_title(&self, exec_id: Uuid, fallback: &str) -> String {
         let Ok(ctx) = ExecutionProcess::load_context(&self.db.pool, exec_id).await else {
             return fallback.to_string();
         };
-        let branch = ctx.workspace.branch.trim();
-        if branch.is_empty() {
-            return fallback.to_string();
-        }
-        let card_id = match IssueWorkspace::find_issue_and_project_by_workspace(
+        // Prefer the linked kanban card: "<simple_id> <title>".
+        let issue = match IssueWorkspace::find_issue_and_project_by_workspace(
             &self.db.pool,
             ctx.workspace.id,
         )
@@ -1523,13 +1521,23 @@ impl LocalContainerService {
             Ok(Some((issue_id, _project_id))) => Issue::find_by_id(&self.db.pool, issue_id)
                 .await
                 .ok()
-                .flatten()
-                .map(|issue| issue.simple_id),
+                .flatten(),
             _ => None,
         };
-        match card_id {
-            Some(id) => format!("{id} {branch}"),
-            None => branch.to_string(),
+        if let Some(issue) = issue {
+            let title = issue.title.trim();
+            return if title.is_empty() {
+                issue.simple_id
+            } else {
+                format!("{} {title}", issue.simple_id)
+            };
+        }
+        // No linked card: fall back to the branch, then the tmux session name.
+        let branch = ctx.workspace.branch.trim();
+        if branch.is_empty() {
+            fallback.to_string()
+        } else {
+            branch.to_string()
         }
     }
 
