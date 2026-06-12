@@ -513,6 +513,38 @@
       "failedToCreateWorkspace": "Failed to create workspace"
     }
   },
+  "spawnOrchestrator": {
+    "title": "Spawn Orchestrator",
+    "description": "Launch a headed Claude Code session that drives the board on a loop — adopting and steering your agents to done. It runs from a fixed folder and reaches every project via MCP, so no repo is needed. Pick the directives this run should follow.",
+    "nameLabel": "Name",
+    "directivesLabel": "Directives",
+    "existingRunning": "An orchestrator is already running. Open it to use its live session.",
+    "openRunning": "Open running orchestrator",
+    "spawning": "Spawning...",
+    "spawn": "Spawn Orchestrator",
+    "options": {
+      "plan-review": {
+        "label": "Codex plan review",
+        "description": "Gate every agent's IMPLEMENTATION_PLAN.md with a read-only codex plan review and loop until it passes before development starts."
+      },
+      "codex-diff-review": {
+        "label": "Codex diff review",
+        "description": "Require a passing codex diff review before any card moves to In Review."
+      },
+      "auto-unblock": {
+        "label": "Auto-unblock approvals",
+        "description": "Auto-approve routine, plan-sanctioned tool requests; escalate destructive, expensive, or off-plan ones to you."
+      },
+      "telegram-fanout": {
+        "label": "Telegram fan-out",
+        "description": "Narrate status and converse with each agent over its per-workspace Telegram topic. Requires the sombrax-telegram listener."
+      },
+      "spec-intake": {
+        "label": "Spec intake",
+        "description": "Turn rough briefs into development-ready cards with the product-manager skill before scheduling work."
+      }
+    }
+  },
   "linkPrToIssue": {
     "title": "Link Pull Request",
     "description": "Link an existing pull request to this issue.",

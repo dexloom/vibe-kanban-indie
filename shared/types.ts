@@ -162,7 +162,13 @@ export type Workspace = { id: string, task_id: string | null, container_ref: str
  * kanban queries and event streams; skips normal finalize side effects;
  * reaped on startup.
  */
-ephemeral: boolean, };
+ephemeral: boolean, 
+/**
+ * Discriminator for special-purpose workspaces. `None` = normal workspace.
+ */
+kind: WorkspaceKind | null, };
+
+export type WorkspaceKind = "orchestrator";
 
 export type WorkspaceWithStatus = { is_running: boolean, is_errored: boolean, id: string, task_id: string | null, container_ref: string | null, branch: string, setup_completed_at: string | null, created_at: string, updated_at: string, archived: boolean, pinned: boolean, name: string | null, worktree_deleted: boolean, 
 /**
@@ -170,7 +176,11 @@ export type WorkspaceWithStatus = { is_running: boolean, is_errored: boolean, id
  * kanban queries and event streams; skips normal finalize side effects;
  * reaped on startup.
  */
-ephemeral: boolean, };
+ephemeral: boolean, 
+/**
+ * Discriminator for special-purpose workspaces. `None` = normal workspace.
+ */
+kind: WorkspaceKind | null, };
 
 export type Session = { id: string, workspace_id: string, name: string | null, executor: string | null, agent_working_dir: string | null, created_at: string, updated_at: string, };
 
@@ -465,9 +475,33 @@ export type GetPrCommentsError = { "type": "no_pr_attached" } | { "type": "cli_n
 
 export type GetPrCommentsQuery = { repo_id: string, };
 
-export type CreateAndStartWorkspaceRequest = { name: string | null, repos: Array<WorkspaceRepoInput>, linked_issue: LinkedIssueInfo | null, executor_config: ExecutorConfig, prompt: string, attachment_ids: Array<string> | null, };
+export type CreateAndStartWorkspaceRequest = { name: string | null, repos: Array<WorkspaceRepoInput>, linked_issue: LinkedIssueInfo | null, executor_config: ExecutorConfig, prompt: string, attachment_ids: Array<string> | null, 
+/**
+ * Discriminator for special-purpose workspaces (e.g. `orchestrator`).
+ * Omitted by older clients and the MCP crate; defaults to a normal
+ * workspace.
+ */
+kind?: WorkspaceKind, };
 
 export type CreateAndStartWorkspaceResponse = { workspace: Workspace, execution_process: ExecutionProcess, };
+
+export type SpawnOrchestratorRequest = { 
+/**
+ * The `/loop`-wrapped orchestration brief composed from the enabled
+ * directives.
+ */
+prompt: string, 
+/**
+ * Display name for the orchestrator workspace; defaults to "Orchestrator".
+ */
+name?: string, };
+
+export type SpawnOrchestratorResponse = { workspace: Workspace, 
+/**
+ * True when an already-running orchestrator was returned instead of
+ * starting a new session (its live tmux session is reused).
+ */
+reused: boolean, };
 
 export type GenerateSpecRequest = { 
 /**

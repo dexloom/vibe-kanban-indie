@@ -111,6 +111,7 @@ pub async fn generate_spec(
         &CreateWorkspace {
             branch,
             name: Some("spec-intake".to_string()),
+            kind: None,
         },
         workspace_id,
     )

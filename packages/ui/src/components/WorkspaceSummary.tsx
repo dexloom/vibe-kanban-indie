@@ -7,6 +7,7 @@ import {
   CircleIcon,
   GitPullRequestIcon,
   DotsThreeIcon,
+  RobotIcon,
 } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../lib/cn';
@@ -36,6 +37,8 @@ export interface WorkspaceSummaryProps {
   isActive?: boolean;
   isRunning?: boolean;
   isPinned?: boolean;
+  /** Special-purpose workspace discriminator; shows a badge when set. */
+  kind?: 'orchestrator' | null;
   hasPendingApproval?: boolean;
   hasRunningDevServer?: boolean;
   hasUnseenActivity?: boolean;
@@ -59,6 +62,7 @@ export function WorkspaceSummary({
   isActive = false,
   isRunning = false,
   isPinned = false,
+  kind = null,
   hasPendingApproval = false,
   hasRunningDevServer = false,
   hasUnseenActivity = false,
@@ -108,7 +112,7 @@ export function WorkspaceSummary({
       >
         <div
           className={cn(
-            'overflow-hidden whitespace-nowrap pr-double',
+            'flex items-center gap-half overflow-hidden whitespace-nowrap pr-double',
             !summary && 'text-normal'
           )}
           style={{
@@ -118,7 +122,14 @@ export function WorkspaceSummary({
               'linear-gradient(to right, black calc(100% - 24px), transparent 100%)',
           }}
         >
-          {name}
+          {kind === 'orchestrator' && (
+            <RobotIcon
+              className="size-icon-xs shrink-0 text-brand"
+              weight="fill"
+              aria-label="Orchestrator"
+            />
+          )}
+          <span className="truncate">{name}</span>
         </div>
         {(!summary || isActive) && (
           <div className="flex w-full items-center gap-base text-sm h-5">

@@ -45,6 +45,7 @@ import {
   LinkIcon,
   ArrowBendUpRightIcon,
   ProhibitIcon,
+  RobotIcon,
 } from '@phosphor-icons/react';
 import { useDiffViewStore } from '@/shared/stores/useDiffViewStore';
 import { useWorkspaceDiffStore } from '@/shared/stores/useWorkspaceDiffStore';
@@ -74,6 +75,7 @@ import posthog from 'posthog-js';
 import { WorkspacesGuideDialog } from '@/shared/dialogs/shared/WorkspacesGuideDialog';
 import { SettingsDialog } from '@/shared/dialogs/settings/SettingsDialog';
 import { CreateWorkspaceFromPrDialog } from '@/shared/dialogs/command-bar/CreateWorkspaceFromPrDialog';
+import { SpawnOrchestratorDialog } from '@/shared/dialogs/orchestrator/SpawnOrchestratorDialog';
 import { buildWorkspaceCreateInitialState } from '@/shared/lib/workspaceCreateState';
 import { setCreateModeSeedState } from '@/features/create-mode/model/createModeSeedStore';
 
@@ -410,6 +412,17 @@ export const Actions = {
     isVisible: (ctx) => ctx.layoutMode === 'workspaces',
     execute: async () => {
       await CreateWorkspaceFromPrDialog.show({});
+    },
+  } satisfies GlobalActionDefinition,
+
+  SpawnOrchestrator: {
+    id: 'spawn-orchestrator',
+    label: 'Spawn Orchestrator',
+    icon: RobotIcon,
+    keywords: ['orchestrator', 'loop', 'autopilot', 'board'],
+    requiresTarget: ActionTargetType.NONE,
+    execute: async () => {
+      await SpawnOrchestratorDialog.show({});
     },
   } satisfies GlobalActionDefinition,
 
@@ -1569,6 +1582,7 @@ export const NavbarActionGroups = {
     Actions.TogglePreviewMode,
     Actions.ToggleRightSidebar,
     NavbarDivider,
+    Actions.SpawnOrchestrator,
     Actions.OpenCommandBar,
     Actions.Feedback,
     Actions.WorkspacesGuide,

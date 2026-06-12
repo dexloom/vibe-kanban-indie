@@ -26,6 +26,8 @@ export type SectionAction = {
   icon: Icon;
   onClick: () => void;
   isActive?: boolean;
+  /** Accessible label / tooltip for the icon button. */
+  title?: string;
 };
 
 interface CollapsibleSectionHeaderProps {
@@ -101,6 +103,8 @@ export function CollapsibleSectionHeader({
               key={index}
               role="button"
               tabIndex={0}
+              title={action.title}
+              aria-label={action.title}
               onClick={(e) => handleActionClick(e, action.onClick)}
               onKeyDown={(e) => handleActionKeyDown(e, action.onClick)}
               className={cn(

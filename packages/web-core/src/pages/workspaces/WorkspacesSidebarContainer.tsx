@@ -22,6 +22,7 @@ import {
 import type { Workspace } from '@/shared/hooks/useWorkspaces';
 import { CommandBarDialog } from '@/shared/dialogs/command-bar/CommandBarDialog';
 import { SettingsDialog } from '@/shared/dialogs/settings/SettingsDialog';
+import { SpawnOrchestratorDialog } from '@/shared/dialogs/orchestrator/SpawnOrchestratorDialog';
 import {
   WorkspacesSidebar,
   type WorkspacesSidebarPersistKeys,
@@ -596,6 +597,10 @@ export function WorkspacesSidebarContainer({
     }
   }, [navigateToCreate, isMobile, setMobileActiveTab]);
 
+  const handleSpawnOrchestrator = useCallback(() => {
+    SpawnOrchestratorDialog.show({});
+  }, []);
+
   const handleOpenWorkspaceActions = useCallback((workspaceId: string) => {
     CommandBarDialog.show({
       page: 'workspaceActions',
@@ -688,6 +693,8 @@ export function WorkspacesSidebarContainer({
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}
       onAddWorkspace={handleAddWorkspace}
+      onSpawnOrchestrator={handleSpawnOrchestrator}
+      spawnOrchestratorLabel={t('tasks:spawnOrchestrator.title')}
       isCreateMode={isCreateMode}
       draftTitle={persistedDraftTitle}
       onSelectCreate={navigateToCreate}

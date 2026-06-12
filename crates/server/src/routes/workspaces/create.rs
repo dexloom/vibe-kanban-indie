@@ -4,10 +4,12 @@ use axum::{Json, extract::State, response::Json as ResponseJson};
 use db::models::{
     requests::{
         CreateAndStartWorkspaceRequest, CreateAndStartWorkspaceResponse, CreateWorkspaceApiRequest,
+        SpawnOrchestratorRequest, SpawnOrchestratorResponse,
     },
-    workspace::{CreateWorkspace, Workspace},
+    workspace::{CreateWorkspace, Workspace, WorkspaceKind},
 };
 use deployment::Deployment;
+use executors::{executors::BaseCodingAgent, profile::ExecutorConfig};
 use services::services::container::ContainerService;
 use utils::response::ApiResponse;
 use uuid::Uuid;
@@ -23,6 +25,7 @@ use crate::{
 pub(crate) async fn create_workspace_record(
     deployment: &DeploymentImpl,
     name: Option<String>,
+    kind: Option<WorkspaceKind>,
 ) -> Result<Workspace, ApiError> {
     let workspace_id = Uuid::new_v4();
     let branch_label = name
@@ -39,6 +42,7 @@ pub(crate) async fn create_workspace_record(
         &CreateWorkspace {
             branch: git_branch_name,
             name: name.filter(|workspace_name| !workspace_name.is_empty()),
+            kind,
         },
         workspace_id,
     )
@@ -51,7 +55,7 @@ pub async fn create_workspace(
     State(deployment): State<DeploymentImpl>,
     Json(payload): Json<CreateWorkspaceApiRequest>,
 ) -> Result<ResponseJson<ApiResponse<Workspace>>, ApiError> {
-    let workspace = create_workspace_record(&deployment, payload.name).await?;
+    let workspace = create_workspace_record(&deployment, payload.name, None).await?;
 
     deployment
         .track_if_analytics_allowed(
@@ -220,6 +224,7 @@ pub async fn create_and_start_workspace(
         executor_config,
         prompt,
         attachment_ids,
+        kind,
     } = payload;
 
     let mut workspace_prompt = normalize_prompt(&prompt).ok_or_else(|| {
@@ -236,7 +241,7 @@ pub async fn create_and_start_workspace(
 
     let mut managed_workspace = deployment
         .workspace_manager()
-        .load_managed_workspace(create_workspace_record(&deployment, name).await?)
+        .load_managed_workspace(create_workspace_record(&deployment, name, kind).await?)
         .await?;
 
     for repo in &repos {
@@ -315,6 +320,111 @@ pub async fn create_and_start_workspace(
         CreateAndStartWorkspaceResponse {
             workspace,
             execution_process,
+        },
+    )))
+}
+
+/// Build the executor config for the orchestrator: always a headed Claude Code
+/// session (its default profile sets `dangerously_skip_permissions`).
+fn orchestrator_executor_config() -> ExecutorConfig {
+    ExecutorConfig {
+        executor: BaseCodingAgent::ClaudeCodeHeaded,
+        variant: None,
+        model_id: None,
+        agent_id: None,
+        reasoning_id: None,
+        permission_policy: None,
+    }
+}
+
+/// Spawn (or reuse) the singleton orchestrator.
+///
+/// The orchestrator is repo-independent and runs from a fixed
+/// `~/.vibe-kanban/orchestrator` folder. There is at most one active
+/// orchestrator workspace:
+/// - if one is already running, its live tmux session is reused (`reused: true`);
+/// - if one exists but is idle, a fresh session is started on it;
+/// - otherwise the singleton workspace is created and started.
+pub async fn spawn_orchestrator(
+    State(deployment): State<DeploymentImpl>,
+    Json(payload): Json<SpawnOrchestratorRequest>,
+) -> Result<ResponseJson<ApiResponse<SpawnOrchestratorResponse>>, ApiError> {
+    let prompt = normalize_prompt(&payload.prompt)
+        .ok_or_else(|| ApiError::BadRequest("An orchestrator prompt is required.".to_string()))?;
+    let name = payload
+        .name
+        .filter(|n| !n.trim().is_empty())
+        .unwrap_or_else(|| "Orchestrator".to_string());
+
+    let pool = &deployment.db().pool;
+
+    // Singleton: at most one active orchestrator workspace.
+    if let Some(existing) = Workspace::find_orchestrator(pool).await? {
+        let is_running = Workspace::find_by_id_with_status(pool, existing.id)
+            .await?
+            .map(|ws| ws.is_running)
+            .unwrap_or(false);
+
+        if is_running {
+            // A session is already live — reuse its tmux session.
+            return Ok(ResponseJson(ApiResponse::success(
+                SpawnOrchestratorResponse {
+                    workspace: existing,
+                    reused: true,
+                },
+            )));
+        }
+
+        // Idle: start a fresh session (and thus a fresh tmux) on the same
+        // singleton workspace.
+        deployment
+            .container()
+            .start_workspace(&existing, orchestrator_executor_config(), prompt)
+            .await?;
+        let workspace = Workspace::find_by_id(pool, existing.id)
+            .await?
+            .unwrap_or(existing);
+        return Ok(ResponseJson(ApiResponse::success(
+            SpawnOrchestratorResponse {
+                workspace,
+                reused: false,
+            },
+        )));
+    }
+
+    // None exists — create the singleton orchestrator workspace and start it.
+    // `branch` is just a label here; no git worktree is ever created for it.
+    let workspace = Workspace::create(
+        pool,
+        &CreateWorkspace {
+            branch: "orchestrator".to_string(),
+            name: Some(name),
+            kind: Some(WorkspaceKind::Orchestrator),
+        },
+        Uuid::new_v4(),
+    )
+    .await?;
+
+    deployment
+        .container()
+        .start_workspace(&workspace, orchestrator_executor_config(), prompt)
+        .await?;
+
+    deployment
+        .track_if_analytics_allowed(
+            "orchestrator_spawned",
+            serde_json::json!({ "workspace_id": workspace.id.to_string() }),
+        )
+        .await;
+
+    let workspace = Workspace::find_by_id(pool, workspace.id)
+        .await?
+        .unwrap_or(workspace);
+
+    Ok(ResponseJson(ApiResponse::success(
+        SpawnOrchestratorResponse {
+            workspace,
+            reused: false,
         },
     )))
 }

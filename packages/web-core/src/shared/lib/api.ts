@@ -91,6 +91,8 @@ import {
   CreateFromPrError,
   CreateAndStartWorkspaceRequest,
   CreateAndStartWorkspaceResponse,
+  SpawnOrchestratorRequest,
+  SpawnOrchestratorResponse,
   GenerateSpecRequest,
   GenerateSpecResponse,
   RelayPairedClient,
@@ -443,6 +445,17 @@ export const workspacesApi = {
       body: JSON.stringify(data),
     });
     return handleApiResponse<CreateAndStartWorkspaceResponse>(response);
+  },
+
+  /** Spawn (or reuse) the singleton orchestrator session. */
+  spawnOrchestrator: async (
+    data: SpawnOrchestratorRequest
+  ): Promise<SpawnOrchestratorResponse> => {
+    const response = await makeRequest(`/api/workspaces/orchestrator`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return handleApiResponse<SpawnOrchestratorResponse>(response);
   },
 
   getAll: async (taskId: string): Promise<Workspace[]> => {

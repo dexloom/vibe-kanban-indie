@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!: Uuid\",\n                          task_id AS \"task_id: Uuid\",\n                          container_ref,\n                          branch,\n                          setup_completed_at AS \"setup_completed_at: DateTime<Utc>\",\n                          created_at AS \"created_at!: DateTime<Utc>\",\n                          updated_at AS \"updated_at!: DateTime<Utc>\",\n                          archived AS \"archived!: bool\",\n                          pinned AS \"pinned!: bool\",\n                          name,\n                          worktree_deleted AS \"worktree_deleted!: bool\",\n                          ephemeral AS \"ephemeral!: bool\"\n                   FROM workspaces\n                   ORDER BY created_at DESC",
+  "query": "SELECT  id                AS \"id!: Uuid\",\n                       task_id           AS \"task_id: Uuid\",\n                       container_ref,\n                       branch,\n                       setup_completed_at AS \"setup_completed_at: DateTime<Utc>\",\n                       created_at        AS \"created_at!: DateTime<Utc>\",\n                       updated_at        AS \"updated_at!: DateTime<Utc>\",\n                       archived          AS \"archived!: bool\",\n                       pinned            AS \"pinned!: bool\",\n                       name,\n                       worktree_deleted  AS \"worktree_deleted!: bool\",\n                       ephemeral         AS \"ephemeral!: bool\",\n                       kind              AS \"kind: WorkspaceKind\"\n               FROM    workspaces\n               WHERE   kind = 'orchestrator' AND archived = FALSE\n               ORDER BY created_at DESC\n               LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -62,6 +62,11 @@
         "name": "ephemeral!: bool",
         "ordinal": 11,
         "type_info": "Bool"
+      },
+      {
+        "name": "kind: WorkspaceKind",
+        "ordinal": 12,
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -79,8 +84,9 @@
       false,
       true,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "67be1ada84260d02625894300270a25d7abadf99deae6f41126a075d3cccd2e1"
+  "hash": "cf7dad4dde40a4db8f6afb19c2174fd5760ab259f322c6585c053864f92a97a1"
 }

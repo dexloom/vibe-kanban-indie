@@ -22,7 +22,7 @@ use db::{
         repo::Repo,
         scratch::{DraftFollowUpData, Scratch, ScratchType},
         session::{Session, SessionError},
-        workspace::Workspace,
+        workspace::{Workspace, WorkspaceKind},
         workspace_repo::WorkspaceRepo,
     },
 };
@@ -965,6 +965,16 @@ impl LocalContainerService {
     fn dir_name_from_workspace(workspace_id: &Uuid, task_title: &str) -> String {
         let task_title_id = git_branch_id(task_title);
         format!("{}-{}", short_uuid(workspace_id), task_title_id)
+    }
+
+    /// Fixed working directory for the singleton orchestrator session:
+    /// `~/.vibe-kanban/orchestrator` (falling back to the asset dir if there is
+    /// no home directory). Shared across runs and never reaped.
+    fn orchestrator_dir() -> PathBuf {
+        dirs::home_dir()
+            .map(|home| home.join(".vibe-kanban"))
+            .unwrap_or_else(utils::assets::asset_dir)
+            .join("orchestrator")
     }
 
     async fn track_child_msgs_in_store(
@@ -1989,6 +1999,26 @@ impl ContainerService for LocalContainerService {
     }
 
     async fn create(&self, workspace: &Workspace) -> Result<ContainerRef, ContainerError> {
+        // The orchestrator is repo-independent: it runs from a fixed, shared
+        // `~/.vibe-kanban/orchestrator` folder (never a git worktree) and drives
+        // the board across projects via MCP. Just ensure the directory exists
+        // and point the container at it — no repos, no worktrees.
+        if workspace.kind == Some(WorkspaceKind::Orchestrator) {
+            let orchestrator_dir = Self::orchestrator_dir();
+            tokio::fs::create_dir_all(&orchestrator_dir)
+                .await
+                .map_err(|e| {
+                    ContainerError::Other(anyhow!(
+                        "Failed to create orchestrator directory {}: {}",
+                        orchestrator_dir.display(),
+                        e
+                    ))
+                })?;
+            let container_ref = orchestrator_dir.to_string_lossy().to_string();
+            Workspace::update_container_ref(&self.db.pool, workspace.id, &container_ref).await?;
+            return Ok(container_ref);
+        }
+
         let label = workspace.name.as_deref().unwrap_or("workspace");
         let workspace_dir_name =
             LocalContainerService::dir_name_from_workspace(&workspace.id, label);

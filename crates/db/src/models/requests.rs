@@ -3,7 +3,10 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use super::{execution_process::ExecutionProcess, workspace::Workspace};
+use super::{
+    execution_process::ExecutionProcess,
+    workspace::{Workspace, WorkspaceKind},
+};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ContainerQuery {
@@ -36,12 +39,39 @@ pub struct CreateAndStartWorkspaceRequest {
     pub executor_config: ExecutorConfig,
     pub prompt: String,
     pub attachment_ids: Option<Vec<Uuid>>,
+    /// Discriminator for special-purpose workspaces (e.g. `orchestrator`).
+    /// Omitted by older clients and the MCP crate; defaults to a normal
+    /// workspace.
+    #[serde(default)]
+    #[ts(optional)]
+    pub kind: Option<WorkspaceKind>,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]
 pub struct CreateAndStartWorkspaceResponse {
     pub workspace: Workspace,
     pub execution_process: ExecutionProcess,
+}
+
+/// Spawn (or reuse) the singleton orchestrator: a repo-independent, headed
+/// Claude Code session that drives the board on a loop from a fixed folder.
+#[derive(Debug, Serialize, Deserialize, TS)]
+pub struct SpawnOrchestratorRequest {
+    /// The `/loop`-wrapped orchestration brief composed from the enabled
+    /// directives.
+    pub prompt: String,
+    /// Display name for the orchestrator workspace; defaults to "Orchestrator".
+    #[serde(default)]
+    #[ts(optional)]
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, TS)]
+pub struct SpawnOrchestratorResponse {
+    pub workspace: Workspace,
+    /// True when an already-running orchestrator was returned instead of
+    /// starting a new session (its live tmux session is reused).
+    pub reused: bool,
 }
 
 /// Request to expand a rough brief into a development-ready technical task by

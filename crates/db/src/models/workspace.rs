@@ -27,6 +27,17 @@ pub enum WorkspaceError {
     BranchNotFound(String),
 }
 
+/// Discriminator for special-purpose workspaces. `None` (NULL) = normal
+/// workspace. Lets the UI badge and detect a running orchestrator without
+/// name-prefix hacks.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS, sqlx::Type)]
+#[serde(rename_all = "lowercase")]
+#[sqlx(rename_all = "lowercase")]
+pub enum WorkspaceKind {
+    /// Headed Claude Code session driving the board via `/loop`.
+    Orchestrator,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ContainerInfo {
     pub workspace_id: Uuid,
@@ -55,6 +66,8 @@ pub struct Workspace {
     /// kanban queries and event streams; skips normal finalize side effects;
     /// reaped on startup.
     pub ephemeral: bool,
+    /// Discriminator for special-purpose workspaces. `None` = normal workspace.
+    pub kind: Option<WorkspaceKind>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -89,6 +102,7 @@ pub struct WorkspaceContext {
 pub struct CreateWorkspace {
     pub branch: String,
     pub name: Option<String>,
+    pub kind: Option<WorkspaceKind>,
 }
 
 impl Workspace {
@@ -107,7 +121,8 @@ impl Workspace {
                           pinned AS "pinned!: bool",
                           name,
                           worktree_deleted AS "worktree_deleted!: bool",
-                          ephemeral AS "ephemeral!: bool"
+                          ephemeral AS "ephemeral!: bool",
+                          kind AS "kind: WorkspaceKind"
                    FROM workspaces
                    ORDER BY created_at DESC"#
         )
@@ -210,7 +225,8 @@ impl Workspace {
                        pinned            AS "pinned!: bool",
                        name,
                        worktree_deleted  AS "worktree_deleted!: bool",
-                       ephemeral         AS "ephemeral!: bool"
+                       ephemeral         AS "ephemeral!: bool",
+                       kind              AS "kind: WorkspaceKind"
                FROM    workspaces
                WHERE   id = $1"#,
             id
@@ -233,7 +249,8 @@ impl Workspace {
                        pinned            AS "pinned!: bool",
                        name,
                        worktree_deleted  AS "worktree_deleted!: bool",
-                       ephemeral         AS "ephemeral!: bool"
+                       ephemeral         AS "ephemeral!: bool",
+                       kind              AS "kind: WorkspaceKind"
                FROM    workspaces
                WHERE   rowid = $1"#,
             rowid
@@ -277,12 +294,16 @@ impl Workspace {
                 w.pinned as "pinned!: bool",
                 w.name,
                 w.worktree_deleted as "worktree_deleted!: bool",
-                w.ephemeral as "ephemeral!: bool"
+                w.ephemeral as "ephemeral!: bool",
+                w.kind as "kind: WorkspaceKind"
             FROM workspaces w
             LEFT JOIN sessions s ON w.id = s.workspace_id
             LEFT JOIN execution_processes ep ON s.id = ep.session_id AND ep.completed_at IS NOT NULL
             WHERE w.container_ref IS NOT NULL
                 AND w.worktree_deleted = FALSE
+                -- Never reap the orchestrator: its container_ref is the shared
+                -- fixed ~/.vibe-kanban/orchestrator folder, not a throwaway worktree.
+                AND (w.kind IS NULL OR w.kind <> 'orchestrator')
                 AND w.id NOT IN (
                     SELECT DISTINCT s2.workspace_id
                     FROM sessions s2
@@ -323,15 +344,16 @@ impl Workspace {
     ) -> Result<Self, WorkspaceError> {
         Ok(sqlx::query_as!(
             Workspace,
-            r#"INSERT INTO workspaces (id, task_id, container_ref, branch, setup_completed_at, name)
-               VALUES ($1, $2, $3, $4, $5, $6)
-               RETURNING id as "id!: Uuid", task_id as "task_id: Uuid", container_ref, branch, setup_completed_at as "setup_completed_at: DateTime<Utc>", created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>", archived as "archived!: bool", pinned as "pinned!: bool", name, worktree_deleted as "worktree_deleted!: bool", ephemeral as "ephemeral!: bool""#,
+            r#"INSERT INTO workspaces (id, task_id, container_ref, branch, setup_completed_at, name, kind)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               RETURNING id as "id!: Uuid", task_id as "task_id: Uuid", container_ref, branch, setup_completed_at as "setup_completed_at: DateTime<Utc>", created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>", archived as "archived!: bool", pinned as "pinned!: bool", name, worktree_deleted as "worktree_deleted!: bool", ephemeral as "ephemeral!: bool", kind as "kind: WorkspaceKind""#,
             id,
             Option::<Uuid>::None,
             Option::<String>::None,
             data.branch,
             Option::<DateTime<Utc>>::None,
-            data.name
+            data.name,
+            data.kind
         )
         .fetch_one(pool)
         .await?)
@@ -349,7 +371,7 @@ impl Workspace {
             Workspace,
             r#"INSERT INTO workspaces (id, task_id, container_ref, branch, setup_completed_at, name, ephemeral)
                VALUES ($1, $2, $3, $4, $5, $6, TRUE)
-               RETURNING id as "id!: Uuid", task_id as "task_id: Uuid", container_ref, branch, setup_completed_at as "setup_completed_at: DateTime<Utc>", created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>", archived as "archived!: bool", pinned as "pinned!: bool", name, worktree_deleted as "worktree_deleted!: bool", ephemeral as "ephemeral!: bool""#,
+               RETURNING id as "id!: Uuid", task_id as "task_id: Uuid", container_ref, branch, setup_completed_at as "setup_completed_at: DateTime<Utc>", created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>", archived as "archived!: bool", pinned as "pinned!: bool", name, worktree_deleted as "worktree_deleted!: bool", ephemeral as "ephemeral!: bool", kind as "kind: WorkspaceKind""#,
             id,
             Option::<Uuid>::None,
             Option::<String>::None,
@@ -376,7 +398,8 @@ impl Workspace {
                       pinned AS "pinned!: bool",
                       name,
                       worktree_deleted AS "worktree_deleted!: bool",
-                      ephemeral AS "ephemeral!: bool"
+                      ephemeral AS "ephemeral!: bool",
+                      kind AS "kind: WorkspaceKind"
                FROM workspaces
                WHERE ephemeral = TRUE"#
         )
@@ -385,6 +408,33 @@ impl Workspace {
         .map_err(WorkspaceError::Database)?;
 
         Ok(workspaces)
+    }
+
+    /// Find the singleton orchestrator workspace (non-archived), if any.
+    /// Newest first as a tie-break, though at most one should ever be active.
+    pub async fn find_orchestrator(pool: &SqlitePool) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            Workspace,
+            r#"SELECT  id                AS "id!: Uuid",
+                       task_id           AS "task_id: Uuid",
+                       container_ref,
+                       branch,
+                       setup_completed_at AS "setup_completed_at: DateTime<Utc>",
+                       created_at        AS "created_at!: DateTime<Utc>",
+                       updated_at        AS "updated_at!: DateTime<Utc>",
+                       archived          AS "archived!: bool",
+                       pinned            AS "pinned!: bool",
+                       name,
+                       worktree_deleted  AS "worktree_deleted!: bool",
+                       ephemeral         AS "ephemeral!: bool",
+                       kind              AS "kind: WorkspaceKind"
+               FROM    workspaces
+               WHERE   kind = 'orchestrator' AND archived = FALSE
+               ORDER BY created_at DESC
+               LIMIT 1"#
+        )
+        .fetch_optional(pool)
+        .await
     }
 
     pub async fn update_branch_name(
@@ -573,6 +623,7 @@ impl Workspace {
                 w.name,
                 w.worktree_deleted AS "worktree_deleted!: bool",
                 w.ephemeral AS "ephemeral!: bool",
+                w.kind AS "kind: WorkspaceKind",
 
                 CASE WHEN EXISTS (
                     SELECT 1
@@ -617,6 +668,7 @@ impl Workspace {
                     name: rec.name,
                     worktree_deleted: rec.worktree_deleted,
                     ephemeral: rec.ephemeral,
+                    kind: rec.kind,
                 },
                 is_running: rec.is_running != 0,
                 is_errored: rec.is_errored != 0,
@@ -670,6 +722,7 @@ impl Workspace {
                 w.name,
                 w.worktree_deleted AS "worktree_deleted!: bool",
                 w.ephemeral AS "ephemeral!: bool",
+                w.kind AS "kind: WorkspaceKind",
 
                 CASE WHEN EXISTS (
                     SELECT 1
@@ -716,6 +769,7 @@ impl Workspace {
                 name: rec.name,
                 worktree_deleted: rec.worktree_deleted,
                 ephemeral: rec.ephemeral,
+                kind: rec.kind,
             },
             is_running: rec.is_running != 0,
             is_errored: rec.is_errored != 0,
@@ -738,7 +792,7 @@ mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
     use uuid::Uuid;
 
-    use super::{CreateWorkspace, SqlitePool, Workspace};
+    use super::{CreateWorkspace, SqlitePool, Workspace, WorkspaceKind};
 
     async fn pool() -> SqlitePool {
         let pool = SqlitePoolOptions::new()
@@ -758,12 +812,14 @@ mod tests {
             &CreateWorkspace {
                 branch: "vk/normal".to_string(),
                 name: Some("normal".to_string()),
+                kind: None,
             },
             Uuid::new_v4(),
         )
         .await
         .unwrap();
         assert!(!ws.ephemeral);
+        assert!(ws.kind.is_none());
     }
 
     #[tokio::test]
@@ -775,6 +831,7 @@ mod tests {
             &CreateWorkspace {
                 branch: "vk/normal".to_string(),
                 name: Some("normal".to_string()),
+                kind: None,
             },
             Uuid::new_v4(),
         )
@@ -786,6 +843,7 @@ mod tests {
             &CreateWorkspace {
                 branch: "vk/spec-intake".to_string(),
                 name: Some("spec-intake".to_string()),
+                kind: None,
             },
             Uuid::new_v4(),
         )
@@ -805,6 +863,55 @@ mod tests {
         let listed_ids: Vec<Uuid> = listed.iter().map(|w| w.workspace.id).collect();
         assert!(listed_ids.contains(&normal.id));
         assert!(!listed_ids.contains(&ephemeral.id));
+    }
+
+    #[tokio::test]
+    async fn workspace_kind_round_trips_through_create_and_queries() {
+        let pool = pool().await;
+
+        let created = Workspace::create(
+            &pool,
+            &CreateWorkspace {
+                branch: "vk/orchestrator".to_string(),
+                name: Some("Orchestrator".to_string()),
+                kind: Some(WorkspaceKind::Orchestrator),
+            },
+            Uuid::new_v4(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(created.kind, Some(WorkspaceKind::Orchestrator));
+
+        // find_by_id preserves the discriminator.
+        let fetched = Workspace::find_by_id(&pool, created.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(fetched.kind, Some(WorkspaceKind::Orchestrator));
+
+        // The list query (WorkspaceWithStatus) carries the discriminator too.
+        let listed = Workspace::find_all_with_status(&pool, None, None)
+            .await
+            .unwrap();
+        let row = listed
+            .iter()
+            .find(|w| w.workspace.id == created.id)
+            .expect("orchestrator workspace listed");
+        assert_eq!(row.workspace.kind, Some(WorkspaceKind::Orchestrator));
+
+        // A normal workspace has no kind.
+        let normal = Workspace::create(
+            &pool,
+            &CreateWorkspace {
+                branch: "vk/plain".to_string(),
+                name: Some("plain".to_string()),
+                kind: None,
+            },
+            Uuid::new_v4(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(normal.kind, None);
     }
 
     #[test]

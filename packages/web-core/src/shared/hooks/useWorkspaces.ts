@@ -6,6 +6,7 @@ import { makeLocalApiRequest } from '@/shared/lib/localApiTransport';
 import { useHostId } from '@/shared/providers/HostIdProvider';
 import type {
   WorkspaceWithStatus,
+  WorkspaceKind,
   WorkspaceSummary,
   WorkspaceSummaryResponse,
   ApiResponse,
@@ -25,6 +26,7 @@ export interface SidebarWorkspace {
   isRunning?: boolean;
   isPinned?: boolean;
   isArchived?: boolean;
+  kind?: WorkspaceKind | null;
   hasPendingApproval?: boolean;
   hasRunningDevServer?: boolean;
   hasUnseenActivity?: boolean;
@@ -71,6 +73,7 @@ function toSidebarWorkspace(
     isRunning: ws.is_running,
     isPinned: ws.pinned,
     isArchived: ws.archived,
+    kind: ws.kind,
     // Additional data from summary
     hasPendingApproval: summary?.has_pending_approval,
     hasRunningDevServer: summary?.has_running_dev_server,

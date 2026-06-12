@@ -6,6 +6,7 @@ import {
   ArchiveIcon,
   StackIcon,
   SpinnerIcon,
+  RobotIcon,
 } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../lib/cn';
@@ -27,6 +28,7 @@ export interface WorkspacesSidebarWorkspace {
   linesRemoved?: number;
   isRunning?: boolean;
   isPinned?: boolean;
+  kind?: 'orchestrator' | null;
   hasPendingApproval?: boolean;
   hasRunningDevServer?: boolean;
   hasUnseenActivity?: boolean;
@@ -55,6 +57,10 @@ export interface WorkspacesSidebarProps {
   selectedWorkspaceId: string | null;
   onSelectWorkspace: (id: string) => void;
   onAddWorkspace?: () => void;
+  /** Open the Spawn Orchestrator dialog. Shown as a header icon when provided. */
+  onSpawnOrchestrator?: () => void;
+  /** Tooltip/label for the orchestrator header action. */
+  spawnOrchestratorLabel?: string;
   searchQuery: string;
   onSearchChange: (value: string) => void;
   /** Whether we're in create mode */
@@ -152,6 +158,7 @@ function WorkspaceList({
           isActive={selectedWorkspaceId === workspace.id}
           isRunning={workspace.isRunning}
           isPinned={workspace.isPinned}
+          kind={workspace.kind}
           hasPendingApproval={workspace.hasPendingApproval}
           hasRunningDevServer={workspace.hasRunningDevServer}
           hasUnseenActivity={workspace.hasUnseenActivity}
@@ -174,6 +181,8 @@ export function WorkspacesSidebar({
   selectedWorkspaceId,
   onSelectWorkspace,
   onAddWorkspace,
+  onSpawnOrchestrator,
+  spawnOrchestratorLabel,
   searchQuery,
   onSearchChange,
   isCreateMode = false,
@@ -238,6 +247,15 @@ export function WorkspacesSidebar({
       onClick: () => onToggleLayoutMode?.(),
       isActive: layoutMode === 'accordion',
     },
+    ...(onSpawnOrchestrator
+      ? [
+          {
+            icon: RobotIcon,
+            onClick: () => onSpawnOrchestrator(),
+            title: spawnOrchestratorLabel,
+          },
+        ]
+      : []),
     {
       icon: PlusIcon,
       onClick: () => onAddWorkspace?.(),
@@ -345,6 +363,7 @@ export function WorkspacesSidebar({
                   isActive={selectedWorkspaceId === workspace.id}
                   isRunning={workspace.isRunning}
                   isPinned={workspace.isPinned}
+                  kind={workspace.kind}
                   hasPendingApproval={workspace.hasPendingApproval}
                   hasRunningDevServer={workspace.hasRunningDevServer}
                   hasUnseenActivity={workspace.hasUnseenActivity}
@@ -462,6 +481,7 @@ export function WorkspacesSidebar({
                 isActive={selectedWorkspaceId === workspace.id}
                 isRunning={workspace.isRunning}
                 isPinned={workspace.isPinned}
+                kind={workspace.kind}
                 hasPendingApproval={workspace.hasPendingApproval}
                 hasRunningDevServer={workspace.hasRunningDevServer}
                 hasUnseenActivity={workspace.hasUnseenActivity}

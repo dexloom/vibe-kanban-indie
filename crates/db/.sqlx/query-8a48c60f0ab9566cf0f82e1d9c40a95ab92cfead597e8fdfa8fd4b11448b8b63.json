@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT  id                AS \"id!: Uuid\",\n                       task_id           AS \"task_id: Uuid\",\n                       container_ref,\n                       branch,\n                       setup_completed_at AS \"setup_completed_at: DateTime<Utc>\",\n                       created_at        AS \"created_at!: DateTime<Utc>\",\n                       updated_at        AS \"updated_at!: DateTime<Utc>\",\n                       archived          AS \"archived!: bool\",\n                       pinned            AS \"pinned!: bool\",\n                       name,\n                       worktree_deleted  AS \"worktree_deleted!: bool\",\n                       ephemeral         AS \"ephemeral!: bool\"\n               FROM    workspaces\n               WHERE   id = $1",
+  "query": "SELECT id AS \"id!: Uuid\",\n                      task_id AS \"task_id: Uuid\",\n                      container_ref,\n                      branch,\n                      setup_completed_at AS \"setup_completed_at: DateTime<Utc>\",\n                      created_at AS \"created_at!: DateTime<Utc>\",\n                      updated_at AS \"updated_at!: DateTime<Utc>\",\n                      archived AS \"archived!: bool\",\n                      pinned AS \"pinned!: bool\",\n                      name,\n                      worktree_deleted AS \"worktree_deleted!: bool\",\n                      ephemeral AS \"ephemeral!: bool\",\n                      kind AS \"kind: WorkspaceKind\"\n               FROM workspaces\n               WHERE ephemeral = TRUE",
   "describe": {
     "columns": [
       {
@@ -62,10 +62,15 @@
         "name": "ephemeral!: bool",
         "ordinal": 11,
         "type_info": "Bool"
+      },
+      {
+        "name": "kind: WorkspaceKind",
+        "ordinal": 12,
+        "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
       true,
@@ -79,8 +84,9 @@
       false,
       true,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "5b4db81c70e20ce48d8f6bb4913b2346fdc3d06133a8e716952eee11b56da4da"
+  "hash": "8a48c60f0ab9566cf0f82e1d9c40a95ab92cfead597e8fdfa8fd4b11448b8b63"
 }
