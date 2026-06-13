@@ -626,7 +626,30 @@ terminal: TerminalKind,
  * When the terminal is iTerm2, group sessions as tabs of one window
  * instead of opening a new window per session.
  */
-iterm_tabs: boolean, };
+iterm_tabs: boolean, 
+/**
+ * User-customised catalog of per-card pipeline steps. `None` = use the
+ * built-in `default_pipeline_steps()`; `Some` = the operator's edited set.
+ */
+pipeline_steps: Array<PipelineStep> | null, };
+
+export type PipelineStep = { 
+/**
+ * Stable slug, e.g. "spec".
+ */
+id: string, 
+/**
+ * Shown next to the New Issue checkbox.
+ */
+label: string, 
+/**
+ * Appended as a bullet when the step is ticked.
+ */
+prompt_fragment: string, 
+/**
+ * Whether the card checkbox starts ticked.
+ */
+default_enabled: boolean, };
 
 export type NotificationConfig = { sound_enabled: boolean, push_enabled: boolean, sound_file: SoundFile, };
 
@@ -1058,3 +1081,5 @@ session_id: string, };
 export const DEFAULT_PR_DESCRIPTION_PROMPT = "Update the PR that was just created with a better title and description.\nThe PR number is #{pr_number} and the URL is {pr_url}.\n\nAnalyze the changes in this branch and write:\n1. A concise, descriptive title that summarizes the changes, postfixed with \"(Vibe Kanban)\"\n2. A detailed description that explains:\n   - What changes were made\n   - Why they were made (based on the task context)\n   - Any important implementation details\n   - At the end, include a note: \"This PR was written using [Vibe Kanban](https://vibekanban.com)\"\n\nUse the appropriate CLI tool to update the PR (gh pr edit for GitHub, az repos pr update for Azure DevOps).";
 
 export const DEFAULT_COMMIT_REMINDER_PROMPT = "There are uncommitted changes. Please stage and commit them now with a descriptive commit message.";
+
+export const DEFAULT_PIPELINE_STEPS: Array<PipelineStep> = [{"id":"spec","label":"Create spec","prompt_fragment":"Write a technical spec for this card and save it to `SPEC.md` at the repo root before implementing.","default_enabled":false},{"id":"plan","label":"Create plan","prompt_fragment":"Write a step-by-step implementation plan and save it to `IMPLEMENTATION_PLAN.md` at the repo root.","default_enabled":false},{"id":"plan-review","label":"Review plan","prompt_fragment":"Have the implementation plan reviewed (e.g. a codex plan review, read-only) and resolve blockers before writing code.","default_enabled":false},{"id":"code-review","label":"Review code","prompt_fragment":"After implementing, run a code review on the diff and address findings before marking the card ready.","default_enabled":false},{"id":"merge","label":"Merge / open PR","prompt_fragment":"When the work is implemented and reviewed, open a pull request (or merge) for this card.","default_enabled":false},{"id":"orchestrate","label":"Orchestrate (auto-drive)","prompt_fragment":"Have the orchestrator agent pick this card up and drive it to done autonomously, running the stages above in order — regardless of which board column the card is in (it may be started even from Todo).","default_enabled":false}];

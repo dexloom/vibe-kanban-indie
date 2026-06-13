@@ -7,9 +7,11 @@ import {
   PlugIcon,
   BroadcastIcon,
   TelegramLogoIcon,
+  FlowArrowIcon,
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { GeneralSettingsSection } from './GeneralSettingsSection';
+import { PipelineSettingsSection } from './PipelineSettingsSection';
 import { ReposSettingsSection } from './ReposSettingsSection';
 import { OrganizationsSettingsSection } from './OrganizationsSettingsSection';
 import { RemoteProjectsSettingsSection } from './RemoteProjectsSettingsSection';
@@ -20,6 +22,7 @@ import { TelegramSettingsSection } from './TelegramSettingsSection';
 
 export type SettingsSectionType =
   | 'general'
+  | 'pipeline'
   | 'repos'
   | 'organizations'
   | 'remote-projects'
@@ -32,6 +35,7 @@ export type SettingsSectionGroup = 'host' | 'universal';
 
 export type SettingsSectionInitialState = {
   general: undefined;
+  pipeline: undefined;
   repos: { repoId?: string } | undefined;
   organizations: { organizationId?: string } | undefined;
   'remote-projects':
@@ -51,6 +55,7 @@ export interface SettingsSectionDefinition {
 
 export const SETTINGS_SECTION_DEFINITIONS: SettingsSectionDefinition[] = [
   { id: 'general', icon: GearIcon, group: 'host' },
+  { id: 'pipeline', icon: FlowArrowIcon, group: 'host' },
   { id: 'repos', icon: GitBranchIcon, group: 'host' },
   { id: 'agents', icon: CpuIcon, group: 'host' },
   { id: 'mcp', icon: PlugIcon, group: 'host' },
@@ -77,6 +82,8 @@ export function renderSettingsSection(
   switch (type) {
     case 'general':
       return <GeneralSettingsSection />;
+    case 'pipeline':
+      return <PipelineSettingsSection />;
     case 'repos':
       return (
         <ReposSettingsSection

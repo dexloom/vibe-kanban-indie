@@ -555,5 +555,13 @@
     "submitting": "Submitting answers...",
     "answeredCount": "Answered {{count}} question",
     "answeredCount_other": "Answered {{count}} questions"
+  },
+  "cardPipeline": {
+    "title": "Pipeline",
+    "description": "Pick the stages this card should go through. The selected stages are appended to the card description for the agent to follow.",
+    "noSteps": "No pipeline steps are configured. Add some in Settings → Pipeline.",
+    "addonLabel": "Prompt addon (editable)",
+    "addonPlaceholder": "Tick stages above to compose the pipeline block, or type your own.",
+    "resetToCheckboxes": "Reset to checkboxes"
   }
 }

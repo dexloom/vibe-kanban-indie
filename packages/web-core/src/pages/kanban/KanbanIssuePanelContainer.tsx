@@ -21,6 +21,9 @@ import { IssueSubIssuesSectionContainer } from './IssueSubIssuesSectionContainer
 import { IssueRelationshipsSectionContainer } from './IssueRelationshipsSectionContainer';
 import { IssueWorkspacesSectionContainer } from './IssueWorkspacesSectionContainer';
 import { IssueIntakeSection } from './IssueIntakeSection';
+import { PipelineSection, type PipelineSelection } from './PipelineSection';
+import { appendPipelineToDescription } from '@/shared/lib/pipeline/cardPipeline';
+import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import {
   KanbanIssuePanel,
   type IssueFormData,
@@ -84,6 +87,7 @@ export function KanbanIssuePanelContainer({
   const routeState = useCurrentKanbanRouteState();
 
   const { openWorkspaceCreateFromState } = useProjectWorkspaceCreateDraft();
+  const { config } = useUserSystem();
   const { workspaces } = useUserContext();
   const { activeWorkspaces, archivedWorkspaces } = useWorkspaceContext();
 
@@ -343,8 +347,12 @@ export function KanbanIssuePanelContainer({
   // Provenance from a "Generate spec" run, stashed until the card is created.
   // Keyed by composer key so switching/closing the composer resets it.
   const intakeMetadataRef = useRef<unknown>(null);
+  // Per-card Pipeline selection, stashed until the card is created. Null when
+  // nothing is selected. Reset alongside intake when the composer changes.
+  const pipelineRef = useRef<PipelineSelection | null>(null);
   useEffect(() => {
     intakeMetadataRef.current = null;
+    pipelineRef.current = null;
   }, [issueComposerKey]);
 
   const isCreateDraftDirty = useMemo(() => {
@@ -837,6 +845,12 @@ export function KanbanIssuePanelContainer({
     [handlePropertyChange]
   );
 
+  // Stash the per-card Pipeline selection until the card is created. Null when
+  // nothing is selected so we don't append an empty block.
+  const handlePipelineChange = useCallback((selection: PipelineSelection) => {
+    pipelineRef.current = selection.block ? selection : null;
+  }, []);
+
   // Submit handler
   const handleSubmit = useCallback(async () => {
     if (!displayData.title.trim() || hasPendingAttachments) return;
@@ -853,11 +867,33 @@ export function KanbanIssuePanelContainer({
             ? Math.min(...statusIssues.map((i) => i.sort_order))
             : 0;
 
+        // Append the per-card Pipeline block to the description (the only thing
+        // fed into the agent prompt) and mirror its provenance into
+        // extension_metadata alongside any intake provenance.
+        const pipeline = pipelineRef.current;
+        const finalDescription = pipeline
+          ? appendPipelineToDescription(
+              displayData.description ?? '',
+              pipeline.block
+            )
+          : displayData.description;
+        const extensionMetadata = {
+          ...((intakeMetadataRef.current as Record<string, unknown>) ?? {}),
+          ...(pipeline
+            ? {
+                pipeline: {
+                  enabledIds: pipeline.enabledIds,
+                  customText: pipeline.customText,
+                },
+              }
+            : {}),
+        };
+
         const { persisted } = insertIssue({
           project_id: projectId,
           status_id: displayData.statusId,
           title: displayData.title,
-          description: displayData.description,
+          description: finalDescription,
           priority: displayData.priority,
           sort_order: minSortOrder - 1,
           start_date: null,
@@ -865,13 +901,14 @@ export function KanbanIssuePanelContainer({
           completed_at: null,
           parent_issue_id: kanbanCreateDefaultParentIssueId,
           parent_issue_sort_order: null,
-          extension_metadata: intakeMetadataRef.current ?? {},
+          extension_metadata: extensionMetadata,
         });
 
         // Wait for the issue to be confirmed by the backend and get the synced entity
         const syncedIssue = await persisted;
         // Provenance consumed; clear it so a subsequent card doesn't inherit it.
         intakeMetadataRef.current = null;
+        pipelineRef.current = null;
 
         // Commit only attachments still referenced in the description
         const allUploadedIds = getAttachmentIds();
@@ -922,7 +959,7 @@ export function KanbanIssuePanelContainer({
         if (displayData.createDraftWorkspace) {
           const initialPrompt = buildWorkspaceCreatePrompt(
             displayData.title,
-            displayData.description
+            finalDescription
           );
 
           // Get defaults from most recent workspace
@@ -998,6 +1035,7 @@ export function KanbanIssuePanelContainer({
 
   const handleDeleteDraft = useCallback(() => {
     intakeMetadataRef.current = null;
+    pipelineRef.current = null;
     dispatchFormState({
       type: 'setCreateFormData',
       createFormData: createModeDefaults,
@@ -1129,6 +1167,13 @@ export function KanbanIssuePanelContainer({
           description={displayData.description}
           disabled={isSubmitting}
           onGenerated={handleSpecGenerated}
+        />
+      )}
+      renderPipeline={() => (
+        <PipelineSection
+          config={config}
+          disabled={isSubmitting}
+          onChange={handlePipelineChange}
         />
       )}
       renderWorkspacesSection={(issueId) => (

@@ -40,6 +40,23 @@ fn default_iterm_tabs() -> bool {
     true
 }
 
+/// A single configurable per-card pipeline stage. The catalog of steps is
+/// user-editable in Settings; the New Issue "Pipeline" control reads it, the
+/// operator ticks which steps apply, and the ticked `prompt_fragment`s are
+/// appended as a `## Pipeline` block to the card description.
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+pub struct PipelineStep {
+    /// Stable slug, e.g. "spec".
+    pub id: String,
+    /// Shown next to the New Issue checkbox.
+    pub label: String,
+    /// Appended as a bullet when the step is ticked.
+    pub prompt_fragment: String,
+    /// Whether the card checkbox starts ticked.
+    #[serde(default)]
+    pub default_enabled: bool,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 pub struct Config {
     pub config_version: String,
@@ -83,6 +100,10 @@ pub struct Config {
     /// instead of opening a new window per session.
     #[serde(default = "default_iterm_tabs")]
     pub iterm_tabs: bool,
+    /// User-customised catalog of per-card pipeline steps. `None` = use the
+    /// built-in `default_pipeline_steps()`; `Some` = the operator's edited set.
+    #[serde(default)]
+    pub pipeline_steps: Option<Vec<PipelineStep>>,
 }
 
 impl Config {
@@ -113,6 +134,7 @@ impl Config {
             host_nickname: old_config.host_nickname,
             terminal: default_terminal(),
             iterm_tabs: default_iterm_tabs(),
+            pipeline_steps: None,
         }
     }
 
@@ -171,6 +193,7 @@ impl Default for Config {
             host_nickname: None,
             terminal: default_terminal(),
             iterm_tabs: default_iterm_tabs(),
+            pipeline_steps: None,
         }
     }
 }
@@ -213,5 +236,42 @@ mod tests {
         let back = Config::from(raw);
         assert_eq!(back.terminal, TerminalKind::WezTerm);
         assert_eq!(back.config_version, "v9");
+    }
+
+    #[test]
+    fn v9_config_without_pipeline_steps_defaults_to_none() {
+        // A v9 blob that predates the pipeline_steps field must deserialise
+        // with pipeline_steps == None (serde default), so built-ins are used.
+        let cfg = Config::default();
+        let mut value = serde_json::to_value(&cfg).unwrap();
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("pipeline_steps")
+            .unwrap();
+        let back = Config::from(value.to_string());
+        assert!(back.pipeline_steps.is_none());
+        assert_eq!(back.config_version, "v9");
+    }
+
+    #[test]
+    fn v9_round_trips_pipeline_steps() {
+        let cfg = Config {
+            pipeline_steps: Some(vec![PipelineStep {
+                id: "spec".to_string(),
+                label: "Spec".to_string(),
+                prompt_fragment: "Write a spec.".to_string(),
+                default_enabled: true,
+            }]),
+            ..Default::default()
+        };
+        let raw = serde_json::to_string(&cfg).unwrap();
+        let back = Config::from(raw);
+        let steps = back.pipeline_steps.expect("pipeline_steps preserved");
+        assert_eq!(steps.len(), 1);
+        assert_eq!(steps[0].id, "spec");
+        assert_eq!(steps[0].label, "Spec");
+        assert_eq!(steps[0].prompt_fragment, "Write a spec.");
+        assert!(steps[0].default_enabled);
     }
 }

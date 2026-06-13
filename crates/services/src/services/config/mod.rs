@@ -70,6 +70,64 @@ Your FINAL message must be EXACTLY one fenced code block tagged `json` and NOTHI
 ```
 The `description` value is a JSON string, so escape newlines as \n and quotes as \". Do not wrap the JSON in prose. Do not emit any text after the closing fence."#;
 
+/// Built-in catalog of per-card pipeline steps, used when
+/// `Config::pipeline_steps` is `None`. This is the single source of truth for
+/// the defaults: it is exported to TypeScript as `DEFAULT_PIPELINE_STEPS` so
+/// the frontend renders the same set when the operator hasn't customised it.
+/// All steps start unticked (`default_enabled: false`).
+pub fn default_pipeline_steps() -> Vec<PipelineStep> {
+    vec![
+        PipelineStep {
+            id: "spec".to_string(),
+            label: "Create spec".to_string(),
+            prompt_fragment:
+                "Write a technical spec for this card and save it to `SPEC.md` at the repo root before implementing."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
+            id: "plan".to_string(),
+            label: "Create plan".to_string(),
+            prompt_fragment:
+                "Write a step-by-step implementation plan and save it to `IMPLEMENTATION_PLAN.md` at the repo root."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
+            id: "plan-review".to_string(),
+            label: "Review plan".to_string(),
+            prompt_fragment:
+                "Have the implementation plan reviewed (e.g. a codex plan review, read-only) and resolve blockers before writing code."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
+            id: "code-review".to_string(),
+            label: "Review code".to_string(),
+            prompt_fragment:
+                "After implementing, run a code review on the diff and address findings before marking the card ready."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
+            id: "merge".to_string(),
+            label: "Merge / open PR".to_string(),
+            prompt_fragment:
+                "When the work is implemented and reviewed, open a pull request (or merge) for this card."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
+            id: "orchestrate".to_string(),
+            label: "Orchestrate (auto-drive)".to_string(),
+            prompt_fragment:
+                "Have the orchestrator agent pick this card up and drive it to done autonomously, running the stages above in order — regardless of which board column the card is in (it may be started even from Todo)."
+                    .to_string(),
+            default_enabled: false,
+        },
+    ]
+}
+
 #[derive(Debug, Error)]
 pub enum ConfigError {
     #[error(transparent)]
@@ -81,6 +139,7 @@ pub enum ConfigError {
 }
 
 pub type Config = versions::v9::Config;
+pub type PipelineStep = versions::v9::PipelineStep;
 pub type NotificationConfig = versions::v9::NotificationConfig;
 pub type EditorConfig = versions::v9::EditorConfig;
 pub type ThemeMode = versions::v9::ThemeMode;

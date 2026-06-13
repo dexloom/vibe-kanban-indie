@@ -21,28 +21,21 @@ export interface OrchestratorDirective {
 
 export const ORCHESTRATOR_DIRECTIVES: OrchestratorDirective[] = [
   {
-    id: 'plan-review',
-    labelKey: 'spawnOrchestrator.options.plan-review.label',
-    descriptionKey: 'spawnOrchestrator.options.plan-review.description',
-    defaultEnabled: true,
-    fragment:
-      'For every agent you spawn, run the full planning gate: have the agent write IMPLEMENTATION_PLAN.md (your plan.md prompt), then gate it with a codex plan review (your codex-review.md prompt in plan mode, `codex exec --sandbox read-only`) and loop on blockers until CODEX VERDICT: PASS before sending any development step.',
-  },
-  {
-    id: 'codex-diff-review',
-    labelKey: 'spawnOrchestrator.options.codex-diff-review.label',
-    descriptionKey: 'spawnOrchestrator.options.codex-diff-review.description',
-    defaultEnabled: true,
-    fragment:
-      'Before moving any card to In Review, require a codex diff review (your codex-review.md prompt in diff mode, `codex review --base <target branch>`) and loop on blockers until it PASSes.',
-  },
-  {
     id: 'auto-unblock',
     labelKey: 'spawnOrchestrator.options.auto-unblock.label',
     descriptionKey: 'spawnOrchestrator.options.auto-unblock.description',
     defaultEnabled: false,
     fragment:
       'Approvals: auto-approve routine, plan-sanctioned tool requests via respond_to_approval; escalate anything destructive, expensive, or off-plan to the operator instead.',
+  },
+  {
+    id: 'auto-answer-questions',
+    labelKey: 'spawnOrchestrator.options.auto-answer-questions.label',
+    descriptionKey:
+      'spawnOrchestrator.options.auto-answer-questions.description',
+    defaultEnabled: false,
+    fragment:
+      "Questionnaires: each sweep, list_pending_approvals(execution_process_id) for every running agent to find pending questions (AskUserQuestion / plan questionnaires) and their age_seconds. Give the operator a grace window — once a question's age_seconds is past ~two loop intervals (default ~600s) with no human answer — spawn the `decider` subagent (Agent(decider)) to read the card, spec, plan, and the question, pick the best-supported option for every stale question, and submit it via respond_to_approval(decision='answer'). Key the grace off age_seconds, not a remembered tick count.",
   },
   {
     id: 'telegram-fanout',
@@ -52,17 +45,9 @@ export const ORCHESTRATOR_DIRECTIVES: OrchestratorDirective[] = [
     fragment:
       'Use the sombrax-telegram channel: narrate status to the operator topic and converse with each headed agent over its per-workspace Telegram topic (topic = workspace branch). Requires the sombrax-telegram listener to be running.',
   },
-  {
-    id: 'spec-intake',
-    labelKey: 'spawnOrchestrator.options.spec-intake.label',
-    descriptionKey: 'spawnOrchestrator.options.spec-intake.description',
-    defaultEnabled: false,
-    fragment:
-      'If the operator hands you a rough task brief, turn it into a development-ready card with the vibe-kanban-indie:product-manager skill before scheduling work; never start an agent from an unspecced brief.',
-  },
 ];
 
-const BASE_PROMPT = `Use the vibe-kanban-indie:orchestrator agent (via the Task tool) to check the vibe-kanban board and drive all actively running tasks to done. Each cycle: list non-archived workspaces and In Progress cards; adopt already-running agents before ever spawning (one agent per card); spawn an agent only for an In Progress card with no workspace, never for Todo; monitor executions (get_execution status and final_message); send each idle agent its next step from its plan; reflect progress on the board (In Progress -> In Review on pipeline complete -> Done only after operator-approved merge); finish the cycle with a short status summary of every card in flight.`;
+const BASE_PROMPT = `Use the vibe-kanban-indie:orchestrator agent (via the Task tool) to check the vibe-kanban board and drive all actively running tasks to done. Each cycle: list non-archived workspaces and In Progress cards; adopt already-running agents before ever spawning (one agent per card); spawn an agent only for an In Progress card with no workspace, never for Todo; monitor executions (get_execution status and final_message); send each idle agent its next step from its plan; reflect progress on the board (In Progress -> In Review on pipeline complete -> Done only after operator-approved merge); finish the cycle with a short status summary of every card in flight. Each card's Pipeline section (the \`## Pipeline\` block in the card description) is the source of truth for which stages run: run exactly the stages it lists, in order, delegating the spec stage to the \`product\` agent and the plan stage to the \`planner\` agent (separate ephemeral agents that write \`SPEC.md\` / \`IMPLEMENTATION_PLAN.md\`) before the implementation agent, and don't advance a card past a stage its pipeline requires until that stage is done. If a card's Pipeline includes the \`Orchestrate\` stage, drive that card to done regardless of which column it is in — you may spawn for it even from Todo, overriding the usual In-Progress-only spawn gate.`;
 
 /**
  * Compose the `/loop`-wrapped orchestration brief from the set of enabled

@@ -126,6 +126,11 @@ export interface KanbanIssuePanelProps {
   // container; this is just a render slot.
   renderIntake?: () => ReactNode;
 
+  // Optional per-card "Pipeline" control, rendered in create mode only
+  // (stage checkboxes + editable prompt addon). Logic lives in the container;
+  // this is just a render slot.
+  renderPipeline?: () => ReactNode;
+
   // Loading states
   isSubmitting?: boolean;
 
@@ -184,6 +189,7 @@ export function KanbanIssuePanel({
   renderAddTagControl,
   renderDescriptionEditor,
   renderIntake,
+  renderPipeline,
   isSubmitting,
   descriptionSaveStatus,
   titleInputRef,
@@ -493,6 +499,9 @@ export function KanbanIssuePanel({
 
         {/* "Generate spec" intake controls (Create mode only) */}
         {isCreateMode && renderIntake && renderIntake()}
+
+        {/* Per-card Pipeline control (Create mode only) */}
+        {isCreateMode && renderPipeline && renderPipeline()}
 
         {/* Create Draft Workspace Toggle (Create mode only) */}
         {isCreateMode && (

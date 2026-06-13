@@ -1,7 +1,9 @@
 use std::{collections::HashMap, env, fs, path::Path};
 
 use schemars::{JsonSchema, Schema, SchemaGenerator, generate::SchemaSettings};
-use services::services::config::{DEFAULT_COMMIT_REMINDER_PROMPT, DEFAULT_PR_DESCRIPTION_PROMPT};
+use services::services::config::{
+    DEFAULT_COMMIT_REMINDER_PROMPT, DEFAULT_PR_DESCRIPTION_PROMPT, default_pipeline_steps,
+};
 use ts_rs::TS;
 
 fn generate_types_content() -> String {
@@ -191,6 +193,7 @@ fn generate_types_content() -> String {
         services::services::filesystem::DirectoryListResponse::decl(),
         services::services::file_search::SearchMode::decl(),
         services::services::config::Config::decl(),
+        services::services::config::PipelineStep::decl(),
         services::services::config::NotificationConfig::decl(),
         services::services::config::ThemeMode::decl(),
         services::services::config::EditorConfig::decl(),
@@ -300,9 +303,10 @@ fn generate_types_content() -> String {
 
     // Append exported constants
     let constants = format!(
-        "export const DEFAULT_PR_DESCRIPTION_PROMPT = {};\n\nexport const DEFAULT_COMMIT_REMINDER_PROMPT = {};",
+        "export const DEFAULT_PR_DESCRIPTION_PROMPT = {};\n\nexport const DEFAULT_COMMIT_REMINDER_PROMPT = {};\n\nexport const DEFAULT_PIPELINE_STEPS: Array<PipelineStep> = {};",
         serde_json::to_string(DEFAULT_PR_DESCRIPTION_PROMPT).unwrap(),
-        serde_json::to_string(DEFAULT_COMMIT_REMINDER_PROMPT).unwrap()
+        serde_json::to_string(DEFAULT_COMMIT_REMINDER_PROMPT).unwrap(),
+        serde_json::to_string(&default_pipeline_steps()).unwrap()
     );
 
     format!("{HEADER}\n\n{body}\n\n{constants}")

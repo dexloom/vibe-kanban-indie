@@ -19,6 +19,8 @@
         "selectHost": "Select host",
         "general": "General",
         "generalDesc": "Theme, notifications, and preferences",
+        "pipeline": "Pipeline",
+        "pipelineDesc": "Per-card pipeline stages",
         "projects": "Projects",
         "projectsDesc": "Project repositories and configuration",
         "repos": "Repositories",
@@ -308,6 +310,35 @@
         "workspaces": {
           "label": "Enable Workspaces Beta",
           "helper": "Use the new workspaces interface when viewing workspaces. Tasks will open in task view first, and attempts will open in the new workspaces view."
+        }
+      }
+    },
+    "pipeline": {
+      "loading": "Loading pipeline settings…",
+      "loadError": "Failed to load pipeline settings",
+      "save": {
+        "success": "✓ Settings saved successfully!",
+        "error": "Failed to save configuration"
+      },
+      "steps": {
+        "title": "Pipeline steps",
+        "description": "The catalog of stages offered on the New Issue Pipeline control. Each step is a label plus a prompt fragment appended to the card when ticked.",
+        "reset": "Reset to defaults",
+        "empty": "No pipeline steps. Add one below or reset to defaults.",
+        "customize": {
+          "label": "Customize pipeline steps",
+          "helper": "Use your own catalog of steps instead of the built-in defaults. When off, the defaults are shown read-only."
+        },
+        "fields": {
+          "label": "Label",
+          "labelPlaceholder": "e.g. Create spec",
+          "prompt": "Prompt fragment",
+          "promptPlaceholder": "Instruction appended to the card when this step is ticked.",
+          "defaultEnabled": "Ticked by default on new cards"
+        },
+        "actions": {
+          "add": "Add step",
+          "remove": "Remove step"
         }
       }
     },
