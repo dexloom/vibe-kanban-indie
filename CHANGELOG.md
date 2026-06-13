@@ -7,6 +7,19 @@ tag that matches `npx-cli/package.json` (see `.github/workflows/release-indie.ym
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7] - 2026-06-13
+
+Orchestration release.
+
+### Added
+
+- **Per-card pipelines** — a config-driven stage catalog with New Issue
+  checkboxes appended to the card description and an Orchestrate-card hand-off.
+- **Orchestrator agent** — a repo-independent singleton headed session that
+  drives a card through its pipeline, with an auto-answer `decider` subagent
+  that resolves stale agent questionnaires after a two-tick grace.
+- **Worktree default folder** and **iTerm tab naming** for headed sessions.
+
 ## [0.2.6] - 2026-06-06
 
 A CI hygiene release.
