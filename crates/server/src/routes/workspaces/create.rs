@@ -325,13 +325,16 @@ pub async fn create_and_start_workspace(
 }
 
 /// Build the executor config for the orchestrator: always a headed Claude Code
-/// session (its default profile sets `dangerously_skip_permissions`).
+/// session (its default profile sets `dangerously_skip_permissions`), launched
+/// directly AS the orchestrator agent via `--agent` (`agent_id`) rather than as a
+/// Task subagent. Requires the `vibe-kanban-indie` plugin installed so the agent
+/// name resolves.
 fn orchestrator_executor_config() -> ExecutorConfig {
     ExecutorConfig {
         executor: BaseCodingAgent::ClaudeCodeHeaded,
         variant: None,
         model_id: None,
-        agent_id: None,
+        agent_id: Some("vibe-kanban-indie:orchestrator".to_string()),
         reasoning_id: None,
         permission_policy: None,
     }
