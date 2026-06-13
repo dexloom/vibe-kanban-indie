@@ -1,0 +1,116 @@
+---
+title: "Filtering & Sorting"
+description: "Find issues quickly with search, filters, and sorting"
+---
+
+As a project grows, you need ways to find specific issues quickly. The filter bar
+provides search, filtering, and sorting to help you focus on what matters.
+
+## The filter bar
+
+The filter bar sits above the board and contains:
+
+- **Search field** — find issues by title
+- **Filter dropdowns** — filter by priority, assignee, and tags
+- **Sort dropdown** — change how issues are ordered
+- **Clear All** — reset all filters
+
+## Searching
+
+Type in the search field to find issues by title.
+
+- Search matches issue **titles** only
+- Search is **case-insensitive** ("Login" matches "login")
+- Search finds **partial matches** ("log" matches "Login flow")
+- Results update as you type
+
+<Tip>
+If you can't find an issue, check that your filters aren't hiding it. Click
+**Clear All** to reset filters and search again.
+</Tip>
+
+## Filtering
+
+### Priority
+
+Filter issues by priority level:
+
+| Priority | Description |
+|----------|-------------|
+| **Urgent** | Needs immediate attention |
+| **High** | Important, do soon |
+| **Medium** | Normal priority |
+| **Low** | Can wait |
+
+### Assignee
+
+Filter by who's assigned:
+
+- **Assigned to me** — issues assigned to the local user
+- **Unassigned** — issues with no assignee
+- A specific assignee
+
+### Tags
+
+Filter by one or more tags. An issue matches if it has **at least one** of the
+selected tags.
+
+### Combining filters
+
+You can use several filters at once:
+
+- Filters **within** the same category use **OR** logic (Priority: Urgent OR High).
+- Filters **across** categories use **AND** logic (Priority: High AND Tag: Bug).
+
+## Sorting
+
+Control the order of issues within each column:
+
+| Sort by | Description |
+|---------|-------------|
+| **Manual** | Your custom order — drag to reorder |
+| **Priority** | Urgent first, then High, Medium, Low |
+| **Created** | By creation time |
+| **Updated** | By last change |
+| **Title** | Alphabetical |
+
+Toggle the sort direction button to switch between ascending and descending.
+
+<Warning>
+Drag-to-reorder is only available in **Manual** sort mode. In any other mode the
+order is determined by the selected field.
+</Warning>
+
+## Clearing filters
+
+- **Clear All** resets every filter and the search at once.
+- To clear a single filter, open its dropdown and deselect its options.
+- To clear the search, click the **×** in the search box.
+
+<Info>
+Filters persist as you navigate within a project and reset when you switch
+projects.
+</Info>
+
+## Common scenarios
+
+<AccordionGroup>
+<Accordion title="Show only my assigned issues">
+Open the **Assignee** dropdown and select **Assigned to me**.
+</Accordion>
+<Accordion title="Find urgent issues that need attention">
+Open the **Priority** dropdown and select **Urgent** (optionally also **High**).
+</Accordion>
+<Accordion title="Review all bugs">
+Open the **Tags** dropdown and select your "Bug" tag.
+</Accordion>
+<Accordion title="See recently updated issues">
+Set **Sort** to **Updated** and the direction to descending.
+</Accordion>
+</AccordionGroup>
+
+## Related documentation
+
+- [Kanban View](/board/kanban) — using the board interface
+- [Issues](/issue-management) — understanding issue properties
+- [Customising your board](/board/customisation) — setting up tags and statuses

@@ -1,0 +1,70 @@
+---
+title: "Solo Cockpit"
+description: "Drive a crew of coding agents single-handedly with the TUI, Telegram, and the orchestrator"
+---
+
+The Solo Cockpit is what makes Vibe Kanban **Indie** different from the upstream
+project: a set of control surfaces designed for one developer to run more, longer
+agent tasks without babysitting them. There is no team, no cloud, and no auth —
+just you, a board, and a crew of coding agents you steer from the terminal and
+your phone.
+
+## The problem it solves
+
+A coding agent often **stops mid-loop** waiting for attention — a tool-permission
+prompt or a clarifying question. On a single-developer process, those stalls pile
+up the moment you step away. The cockpit surfaces each stall where you can answer
+it, and optionally lets a supervising agent answer within guardrails so work keeps
+moving.
+
+## The pieces
+
+<CardGroup cols={2}>
+  <Card title="TUI cockpit" icon="terminal" href="/cockpit/tui">
+    `vibe-tui` — a terminal cockpit listing workspaces and sessions, with a live
+    approvals inbox to approve, deny, or answer locally.
+  </Card>
+  <Card title="Telegram orchestration" icon="telegram" href="/cockpit/telegram">
+    A send-only bridge that escalates blocked agents to a Telegram supergroup,
+    with a forum topic per worktree.
+  </Card>
+  <Card title="Orchestrator" icon="robot" href="/cockpit/orchestrator">
+    A singleton headed agent session that plans and dispatches work across the
+    board on your behalf.
+  </Card>
+  <Card title="Local projects" icon="folder-tree" href="/cockpit/local-projects">
+    Declare projects and repositories in a portable `projects.toml` — no account,
+    no sync.
+  </Card>
+</CardGroup>
+
+## How it fits together
+
+When a worker agent blocks on an approval, the backend streams it to whichever
+surfaces are running. You answer from the TUI (direct to the backend) or from
+Telegram; a supervising agent can also answer through the MCP approval tools.
+
+```
+worker agent blocks ──approval──▶ backend approvals stream
+                                          │
+                                          ▼
+                              vibe-telegram-bridge (send-only)
+                                          │ escalation + machine-readable footer
+                                          ▼
+                                    Telegram supergroup
+                                    ╱            ╲
+                              human reply      supervising agent
+                              (or TUI)          (MCP approval tools)
+                                                   │
+                                                   ▼
+                                       backend unblocks the worker
+```
+
+The human can always override via the TUI or by replying in Telegram. None of
+this requires a hosted service: every component runs on your machine.
+
+## Next steps
+
+<Card title="Set up the TUI" icon="terminal" href="/cockpit/tui">
+  Start with the always-available local cockpit, then layer Telegram on top.
+</Card>

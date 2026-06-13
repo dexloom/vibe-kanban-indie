@@ -1,50 +1,86 @@
 ---
 title: "Remote Access"
-description: "Access your local Vibe Kanban instance from another device"
+description: "Reach your self-hosted Vibe Kanban Indie instance from another device"
 ---
 
-Remote Access allows you to access a host instance of Vibe Kanban from another device, like your mobile phone.
+Vibe Kanban Indie runs entirely on your own machine — there is no cloud relay
+or pairing service. To use it from another device (a phone, tablet, or second
+laptop), you expose the local web UI over your own network and point a browser
+at it.
 
-# 1. Launch Vibe Kanban on the host device
+<Note>
+Indie is single-developer and unauthenticated. Only expose it on networks you
+trust — your LAN or a private mesh such as [Tailscale](https://tailscale.com).
+Do not put it on the public internet without your own authentication layer in
+front.
+</Note>
 
-Make sure you've started Vibe Kanban and logged in.
+## Choose how to reach the host
 
-# 2. Generate a pairing code
+<CardGroup cols={2}>
+  <Card title="Tailscale (recommended)" icon="shield-halved">
+    A private mesh network. Your phone reaches the host by a stable name from
+    anywhere, with HTTPS, and nothing is exposed publicly.
+  </Card>
+  <Card title="Same LAN" icon="wifi">
+    Reach the host by its local IP address when both devices are on the same
+    Wi-Fi. Simplest, but HTTP-only and local-network-only.
+  </Card>
+</CardGroup>
 
-Open the settings dialog, navigate to the `Remote Access` tab and click `Show pairing code`:
+## Bind the server to your network
 
-<Frame>
-  <img src="/images/remote-access-generate-pairing-code-settings.png" alt="Remote Access settings page on the host device with the Show pairing code button" />
-</Frame>
+By default the backend binds to `127.0.0.1`, which is only reachable from the
+host itself. Set `HOST` so other devices can connect, and declare the origins
+you'll browse from with `VK_ALLOWED_ORIGINS`.
 
-Make a note of the pairing code:
+<Steps>
+<Step title="Bind to all interfaces">
+  Start the app with `HOST` set so it listens on every interface:
 
-<Frame>
-  <img src="/images/remote-access-generate-pairing-code-modal.png" alt="Pairing code modal on the host device showing the generated code" />
-</Frame>
+  ```bash
+  HOST=0.0.0.0 npx vibe-kanban-indie
+  ```
 
-# 3. Log into Vibe Kanban cloud
+  <Warning>
+  On Windows, also set `MCP_HOST=127.0.0.1` so the MCP server still connects
+  locally when `HOST=0.0.0.0`.
+  </Warning>
+</Step>
 
-On the client device where you'd now like to access your host machine from, navigate to [cloud.vibekanban.com](https://cloud.vibekanban.com) in a browser and log in.
+<Step title="Allow your browsing origin">
+  When you access the UI by any host other than `localhost`, the browser's
+  `Origin` header won't match and requests are rejected with `403 Forbidden`.
+  List the origins you'll use:
 
-# 4. Pair your client with your host
+  ```bash
+  VK_ALLOWED_ORIGINS="https://host.your-tailnet.ts.net,http://192.168.1.50:3000" \
+    HOST=0.0.0.0 npx vibe-kanban-indie
+  ```
 
-On your client, navigate to `Remote Access` and click `Link a host`. Select the relevant host from the dropdown:
+  <Check>
+  Open the URL on your other device. The board should load and stay
+  connected.
+  </Check>
+</Step>
+</Steps>
 
-<Frame>
-  <img style={{maxHeight: "500px"}} src="/images/remote-access-pair-host-mobile-form.png" alt="Remote Access page on mobile showing the Pair host form with host selection and pairing code input" />
-</Frame>
+## Add HTTPS with a reverse proxy
 
-Enter the pairing code you generated earlier and click `Pair host`:
+For a stable name and HTTPS (required for some browser features on mobile), put
+a reverse proxy in front. The repository ships a
+[`Caddyfile.example`](https://github.com/dexloom/vibe-kanban-indie/blob/main/Caddyfile.example)
+and a full [mobile testing walkthrough](https://github.com/dexloom/vibe-kanban-indie/blob/main/mobile-testing.md)
+that combines **Tailscale** (stable networking + certificates) with **Caddy**
+(reverse proxy) so you can reach the UI from a phone on any network in about
+fifteen minutes.
 
-<Frame>
-  <img style={{maxHeight: "500px"}} src="/images/remote-access-pair-host-mobile-select.png" alt="Remote Access page on mobile with the host dropdown opened before pairing" />
-</Frame>
+Other tunnels such as Cloudflare Tunnel or ngrok work the same way: expose the
+web UI, then add the tunnel URL to `VK_ALLOWED_ORIGINS`.
 
-# 5. Access workspaces from your host device
+## Open your editor on the remote host
 
-You can now exit the settings page. You should see the paired host, clicking on the host will list the host's workspaces.
-
-<Frame>
-  <img style={{maxHeight: "500px"}} src="/images/remote-access-cloud-mobile.png" alt="Vibe Kanban cloud remote access page on mobile showing a paired host and workspaces" />
-</Frame>
+When the app runs on a remote server, the "Open in VSCode" buttons can connect
+your local editor over SSH instead of assuming `localhost`. Configure this in
+**Settings → Editor Integration**; see [General Settings](/settings/general)
+for details.

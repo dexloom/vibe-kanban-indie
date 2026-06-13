@@ -1,0 +1,38 @@
+name: Docs
+
+# Lints the Mintlify documentation for broken internal links. Deployment itself
+# is handled by the Mintlify GitHub App on push to main (see docs/README.md).
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - docs/**
+      - .github/workflows/docs.yml
+  push:
+    branches:
+      - main
+    paths:
+      - docs/**
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  broken-links:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Mintlify CLI
+        run: npm i -g mint
+      - name: Check for broken links
+        working-directory: docs
+        run: mint broken-links

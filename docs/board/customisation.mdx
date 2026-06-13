@@ -1,0 +1,103 @@
+---
+title: "Customising Your Board"
+description: "Configure columns, colours, and display settings"
+---
+
+Customise your kanban board to match your workflow by adding columns, changing
+colours, renaming statuses, reordering them, and controlling what's visible.
+
+## Display settings
+
+Open **Display Settings** (the sliders icon in the filter bar) to manage your
+board columns. Each status appears with a visibility toggle, a colour, and a drag
+handle.
+
+<Frame>
+  <img style={{maxHeight: "400px"}} src="/images/cloud/display-settings.png" alt="Display Settings panel showing columns with toggles" />
+</Frame>
+
+## Managing columns
+
+### Add a column
+
+Open Display Settings, click **+ Add column**, type a status name (e.g. "Blocked",
+"Testing"), and save. New columns are assigned a colour you can change afterwards.
+
+### Rename a column
+
+Click the column's name in Display Settings, type the new name, and save.
+
+<Info>
+Renaming a column doesn't change the issues in it — only the display name changes.
+</Info>
+
+### Change a column's colour
+
+Click the coloured dot next to a column name, pick a colour, and save. The colour
+shows in the column header and on issue cards.
+
+### Reorder columns
+
+Drag a column by its handle to a new position, then save.
+
+<Tip>
+Arrange columns left to right to match your workflow — typically "Todo" on the
+left through to "Done" on the right.
+</Tip>
+
+### Hide a column
+
+Toggle a column's visibility off to remove it from the board while keeping its
+issues. Hidden statuses still exist, their issues are preserved, and you can view
+them in [list view](/board/list-view) or unhide them at any time.
+
+<Info>
+Hiding is useful for "Done": keep completed work out of sight while still able to
+reach it when needed.
+</Info>
+
+### Delete a column
+
+Click the **×** next to a column and save.
+
+<Warning>
+You cannot delete a column that contains issues. Move its issues to another
+column first, then delete the empty column.
+</Warning>
+
+## Managing tags
+
+Tags categorise and filter issues, and are created inline as you add them to an
+issue:
+
+1. Open any issue.
+2. Click the **Tags** field (or the **+** next to existing tags).
+3. Type a tag name. If it doesn't exist yet, choose **Create** and pick a colour.
+4. The tag is applied and becomes available for any issue in the project.
+
+To remove a tag from an issue, click it — a strikethrough indicates it will be
+removed. Tags appear as coloured labels on cards and can be used in the
+[tag filter](/board/filtering).
+
+## Best practices
+
+<CardGroup cols={2}>
+<Card title="Keep it simple" icon="circle-check">
+  Start with fewer columns. Too many creates confusion about where issues go.
+</Card>
+<Card title="Use clear names" icon="tag">
+  "In Progress" reads better than "WIP" or "Active".
+</Card>
+<Card title="Hide, don't delete" icon="eye-slash">
+  Unsure about a column? Hide it instead of deleting — you can unhide it later.
+</Card>
+<Card title="Consistent colours" icon="palette">
+  Reuse colour meanings across projects, e.g. red for blocked or urgent.
+</Card>
+</CardGroup>
+
+## Related documentation
+
+- [Kanban View](/board/kanban) — using the board interface
+- [Issues](/issue-management) — creating and managing issues
+- [Filtering & Sorting](/board/filtering) — finding issues with tags and filters

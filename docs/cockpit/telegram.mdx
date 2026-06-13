@@ -1,0 +1,96 @@
+---
+title: "Telegram Orchestration"
+description: "Escalate blocked agents to a Telegram supergroup with a forum topic per worktree"
+---
+
+The Telegram bridge (`vibe-telegram-bridge`) streams coding-agent escalations to a
+Telegram supergroup so a blocked agent can be unblocked from anywhere — by you
+replying on your phone, or by a supervising agent acting through the MCP approval
+tools. The bridge is **send-only**: it never reads Telegram and never polls the
+bot token, so it coexists with a Telegram listener without conflict.
+
+## Prerequisites
+
+- A Telegram **bot token** (from [@BotFather](https://t.me/BotFather)).
+- A Telegram **supergroup** with the **Topics** (forum) feature enabled, and its
+  chat ID.
+
+## Configure
+
+Configuration lives in `~/.vibe-kanban/telegram.toml`. Copy the example from the
+repository (`automation/telegram.toml.example`) and edit it:
+
+```toml ~/.vibe-kanban/telegram.toml
+# Master on/off. When false, the bridge exits cleanly.
+enabled = true
+
+# Bot token. Optional here — if omitted, falls back to $TELEGRAM_BOT_TOKEN, then
+# the TELEGRAM_BOT_TOKEN line in ~/.claude/channels/telegram/.env.
+bot_token = "123456:ABC-DEF..."
+
+# Target supergroup chat id (must have Topics enabled for per-worktree topics).
+chat_id = "-1001234567890"
+
+# Optional: forum topic to mirror non-worktree ("General") messages into.
+# general_thread_id = "1"
+
+# Spawn a dedicated forum topic per opted-in worktree and route its escalations
+# there.
+per_worktree_topics = true
+
+# Which session executors get their own topic. Defaults to ["CLAUDE_CODE"].
+# topic_executors = ["CLAUDE_CODE"]
+
+# Topic name template. {name} = worktree name (falls back to branch),
+# {branch} = git branch. Defaults to "vk: {name}".
+# topic_name_template = "vk: {name}"
+```
+
+<Note>
+The bot token falls back to `$TELEGRAM_BOT_TOKEN` and then to
+`~/.claude/channels/telegram/.env` — the same file a sombrax-telegram listener
+uses — so you can share one token across both.
+</Note>
+
+## Run
+
+```bash
+cargo run -p telegram-bridge
+```
+
+<Warning>
+When `enabled = false` (or there is no config and no `VK_TG_CHAT_ID`), the daemon
+exits cleanly. Legacy environment variables `VK_TG_CHAT_ID` and
+`VK_TG_GENERAL_THREAD_ID` still work as a fallback when the TOML is absent.
+</Warning>
+
+## Per-worktree forum topics
+
+With `per_worktree_topics = true`, the bridge watches the backend's event stream
+and, when an opted-in worktree starts, creates a forum topic named from
+`topic_name_template` and routes that worktree's escalations into it. Everything
+else goes to the General area.
+
+The `workspace_id → message_thread_id` map is persisted in
+`~/.vibe-kanban/telegram-topics.json`, so restarting the bridge reuses existing
+topics instead of creating duplicates.
+
+## Settings panel
+
+The app surfaces a read-only **Settings → Telegram** panel showing the bridge's
+status and a **Send test message** button. It reads `telegram.toml` and the
+bridge's heartbeat file but does not edit the configuration — the TOML is
+hand-edited.
+
+## Answering from Telegram
+
+Each escalation carries a machine-readable footer. You can reply in the thread to
+answer a clarifying question or approve a request. A supervising agent on the same
+channel can read escalations and answer within its guardrails through the MCP
+approval tools — see the [Orchestrator](/cockpit/orchestrator).
+
+## Next steps
+
+<Card title="Add a supervising agent" icon="robot" href="/cockpit/orchestrator">
+  Let an orchestrator agent triage escalations and dispatch work for you.
+</Card>

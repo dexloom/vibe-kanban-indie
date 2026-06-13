@@ -1,0 +1,130 @@
+---
+title: "Local Projects"
+description: "Declare projects and repositories in a portable projects.toml — no account, no cloud sync"
+---
+
+Vibe Kanban Indie stores everything locally. Projects, repositories, board
+columns, and issues live in a SQLite database on your machine — there is no
+account and no cloud sync. For the **static** configuration (projects, repos, and
+columns, but not issues), Indie also supports a portable `projects.toml`
+import/export format so you can version it, share it, or recreate a setup
+elsewhere.
+
+<Note>
+The SQLite database is the source of truth. `projects.toml` is an explicit,
+portable export/import of the static config — create and edit projects in the app,
+then export when you want a portable copy.
+</Note>
+
+## Import and export
+
+```bash
+# Import a config bundle (non-destructive)
+vibe-kanban import path/to/projects.toml
+
+# Export the current database to a file
+vibe-kanban export path/to/out.toml
+```
+
+You can also use the HTTP endpoints: `POST /api/config/import` and
+`GET /api/config/export`.
+
+The default path, when none is given, is `$VIBE_KANBAN_PROJECTS_CONFIG`, falling
+back to `~/.vibe-kanban/projects.toml`.
+
+<Info>
+Import is **non-destructive**: rows are matched by `id` (then by name or path),
+existing rows are updated, new ones are inserted, and nothing is ever deleted.
+</Info>
+
+## File format
+
+A bundle declares repositories, then projects that group them and define board
+columns.
+
+```toml projects.toml
+# Display name for the predefined local user (issue creator/assignee).
+local_user_name = "Local"
+
+# --- Repos: one block per git repository. `path` is the unique anchor. ---
+[[repo]]
+path = "~/code/acme-api"
+display_name = "Acme API"
+default_target_branch = "main"
+parallel_setup_script = false
+# setup_script = "pnpm install"
+# dev_server_script = "pnpm dev"
+# copy_files = [".env", "config/local.toml"]
+
+[[repo]]
+path = "~/code/acme-web"
+display_name = "Acme Web"
+default_target_branch = "main"
+parallel_setup_script = false
+
+# --- Projects: group repos and define kanban columns. ---
+[[project]]
+name = "Acme"
+# Per-project issue prefix (e.g. "ACME" -> "ACME-5"); derived from name if omitted.
+key = "ACME"
+color = "#3b82f6"
+# Repo paths grouped under this project (must match a [[repo]].path above).
+repos = ["~/code/acme-api", "~/code/acme-web"]
+# Columns, created in order on import only if the project has none yet.
+statuses = ["Todo", "In Progress", "In Review", "Done"]
+```
+
+### Repositories
+
+<ParamField path="path" type="string" required>
+  Absolute or `~`-relative path to the git repository. This is the unique anchor
+  used to match rows on import.
+</ParamField>
+
+<ParamField path="display_name" type="string">
+  Human-friendly name shown in the app.
+</ParamField>
+
+<ParamField path="default_target_branch" type="string">
+  Branch new work targets by default, e.g. `main`.
+</ParamField>
+
+<ParamField path="setup_script" type="string">
+  Command run to prepare a fresh workspace (for example installing dependencies).
+</ParamField>
+
+<ParamField path="dev_server_script" type="string">
+  Command that starts the repository's dev server.
+</ParamField>
+
+### Projects
+
+<ParamField path="name" type="string" required>
+  Project name shown on the board.
+</ParamField>
+
+<ParamField path="key" type="string">
+  Per-project issue prefix (for example `ACME` produces `ACME-5`). Derived from
+  the name if omitted.
+</ParamField>
+
+<ParamField path="repos" type="array">
+  Repository paths grouped under this project. Each must match a `[[repo]].path`.
+</ParamField>
+
+<ParamField path="statuses" type="array">
+  Kanban columns, created in order — but only on import, and only if the project
+  has no columns yet. Once a project has columns, they are managed in the app and
+  this field is ignored.
+</ParamField>
+
+<Note>
+An export also includes a top-level `profiles_json` string holding your executor
+(agent) profiles; importing it restores those profile overrides.
+</Note>
+
+## Next steps
+
+<Card title="Manage issues" icon="diagram-subtask" href="/issue-management">
+  Create and track issues on the board once your projects are configured.
+</Card>

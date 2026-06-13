@@ -1,0 +1,130 @@
+---
+title: "Projects"
+description: "Create and manage projects to organise your work"
+---
+
+Projects are where your work lives. Each project contains a kanban board with
+issues, statuses, and tags that help you organise and track progress. Everything
+is local — a project is a container on your own machine, not a shared cloud
+workspace.
+
+<Frame>
+  <img src="/images/cloud/project-kanban-board.png" alt="Project kanban board showing columns and issues" />
+</Frame>
+
+## What is a project?
+
+A **project** groups related work. Think of it as a dedicated space for a
+specific initiative, product, or repository set.
+
+Each project has:
+
+- **Issues** — individual work items (bugs, features, tasks)
+- **Statuses** — columns on your kanban board (To Do, In Progress, In Review, Done)
+- **Tags** — labels for categorising issues
+- **Repositories** — the Git repos grouped under the project
+
+## Creating a project
+
+You can create projects two ways:
+
+<Tabs>
+<Tab title="In the app">
+<Steps>
+<Step title="Open the project switcher">
+  Use the sidebar or the project dropdown in the header.
+</Step>
+<Step title="Create a new project">
+  Click the **+ New Project** button.
+
+  <Frame>
+    <img style={{maxHeight: "300px"}} src="/images/cloud/create-project-dialog.png" alt="Create Project dialog with name and colour fields" />
+  </Frame>
+</Step>
+<Step title="Enter project details">
+  | Field | Description |
+  |-------|-------------|
+  | **Name** | A clear name (e.g. "Acme API", "Mobile App") |
+  | **Colour** | A colour used to identify the project in the sidebar |
+</Step>
+<Step title="Create">
+  You're taken to the new project's kanban board.
+</Step>
+</Steps>
+</Tab>
+
+<Tab title="From projects.toml">
+  Declare projects and repositories in a portable `projects.toml` and import it.
+  This is ideal for recreating a setup or version-controlling your configuration.
+  See [Local Projects](/cockpit/local-projects) for the full format.
+
+  ```toml projects.toml
+  [[project]]
+  name = "Acme"
+  key = "ACME"
+  color = "#3b82f6"
+  repos = ["~/code/acme-api", "~/code/acme-web"]
+  statuses = ["Todo", "In Progress", "In Review", "Done"]
+  ```
+</Tab>
+</Tabs>
+
+## Default statuses
+
+A new project starts with four status columns:
+
+| Status | Purpose |
+|--------|---------|
+| **Todo** | Issues ready to start |
+| **In Progress** | Issues currently being worked on |
+| **In Review** | Waiting for review |
+| **Done** | Completed issues |
+
+You can rename these, change their colours, add new ones, reorder them, or hide
+ones you don't use. See [Customising Your Board](/board/customisation).
+
+<Note>
+When you import a project from `projects.toml`, its `statuses` list seeds the
+columns **only if the project has none yet**. Once a project has columns, they
+are managed in the app and the TOML list is ignored.
+</Note>
+
+## Project settings
+
+Rename a project or change its colour from project settings (the gear icon next
+to the project name). The colour appears in the sidebar and helps you identify
+projects at a glance.
+
+<Tip>
+You can also manage projects and repositories from **Settings** →
+**Projects & Repositories**. See [Projects & Repositories](/settings/projects-repositories).
+</Tip>
+
+## Switching between projects
+
+- Click a project in the sidebar to open it, or
+- Click the current project name in the header and pick another from the dropdown.
+
+## Deleting a project
+
+<Warning>
+Deleting a project is permanent. All issues, comments, and data within it are
+removed. There is no undo.
+</Warning>
+
+## Related documentation
+
+<CardGroup cols={2}>
+  <Card title="Issues" icon="diagram-subtask" href="/issue-management">
+    Create and manage the work items inside a project
+  </Card>
+  <Card title="Kanban View" icon="table-columns" href="/board/kanban">
+    Use the board interface to move work through your workflow
+  </Card>
+  <Card title="Customising your board" icon="sliders" href="/board/customisation">
+    Configure columns, colours, and tags
+  </Card>
+  <Card title="Local Projects" icon="folder-tree" href="/cockpit/local-projects">
+    Declare projects and repos in a portable projects.toml
+  </Card>
+</CardGroup>

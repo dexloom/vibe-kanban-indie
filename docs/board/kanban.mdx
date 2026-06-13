@@ -1,0 +1,117 @@
+---
+title: "Kanban View"
+description: "Visualise and manage your work with the kanban board"
+---
+
+The kanban board is your primary view for managing work. Issues are organised
+into columns representing stages of your workflow, and you drag and drop them as
+work progresses.
+
+<Frame>
+  <img src="/images/cloud/project-kanban-board.png" alt="Kanban board showing columns with issue cards" />
+</Frame>
+
+## Board layout
+
+The board consists of:
+
+- **Filter bar** — search, filter, and sort your issues (top)
+- **Status columns** — vertical columns representing workflow stages
+- **Issue cards** — individual work items within columns
+- **Column headers** — show the status name with a colour indicator
+
+### Status columns
+
+Each column represents a status in your workflow. A new project starts with four:
+**Todo**, **In Progress**, **In Review**, and **Done**. You can
+[customise these columns](/board/customisation) — add, rename, recolour,
+reorder, or hide them.
+
+### Issue cards
+
+Each card shows key information at a glance:
+
+- **Simple ID** — the issue identifier (e.g. `ACME-1`)
+- **Title** — what needs to be done
+- **Priority** — a colour-coded indicator, if set
+- **Assignee** — the assigned user, if any
+- **Tags** — coloured labels, if any
+
+Click any card to open the full [issue panel](/issue-management).
+
+## Drag and drop
+
+Move issues between columns, and reorder them within a column, using drag and
+drop.
+
+<Frame>
+  <img src="/images/cloud/drag-drop.png" alt="Dragging an issue card between columns" />
+</Frame>
+
+- **Change status** — drag a card to another column; its status updates
+  immediately.
+- **Reorder within a column** — switch the sort to **Manual** first, then drag
+  cards up or down.
+
+<Info>
+Reordering only works in **Manual** sort mode. If you sort by Priority, Created,
+Updated, or Title, the order is determined automatically and you can't drag to
+reorder. See [Filtering & Sorting](/board/filtering).
+</Info>
+
+## Board and list views
+
+Switch between the **kanban** board and a tabular **[list view](/board/list-view)**
+of the same issues. The list view is useful for reviewing many issues at once and
+for seeing issues in hidden statuses.
+
+## Selecting multiple issues
+
+Select several cards to act on them together:
+
+- **Cmd/Ctrl + Click** — toggle a card in or out of the selection
+- **Shift + Click** — select a range from the last selected card
+- **Cmd/Ctrl + A** — select all visible issues
+- **Escape** — clear the selection
+
+When two or more issues are selected, a **bulk action bar** appears at the bottom
+to change status, priority, or assignee, or to delete — see
+[Selecting multiple issues](/issue-management#selecting-multiple-issues).
+
+## Command bar
+
+Press `Cmd/Ctrl + K` to open the command bar for quick actions on the board and
+the current issue.
+
+## Working with the board
+
+- **Open an issue** — click a card to open the issue panel on the right.
+- **Quick status change** — drag a card to another column instead of opening it.
+- **Create in a column** — use the **+** button in a column header to create a
+  new issue already set to that status.
+
+## Best practices
+
+<CardGroup cols={2}>
+<Card title="Limit work in progress" icon="gauge-high">
+  Finish work before starting new work. Keep "In Progress" short.
+</Card>
+<Card title="Keep columns meaningful" icon="table-columns">
+  Each column should represent a real stage. If issues skip a column, you
+  probably don't need it.
+</Card>
+<Card title="Use filters for focus" icon="filter">
+  When the board gets busy, filter to what matters — a priority, a tag, or your
+  own assignments.
+</Card>
+<Card title="Recolour for clarity" icon="palette">
+  Give columns distinct colours so the board reads at a glance.
+</Card>
+</CardGroup>
+
+## Related documentation
+
+- [List View](/board/list-view) — the tabular view of your issues
+- [Issues](/issue-management) — creating and editing issues
+- [Filtering & Sorting](/board/filtering) — finding issues quickly
+- [Customising your board](/board/customisation) — configuring columns

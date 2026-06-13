@@ -1,0 +1,63 @@
+---
+title: "Generate a Spec"
+description: "Turn a one-line brief into a development-ready task with an agent that explores your codebase"
+---
+
+When you create a new issue, **Generate spec** turns a rough one-line brief into a
+development-ready technical task. It runs a coding agent once — read-only — in a
+throwaway workspace so the agent can explore your actual codebase before writing
+the spec, then pre-fills the New Issue dialog with a title and a markdown spec you
+can edit before saving.
+
+## How it works
+
+<Steps>
+<Step title="Write a brief">
+  In the New Issue dialog, enter a short brief (a sentence or two), choose the
+  project and the repositories the work touches, and pick the coding agent.
+</Step>
+
+<Step title="The agent explores read-only">
+  Indie creates a **throwaway, ephemeral multi-repo workspace** and runs the agent
+  once against it. The run is read-only — its purpose is to explore the code and
+  draft a spec, not to make changes.
+
+  <Note>
+  The spec run always executes headless, even if you picked the interactive
+  "Claude Code Headed" agent — generation is a one-shot run whose output is parsed
+  from the agent's final message. Your original choice is preserved for the later
+  "generate code from the spec" step.
+  </Note>
+</Step>
+
+<Step title="The dialog is pre-filled">
+  The agent's final message is parsed into a **title** and a **markdown spec**,
+  which pre-fill the New Issue dialog. Review and edit them, then save the issue.
+
+  <Check>
+  The ephemeral workspace is always torn down afterward — on success, error,
+  cancellation, or timeout — so it never lingers.
+  </Check>
+</Step>
+</Steps>
+
+## The throwaway workspace is the trust boundary
+
+The exploration runs in a dedicated, ephemeral worktree that is discarded as soon
+as the spec is captured. It is a *throwaway*, not a sandbox: the agent still runs
+with your local permissions, but nothing it does is kept, so a spec run can't leave
+stray changes behind in your real branches.
+
+## Limitations
+
+<Warning>
+Spec generation is not available over a remote relay connection. Generation can
+take 20–60 seconds, beyond the relay's timeout, so run it from the local app. The
+whole request is also bounded by a 120-second budget.
+</Warning>
+
+## Next steps
+
+<Card title="Dispatch the work" icon="robot" href="/cockpit/orchestrator">
+  Hand the new issue to the orchestrator, or start a workspace on it yourself.
+</Card>

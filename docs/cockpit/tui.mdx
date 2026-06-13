@@ -1,0 +1,68 @@
+---
+title: "TUI Cockpit"
+description: "Drive workspaces, watch live agent transcripts, and clear approvals from the terminal with vibe-tui"
+---
+
+`vibe-tui` is the terminal cockpit for Vibe Kanban Indie. It lists your
+workspaces and sessions, streams live agent transcripts, and gives you an
+**approvals inbox** to approve, deny, or answer an agent's request locally. It is
+also the always-available manual override — it talks directly to the backend, so
+it works whether or not the Telegram bridge or a supervising agent is running.
+
+## Prerequisites
+
+- The Vibe Kanban backend running locally (for example `npx vibe-kanban-indie`,
+  or `cargo run --bin server` from source).
+
+## Launch
+
+The TUI discovers the running backend automatically through its port file:
+
+```bash
+cargo run -p tui
+```
+
+<Note>
+If you run the backend on a fixed port, point the TUI at it explicitly with
+`VIBE_BACKEND_URL`, e.g. `VIBE_BACKEND_URL=http://127.0.0.1:8910 cargo run -p tui`.
+</Note>
+
+## Keys
+
+| Key | Action |
+|---|---|
+| `a` | Open the **approvals inbox** |
+| `n` | Start a **new task** |
+| `i` | **Message an agent** (send input to a running session) |
+| `?` | Help |
+
+## The approvals inbox
+
+When an agent blocks on a tool-permission prompt or a clarifying question, it
+appears in the approvals inbox. From there you can:
+
+- **Approve** the request and let the agent continue
+- **Deny** it
+- **Answer** a clarifying question with text
+
+Because the TUI writes directly to the backend, clearing an approval here unblocks
+the worker immediately — the same outcome as answering in Telegram, without
+needing the bridge or a supervising agent.
+
+## When to use it
+
+<CardGroup cols={2}>
+  <Card title="At your desk" icon="desktop">
+    The TUI is the fastest way to watch agents and clear approvals while you work.
+  </Card>
+  <Card title="As a fallback" icon="shield">
+    If Telegram or the supervising agent is down, the TUI is always available to
+    override and unblock work.
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<Card title="Add Telegram orchestration" icon="telegram" href="/cockpit/telegram">
+  Escalate blocked agents to your phone so you can answer away from the desk.
+</Card>

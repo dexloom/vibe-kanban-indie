@@ -1,256 +1,86 @@
 ---
 title: "Local Development"
-description: "Run Vibe Kanban Cloud locally"
+description: "Build and run Vibe Kanban Indie from source"
 ---
 
-This guide walks you through setting up a local Vibe Kanban Cloud instance for development and testing.
+This guide sets up a local development environment to build, run, and contribute
+to Vibe Kanban Indie. If you only want to *use* the app, install it with
+`npx vibe-kanban-indie` instead — see [Getting Started](/getting-started).
 
 ## Prerequisites
 
 Before you begin, ensure you have:
 
-- **Docker** and **Docker Compose** installed
-- **Git** to clone the repository
-- **Node.js 20+** and **pnpm** (for running the desktop client)
-- A **GitHub** or **Google** OAuth application
+- **Rust** (stable toolchain — the repository pins it via `rust-toolchain.toml`)
+- **Node.js 18+** and **pnpm**
+- **Git**
 
-## Step 1: Clone the Repository
-
-```bash
-git clone https://github.com/BloopAI/vibe-kanban.git
-cd vibe-kanban
-```
-
-## Step 2: Create OAuth Application
-
-You need at least one OAuth provider. Choose GitHub, Google, or both.
-
-<Tabs>
-<Tab title="GitHub OAuth">
-
-1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
-2. Click **New OAuth App**
-3. Fill in the details:
-   - **Application name**: Vibe Kanban Local
-   - **Homepage URL**: `http://localhost:3000`
-   - **Authorization callback URL**: `http://localhost:3000/v1/oauth/github/callback`
-4. Click **Register application**
-5. Copy the **Client ID**
-6. Click **Generate a new client secret** and copy it
-
-</Tab>
-
-<Tab title="Google OAuth">
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-2. Create a new project or select an existing one
-3. Click **Create Credentials** → **OAuth client ID**
-4. Select **Web application**
-5. Add authorized redirect URI: `http://localhost:3000/v1/oauth/google/callback`
-6. Click **Create**
-7. Copy the **Client ID** and **Client Secret**
-
-</Tab>
-</Tabs>
-
-## Step 3: Configure Environment
-
-Create a `.env.remote` file in `crates/remote/`:
+## Step 1: Clone the repository
 
 ```bash
-# Generate a secure JWT secret
-openssl rand -base64 48
+git clone https://github.com/dexloom/vibe-kanban-indie.git
+cd vibe-kanban-indie
 ```
 
-Copy the output and create your `.env.remote`:
-
-```env .env.remote
-# Required - JWT secret for authentication
-VIBEKANBAN_REMOTE_JWT_SECRET=<paste_your_generated_secret_here>
-
-# Optional - Password for ElectricSQL database role (electric_sync user)
-ELECTRIC_ROLE_PASSWORD=
-
-# OAuth — configure at least one provider. Leave the other empty or remove it.
-GITHUB_OAUTH_CLIENT_ID=your_github_client_id
-GITHUB_OAUTH_CLIENT_SECRET=your_github_client_secret
-
-# Google OAuth (leave empty if not using Google login)
-GOOGLE_OAUTH_CLIENT_ID=
-GOOGLE_OAUTH_CLIENT_SECRET=
-
-# Relay (required for relay/tunnel features)
-# For plain HTTP local dev:
-VITE_RELAY_API_BASE_URL=http://localhost:8082
-
-# Email invitations (optional — leave empty to disable)
-LOOPS_EMAIL_API_KEY=
-
-# Loops transactional email template IDs (optional — defaults are the upstream templates).
-# Override these with your own Loops account template IDs if using a custom Loops account.
-LOOPS_INVITE_TEMPLATE_ID=cmhvy2wgs3s13z70i1pxakij9
-LOOPS_REVIEW_READY_TEMPLATE_ID=cmj47k5ge16990iylued9by17
-LOOPS_REVIEW_FAILED_TEMPLATE_ID=cmj49ougk1c8s0iznavijdqpo
-```
-
-For production or self-hosting on a server, add `PUBLIC_BASE_URL` (your public URL, e.g. `https://kanban.example.com`) and `REMOTE_SERVER_PORTS=0.0.0.0:3000:8081` so the server is reachable from other hosts. Defaults keep local dev unchanged.
-
-<Warning>
-Never commit `.env.remote` to version control. It's already in `.gitignore`.
-</Warning>
-
-## Step 4: Start the Stack
-
-From the `crates/remote` directory, start all services:
+## Step 2: Install dependencies
 
 ```bash
-cd crates/remote
-docker compose --env-file .env.remote -f docker-compose.yml up --build
+pnpm i
 ```
 
-Or from the repo root:
+## Step 3: Run the dev environment
+
+This starts the web app and the backend together, with ports auto-assigned:
 
 ```bash
-pnpm run remote:dev
-```
-
-This starts:
-- **PostgreSQL** on port 5433 (external) / 5432 (internal)
-- **ElectricSQL** on port 3000 (internal only, used by Remote Server for real-time sync)
-- **Remote Server** on port 3000 (external) / 8081 (internal)
-- **Relay Server** on port 8082 (external and internal)
-
-<Warning>
-The remote server binds to `127.0.0.1:3000` only - it's not accessible from other machines. For production, use a reverse proxy.
-</Warning>
-Wait until you see health checks passing:
-
-```
-remote-server-1  | INFO remote: Server listening on 0.0.0.0:8081
-```
-
-## Step 5: Access the Web Interface
-
-Open [http://localhost:3000](http://localhost:3000) in your browser. You should see the Vibe Kanban Cloud login page.
-
-Sign in with your configured OAuth provider (GitHub or Google).
-
-## Step 6: Connect the Desktop Client (Optional)
-
-To use the desktop client with your local server:
-
-```bash
-# In a new terminal, from the repository root
-export VK_SHARED_API_BASE=http://localhost:3000
-
-pnpm install
 pnpm run dev
 ```
 
-The desktop client will now connect to your local Cloud instance instead of the hosted version.
+<Check>
+The terminal prints the URL to open. The board loads with your local projects
+from `projects.toml`.
+</Check>
 
-To test relay/tunnel mode end-to-end, add:
+## Common tasks
 
+<Tabs>
+<Tab title="Run">
 ```bash
-export VK_SHARED_API_BASE=https://localhost:3001
-export VK_SHARED_RELAY_API_BASE=https://relay.localhost:3001
-export VK_TUNNEL=1
+pnpm run dev               # web app + backend (ports auto-assigned)
+pnpm run backend:dev:watch # backend only, watch mode
+pnpm run local-web:dev     # web app only
 ```
+</Tab>
 
-This mode requires local HTTPS + Caddy routing (next step).
-
-## Step 7: Optional Local HTTPS + Caddy (required for tunnel-mode testing)
-
-Use the checked-in `Caddyfile.example` in the repository root. It routes:
-- `localhost:3001` -> remote server (`127.0.0.1:3000`)
-- `relay.localhost:3001` and `*.relay.localhost:3001` -> relay server (`127.0.0.1:8082`)
-
+<Tab title="Check & test">
 ```bash
-caddy run --config Caddyfile.example
+pnpm run check         # frontend + all backend Rust workspaces
+pnpm run backend:check # all backend Rust workspaces
+cargo test --workspace # Rust tests
 ```
+</Tab>
 
-If you use this HTTPS setup, update OAuth callback URLs to:
-- GitHub: `https://localhost:3001/v1/oauth/github/callback`
-- Google: `https://localhost:3001/v1/oauth/google/callback`
-
-## Stopping the Stack
-
-To stop all services:
-
+<Tab title="Format & lint">
 ```bash
-docker compose down
+pnpm run format # cargo fmt (all workspaces) + Prettier
+pnpm run lint   # ESLint + cargo clippy (all workspaces)
 ```
+</Tab>
+</Tabs>
 
-To stop and remove all data (fresh start):
+<Note>
+TypeScript types are generated from Rust with `ts-rs`. After changing a shared
+type, regenerate with `pnpm run generate-types` — do not edit `shared/types.ts`
+by hand.
+</Note>
 
-```bash
-docker compose down -v
-```
+## Next steps
 
-## Troubleshooting
-
-<AccordionGroup>
-<Accordion title="Database connection errors">
-Ensure the database is healthy before the server starts:
-
-```bash
-# Check database status
-docker compose ps
-
-# View database logs
-docker compose logs remote-db
-```
-</Accordion>
-
-<Accordion title="OAuth callback errors">
-Verify your OAuth callback URLs match exactly for your setup:
-- HTTP local stack:
-  - GitHub: `http://localhost:3000/v1/oauth/github/callback`
-  - Google: `http://localhost:3000/v1/oauth/google/callback`
-- HTTPS + Caddy:
-  - GitHub: `https://localhost:3001/v1/oauth/github/callback`
-  - Google: `https://localhost:3001/v1/oauth/google/callback`
-</Accordion>
-
-<Accordion title="ElectricSQL fails to connect">
-ElectricSQL requires the `electric_sync` database user, which is created automatically by the Remote Server on first startup. If ElectricSQL fails to connect:
-
-1. Ensure the Remote Server has started successfully and run its migrations
-2. Check that `ELECTRIC_ROLE_PASSWORD` is set in your `.env.remote`
-3. Restart the stack — ElectricSQL will retry the connection
-
-```bash
-docker compose --env-file .env.remote -f docker-compose.yml restart electric
-```
-</Accordion>
-
-<Accordion title="Port already in use">
-If port 3000 is in use, you can change it in `docker-compose.yml`:
-
-```yaml
-ports:
-  - "127.0.0.1:3001:8081"  # Change 3001 to your preferred port
-```
-
-Update your OAuth callback URLs accordingly.
-</Accordion>
-
-<Accordion title="Relay health endpoint returns HTML instead of JSON">
-**Problem:** `curl -sk https://relay.localhost:3001/health` returns HTML, and relay/tunnel fails.
-
-**Cause:** Caddy routed relay hostnames to the remote app (`:3000`) instead of relay server (`:8082`).
-
-**Solution:**
-1. Use host-specific routing for `relay.localhost` and `*.relay.localhost`
-2. Verify:
-   - `curl -sk https://relay.localhost:3001/health` returns `{"status":"ok"}`
-   - `curl -sk https://localhost:3001/v1/health` returns remote server health JSON
-</Accordion>
-</AccordionGroup>
-
-## Next Steps
-
-Once you have local development working, you can:
-
-- Deploy to Fly.io for production (coming soon)
-- Deploy with Docker Compose on your own server (coming soon)
+<CardGroup cols={2}>
+  <Card title="Deploy with Docker" icon="docker" href="/self-hosting/deploy-docker">
+    Build a container image and run Indie on your own server
+  </Card>
+  <Card title="Remote Access" icon="wifi" href="/remote-access">
+    Reach your instance from a phone or another device
+  </Card>
+</CardGroup>

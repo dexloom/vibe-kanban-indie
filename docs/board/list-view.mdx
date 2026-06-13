@@ -1,0 +1,71 @@
+---
+title: "List View"
+description: "View and manage all your issues in a tabular format"
+---
+
+The list view shows your issues in a table, grouped by status — including issues
+in hidden statuses. It's ideal for reviewing many issues at once and getting a
+complete overview of a project.
+
+<Frame>
+  <img src="/images/cloud/list-view.png" alt="List view showing issues grouped by status" />
+</Frame>
+
+## Switching to list view
+
+Toggle between the **kanban** board and the **list** view from the board header.
+Switch back the same way to return to the columns.
+
+## List layout
+
+Issues are grouped by status. Each status section shows:
+
+- **Status name** with its colour indicator
+- **Issue count** for that status
+- **Collapsible sections** — click to expand or collapse
+
+Each row shows the issue's **Simple ID**, **title**, a **workspace indicator**
+(if it has linked workspaces), and its **age** (how long ago it was created).
+Click any row to open the full [issue panel](/issue-management).
+
+## Multi-select in list view
+
+List view supports the same multi-select as the board. Hover over the left edge
+of a row to reveal a checkbox, or use the modifier keys:
+
+- **Cmd/Ctrl + Click** — toggle a row
+- **Shift + Click** — select a range
+- **Cmd/Ctrl + A** — select all visible issues
+- **Escape** — clear the selection
+
+When two or more issues are selected, the **bulk action bar** appears with
+options to change status, priority, or assignee, or to delete. See
+[Selecting multiple issues](/issue-management#selecting-multiple-issues).
+
+## When to use list view
+
+<CardGroup cols={2}>
+<Card title="Review everything" icon="list">
+  See every issue at once, including those in hidden statuses.
+</Card>
+<Card title="Find specific issues" icon="magnifying-glass">
+  Combined with search and filters, quickly locate issues across all statuses.
+</Card>
+<Card title="Bulk operations" icon="clipboard-list">
+  Select multiple issues to change status, priority, or assignee in bulk.
+</Card>
+<Card title="Access hidden statuses" icon="eye">
+  View and manage issues in statuses you've hidden from the board.
+</Card>
+</CardGroup>
+
+## Filtering and sorting
+
+The filter bar works the same in list view as on the board — search, priority,
+assignee, tags, and sort all apply. See [Filtering & Sorting](/board/filtering).
+
+## Related documentation
+
+- [Kanban View](/board/kanban) — the board view with columns
+- [Issues](/issue-management) — creating and editing issues
+- [Filtering & Sorting](/board/filtering) — finding issues quickly

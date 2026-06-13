@@ -1,0 +1,156 @@
+---
+title: "Vibe Guide"
+description: "Tips and best practices for collaborating with AI coding agents"
+sidebarTitle: "Vibe Guide"
+---
+
+This guide collects practices for getting good results from AI coding agents.
+Approaches vary widely across tools and teams — treat these as starting points,
+not rules.
+
+<Note>
+Adapted from the original [Vibe Guide](https://vibekanban.com/vibe-guide) by
+Louis ([@tokengobbler](https://x.com/tokengobbler)) at Vibe Kanban.
+</Note>
+
+## Planning
+
+Always begin with a plan, regardless of task size. Ask the agent to develop a
+plan and confirm it before any changes are made.
+
+<Tip>
+**Plan more, review less.** Five minutes spent planning saves you ten minutes in
+review. Planning shifts unavoidable work forward rather than creating overhead,
+and a plan is far simpler to evaluate than a diff.
+</Tip>
+
+### Planning sets the shape
+
+Agents optimise for minimal edits to a working solution. Once initial code
+exists, later modifications patch rather than rethink. A plan determines the
+correct structure *before* code solidifies around a flawed approach.
+
+### Re-plan
+
+Begin a fresh session when making extensive changes to a plan. Summarise what
+you've learned and let the agent restart with improved context. Clean starts
+often outperform incremental fixes, because the initial attempt influences every
+change that follows.
+
+```text Suggested prompt
+Knowing what you know please write a new high level plan:
+- No code
+- Just sentences
+- Mention files to look at, at the bottom of your plan
+```
+
+## Async
+
+Work asynchronously with coding agents ("backgrounding") to run multiple tasks
+at once and keep momentum. Longer agent sessions enable genuine parallel work.
+
+### Use YOLO mode
+
+Async only works if you're not approving every tool call. Enable YOLO mode, or
+provide an explicit command allowlist that covers most of what the agent needs.
+Without this you've reinvented pair programming — but slower.
+
+<Note>
+Naming varies by agent: "yolo", "dangerously skip permissions", or similar.
+</Note>
+
+### The biggest model is the fastest
+
+Use the biggest, most capable model you can. Smaller models require more
+intervention. Maximise any "thinking" or "effort" setting. The success metric is
+how often you have to intervene, not how fast a single task runs — capable models
+running tasks in parallel prove faster overall.
+
+### Set the codebase up to be QA'd
+
+Let agents verify their own changes through dev or test commands. Avoid
+delegating verification to humans. Most modifications should end with passing
+tests, not a request for manual validation.
+
+### Solve dev servers
+
+Agents struggle to start and clean up dev servers, which causes port conflicts.
+A dev-server manager that assigns ports and terminates stale processes resolves
+this — see [Repository scripts](/settings/projects-repositories) for configuring
+dev server, setup, and cleanup commands per repository.
+
+### Add dummy data
+
+Make it easy to run the project offline with realistic seed data. Agents that get
+stuck preparing a testable state produce flaky results. Seed data also lets
+parallel agents work without shared-database conflicts from schema mismatches.
+
+## Combating laziness
+
+Coding agents make repetitive lazy decisions. Here are common patterns and how to
+counter them.
+
+### No backwards compatibility
+
+Every coding agent defaults to maintaining backwards compatibility, and so avoids
+refactoring call sites. Add to your system prompt:
+
+> We want the simplest change possible. We don't care about migration. Code
+> readability matters most, and we're happy to make bigger changes to achieve it.
+
+### Disable disabling lint rules
+
+Agents silence linter errors instead of fixing them (for example
+`eslint-disable-next-line`). Ban this with a plugin such as
+`eslint-comments/no-restricted-disable`.
+
+## Frontend
+
+These notes are specific to React and TypeScript.
+
+### Separate presentation from logic
+
+Keep leaf components presentational. Business logic such as data fetching belongs
+in parent components. This prevents "Frankenstein components" that mix thousands
+of lines of state management with rendering.
+
+Enforcing the separation helps agents recognise the pattern and gives them clear
+examples to follow. Use ESLint to ban hooks in presentational components:
+
+```javascript .eslintrc
+'no-restricted-syntax': [
+  'error',
+  {
+    selector: 'CallExpression[callee.name="useState"]',
+    message: 'View components should not manage state. Use controlled props.',
+  },
+]
+```
+
+### Restrict Tailwind
+
+Agents add custom colours, spacing, and padding liberally. Use ESLint to enforce
+a limited set of utility classes — for example, ban `p-4` and `p-8` while
+allowing `p-base` and `p-double` (defined in your Tailwind config).
+
+### Figma MCP
+
+The Figma MCP server generates a first-pass presentational component from a Figma
+design. A prompt that keeps it on-style:
+
+> The component has been designed in Figma and can be retrieved using the Figma
+> MCP server. All spacing, colours, and sizes should match existing Tailwind
+> variables (see `frontend/tailwind.config.js` and `frontend/src/styles/index.css`).
+> We use Phosphor icons. If you cannot match an existing variable, ask the user
+> what to do.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Manage issues" icon="diagram-subtask" href="/issue-management">
+    Plan work as issues on the board before dispatching an agent
+  </Card>
+  <Card title="Solo Cockpit" icon="terminal" href="/cockpit/index">
+    Run agents asynchronously and clear approvals from the TUI and Telegram
+  </Card>
+</CardGroup>

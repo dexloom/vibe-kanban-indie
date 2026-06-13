@@ -1,8 +1,8 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Vibe Kanban",
-  "description": "A kanban board for developers to track coding tasks with AI coding agents",
+  "name": "Vibe Kanban Indie",
+  "description": "The independent, self-hosted fork of Vibe Kanban for a single-developer process — no team, no cloud, no auth.",
   "appearance": {
     "default": "light"
   },
@@ -25,8 +25,8 @@
         "pages": [
           "index",
           "getting-started",
+          "vibe-guide",
           "browser-testing",
-          "issue-management",
           "reviewing-code",
           "remote-access",
           {
@@ -49,6 +49,17 @@
         ]
       },
       {
+        "group": "Board & Issues",
+        "pages": [
+          "issue-management",
+          "board/projects",
+          "board/kanban",
+          "board/list-view",
+          "board/filtering",
+          "board/customisation"
+        ]
+      },
+      {
         "group": "Workspaces",
         "pages": [
           "workspaces/index",
@@ -66,20 +77,14 @@
         ]
       },
       {
-        "group": "Cloud",
+        "group": "Solo Cockpit",
         "pages": [
-          "cloud/index",
-          "cloud/getting-started",
-          "cloud/authentication",
-          "cloud/organizations",
-          "cloud/team-members",
-          "cloud/projects",
-          "cloud/issues",
-          "cloud/kanban-board",
-          "cloud/list-view",
-          "cloud/filtering",
-          "cloud/customisation",
-          "cloud/troubleshooting"
+          "cockpit/index",
+          "cockpit/tui",
+          "cockpit/telegram",
+          "cockpit/orchestrator",
+          "cockpit/local-projects",
+          "cockpit/spec-intake"
         ]
       },
       {
@@ -94,8 +99,6 @@
             ]
           },
           "settings/projects-repositories",
-          "settings/organization-settings",
-          "settings/remote-projects",
           "settings/agent-configurations",
           "settings/mcp-servers"
         ]
@@ -134,13 +137,13 @@
     "links": [
       {
         "label": "GitHub",
-        "href": "https://github.com/BloopAI/vibe-kanban"
+        "href": "https://github.com/dexloom/vibe-kanban-indie"
       }
     ],
     "primary": {
       "type": "button",
       "label": "Get Started",
-      "href": "https://vibekanban.com/docs"
+      "href": "/getting-started"
     }
   },
   "contextual": {
@@ -155,12 +158,6 @@
       "vscode"
     ]
   },
-  "integrations": {
-    "posthog": {
-      "apiKey": "phc_V5XpxUvgOfEWk38iGHr0Kve2oZTmWFjDe3mIwTCXzx0",
-      "apiHost": "https://eu.i.posthog.com"
-    }
-  },
   "redirects": [
     {
       "source": "/workspaces/preview",
@@ -173,8 +170,7 @@
   ],
   "footer": {
     "socials": {
-      "github": "https://github.com/BloopAI/vibe-kanban",
-      "x": "https://x.com/vibekanban"
+      "github": "https://github.com/dexloom/vibe-kanban-indie"
     }
   }
 }

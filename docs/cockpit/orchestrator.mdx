@@ -1,0 +1,61 @@
+---
+title: "Orchestrator"
+description: "A singleton headed agent session that plans and dispatches work across the board"
+---
+
+The orchestrator is a single, long-lived **headed Claude Code** session that
+supervises the board on your behalf: it reads what's happening across your
+issues and workspaces, decides what to do next, and dispatches work — answering
+escalations and starting agents through the Vibe Kanban MCP tools.
+
+## What makes it special
+
+- **Singleton.** There is at most one active orchestrator at a time. Requesting a
+  new one reuses the existing session rather than spawning a second.
+- **Repo-independent.** It does not belong to any one project. It runs from a
+  fixed `~/.vibe-kanban/orchestrator` folder, so it can reason across every
+  project on the board.
+- **Headed.** It runs as an interactive Claude Code session (a detached tmux
+  session), so you can attach to it, watch it think, and send it input — the same
+  controls as any headed workspace.
+
+## Spawning it
+
+Spawn the orchestrator from the app. Spawning is **idempotent**: if an
+orchestrator is already running, the action returns the existing session instead
+of creating a new one. An orchestrator prompt is required — this is the standing
+instruction set that tells it how to triage and dispatch work.
+
+<Note>
+Because it runs from `~/.vibe-kanban/orchestrator` rather than a project worktree,
+the orchestrator has no working repository of its own. It acts on projects by
+calling MCP tools, not by editing files directly.
+</Note>
+
+## How it acts on the board
+
+The orchestrator uses the Vibe Kanban MCP server in **global** mode, which gives
+it board-wide tools to:
+
+- List and read issues, repositories, workspaces, and sessions
+- Start a workspace and dispatch a coding agent on an issue
+- Respond to an agent's approval request, or stop a runaway agent
+- Send follow-up input to a running session
+
+When the [Telegram bridge](/cockpit/telegram) is running, escalations from blocked
+workers reach the orchestrator's channel; it can answer them within its guardrails
+so work keeps moving while you are away.
+
+## Staying in control
+
+You remain the final authority. At any time you can:
+
+- Attach to the orchestrator's tmux session to watch or steer it
+- Override any decision from the [TUI cockpit](/cockpit/tui)
+- Reply directly in Telegram
+
+## Next steps
+
+<Card title="Generate a spec" icon="file-lines" href="/cockpit/spec-intake">
+  Turn a rough brief into a development-ready task for the orchestrator to dispatch.
+</Card>
