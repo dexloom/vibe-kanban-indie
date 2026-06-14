@@ -395,18 +395,17 @@ pub async fn spawn_orchestrator(
         // DB still marks a coding-agent process running even though its tmux
         // session is gone; finalize it so the respawn starts from a clean slate
         // (and the liveness poller doesn't later double-finalize it).
-        if let Some(stale) = candidate {
-            if let Err(e) = deployment
+        if let Some(stale) = candidate
+            && let Err(e) = deployment
                 .container()
                 .stop_execution(&stale, ExecutionProcessStatus::Completed)
                 .await
-            {
-                tracing::warn!(
-                    "Failed to finalize stale orchestrator process {}: {}",
-                    stale.id,
-                    e
-                );
-            }
+        {
+            tracing::warn!(
+                "Failed to finalize stale orchestrator process {}: {}",
+                stale.id,
+                e
+            );
         }
 
         // Idle or dead tmux: start a fresh session (and thus a fresh tmux) on

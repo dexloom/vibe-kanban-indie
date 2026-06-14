@@ -420,8 +420,9 @@ mod tests {
             "get_context".to_string(),
             "get_execution".to_string(),
             "list_sessions".to_string(),
-            // Approval-control tools so the orchestrator can unblock and stop the
-            // agents it drives (mirrors global mode).
+            // Approval-control tools so the orchestrator can read, unblock, and
+            // stop the agents it drives (mirrors global mode).
+            "list_pending_approvals".to_string(),
             "respond_to_approval".to_string(),
             "run_session_prompt".to_string(),
             "stop_execution".to_string(),

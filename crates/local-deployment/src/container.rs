@@ -2453,12 +2453,11 @@ impl ContainerService for LocalContainerService {
         let mut working_dir = base_dir.clone();
         if let Ok(repos) =
             WorkspaceRepo::find_repos_for_workspace(&self.db.pool, workspace.id).await
+            && repos.len() == 1
         {
-            if repos.len() == 1 {
-                let repo_dir = base_dir.join(&repos[0].name);
-                if repo_dir.exists() {
-                    working_dir = repo_dir;
-                }
+            let repo_dir = base_dir.join(&repos[0].name);
+            if repo_dir.exists() {
+                working_dir = repo_dir;
             }
         }
 

@@ -175,6 +175,9 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
+          # Prerelease tags (e.g. v0.2.8-beta.1) become GitHub pre-releases so the
+          # CLI's releases/latest manifest pointer stays on the last stable build.
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             assets/*.zip
             assets/manifest.json
@@ -215,10 +218,20 @@ jobs:
             echo "::error::dist/ present — would flip users into LOCAL_DEV_MODE. Do not build local-build.sh in this job."
             exit 1
           fi
+          # Derive the npm dist-tag from the version so prereleases never clobber
+          # @latest. stable X.Y.Z -> latest ; X.Y.Z-beta.N -> beta ; -rc.N -> rc.
+          if [[ "$PKG" == *-* ]]; then
+            PRE="${PKG#*-}"          # e.g. beta.1
+            NPM_TAG="${PRE%%.*}"     # e.g. beta
+          else
+            NPM_TAG="latest"
+          fi
+          echo "NPM_DIST_TAG=$NPM_TAG" >> "$GITHUB_ENV"
+          echo "Publishing $PKG to npm dist-tag: $NPM_TAG"
 
       - run: npm ci
       - run: npm run build
       # No NODE_AUTH_TOKEN: npm authenticates via OIDC (trusted publisher must be
       # configured on npmjs.com for this package + workflow) and auto-attaches
       # build provenance.
-      - run: npm publish --access public
+      - run: npm publish --access public --tag "$NPM_DIST_TAG"

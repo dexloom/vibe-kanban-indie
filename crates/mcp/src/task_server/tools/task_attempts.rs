@@ -225,7 +225,10 @@ impl McpServer {
 
         let response = StartWorkspaceResponse {
             workspace_id: create_and_start_response.workspace.id.to_string(),
-            session_id: create_and_start_response.execution_process.session_id.to_string(),
+            session_id: create_and_start_response
+                .execution_process
+                .session_id
+                .to_string(),
             execution_id: create_and_start_response.execution_process.id.to_string(),
         };
 

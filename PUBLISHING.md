@@ -150,16 +150,41 @@ The `publish-npm` job has a guard that fails fast if the tag and
 `npx-cli/package.json` version disagree, or if a `dist/` folder slipped in — so a
 misconfigured release won't reach npm.
 
-### Pre-release / test tags
+### Beta / prerelease channel
 
-Use a pre-release version to dry-run the whole pipeline without affecting
-`@latest`:
+Cutting a beta is exactly the normal release flow with a **prerelease version
+string**. The `publish-npm` job derives the npm dist-tag from that string, so
+betas land on their own channel and never touch `@latest`:
+
+| `npx-cli/package.json` version | npm dist-tag | install with                       |
+| ------------------------------ | ------------ | ---------------------------------- |
+| `0.2.8`                        | `latest`     | `npx vibe-kanban-indie`            |
+| `0.2.8-beta.1`                 | `beta`       | `npx vibe-kanban-indie@beta`       |
+| `0.2.8-rc.1`                   | `rc`         | `npx vibe-kanban-indie@rc`         |
+| `0.2.8-alpha.1`                | `alpha`      | `npx vibe-kanban-indie@alpha`      |
+
+(The tag is the prerelease identifier before the first dot — `X.Y.Z-<id>.N` → `@<id>`.)
 
 ```bash
-# npx-cli/package.json -> "version": "0.1.1-rc.1"
-git tag v0.1.1-rc.1 && git push origin v0.1.1-rc.1
-npx vibe-kanban-indie@0.1.1-rc.1
+# npx-cli/package.json -> "version": "0.2.8-beta.1"
+git commit -am "release: v0.2.8-beta.1"
+make release-check                       # same gates as a stable release
+git tag v0.2.8-beta.1 && git push origin v0.2.8-beta.1
 ```
+
+CI publishes `0.2.8-beta.1` to the `@beta` dist-tag and creates a GitHub
+**pre-release** (so the CLI's `releases/latest` manifest pointer stays on the
+last stable build and beta users don't advertise themselves to stable users).
+`@latest` is left untouched. Install the channel with `npx vibe-kanban-indie@beta`
+or pin exactly with `npx vibe-kanban-indie@0.2.8-beta.1`.
+
+**Promote to stable** by releasing the matching final version — bump
+`npx-cli/package.json` to `0.2.8`, tag `v0.2.8`. With no prerelease suffix it
+publishes to `@latest` as usual.
+
+> Why this matters: `npm publish` assigns the `latest` dist-tag unless `--tag` is
+> passed — it does **not** auto-detect prerelease versions. Without the derived
+> tag, publishing `0.2.8-beta.1` would move `@latest` onto the beta.
 
 ---
 

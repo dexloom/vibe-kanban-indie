@@ -7,6 +7,19 @@ tag that matches `npx-cli/package.json` (see `.github/workflows/release-indie.ym
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8-beta.1] - 2026-06-14
+
+First prerelease on the new **beta channel**. Install with
+`npx vibe-kanban-indie@beta`.
+
+### Added
+
+- **npm beta/prerelease channel** — `release-indie.yml` now derives the npm
+  dist-tag from the version string (`X.Y.Z-<id>.N` → `@<id>`; stable → `@latest`),
+  so prereleases publish to `@beta`/`@rc`/`@alpha` without ever clobbering
+  `@latest`. Prerelease tags also create GitHub *pre-releases*, keeping the CLI's
+  `releases/latest` manifest pointer on the last stable build. See `PUBLISHING.md`.
+
 ## [0.2.7] - 2026-06-13
 
 Orchestration release.
