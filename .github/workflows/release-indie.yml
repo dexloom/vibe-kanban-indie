@@ -28,6 +28,32 @@ env:
   ZIG_VERSION: "0.13.0"
 
 jobs:
+  # 0) Pick the build matrix from the tag: stable -> all 6 targets; prerelease
+  #    (beta/rc, i.e. the tag contains a `-`) -> macOS arm64 only, to keep the
+  #    beta channel fast. The downstream manifest/CLI handle a partial platform
+  #    set (only built platforms get assets; the CLI errors cleanly elsewhere).
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.pick.outputs.targets }}
+      prerelease: ${{ steps.pick.outputs.prerelease }}
+    steps:
+      - id: pick
+        shell: bash
+        run: |
+          set -euo pipefail
+          FULL='[{"os":"ubuntu-latest","target":"x86_64-unknown-linux-musl","platform":"linux-x64","zig":true},{"os":"ubuntu-latest","target":"aarch64-unknown-linux-musl","platform":"linux-arm64","zig":true},{"os":"macos-latest","target":"aarch64-apple-darwin","platform":"macos-arm64","zig":false},{"os":"macos-latest","target":"x86_64-apple-darwin","platform":"macos-x64","zig":false},{"os":"windows-latest","target":"x86_64-pc-windows-msvc","platform":"windows-x64","zig":false},{"os":"windows-latest","target":"aarch64-pc-windows-msvc","platform":"windows-arm64","zig":false}]'
+          BETA='[{"os":"macos-latest","target":"aarch64-apple-darwin","platform":"macos-arm64","zig":false}]'
+          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "targets=$BETA" >> "$GITHUB_OUTPUT"
+            echo "Prerelease ${GITHUB_REF_NAME}: building macos-arm64 only."
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "targets=$FULL" >> "$GITHUB_OUTPUT"
+            echo "Stable ${GITHUB_REF_NAME}: building all 6 targets."
+          fi
+
   # 1) Build the web app once; the `server` binary embeds it.
   build-frontend:
     runs-on: ubuntu-latest
@@ -49,19 +75,13 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # 2) Cross-compile the three CLI binaries for all 6 targets.
+  # 2) Cross-compile the three CLI binaries for the matrix chosen in `setup`.
   build-binaries:
-    needs: build-frontend
+    needs: [build-frontend, setup]
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, platform: linux-x64, zig: true }
-          - { os: ubuntu-latest, target: aarch64-unknown-linux-musl, platform: linux-arm64, zig: true }
-          - { os: macos-latest, target: aarch64-apple-darwin, platform: macos-arm64, zig: false }
-          - { os: macos-latest, target: x86_64-apple-darwin, platform: macos-x64, zig: false }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, platform: windows-x64, zig: false }
-          - { os: windows-latest, target: aarch64-pc-windows-msvc, platform: windows-arm64, zig: false }
+        include: ${{ fromJSON(needs.setup.outputs.targets) }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
