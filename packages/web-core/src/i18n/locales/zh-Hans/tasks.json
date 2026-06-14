@@ -542,26 +542,11 @@
     "title": "启动编排器",
     "description": "启动一个有头的 Claude Code 会话，循环驱动看板——接管并引导你的代理直至完成。它从固定文件夹运行，并通过 MCP 触及每个项目，因此无需仓库。请选择本次运行应遵循的指令。",
     "nameLabel": "名称",
-    "directivesLabel": "指令",
     "existingRunning": "已有一个编排器正在运行。打开它以复用其实时会话——若会话已结束，将自动启动一个新会话。",
     "openRunning": "打开正在运行的编排器",
     "close": "关闭编排器",
     "closing": "正在关闭...",
     "spawning": "正在启动...",
-    "spawn": "启动编排器",
-    "options": {
-      "auto-unblock": {
-        "label": "自动解除审批阻塞",
-        "description": "自动批准常规的、计划许可范围内的工具请求；将破坏性、高成本或偏离计划的请求上报给你。"
-      },
-      "auto-answer-questions": {
-        "label": "自动回答问题",
-        "description": "当代理的问题超过宽限窗口（约两个编排器间隔）仍未得到回答时，决策子代理会读取卡片、规格和计划并代你回答。破坏性操作仍以审批形式上报。"
-      },
-      "telegram-fanout": {
-        "label": "Telegram 扇出",
-        "description": "通过每个工作区的 Telegram 话题叙述状态并与各代理对话。需要 sombrax-telegram 监听器。"
-      }
-    }
+    "spawn": "启动编排器"
   }
 }

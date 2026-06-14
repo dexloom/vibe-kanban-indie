@@ -1,12 +1,14 @@
 ---
 title: "Orchestrator"
-description: "A singleton headed agent session that plans and dispatches work across the board"
+description: "A singleton headed agent session that dispatches ready cards to coding agents"
 ---
 
 The orchestrator is a single, long-lived **headed Claude Code** session that
-supervises the board on your behalf: it reads what's happening across your
-issues and workspaces, decides what to do next, and dispatches work — answering
-escalations and starting agents through the Vibe Kanban MCP tools.
+dispatches work on your behalf. It does exactly one thing: on a recurring loop it
+finds cards that are ready to run, picks which coding agent to start for each, and
+starts it through the Vibe Kanban MCP tools. It does not monitor, drive, review,
+merge, or answer questions for those agents — once a card is dispatched, the coding
+agent owns it end to end and you handle delivery.
 
 ## What makes it special
 
@@ -23,8 +25,9 @@ escalations and starting agents through the Vibe Kanban MCP tools.
 
 Spawn the orchestrator from the app. Spawning is **idempotent**: if an
 orchestrator is already running, the action returns the existing session instead
-of creating a new one. An orchestrator prompt is required — this is the standing
-instruction set that tells it how to triage and dispatch work.
+of creating a new one. The app launches it as the `vibe-kanban-indie:orchestrator`
+agent on a `/loop` timer (every 5 minutes), so its behaviour lives in the plugin,
+not in the app — each tick is one dispatch sweep of the board.
 
 <Note>
 Because it runs from `~/.vibe-kanban/orchestrator` rather than a project worktree,
@@ -37,14 +40,16 @@ calling MCP tools, not by editing files directly.
 The orchestrator uses the Vibe Kanban MCP server in **global** mode, which gives
 it board-wide tools to:
 
-- List and read issues, repositories, workspaces, and sessions
-- Start a workspace and dispatch a coding agent on an issue
-- Respond to an agent's approval request, or stop a runaway agent
-- Send follow-up input to a running session
+- List and read issues, repositories, and workspaces (to find ready cards and avoid
+  starting one that already has a workspace)
+- Resolve which coding agent to run — the agent pinned in the card's pipeline, or
+  your last-used/default agent configuration when the card pins none
+- Start a workspace and dispatch one coding agent per ready card, then move the card
+  to In Progress
 
-When the [Telegram bridge](/cockpit/telegram) is running, escalations from blocked
-workers reach the orchestrator's channel; it can answer them within its guardrails
-so work keeps moving while you are away.
+Everything after dispatch — monitoring, approvals, reviews, merges, and answering an
+agent's questions — is outside the orchestrator's scope by design. The coding agent
+drives its own pipeline, and you deliver the result.
 
 ## Staying in control
 

@@ -515,29 +515,14 @@
   },
   "spawnOrchestrator": {
     "title": "Spawn Orchestrator",
-    "description": "Launch a headed Claude Code session that drives the board on a loop — adopting and steering your agents to done. It runs from a fixed folder and reaches every project via MCP, so no repo is needed. Pick the directives this run should follow.",
+    "description": "Launch a headed Claude Code session that watches the board on a loop and hands each ready card to a coding agent. It runs from a fixed folder and reaches every project via MCP, so no repo is needed.",
     "nameLabel": "Name",
-    "directivesLabel": "Directives",
     "existingRunning": "An orchestrator is already running. Open it to reuse its live session — if the session has ended, a fresh one starts automatically.",
     "openRunning": "Open running orchestrator",
     "close": "Close orchestrator",
     "closing": "Closing...",
     "spawning": "Spawning...",
-    "spawn": "Spawn Orchestrator",
-    "options": {
-      "auto-unblock": {
-        "label": "Auto-unblock approvals",
-        "description": "Auto-approve routine, plan-sanctioned tool requests; escalate destructive, expensive, or off-plan ones to you."
-      },
-      "auto-answer-questions": {
-        "label": "Auto-answer questions",
-        "description": "When an agent's question has gone unanswered past a grace window (about two orchestrator intervals), a decider subagent reads the card, spec, and plan and answers it for you. Destructive actions still escalate as approvals."
-      },
-      "telegram-fanout": {
-        "label": "Telegram fan-out",
-        "description": "Narrate status and converse with each agent over its per-workspace Telegram topic. Requires the sombrax-telegram listener."
-      }
-    }
+    "spawn": "Spawn Orchestrator"
   },
   "linkPrToIssue": {
     "title": "Link Pull Request",

@@ -11,7 +11,6 @@ import {
   DialogTitle,
 } from '@vibe/ui/components/KeyboardDialog';
 import { Button } from '@vibe/ui/components/Button';
-import { Checkbox } from '@vibe/ui/components/Checkbox';
 import { Label } from '@vibe/ui/components/Label';
 import { Input } from '@vibe/ui/components/Input';
 import { create, useModal } from '@ebay/nice-modal-react';
@@ -20,12 +19,7 @@ import { workspacesApi } from '@/shared/lib/api';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useWorkspaces } from '@/shared/hooks/useWorkspaces';
 import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
-import {
-  ORCHESTRATOR_DIRECTIVES,
-  composeOrchestratorPrompt,
-  loadDirectiveState,
-  saveDirectiveState,
-} from '@/shared/lib/orchestrator/orchestratorOptions';
+import { composeOrchestratorPrompt } from '@/shared/lib/orchestrator/orchestratorOptions';
 
 export interface SpawnOrchestratorDialogProps {}
 
@@ -36,14 +30,10 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
   const queryClient = useQueryClient();
 
   const [name, setName] = useState('Orchestrator');
-  const [enabled, setEnabled] = useState<Record<string, boolean>>(() =>
-    loadDirectiveState()
-  );
 
   useEffect(() => {
     if (!modal.visible) {
       setName('Orchestrator');
-      setEnabled(loadDirectiveState());
     }
   }, [modal.visible]);
 
@@ -61,23 +51,10 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
     [workspaces]
   );
 
-  const enabledIds = useMemo(
-    () => new Set(Object.keys(enabled).filter((id) => enabled[id])),
-    [enabled]
-  );
-
-  const toggleDirective = (id: string, checked: boolean) => {
-    setEnabled((prev) => {
-      const next = { ...prev, [id]: checked };
-      saveDirectiveState(next);
-      return next;
-    });
-  };
-
   const spawnMutation = useMutation({
     mutationFn: async () => {
       return workspacesApi.spawnOrchestrator({
-        prompt: composeOrchestratorPrompt(enabledIds),
+        prompt: composeOrchestratorPrompt(),
         name: name.trim() || 'Orchestrator',
       });
     },
@@ -138,34 +115,6 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
               onChange={(e) => setName(e.target.value)}
               disabled={!!runningOrchestrator}
             />
-          </div>
-
-          <div className="space-y-3">
-            <Label>{t('spawnOrchestrator.directivesLabel')}</Label>
-            {ORCHESTRATOR_DIRECTIVES.map((directive) => (
-              <div key={directive.id} className="flex items-start gap-2">
-                <Checkbox
-                  id={`orchestrator-directive-${directive.id}`}
-                  checked={!!enabled[directive.id]}
-                  onCheckedChange={(checked) =>
-                    toggleDirective(directive.id, checked === true)
-                  }
-                  disabled={!!runningOrchestrator}
-                  className="mt-0.5"
-                />
-                <div className="space-y-0.5">
-                  <Label
-                    htmlFor={`orchestrator-directive-${directive.id}`}
-                    className="font-normal"
-                  >
-                    {t(directive.labelKey)}
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    {t(directive.descriptionKey)}
-                  </p>
-                </div>
-              </div>
-            ))}
           </div>
 
           {spawnMutation.error && (

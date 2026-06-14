@@ -542,26 +542,11 @@
     "title": "Iniciar Orquestador",
     "description": "Lanza una sesión con interfaz de Claude Code que dirige el tablero en bucle, adoptando y guiando a tus agentes hasta completarlos. Se ejecuta desde una carpeta fija y llega a cada proyecto a través de MCP, por lo que no se necesita ningún repositorio. Elige las directivas que debe seguir esta ejecución.",
     "nameLabel": "Nombre",
-    "directivesLabel": "Directivas",
     "existingRunning": "Ya hay un orquestador en ejecución. Ábrelo para reutilizar su sesión activa; si la sesión ha terminado, se inicia una nueva automáticamente.",
     "openRunning": "Abrir orquestador en ejecución",
     "close": "Cerrar orquestador",
     "closing": "Cerrando...",
     "spawning": "Iniciando...",
-    "spawn": "Iniciar Orquestador",
-    "options": {
-      "auto-unblock": {
-        "label": "Desbloquear aprobaciones automáticamente",
-        "description": "Aprueba automáticamente las solicitudes de herramientas rutinarias y contempladas en el plan; escala a ti las destructivas, costosas o fuera del plan."
-      },
-      "auto-answer-questions": {
-        "label": "Responder preguntas automáticamente",
-        "description": "Cuando la pregunta de un agente queda sin responder más allá de un periodo de gracia (unos dos intervalos del orquestador), un subagente decisor lee la tarjeta, la especificación y el plan, y la responde por ti. Las acciones destructivas siguen escalándose como aprobaciones."
-      },
-      "telegram-fanout": {
-        "label": "Difusión por Telegram",
-        "description": "Narra el estado y conversa con cada agente a través de su tema de Telegram por espacio de trabajo. Requiere el escucha sombrax-telegram."
-      }
-    }
+    "spawn": "Iniciar Orquestador"
   }
 }
