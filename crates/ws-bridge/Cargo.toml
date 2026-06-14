@@ -1,14 +1,14 @@
 [package]
 name = "ws-bridge"
-version = "0.2.8-beta.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
-axum = { workspace = true, features = ["ws"] }
-bytes = "1"
-futures = "0.3"
-futures-util = { version = "0.3", features = ["sink"] }
-http = "1"
-thiserror = { workspace = true }
-tokio = { workspace = true }
-tokio-tungstenite = { version = "0.26" }
+axum.workspace = true
+bytes.workspace = true
+futures.workspace = true
+futures-util.workspace = true
+http.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true

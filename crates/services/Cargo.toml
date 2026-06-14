@@ -1,7 +1,7 @@
 [package]
 name = "services"
-version = "0.2.8-beta.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [features]
 default = []
@@ -9,53 +9,51 @@ cloud = []
 qa-mode = ["executors/qa-mode"]
 
 [dependencies]
-indicatif = "0.17"
-api-types = { path = "../api-types" }
-relay-types = { path = "../relay-types" }
-utils = { path = "../utils" }
-git = { path = "../git" }
-git-host = { path = "../git-host" }
-executors = { path = "../executors" }
-db = { path = "../db" }
-worktree-manager = { path = "../worktree-manager" }
-tokio = { workspace = true }
-tokio-util = { version = "0.7", features = ["io"] }
-serde = { workspace = true }
-serde_json = { workspace = true }
-toml = "0.8"
-# Format-preserving TOML writer for projects.toml round-trip CRUD. Pinned to the
-# version already pulled transitively by `toml = "0.8"` to avoid a duplicate.
-toml_edit = "0.20"
-url = "2.5"
-anyhow = { workspace = true }
-tracing = { workspace = true }
-sqlx = { version = "0.8.6", features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "sqlite", "sqlite-preupdate-hook", "chrono", "uuid"] }
-chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1.0", features = ["v4", "serde"] }
-ts-rs = { workspace = true }
-dirs = "5.0"
-async-trait = { workspace = true }
-rust-embed = "8.2"
-ignore = "0.4"
-notify-rust = "4.11"
-os_info = "3.12.0"
-reqwest = { workspace = true }
-json-patch = "2.0"
-backon = "1.5.1"
-thiserror = { workspace = true }
-futures = "0.3.31"
-tokio-stream = "0.1.17"
-strum = "0.27.2"
-strum_macros = "0.27.2"
-notify = "8.2.0"
-notify-debouncer-full = "0.5.0"
-dunce = "1.0"
-dashmap = "6.1"
-once_cell = "1.20"
-sha2 = "0.10"
-fst = "0.4"
-moka = { version = "0.12", features = ["future"] }
-mime_guess = "2.0"
+indicatif.workspace = true
+api-types.workspace = true
+relay-types.workspace = true
+utils.workspace = true
+git.workspace = true
+git-host.workspace = true
+executors.workspace = true
+db.workspace = true
+worktree-manager.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+toml_edit.workspace = true
+url.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+sqlx.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+ts-rs.workspace = true
+dirs.workspace = true
+async-trait.workspace = true
+rust-embed.workspace = true
+ignore.workspace = true
+notify-rust.workspace = true
+os_info.workspace = true
+reqwest.workspace = true
+json-patch.workspace = true
+backon.workspace = true
+thiserror.workspace = true
+futures.workspace = true
+tokio-stream.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+notify.workspace = true
+notify-debouncer-full.workspace = true
+dunce.workspace = true
+dashmap.workspace = true
+once_cell.workspace = true
+sha2.workspace = true
+fst.workspace = true
+moka.workspace = true
+mime_guess.workspace = true
 
 [dev-dependencies]
-tempfile = "3"
+tempfile.workspace = true

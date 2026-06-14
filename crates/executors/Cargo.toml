@@ -1,53 +1,53 @@
 [package]
 name = "executors"
-version = "0.2.8-beta.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
-workspace_utils = { path = "../utils", package = "utils" }
-git = { path = "../git" }
-tokio = { workspace = true }
-tokio-util = { version = "0.7", features = ["io", "compat", "rt"] }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-tracing = { workspace = true }
-toml = "0.8"
-chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1.0", features = ["v4", "serde"] }
-ts-rs = { workspace = true }
-schemars = { workspace = true }
-dirs = "5.0"
-xdg = "3.0"
-async-trait = { workspace = true } 
-command-group = { version = "5.0", features = ["with-tokio"] }
-regex = "1.11.1"
-json-patch = "2.0"
-thiserror = { workspace = true }
-enum_dispatch = "0.3.13"
-futures-io = "0.3.31"
-tokio-stream = { version = "0.1.17", features = ["io-util"] }
-futures = "0.3.31"
-bon = "3.6"
-os_pipe = "1.2"
-strip-ansi-escapes = "0.2.1"
-strum = "0.27.2"
-strum_macros = "0.27.2"
-convert_case = "0.6"
-sqlx = "0.8.6"
-shlex = "1.3.0"
-agent-client-protocol = { version = "0.8", features = ["unstable"] }
-codex-protocol = { git = "https://github.com/openai/codex.git", package = "codex-protocol", tag = "rust-v0.124.0" }
-codex-app-server-protocol = { git = "https://github.com/openai/codex.git", package = "codex-app-server-protocol", tag = "rust-v0.124.0" }
-sha2 = "0.10"
-derivative = "2.2.0"
-reqwest = { workspace = true }
-eventsource-stream = "0.2"
-walkdir = "2"
-rand = "0.8"
-base64 = "0.22"
-jsonc-parser = { version = "0.29", features = ["cst", "serde"] }
-lru = "0.12"
-async-stream = "0.3"
+workspace_utils.workspace = true
+git.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+toml.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+ts-rs.workspace = true
+schemars.workspace = true
+dirs.workspace = true
+xdg.workspace = true
+async-trait.workspace = true
+command-group.workspace = true
+regex.workspace = true
+json-patch.workspace = true
+thiserror.workspace = true
+enum_dispatch.workspace = true
+futures-io.workspace = true
+tokio-stream.workspace = true
+futures.workspace = true
+bon.workspace = true
+os_pipe.workspace = true
+strip-ansi-escapes.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+convert_case.workspace = true
+sqlx.workspace = true
+shlex.workspace = true
+agent-client-protocol.workspace = true
+codex-protocol.workspace = true
+codex-app-server-protocol.workspace = true
+sha2.workspace = true
+derivative.workspace = true
+reqwest.workspace = true
+eventsource-stream.workspace = true
+walkdir.workspace = true
+rand.workspace = true
+base64.workspace = true
+jsonc-parser.workspace = true
+lru.workspace = true
+async-stream.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 winsplit = "0.1.0"

@@ -1,22 +1,22 @@
 [package]
 name = "git"
-version = "0.2.8-beta.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [features]
 default = []
 cloud = []
 
 [dependencies]
-chrono = { version = "0.4", features = ["serde"] }
-dirs = "5.0"
-git2 = { workspace = true }
-serde = { workspace = true }
-tempfile = "3.21"
-thiserror = { workspace = true }
-tracing = { workspace = true }
-ts-rs = { workspace = true }
-utils = { path = "../utils" }
+chrono.workspace = true
+dirs.workspace = true
+git2.workspace = true
+serde.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+ts-rs.workspace = true
+utils.workspace = true
 
 [dev-dependencies]
-tempfile = "3.21"
+tempfile.workspace = true

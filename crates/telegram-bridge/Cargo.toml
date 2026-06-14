@@ -1,29 +1,28 @@
 [package]
 name = "telegram-bridge"
-version = "0.2.8-beta.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [[bin]]
 name = "vibe-telegram-bridge"
 path = "src/main.rs"
 
 [dependencies]
-# Backend wire types: LogMsg envelope, ApprovalInfo shape, port discovery.
-utils = { path = "../utils" }
+utils.workspace = true
 
-tokio = { workspace = true }
-reqwest = { workspace = true }
-tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots"] }
-futures-util = "0.3"
-rustls = { workspace = true }
+tokio.workspace = true
+reqwest.workspace = true
+tokio-tungstenite.workspace = true
+futures-util.workspace = true
+rustls.workspace = true
 
-serde = { workspace = true }
-serde_json = { workspace = true }
-json-patch = "2.0"
+serde.workspace = true
+serde_json.workspace = true
+json-patch.workspace = true
 
-uuid = { version = "1.0", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
+uuid.workspace = true
+chrono.workspace = true
 
-anyhow = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

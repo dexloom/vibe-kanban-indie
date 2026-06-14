@@ -1,33 +1,33 @@
 [package]
 name = "relay-hosts"
-version = "0.2.8-beta.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
-bytes = "1"
-chrono = { version = "0.4", features = ["serde"] }
-axum = { workspace = true, features = ["ws"] }
-ed25519-dalek = { version = "2.2.0", features = ["rand_core"] }
-futures-util = "0.3"
-http = "1"
-relay-client = { path = "../relay-client" }
-relay-ws = { path = "../relay-ws" }
-relay-control = { path = "../relay-control" }
-remote-info = { path = "../remote-info" }
-relay-types = { path = "../relay-types" }
-reqwest = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-services = { path = "../services" }
-thiserror = { workspace = true }
-tokio = { workspace = true }
-tokio-tungstenite = "0.26"
-tracing = { workspace = true }
-trusted-key-auth = { path = "../trusted-key-auth" }
-url = "2.5"
-utils = { path = "../utils" }
-uuid = { version = "1.0", features = ["v4", "serde"] }
-relay-webrtc = { path = "../relay-webrtc" }
-ws-bridge = { path = "../ws-bridge" }
-tokio-util = { version = "0.7", features = ["rt"] }
-base64 = "0.22"
+bytes.workspace = true
+chrono.workspace = true
+axum.workspace = true
+ed25519-dalek.workspace = true
+futures-util.workspace = true
+http.workspace = true
+relay-client.workspace = true
+relay-ws.workspace = true
+relay-control.workspace = true
+remote-info.workspace = true
+relay-types.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+services.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+tracing.workspace = true
+trusted-key-auth.workspace = true
+url.workspace = true
+utils.workspace = true
+uuid.workspace = true
+relay-webrtc.workspace = true
+ws-bridge.workspace = true
+tokio-util.workspace = true
+base64.workspace = true

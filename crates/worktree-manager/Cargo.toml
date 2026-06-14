@@ -1,15 +1,15 @@
 [package]
 name = "worktree-manager"
-version = "0.2.8-beta.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
-git = { path = "../git" }
-utils = { path = "../utils" }
-tokio = { workspace = true }
-thiserror = { workspace = true }
-tracing = { workspace = true }
-dunce = "1.0"
+git.workspace = true
+utils.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+dunce.workspace = true
 
 [dev-dependencies]
-tempfile = "3.21"
+tempfile.workspace = true

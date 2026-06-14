@@ -1,15 +1,15 @@
 [package]
 name = "preview-proxy"
-version = "0.2.8-beta.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
-axum = { workspace = true }
-ws-bridge = { path = "../ws-bridge" }
-reqwest = { workspace = true }
-http = "1"
-thiserror = { workspace = true }
-tokio = { workspace = true }
-tracing = { workspace = true }
-utils = { path = "../utils" }
-uuid = { version = "1.0", features = ["serde", "v4"] }
+axum.workspace = true
+ws-bridge.workspace = true
+reqwest.workspace = true
+http.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+utils.workspace = true
+uuid.workspace = true

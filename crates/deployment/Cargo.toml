@@ -1,27 +1,27 @@
 [package]
 name = "deployment"
-version = "0.2.8-beta.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
-db = { path = "../db" }
-utils = { path = "../utils" }
-git = { path = "../git" }
-services = { path = "../services" }
-worktree-manager = { path = "../worktree-manager" }
-executors = { path = "../executors" }
-async-trait = { workspace = true } 
-thiserror = { workspace = true } 
-anyhow = { workspace = true }
-relay-control = { path = "../relay-control" }
-relay-hosts = { path = "../relay-hosts" }
-trusted-key-auth = { path = "../trusted-key-auth" }
-client-info = { path = "../client-info" }
-remote-info = { path = "../remote-info" }
-preview-proxy = { path = "../preview-proxy" }
-tokio = { workspace = true }
-sqlx = "0.8.6"
-serde_json = { workspace = true }
-futures = "0.3.31"
-axum = { workspace = true }
-tokio-util = { version = "0.7" }
+db.workspace = true
+utils.workspace = true
+git.workspace = true
+services.workspace = true
+worktree-manager.workspace = true
+executors.workspace = true
+async-trait.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+relay-control.workspace = true
+relay-hosts.workspace = true
+trusted-key-auth.workspace = true
+client-info.workspace = true
+remote-info.workspace = true
+preview-proxy.workspace = true
+tokio.workspace = true
+sqlx.workspace = true
+serde_json.workspace = true
+futures.workspace = true
+axum.workspace = true
+tokio-util.workspace = true

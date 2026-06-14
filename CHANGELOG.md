@@ -7,6 +7,21 @@ tag that matches `npx-cli/package.json` (see `.github/workflows/release-indie.ym
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8-beta.2] - 2026-06-14
+
+Workspace + release-pipeline housekeeping (no runtime changes).
+
+### Changed
+
+- **Cargo workspace version/deps inheritance** — every member now inherits its
+  version and edition from `[workspace.package]` (releases are a one-line bump),
+  and all dependencies are centralized in `[workspace.dependencies]` with crates
+  referencing them via `dep.workspace = true`. Dependency features are merged at
+  the workspace level for consistent, cache-friendly incremental builds.
+- **Lean prerelease builds** — `release-indie.yml` now picks its build matrix from
+  the tag: beta/rc tags build **macOS arm64 only**; stable tags build all 6
+  targets.
+
 ## [0.2.8-beta.1] - 2026-06-14
 
 First prerelease on the new **beta channel**. Install with
