@@ -87,7 +87,7 @@ export function KanbanIssuePanelContainer({
   const routeState = useCurrentKanbanRouteState();
 
   const { openWorkspaceCreateFromState } = useProjectWorkspaceCreateDraft();
-  const { config } = useUserSystem();
+  const { config, profiles } = useUserSystem();
   const { workspaces } = useUserContext();
   const { activeWorkspaces, archivedWorkspaces } = useWorkspaceContext();
 
@@ -883,6 +883,7 @@ export function KanbanIssuePanelContainer({
             ? {
                 pipeline: {
                   enabledIds: pipeline.enabledIds,
+                  executor: pipeline.executor,
                   customText: pipeline.customText,
                 },
               }
@@ -1172,6 +1173,7 @@ export function KanbanIssuePanelContainer({
       renderPipeline={() => (
         <PipelineSection
           config={config}
+          profiles={profiles}
           disabled={isSubmitting}
           onChange={handlePipelineChange}
         />

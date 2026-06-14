@@ -24,20 +24,39 @@ export function effectiveSteps(
 }
 
 /**
+ * Compose the directive line that pins the card to a specific execution agent.
+ * The orchestrator reads this from the description and passes the named agent as
+ * the `executor` when it starts the workspace. Returns an empty string when no
+ * agent is selected (the orchestrator then uses its default). `executor` is a
+ * `BaseCodingAgent` key (e.g. `CODEX`, `CLAUDE_CODE`).
+ */
+export function composeExecutorLine(
+  executor: string | null | undefined
+): string {
+  const trimmed = (executor ?? '').trim();
+  if (!trimmed) return '';
+  return `- Run this card with the **${trimmed}** execution agent: pass \`executor: "${trimmed}"\` when starting the workspace.`;
+}
+
+/**
  * Compose the delimited `## Pipeline` markdown block from the ticked steps (in
- * catalog order) plus any free-text the operator added. Returns an empty string
- * when nothing is selected and there is no custom text, so callers can treat
- * "no pipeline" as falsy.
+ * catalog order), an optional pinned execution agent, plus any free-text the
+ * operator added. Returns an empty string when nothing is selected and there is
+ * no custom text, so callers can treat "no pipeline" as falsy.
  */
 export function composePipelineBlock(
   steps: PipelineStep[],
   enabledIds: ReadonlySet<string> | readonly string[],
-  customText: string
+  customText: string,
+  executor?: string | null
 ): string {
   const enabled = enabledIds instanceof Set ? enabledIds : new Set(enabledIds);
-  const bullets = steps
+  const stepBullets = steps
     .filter((s) => enabled.has(s.id))
     .map((s) => `- ${s.prompt_fragment}`);
+  const executorLine = composeExecutorLine(executor);
+  // The execution-agent directive leads so the orchestrator sees it first.
+  const bullets = executorLine ? [executorLine, ...stepBullets] : stepBullets;
   const trimmedCustom = customText.trim();
 
   if (bullets.length === 0 && trimmedCustom.length === 0) {

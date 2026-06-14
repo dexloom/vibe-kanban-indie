@@ -10,6 +10,8 @@ import {
 export interface PipelineSelection {
   /** Ticked step ids, in catalog order. */
   enabledIds: string[];
+  /** Pinned execution agent (`BaseCodingAgent` key) or null for the default. */
+  executor: string | null;
   /** The operator's free-text addition (may be empty). */
   customText: string;
   /** The composed `## Pipeline` markdown block (empty when nothing selected). */
@@ -19,6 +21,8 @@ export interface PipelineSelection {
 interface PipelineSectionProps {
   /** Host config; provides the (custom or default) step catalog. */
   config: Config | null | undefined;
+  /** Available executor profiles, keyed by `BaseCodingAgent`. */
+  profiles: Record<string, unknown> | null;
   /** Disabled while the card is being submitted. */
   disabled?: boolean;
   /** Emits the current selection whenever it changes. */
@@ -34,16 +38,23 @@ interface PipelineSectionProps {
  */
 export function PipelineSection({
   config,
+  profiles,
   disabled,
   onChange,
 }: PipelineSectionProps) {
   const { t } = useTranslation('common');
   const steps = useMemo(() => effectiveSteps(config), [config]);
+  const agents = useMemo(
+    () => (profiles ? Object.keys(profiles).sort() : []),
+    [profiles]
+  );
 
   const [expanded, setExpanded] = useState(false);
   const [enabledIds, setEnabledIds] = useState<Set<string>>(
     () => new Set(steps.filter((s) => s.default_enabled).map((s) => s.id))
   );
+  // Pinned execution agent (null = let the orchestrator pick its default).
+  const [executor, setExecutor] = useState<string | null>(null);
   // The composed block, regenerated from the ticks until the operator edits it.
   const [text, setText] = useState('');
   const [dirty, setDirty] = useState(false);
@@ -59,11 +70,11 @@ export function PipelineSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stepsKey]);
 
-  // Keep the textarea in sync with the ticks until the operator takes over.
+  // Keep the textarea in sync with the ticks/agent until the operator takes over.
   useEffect(() => {
     if (dirty) return;
-    setText(composePipelineBlock(steps, enabledIds, ''));
-  }, [steps, enabledIds, dirty]);
+    setText(composePipelineBlock(steps, enabledIds, '', executor));
+  }, [steps, enabledIds, executor, dirty]);
 
   // Notify the parent of the effective selection. `block` is the operator's
   // edited text when dirty, else the freshly composed block.
@@ -71,16 +82,17 @@ export function PipelineSection({
   useEffect(() => {
     const block = dirty
       ? text.trim()
-      : composePipelineBlock(steps, enabledIds, '');
-    const signature = `${[...enabledIds].sort().join(',')}|${block}`;
+      : composePipelineBlock(steps, enabledIds, '', executor);
+    const signature = `${[...enabledIds].sort().join(',')}|${executor ?? ''}|${block}`;
     if (emittedRef.current === signature) return;
     emittedRef.current = signature;
     onChange({
       enabledIds: steps.filter((s) => enabledIds.has(s.id)).map((s) => s.id),
+      executor,
       customText: dirty ? text : '',
       block,
     });
-  }, [steps, enabledIds, text, dirty, onChange]);
+  }, [steps, enabledIds, executor, text, dirty, onChange]);
 
   const toggleStep = useCallback((id: string) => {
     setEnabledIds((prev) => {
@@ -93,8 +105,8 @@ export function PipelineSection({
 
   const resetToCheckboxes = useCallback(() => {
     setDirty(false);
-    setText(composePipelineBlock(steps, enabledIds, ''));
-  }, [steps, enabledIds]);
+    setText(composePipelineBlock(steps, enabledIds, '', executor));
+  }, [steps, enabledIds, executor]);
 
   return (
     <div className="p-base border-t space-y-base">
@@ -114,6 +126,34 @@ export function PipelineSection({
       {expanded && (
         <>
           <p className="text-xs text-low">{t('cardPipeline.description')}</p>
+
+          {agents.length > 0 && (
+            <div className="space-y-half">
+              <label
+                htmlFor="pipeline-agent"
+                className="text-xs text-low block"
+              >
+                {t('cardPipeline.agentLabel')}
+              </label>
+              <select
+                id="pipeline-agent"
+                value={executor ?? ''}
+                disabled={disabled}
+                onChange={(e) => setExecutor(e.target.value || null)}
+                className="w-full rounded-sm border bg-panel/40 px-half py-half text-sm text-high disabled:opacity-50"
+              >
+                <option value="">{t('cardPipeline.agentDefault')}</option>
+                {agents.map((agent) => (
+                  <option key={agent} value={agent}>
+                    {agent}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-low">
+                {t('cardPipeline.agentHelper')}
+              </p>
+            </div>
+          )}
 
           {steps.length === 0 ? (
             <p className="text-xs text-low">{t('cardPipeline.noSteps')}</p>
