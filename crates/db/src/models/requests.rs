@@ -74,6 +74,13 @@ pub struct SpawnOrchestratorResponse {
     pub reused: bool,
 }
 
+#[derive(Debug, Serialize, Deserialize, TS)]
+pub struct CloseOrchestratorResponse {
+    /// True when a running orchestrator session was stopped; false when there
+    /// was no orchestrator (or no live session) to close.
+    pub closed: bool,
+}
+
 /// Request to expand a rough brief into a development-ready technical task by
 /// running a coding agent in a throwaway (ephemeral) multi-repo workspace.
 #[derive(Debug, Serialize, Deserialize, TS)]

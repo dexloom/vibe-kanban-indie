@@ -88,15 +88,25 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
     },
   });
 
+  const closeMutation = useMutation({
+    mutationFn: async () => workspacesApi.closeOrchestrator(),
+    onSuccess: () => {
+      // Refetching flips the dialog back to the spawn form once the now-closed
+      // orchestrator stops reporting as running.
+      queryClient.invalidateQueries({ queryKey: workspaceSummaryKeys.all });
+    },
+  });
+
+  const busy = spawnMutation.isPending || closeMutation.isPending;
+
   const handleOpenChange = (open: boolean) => {
     if (!open) modal.hide();
   };
 
-  const openRunning = () => {
-    if (!runningOrchestrator) return;
-    modal.hide();
-    appNavigation.goToWorkspace(runningOrchestrator.id);
-  };
+  // Route "open" through the spawn endpoint so the backend decides reuse vs.
+  // respawn: a genuinely live session is reused, a dead one (tmux gone) is
+  // transparently replaced with a fresh session.
+  const openRunning = () => spawnMutation.mutate();
 
   return (
     <Dialog open={modal.visible} onOpenChange={handleOpenChange}>
@@ -171,19 +181,29 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
           <Button
             variant="outline"
             onClick={() => modal.hide()}
-            disabled={spawnMutation.isPending}
+            disabled={busy}
           >
             {t('common:buttons.cancel')}
           </Button>
           {runningOrchestrator ? (
-            <Button onClick={openRunning}>
-              {t('spawnOrchestrator.openRunning')}
-            </Button>
+            <>
+              <Button
+                variant="destructive"
+                onClick={() => closeMutation.mutate()}
+                disabled={busy}
+              >
+                {closeMutation.isPending
+                  ? t('spawnOrchestrator.closing')
+                  : t('spawnOrchestrator.close')}
+              </Button>
+              <Button onClick={openRunning} disabled={busy}>
+                {spawnMutation.isPending
+                  ? t('spawnOrchestrator.spawning')
+                  : t('spawnOrchestrator.openRunning')}
+              </Button>
+            </>
           ) : (
-            <Button
-              onClick={() => spawnMutation.mutate()}
-              disabled={spawnMutation.isPending}
-            >
+            <Button onClick={() => spawnMutation.mutate()} disabled={busy}>
               {spawnMutation.isPending
                 ? t('spawnOrchestrator.spawning')
                 : t('spawnOrchestrator.spawn')}

@@ -93,6 +93,7 @@ import {
   CreateAndStartWorkspaceResponse,
   SpawnOrchestratorRequest,
   SpawnOrchestratorResponse,
+  CloseOrchestratorResponse,
   GenerateSpecRequest,
   GenerateSpecResponse,
   RelayPairedClient,
@@ -456,6 +457,14 @@ export const workspacesApi = {
       body: JSON.stringify(data),
     });
     return handleApiResponse<SpawnOrchestratorResponse>(response);
+  },
+
+  /** Close the singleton orchestrator's live session (no-op if none running). */
+  closeOrchestrator: async (): Promise<CloseOrchestratorResponse> => {
+    const response = await makeRequest(`/api/workspaces/orchestrator/close`, {
+      method: 'POST',
+    });
+    return handleApiResponse<CloseOrchestratorResponse>(response);
   },
 
   getAll: async (taskId: string): Promise<Workspace[]> => {

@@ -503,6 +503,13 @@ export type SpawnOrchestratorResponse = { workspace: Workspace,
  */
 reused: boolean, };
 
+export type CloseOrchestratorResponse = { 
+/**
+ * True when a running orchestrator session was stopped; false when there
+ * was no orchestrator (or no live session) to close.
+ */
+closed: boolean, };
+
 export type GenerateSpecRequest = { 
 /**
  * Project the card will belong to. Provenance/context only — the local

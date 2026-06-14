@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use axum::{Json, extract::State, response::Json as ResponseJson};
 use db::models::{
+    execution_process::{ExecutionProcess, ExecutionProcessStatus},
     requests::{
-        CreateAndStartWorkspaceRequest, CreateAndStartWorkspaceResponse, CreateWorkspaceApiRequest,
-        SpawnOrchestratorRequest, SpawnOrchestratorResponse,
+        CloseOrchestratorResponse, CreateAndStartWorkspaceRequest, CreateAndStartWorkspaceResponse,
+        CreateWorkspaceApiRequest, SpawnOrchestratorRequest, SpawnOrchestratorResponse,
     },
     workspace::{CreateWorkspace, Workspace, WorkspaceKind},
 };
@@ -363,12 +364,25 @@ pub async fn spawn_orchestrator(
 
     // Singleton: at most one active orchestrator workspace.
     if let Some(existing) = Workspace::find_orchestrator(pool).await? {
-        let is_running = Workspace::find_by_id_with_status(pool, existing.id)
-            .await?
-            .map(|ws| ws.is_running)
-            .unwrap_or(false);
+        // Reuse only when a headed coding-agent session is *genuinely* live.
+        // The DB `running` status lags behind a tmux session that ended
+        // out-of-band (Claude exited, the `/loop` finished, or it crashed), so
+        // attaching on the strength of the DB alone would drop the user into a
+        // dead session. Confirm the tmux session itself is alive instead.
+        let candidate =
+            ExecutionProcess::find_latest_running_coding_agent_for_workspace(pool, existing.id)
+                .await?;
+        let live = match &candidate {
+            Some(proc) => {
+                deployment
+                    .container()
+                    .is_interactive_session_live(proc)
+                    .await
+            }
+            None => false,
+        };
 
-        if is_running {
+        if live {
             // A session is already live — reuse its tmux session.
             return Ok(ResponseJson(ApiResponse::success(
                 SpawnOrchestratorResponse {
@@ -378,8 +392,25 @@ pub async fn spawn_orchestrator(
             )));
         }
 
-        // Idle: start a fresh session (and thus a fresh tmux) on the same
-        // singleton workspace.
+        // DB still marks a coding-agent process running even though its tmux
+        // session is gone; finalize it so the respawn starts from a clean slate
+        // (and the liveness poller doesn't later double-finalize it).
+        if let Some(stale) = candidate {
+            if let Err(e) = deployment
+                .container()
+                .stop_execution(&stale, ExecutionProcessStatus::Completed)
+                .await
+            {
+                tracing::warn!(
+                    "Failed to finalize stale orchestrator process {}: {}",
+                    stale.id,
+                    e
+                );
+            }
+        }
+
+        // Idle or dead tmux: start a fresh session (and thus a fresh tmux) on
+        // the same singleton workspace.
         deployment
             .container()
             .start_workspace(&existing, orchestrator_executor_config(), prompt)
@@ -429,6 +460,59 @@ pub async fn spawn_orchestrator(
             workspace,
             reused: false,
         },
+    )))
+}
+
+/// Close the singleton orchestrator: stop its live headed session (killing the
+/// tmux session) so the next spawn starts fresh. The singleton workspace itself
+/// is preserved for reuse. No-op (`closed: false`) when no orchestrator — or no
+/// running session — exists.
+pub async fn close_orchestrator(
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<CloseOrchestratorResponse>>, ApiError> {
+    let pool = &deployment.db().pool;
+
+    let Some(existing) = Workspace::find_orchestrator(pool).await? else {
+        return Ok(ResponseJson(ApiResponse::success(
+            CloseOrchestratorResponse { closed: false },
+        )));
+    };
+
+    let Some(process) =
+        ExecutionProcess::find_latest_running_coding_agent_for_workspace(pool, existing.id).await?
+    else {
+        return Ok(ResponseJson(ApiResponse::success(
+            CloseOrchestratorResponse { closed: false },
+        )));
+    };
+
+    // Stop the headed session, killing its tmux session. If the tmux session
+    // already vanished (so there's no tracked handle to stop), the process is
+    // effectively gone already — finalize the DB record directly so it stops
+    // reporting as running.
+    if let Err(e) = deployment
+        .container()
+        .stop_execution(&process, ExecutionProcessStatus::Killed)
+        .await
+    {
+        tracing::warn!(
+            "stop_execution failed for orchestrator process {}: {}; marking killed",
+            process.id,
+            e
+        );
+        ExecutionProcess::update_completion(pool, process.id, ExecutionProcessStatus::Killed, None)
+            .await?;
+    }
+
+    deployment
+        .track_if_analytics_allowed(
+            "orchestrator_closed",
+            serde_json::json!({ "workspace_id": existing.id.to_string() }),
+        )
+        .await;
+
+    Ok(ResponseJson(ApiResponse::success(
+        CloseOrchestratorResponse { closed: true },
     )))
 }
 

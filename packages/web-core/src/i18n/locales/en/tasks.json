@@ -518,8 +518,10 @@
     "description": "Launch a headed Claude Code session that drives the board on a loop — adopting and steering your agents to done. It runs from a fixed folder and reaches every project via MCP, so no repo is needed. Pick the directives this run should follow.",
     "nameLabel": "Name",
     "directivesLabel": "Directives",
-    "existingRunning": "An orchestrator is already running. Open it to use its live session.",
+    "existingRunning": "An orchestrator is already running. Open it to reuse its live session — if the session has ended, a fresh one starts automatically.",
     "openRunning": "Open running orchestrator",
+    "close": "Close orchestrator",
+    "closing": "Closing...",
     "spawning": "Spawning...",
     "spawn": "Spawn Orchestrator",
     "options": {
