@@ -111,9 +111,17 @@ pub fn default_pipeline_steps() -> Vec<PipelineStep> {
         },
         PipelineStep {
             id: "merge".to_string(),
-            label: "Merge / open PR".to_string(),
+            label: "Merge to base".to_string(),
             prompt_fragment:
-                "When the work is implemented and reviewed, open a pull request (or merge) for this card."
+                "When the work is implemented and reviewed, merge this card's branch into the base branch."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
+            id: "pr".to_string(),
+            label: "Open pull request".to_string(),
+            prompt_fragment:
+                "When the work is implemented and reviewed, open a pull request for this card against the base branch."
                     .to_string(),
             default_enabled: false,
         },
