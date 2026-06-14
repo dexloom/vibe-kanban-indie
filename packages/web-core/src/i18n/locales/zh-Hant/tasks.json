@@ -542,11 +542,26 @@
     "title": "啟動編排器",
     "description": "啟動一個有頭的 Claude Code 工作階段，以迴圈方式驅動看板——接手並引導您的代理直至完成。它會從固定資料夾執行，並透過 MCP 觸及每個專案，因此不需要任何儲存庫。請選擇本次執行應依循的指令。",
     "nameLabel": "名稱",
+    "directivesLabel": "指令",
     "existingRunning": "已有一個編排器正在執行。開啟它即可重用其即時工作階段——若該工作階段已結束，系統會自動啟動新的工作階段。",
     "openRunning": "開啟執行中的編排器",
     "close": "關閉編排器",
     "closing": "正在關閉...",
     "spawning": "正在啟動...",
-    "spawn": "啟動編排器"
+    "spawn": "啟動編排器",
+    "options": {
+      "auto-unblock": {
+        "label": "自動解除核准封鎖",
+        "description": "自動核准例行且計畫許可的工具要求；將具破壞性、高成本或偏離計畫的要求升級給您。"
+      },
+      "auto-answer-questions": {
+        "label": "自動回答問題",
+        "description": "當代理的問題超過寬限視窗（約兩個編排器間隔）仍未獲回答時，決策子代理會讀取卡片、規格與計畫並代您回答。具破壞性的動作仍會以核准方式升級。"
+      },
+      "telegram-fanout": {
+        "label": "Telegram 分流",
+        "description": "透過各工作區的 Telegram 主題，敘述狀態並與各代理對話。需要 sombrax-telegram 監聽器。"
+      }
+    }
   }
 }

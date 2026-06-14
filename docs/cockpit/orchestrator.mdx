@@ -47,9 +47,22 @@ it board-wide tools to:
 - Start a workspace and dispatch one coding agent per ready card, then move the card
   to In Progress
 
-Everything after dispatch — monitoring, approvals, reviews, merges, and answering an
-agent's questions — is outside the orchestrator's scope by design. The coding agent
+By default, everything after dispatch — monitoring, approvals, reviews, merges, and
+answering an agent's questions — is outside the orchestrator's scope: the coding agent
 drives its own pipeline, and you deliver the result.
+
+When you spawn the orchestrator you can opt into **directives** — extra behaviours it
+applies on each sweep:
+
+- **Auto-unblock approvals** — auto-approve routine, plan-sanctioned tool requests;
+  escalate destructive or off-plan ones to you.
+- **Auto-answer questions** — once an agent's question has gone unanswered past a grace
+  window, a `decider` subagent reads the card, spec, and plan and answers it for you.
+- **Telegram fan-out** — narrate status and converse with each agent over its
+  per-workspace Telegram topic (requires the Telegram bridge).
+
+These are passed to the agent as simple flags; the behaviour itself lives in the
+plugin's agent instructions, not in the app.
 
 ## Staying in control
 

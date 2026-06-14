@@ -542,11 +542,26 @@
     "title": "Lancer l'Orchestrateur",
     "description": "Lancez une session Claude Code avec interface qui pilote le tableau en boucle — en adoptant et en guidant vos agents jusqu'à l'achèvement. Elle s'exécute depuis un dossier fixe et atteint chaque projet via MCP, donc aucun dépôt n'est nécessaire. Choisissez les directives que cette exécution doit suivre.",
     "nameLabel": "Nom",
+    "directivesLabel": "Directives",
     "existingRunning": "Un orchestrateur est déjà en cours d'exécution. Ouvrez-le pour réutiliser sa session active — si la session est terminée, une nouvelle démarre automatiquement.",
     "openRunning": "Ouvrir l'orchestrateur en cours",
     "close": "Fermer l'orchestrateur",
     "closing": "Fermeture...",
     "spawning": "Lancement...",
-    "spawn": "Lancer l'Orchestrateur"
+    "spawn": "Lancer l'Orchestrateur",
+    "options": {
+      "auto-unblock": {
+        "label": "Débloquer automatiquement les approbations",
+        "description": "Approuve automatiquement les demandes d'outils de routine prévues par le plan ; escalade vers vous celles qui sont destructrices, coûteuses ou hors plan."
+      },
+      "auto-answer-questions": {
+        "label": "Répondre automatiquement aux questions",
+        "description": "Lorsqu'une question d'un agent reste sans réponse au-delà d'un délai de grâce (environ deux intervalles d'orchestrateur), un sous-agent décideur lit la carte, la spec et le plan, et y répond à votre place. Les actions destructrices font toujours l'objet d'une escalade en approbations."
+      },
+      "telegram-fanout": {
+        "label": "Diffusion Telegram",
+        "description": "Décrit l'état et converse avec chaque agent sur son sujet Telegram dédié à l'espace de travail. Nécessite l'écouteur sombrax-telegram."
+      }
+    }
   }
 }
