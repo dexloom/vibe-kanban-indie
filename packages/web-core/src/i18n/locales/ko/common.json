@@ -555,5 +555,13 @@
     "submitting": "답변 제출 중...",
     "answeredCount": "{{count}}개의 질문에 답변함",
     "answeredCount_other": "{{count}}개의 질문에 답변함"
+  },
+  "cardPipeline": {
+    "title": "파이프라인",
+    "description": "이 카드가 거쳐야 할 단계를 선택하세요. 선택한 단계는 에이전트가 따를 수 있도록 카드 설명에 추가됩니다.",
+    "noSteps": "구성된 파이프라인 단계가 없습니다. 설정 → 파이프라인에서 추가하세요.",
+    "addonLabel": "프롬프트 추가 항목 (편집 가능)",
+    "addonPlaceholder": "위에서 단계를 선택해 파이프라인 블록을 구성하거나 직접 입력하세요.",
+    "resetToCheckboxes": "체크박스로 초기화"
   }
 }

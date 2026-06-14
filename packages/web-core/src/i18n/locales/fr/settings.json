@@ -34,7 +34,9 @@
         "pairOtherMachines": "Pair other machines",
         "selectHost": "Select host",
         "telegram": "Telegram",
-        "telegramDesc": "Agent escalations to Telegram"
+        "telegramDesc": "Agent escalations to Telegram",
+        "pipeline": "Pipeline",
+        "pipelineDesc": "Étapes de pipeline par carte"
       }
     },
     "general": {
@@ -643,6 +645,35 @@
         "title": "Configuration file",
         "description": "Edit this file, then restart the bridge to apply changes.",
         "example": "Example telegram.toml"
+      }
+    },
+    "pipeline": {
+      "loading": "Chargement des paramètres du pipeline…",
+      "loadError": "Échec du chargement des paramètres du pipeline",
+      "save": {
+        "success": "✓ Paramètres enregistrés avec succès !",
+        "error": "Échec de l'enregistrement de la configuration"
+      },
+      "steps": {
+        "title": "Étapes du pipeline",
+        "description": "Le catalogue des étapes proposées dans le contrôle Pipeline de la nouvelle carte. Chaque étape est un libellé accompagné d'un fragment d'invite ajouté à la carte lorsqu'elle est cochée.",
+        "reset": "Réinitialiser aux valeurs par défaut",
+        "empty": "Aucune étape de pipeline. Ajoutez-en une ci-dessous ou réinitialisez aux valeurs par défaut.",
+        "customize": {
+          "label": "Personnaliser les étapes du pipeline",
+          "helper": "Utilisez votre propre catalogue d'étapes au lieu des valeurs par défaut intégrées. Lorsque cette option est désactivée, les valeurs par défaut sont affichées en lecture seule."
+        },
+        "fields": {
+          "label": "Libellé",
+          "labelPlaceholder": "ex. Créer la spec",
+          "prompt": "Fragment d'invite",
+          "promptPlaceholder": "Instruction ajoutée à la carte lorsque cette étape est cochée.",
+          "defaultEnabled": "Cochée par défaut sur les nouvelles cartes"
+        },
+        "actions": {
+          "add": "Ajouter une étape",
+          "remove": "Supprimer l'étape"
+        }
       }
     }
   },

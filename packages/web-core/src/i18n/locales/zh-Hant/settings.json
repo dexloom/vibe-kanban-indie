@@ -34,7 +34,9 @@
         "pairOtherMachines": "Pair other machines",
         "selectHost": "Select host",
         "telegram": "Telegram",
-        "telegramDesc": "Agent escalations to Telegram"
+        "telegramDesc": "Agent escalations to Telegram",
+        "pipeline": "流水線",
+        "pipelineDesc": "各卡片的流水線階段"
       }
     },
     "general": {
@@ -643,6 +645,35 @@
         "title": "Configuration file",
         "description": "Edit this file, then restart the bridge to apply changes.",
         "example": "Example telegram.toml"
+      }
+    },
+    "pipeline": {
+      "loading": "正在載入流水線設定…",
+      "loadError": "載入流水線設定失敗",
+      "save": {
+        "success": "✓ 設定已成功儲存！",
+        "error": "儲存設定失敗"
+      },
+      "steps": {
+        "title": "流水線步驟",
+        "description": "「新增議題」流水線控制項所提供的階段目錄。每個步驟皆為一個標籤加上一段提示片段，勾選後會附加到卡片中。",
+        "reset": "重設為預設值",
+        "empty": "沒有任何流水線步驟。請於下方新增，或重設為預設值。",
+        "customize": {
+          "label": "自訂流水線步驟",
+          "helper": "使用您自己的步驟目錄，取代內建預設值。關閉時，預設值會以唯讀方式顯示。"
+        },
+        "fields": {
+          "label": "標籤",
+          "labelPlaceholder": "例如：建立規格",
+          "prompt": "提示片段",
+          "promptPlaceholder": "勾選此步驟時附加到卡片的指示。",
+          "defaultEnabled": "新卡片預設勾選"
+        },
+        "actions": {
+          "add": "新增步驟",
+          "remove": "移除步驟"
+        }
       }
     }
   },

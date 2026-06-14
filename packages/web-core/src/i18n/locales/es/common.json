@@ -555,5 +555,13 @@
     "submitting": "Enviando respuestas...",
     "answeredCount": "Respondió {{count}} pregunta",
     "answeredCount_other": "Respondió {{count}} preguntas"
+  },
+  "cardPipeline": {
+    "title": "Pipeline",
+    "description": "Elige las etapas por las que debe pasar esta tarjeta. Las etapas seleccionadas se añaden a la descripción de la tarjeta para que el agente las siga.",
+    "noSteps": "No hay etapas de pipeline configuradas. Añade algunas en Configuración → Pipeline.",
+    "addonLabel": "Complemento del prompt (editable)",
+    "addonPlaceholder": "Marca etapas arriba para componer el bloque del pipeline, o escribe el tuyo.",
+    "resetToCheckboxes": "Restablecer a casillas"
   }
 }

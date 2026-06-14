@@ -555,5 +555,13 @@
     "submitting": "正在提交回答...",
     "answeredCount": "已回答{{count}}個問題",
     "answeredCount_other": "已回答{{count}}個問題"
+  },
+  "cardPipeline": {
+    "title": "流水線",
+    "description": "選擇這張卡片應經過的階段。所選階段會附加到卡片描述中供代理依循。",
+    "noSteps": "尚未設定任何流水線步驟。請至「設定 → 流水線」新增。",
+    "addonLabel": "提示附加內容（可編輯）",
+    "addonPlaceholder": "勾選上方階段以組成流水線區塊，或自行輸入。",
+    "resetToCheckboxes": "重設為勾選項目"
   }
 }

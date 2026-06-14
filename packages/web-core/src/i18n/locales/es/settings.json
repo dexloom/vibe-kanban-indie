@@ -34,7 +34,9 @@
         "pairOtherMachines": "Pair other machines",
         "selectHost": "Select host",
         "telegram": "Telegram",
-        "telegramDesc": "Agent escalations to Telegram"
+        "telegramDesc": "Agent escalations to Telegram",
+        "pipeline": "Pipeline",
+        "pipelineDesc": "Etapas de pipeline por tarjeta"
       }
     },
     "general": {
@@ -643,6 +645,35 @@
         "title": "Configuration file",
         "description": "Edit this file, then restart the bridge to apply changes.",
         "example": "Example telegram.toml"
+      }
+    },
+    "pipeline": {
+      "loading": "Cargando configuración del pipeline…",
+      "loadError": "No se pudo cargar la configuración del pipeline",
+      "save": {
+        "success": "✓ ¡Configuración guardada correctamente!",
+        "error": "No se pudo guardar la configuración"
+      },
+      "steps": {
+        "title": "Etapas del pipeline",
+        "description": "El catálogo de etapas que se ofrece en el control Pipeline de Nueva incidencia. Cada etapa es una etiqueta más un fragmento de prompt que se añade a la tarjeta al marcarla.",
+        "reset": "Restablecer valores predeterminados",
+        "empty": "No hay etapas de pipeline. Añade una abajo o restablece los valores predeterminados.",
+        "customize": {
+          "label": "Personalizar etapas del pipeline",
+          "helper": "Usa tu propio catálogo de etapas en lugar de los predeterminados integrados. Si está desactivado, los predeterminados se muestran como solo lectura."
+        },
+        "fields": {
+          "label": "Etiqueta",
+          "labelPlaceholder": "p. ej. Crear especificación",
+          "prompt": "Fragmento de prompt",
+          "promptPlaceholder": "Instrucción que se añade a la tarjeta cuando esta etapa está marcada.",
+          "defaultEnabled": "Marcada por defecto en tarjetas nuevas"
+        },
+        "actions": {
+          "add": "Añadir etapa",
+          "remove": "Quitar etapa"
+        }
       }
     }
   },

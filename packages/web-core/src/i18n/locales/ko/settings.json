@@ -34,7 +34,9 @@
         "pairOtherMachines": "Pair other machines",
         "selectHost": "Select host",
         "telegram": "Telegram",
-        "telegramDesc": "Agent escalations to Telegram"
+        "telegramDesc": "Agent escalations to Telegram",
+        "pipeline": "파이프라인",
+        "pipelineDesc": "카드별 파이프라인 단계"
       }
     },
     "general": {
@@ -643,6 +645,35 @@
         "title": "Configuration file",
         "description": "Edit this file, then restart the bridge to apply changes.",
         "example": "Example telegram.toml"
+      }
+    },
+    "pipeline": {
+      "loading": "파이프라인 설정을 불러오는 중…",
+      "loadError": "파이프라인 설정을 불러오지 못했습니다",
+      "save": {
+        "success": "✓ 설정이 저장되었습니다!",
+        "error": "구성을 저장하지 못했습니다"
+      },
+      "steps": {
+        "title": "파이프라인 단계",
+        "description": "새 이슈 파이프라인 컨트롤에 제공되는 단계 목록입니다. 각 단계는 라벨과, 선택 시 카드에 추가되는 프롬프트 조각으로 구성됩니다.",
+        "reset": "기본값으로 초기화",
+        "empty": "파이프라인 단계가 없습니다. 아래에서 추가하거나 기본값으로 초기화하세요.",
+        "customize": {
+          "label": "파이프라인 단계 사용자 지정",
+          "helper": "내장 기본값 대신 직접 만든 단계 목록을 사용합니다. 끄면 기본값이 읽기 전용으로 표시됩니다."
+        },
+        "fields": {
+          "label": "라벨",
+          "labelPlaceholder": "예: 스펙 작성",
+          "prompt": "프롬프트 조각",
+          "promptPlaceholder": "이 단계를 선택하면 카드에 추가되는 지시문입니다.",
+          "defaultEnabled": "새 카드에서 기본 선택"
+        },
+        "actions": {
+          "add": "단계 추가",
+          "remove": "단계 제거"
+        }
       }
     }
   },

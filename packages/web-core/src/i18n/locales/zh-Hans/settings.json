@@ -34,7 +34,9 @@
         "pairOtherMachines": "Pair other machines",
         "selectHost": "Select host",
         "telegram": "Telegram",
-        "telegramDesc": "Agent escalations to Telegram"
+        "telegramDesc": "Agent escalations to Telegram",
+        "pipeline": "流水线",
+        "pipelineDesc": "每张卡片的流水线阶段"
       }
     },
     "general": {
@@ -643,6 +645,35 @@
         "title": "Configuration file",
         "description": "Edit this file, then restart the bridge to apply changes.",
         "example": "Example telegram.toml"
+      }
+    },
+    "pipeline": {
+      "loading": "正在加载流水线设置…",
+      "loadError": "加载流水线设置失败",
+      "save": {
+        "success": "✓ 设置保存成功！",
+        "error": "保存配置失败"
+      },
+      "steps": {
+        "title": "流水线步骤",
+        "description": "“新建工单”流水线控件中提供的阶段目录。每个步骤由一个标签加一段提示词片段组成，勾选后追加到卡片中。",
+        "reset": "重置为默认值",
+        "empty": "暂无流水线步骤。请在下方添加一个，或重置为默认值。",
+        "customize": {
+          "label": "自定义流水线步骤",
+          "helper": "使用你自己的步骤目录，而非内置默认值。关闭时，默认值以只读方式显示。"
+        },
+        "fields": {
+          "label": "标签",
+          "labelPlaceholder": "例如：创建规格",
+          "prompt": "提示词片段",
+          "promptPlaceholder": "勾选此步骤时追加到卡片的指令。",
+          "defaultEnabled": "在新卡片上默认勾选"
+        },
+        "actions": {
+          "add": "添加步骤",
+          "remove": "移除步骤"
+        }
       }
     }
   },

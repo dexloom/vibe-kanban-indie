@@ -555,5 +555,13 @@
     "submitting": "Envoi des réponses...",
     "answeredCount": "Répondu à {{count}} question",
     "answeredCount_other": "Répondu à {{count}} questions"
+  },
+  "cardPipeline": {
+    "title": "Pipeline",
+    "description": "Choisissez les étapes par lesquelles cette carte doit passer. Les étapes sélectionnées sont ajoutées à la description de la carte pour que l'agent les suive.",
+    "noSteps": "Aucune étape de pipeline n'est configurée. Ajoutez-en dans Paramètres → Pipeline.",
+    "addonLabel": "Complément d'invite (modifiable)",
+    "addonPlaceholder": "Cochez des étapes ci-dessus pour composer le bloc de pipeline, ou saisissez le vôtre.",
+    "resetToCheckboxes": "Réinitialiser aux cases à cocher"
   }
 }

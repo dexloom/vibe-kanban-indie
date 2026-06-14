@@ -34,7 +34,9 @@
         "pairOtherMachines": "Pair other machines",
         "selectHost": "Select host",
         "telegram": "Telegram",
-        "telegramDesc": "Agent escalations to Telegram"
+        "telegramDesc": "Agent escalations to Telegram",
+        "pipeline": "パイプライン",
+        "pipelineDesc": "カードごとのパイプラインステージ"
       }
     },
     "general": {
@@ -643,6 +645,35 @@
         "title": "Configuration file",
         "description": "Edit this file, then restart the bridge to apply changes.",
         "example": "Example telegram.toml"
+      }
+    },
+    "pipeline": {
+      "loading": "パイプライン設定を読み込み中…",
+      "loadError": "パイプライン設定の読み込みに失敗しました",
+      "save": {
+        "success": "✓ 設定を保存しました！",
+        "error": "設定の保存に失敗しました"
+      },
+      "steps": {
+        "title": "パイプラインステップ",
+        "description": "新規イシューのパイプラインコントロールに表示されるステージのカタログです。各ステップはラベルと、チェック時にカードへ追記されるプロンプト断片で構成されます。",
+        "reset": "デフォルトにリセット",
+        "empty": "パイプラインステップがありません。下から追加するか、デフォルトにリセットしてください。",
+        "customize": {
+          "label": "パイプラインステップをカスタマイズ",
+          "helper": "組み込みのデフォルトの代わりに独自のステップカタログを使用します。オフの場合、デフォルトが読み取り専用で表示されます。"
+        },
+        "fields": {
+          "label": "ラベル",
+          "labelPlaceholder": "例：仕様を作成",
+          "prompt": "プロンプト断片",
+          "promptPlaceholder": "このステップがチェックされたときにカードへ追記される指示。",
+          "defaultEnabled": "新規カードでデフォルトでチェック"
+        },
+        "actions": {
+          "add": "ステップを追加",
+          "remove": "ステップを削除"
+        }
       }
     }
   },

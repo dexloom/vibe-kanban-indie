@@ -555,5 +555,13 @@
     "submitting": "回答を送信中...",
     "answeredCount": "{{count}}件の質問に回答済み",
     "answeredCount_other": "{{count}}件の質問に回答済み"
+  },
+  "cardPipeline": {
+    "title": "パイプライン",
+    "description": "このカードが通過するステージを選択します。選択したステージはカードの説明に追記され、エージェントがそれに従います。",
+    "noSteps": "パイプラインのステップが設定されていません。設定 → パイプライン で追加してください。",
+    "addonLabel": "プロンプトアドオン（編集可能）",
+    "addonPlaceholder": "上のステージをチェックしてパイプラインブロックを作成するか、独自に入力してください。",
+    "resetToCheckboxes": "チェックボックスにリセット"
   }
 }
