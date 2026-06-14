@@ -45,6 +45,14 @@ struct StartWorkspaceRequest {
 #[derive(Debug, Serialize, schemars::JsonSchema)]
 struct StartWorkspaceResponse {
     workspace_id: String,
+    #[schemars(
+        description = "Session ID of the started session — pass to run_session_prompt / list_sessions."
+    )]
+    session_id: String,
+    #[schemars(
+        description = "Execution ID of the first (kickoff) execution started by this call — pass to get_execution / list_pending_approvals to monitor it."
+    )]
+    execution_id: String,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -217,6 +225,8 @@ impl McpServer {
 
         let response = StartWorkspaceResponse {
             workspace_id: create_and_start_response.workspace.id.to_string(),
+            session_id: create_and_start_response.execution_process.session_id.to_string(),
+            execution_id: create_and_start_response.execution_process.id.to_string(),
         };
 
         McpServer::success(&response)

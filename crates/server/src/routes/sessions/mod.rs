@@ -63,6 +63,18 @@ pub async fn get_session(
     Ok(ResponseJson(ApiResponse::success(session)))
 }
 
+/// List a session's execution processes (oldest first; the last is the most
+/// recent). Lets a caller recover the current/kickoff `execution_id` from a
+/// `session_id` alone — e.g. an orchestrator loop tick that holds only the session.
+pub async fn get_session_executions(
+    State(deployment): State<DeploymentImpl>,
+    Extension(session): Extension<Session>,
+) -> Result<ResponseJson<ApiResponse<Vec<ExecutionProcess>>>, ApiError> {
+    let pool = &deployment.db().pool;
+    let executions = ExecutionProcess::find_by_session_id(pool, session.id, false).await?;
+    Ok(ResponseJson(ApiResponse::success(executions)))
+}
+
 pub async fn create_session(
     State(deployment): State<DeploymentImpl>,
     Json(payload): Json<CreateSessionRequest>,
@@ -426,6 +438,7 @@ pub async fn run_setup_script(
 pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     let session_id_router = Router::new()
         .route("/", get(get_session).put(update_session))
+        .route("/executions", get(get_session_executions))
         .route("/follow-up", post(follow_up))
         .route("/reset", post(reset_process))
         .route("/setup", post(run_setup_script))
