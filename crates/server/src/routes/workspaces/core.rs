@@ -40,6 +40,20 @@ pub async fn get_workspace(
     Ok(ResponseJson(ApiResponse::success(workspace)))
 }
 
+/// Open (creating if needed) a persistent workspace-level tmux session in the
+/// user's configured terminal emulator, so the workspace's working directory
+/// pops up in a real terminal window.
+pub async fn open_terminal(
+    Extension(workspace): Extension<Workspace>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
+    deployment
+        .container()
+        .open_workspace_terminal(&workspace)
+        .await?;
+    Ok(ResponseJson(ApiResponse::success(())))
+}
+
 pub async fn update_workspace(
     Extension(workspace): Extension<Workspace>,
     State(deployment): State<DeploymentImpl>,

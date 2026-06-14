@@ -2436,6 +2436,50 @@ impl ContainerService for LocalContainerService {
             })
     }
 
+    async fn open_workspace_terminal(&self, workspace: &Workspace) -> Result<(), ContainerError> {
+        let container_ref = workspace
+            .container_ref
+            .clone()
+            .ok_or_else(|| ContainerError::Other(anyhow!("Workspace has no working directory")))?;
+        let base_dir = PathBuf::from(&container_ref);
+        if !base_dir.exists() {
+            return Err(ContainerError::Other(anyhow!(
+                "Workspace directory does not exist"
+            )));
+        }
+
+        // Mirror the web terminal: when the workspace has exactly one repo, root
+        // the shell in that repo's subdirectory rather than the bare worktree.
+        let mut working_dir = base_dir.clone();
+        if let Ok(repos) =
+            WorkspaceRepo::find_repos_for_workspace(&self.db.pool, workspace.id).await
+        {
+            if repos.len() == 1 {
+                let repo_dir = base_dir.join(&repos[0].name);
+                if repo_dir.exists() {
+                    working_dir = repo_dir;
+                }
+            }
+        }
+
+        // Spawn a fresh terminal window every press (no singleton, no tmux
+        // reuse): each click pops open a new emulator window with a shell in the
+        // workspace directory.
+        let terminal_kind = self.config.read().await.terminal;
+        let title = workspace
+            .name
+            .clone()
+            .unwrap_or_else(|| workspace.branch.clone());
+        terminal::open_shell_window(terminal_kind, &working_dir, &title)
+            .await
+            .map_err(|e| match e {
+                terminal::TerminalError::TerminalUnavailable { attach_cmd, .. } => {
+                    ContainerError::TerminalUnavailable(attach_cmd)
+                }
+                other => ContainerError::Other(anyhow!(other)),
+            })
+    }
+
     async fn send_interactive_input(
         &self,
         execution_process: &ExecutionProcess,

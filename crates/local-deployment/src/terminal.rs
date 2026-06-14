@@ -352,6 +352,79 @@ pub async fn open_in_terminal(
     }
 }
 
+/// Open a brand-new terminal-emulator window running an interactive shell
+/// rooted at `cwd`. Unlike [`open_in_terminal`], this attaches to NO tmux
+/// session and never reuses a window: every call spawns a fresh window (and,
+/// for the macOS emulators, brings the app to the front) so the user always
+/// sees a new terminal pop up. `title` labels the window/tab.
+pub async fn open_shell_window(
+    kind: TerminalKind,
+    cwd: &Path,
+    title: &str,
+) -> Result<(), TerminalError> {
+    let hint = shell_cd_command(cwd);
+    match kind {
+        TerminalKind::None => Ok(()),
+        TerminalKind::ITerm2 => {
+            let script = build_iterm_shell_script(cwd, title);
+            run_osascript(kind, &script, &hint).await.map(|_| ())
+        }
+        TerminalKind::TerminalApp => {
+            let script = build_terminal_app_shell_script(cwd, title);
+            run_osascript(kind, &script, &hint).await.map(|_| ())
+        }
+        TerminalKind::WezTerm => {
+            let cwd = cwd.to_string_lossy();
+            run_emulator(kind, "wezterm", &["start", "--cwd", &cwd], &hint).await
+        }
+        TerminalKind::GnomeTerminal => {
+            run_emulator_in_dir(kind, "gnome-terminal", &[], cwd, &hint).await
+        }
+        TerminalKind::Xterm => run_emulator_in_dir(kind, "xterm", &[], cwd, &hint).await,
+    }
+}
+
+/// The `cd <dir>` command typed into a freshly opened shell, shell-quoted so a
+/// path with spaces or metacharacters stays a single argument. Also used as the
+/// fallback hint surfaced when the emulator itself is unavailable.
+fn shell_cd_command(cwd: &Path) -> String {
+    let path = cwd.to_string_lossy();
+    shlex::try_join(["cd", path.as_ref()]).unwrap_or_else(|_| format!("cd {path}"))
+}
+
+/// AppleScript that opens a NEW iTerm2 window with an interactive shell in
+/// `cwd`. A new window is created on every call (no shared-window reuse), and
+/// `activate` brings iTerm to the front so the window is visible.
+fn build_iterm_shell_script(cwd: &Path, title: &str) -> String {
+    let title = applescript_quote(title);
+    let cd = applescript_quote(&shell_cd_command(cwd));
+    format!(
+        "tell application \"iTerm\"\n\
+         activate\n\
+         set targetWindow to (create window with default profile)\n\
+         set targetSession to (current session of targetWindow)\n\
+         tell targetSession\n\
+           write text \"{cd}\"\n\
+           set name to \"{title}\"\n\
+         end tell\n\
+         end tell"
+    )
+}
+
+/// AppleScript that opens a NEW Terminal.app window with a shell in `cwd`.
+/// `do script` with no target window creates a fresh window each call.
+fn build_terminal_app_shell_script(cwd: &Path, title: &str) -> String {
+    let title = applescript_quote(title);
+    let cd = applescript_quote(&shell_cd_command(cwd));
+    format!(
+        "tell application \"Terminal\"\n\
+         activate\n\
+         set vkTab to do script \"{cd}\"\n\
+         set custom title of vkTab to \"{title}\"\n\
+         end tell"
+    )
+}
+
 /// Open the attach command in iTerm2. When `group_tabs` is true, reuse the
 /// single VK-owned window as a TAB host (creating that window the first time, or
 /// whenever the previous one was closed); the lock serializes concurrent opens
@@ -511,6 +584,25 @@ async fn run_emulator(
     }
 }
 
+/// Spawn `program` detached with its working directory set to `cwd`. Used by
+/// the Linux emulators (gnome-terminal/xterm) to launch a fresh shell window in
+/// the workspace directory.
+async fn run_emulator_in_dir(
+    kind: TerminalKind,
+    program: &str,
+    args: &[&str],
+    cwd: &Path,
+    hint: &str,
+) -> Result<(), TerminalError> {
+    match Command::new(program).args(args).current_dir(cwd).spawn() {
+        Ok(_) => Ok(()),
+        Err(_) => Err(TerminalError::TerminalUnavailable {
+            kind,
+            attach_cmd: hint.to_string(),
+        }),
+    }
+}
+
 fn map_tmux_io_err(e: std::io::Error) -> TerminalError {
     if e.kind() == std::io::ErrorKind::NotFound {
         TerminalError::TmuxNotInstalled
@@ -586,6 +678,36 @@ mod tests {
         assert!(script.contains("create window with default profile"));
         // The new tab is titled after its tmux session.
         assert!(script.contains("set name to \"vk-def\""));
+    }
+
+    #[test]
+    fn shell_cd_command_quotes_paths_with_spaces() {
+        assert_eq!(shell_cd_command(Path::new("/work/repo")), "cd /work/repo");
+        assert_eq!(
+            shell_cd_command(Path::new("/work/my repo")),
+            "cd '/work/my repo'"
+        );
+    }
+
+    #[test]
+    fn iterm_shell_script_opens_fresh_window_with_cd() {
+        let script = build_iterm_shell_script(Path::new("/work/repo"), "feat/login");
+        // Always a new window (no id lookup / reuse), brought to the front, with a
+        // shell cd'd into the workspace dir and a titled session.
+        assert!(script.contains("activate"));
+        assert!(script.contains("create window with default profile"));
+        assert!(script.contains("set targetSession to (current session of targetWindow)"));
+        assert!(script.contains("write text \"cd /work/repo\""));
+        assert!(script.contains("set name to \"feat/login\""));
+        // It must NOT reuse a window as a tab host.
+        assert!(!script.contains("create tab"));
+    }
+
+    #[test]
+    fn terminal_app_shell_script_opens_window_with_cd() {
+        let script = build_terminal_app_shell_script(Path::new("/work/repo"), "feat/login");
+        assert!(script.contains("set vkTab to do script \"cd /work/repo\""));
+        assert!(script.contains("set custom title of vkTab to \"feat/login\""));
     }
 
     #[test]

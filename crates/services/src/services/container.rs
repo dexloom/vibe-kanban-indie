@@ -847,6 +847,15 @@ pub trait ContainerService {
         Err(ContainerError::NotInteractive)
     }
 
+    /// Open the configured terminal emulator attached to a persistent
+    /// workspace-level tmux session, creating it (rooted at the workspace's
+    /// working directory) if it does not yet exist. Lets the user pop the
+    /// current workspace open in a real terminal window, independent of any
+    /// running agent. Default: unsupported. Overridden by local backends.
+    async fn open_workspace_terminal(&self, _workspace: &Workspace) -> Result<(), ContainerError> {
+        Err(ContainerError::NotInteractive)
+    }
+
     /// Type a line of input into an interactive (headed) execution's tmux
     /// session (e.g. answer a question or approve a prompt) and submit it.
     /// Default: unsupported. Overridden by interactive backends.

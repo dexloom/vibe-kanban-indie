@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FileTreeContainer } from './FileTreeContainer';
 import { ProcessListContainer } from './ProcessListContainer';
@@ -8,8 +8,9 @@ import { TerminalPanelContainer } from '@/shared/components/TerminalPanelContain
 import { WorkspaceNotesContainer } from './WorkspaceNotesContainer';
 import { HeadedSessionIds } from '@/pages/kanban/HeadedSessionIds';
 import { useDiffs } from '@/shared/stores/useWorkspaceDiffStore';
-import { ArrowsOutSimpleIcon } from '@phosphor-icons/react';
+import { ArrowsOutSimpleIcon, TerminalWindowIcon } from '@phosphor-icons/react';
 import { useLogsPanel } from '@/shared/hooks/useLogsPanel';
+import { workspacesApi } from '@/shared/lib/api';
 import type { RepoWithTargetBranch, Workspace } from 'shared/types';
 import {
   PERSIST_KEYS,
@@ -48,6 +49,13 @@ export const RightSidebar = memo(function RightSidebar({
   const diffs = useDiffs();
   const isTerminalVisible = useUiPreferencesStore((s) => s.isTerminalVisible);
   const { expandTerminal, isTerminalExpanded } = useLogsPanel();
+
+  const openExternalTerminal = useCallback(() => {
+    if (!selectedWorkspace) return;
+    workspacesApi.openTerminal(selectedWorkspace.id).catch((err) => {
+      console.error('Failed to open workspace terminal', err);
+    });
+  }, [selectedWorkspace]);
 
   const [changesExpanded] = usePersistedExpanded(
     PERSIST_KEYS.changesSection,
@@ -110,7 +118,14 @@ export const RightSidebar = memo(function RightSidebar({
         visible: isTerminalVisible && !isTerminalExpanded,
         expanded: terminalExpanded,
         content: <TerminalPanelContainer />,
-        actions: [{ icon: ArrowsOutSimpleIcon, onClick: expandTerminal }],
+        actions: [
+          {
+            icon: TerminalWindowIcon,
+            onClick: openExternalTerminal,
+            title: 'Open workspace in terminal',
+          },
+          { icon: ArrowsOutSimpleIcon, onClick: expandTerminal },
+        ],
       },
       {
         title: t('common:sections.notes'),
@@ -190,6 +205,7 @@ export const RightSidebar = memo(function RightSidebar({
     hasUpperContent,
     upperExpanded,
     expandTerminal,
+    openExternalTerminal,
     t,
   ]);
 

@@ -506,6 +506,16 @@ export const workspacesApi = {
     return handleApiResponse<void>(response);
   },
 
+  openTerminal: async (workspaceId: string): Promise<void> => {
+    const response = await makeRequest(
+      `/api/workspaces/${workspaceId}/open-terminal`,
+      {
+        method: 'POST',
+      }
+    );
+    return handleApiResponse<void>(response);
+  },
+
   delete: async (
     workspaceId: string,
     deleteBranches?: boolean
