@@ -7,6 +7,19 @@ tag that matches `npx-cli/package.json` (see `.github/workflows/release-indie.ym
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8-beta.4] - 2026-06-15
+
+### Added
+
+- Claude Code Headed support for local workspaces.
+- Right-side "New issue" pane.
+
+### Changed
+
+- `scripts/kill-dev-servers.sh` now clears the cached `.dev-ports.json` by
+  default so the next `pnpm run dev` re-scans from port 3000 (`--keep-ports`
+  preserves the cache).
+
 ## [0.2.8-beta.3] - 2026-06-15
 
 i18n maintenance release.

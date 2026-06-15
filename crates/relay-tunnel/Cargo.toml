@@ -1,6 +1,6 @@
 [package]
 name = "relay-tunnel"
-version = "0.2.8-beta.3"
+version = "0.2.8-beta.4"
 edition = "2024"
 publish = false
 
