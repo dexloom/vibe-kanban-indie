@@ -11,20 +11,22 @@
 #   - vibe-kanban-mcp stdio connectors attached to live Claude Code sessions
 #   - running Claude Code / orchestrator agents and their tmux sessions
 #
+# Always clears the cached .dev-ports.json after killing, so the next
+# `pnpm run dev` re-scans from 3000. Pass --keep-ports to preserve the cache.
+#
 # Usage:
-#   scripts/kill-dev-servers.sh                # kill dev servers
-#   scripts/kill-dev-servers.sh --dry-run      # show what would be killed
-#   scripts/kill-dev-servers.sh --reset-ports  # also clear the cached .dev-ports.json
-#                                              # so the next `pnpm run dev` re-scans from 3000
+#   scripts/kill-dev-servers.sh              # kill dev servers + reset port cache
+#   scripts/kill-dev-servers.sh --dry-run    # show what would be killed/cleared
+#   scripts/kill-dev-servers.sh --keep-ports # kill but leave .dev-ports.json alone
 #
 set -uo pipefail
 
 DRY_RUN=0
-RESET_PORTS=0
+RESET_PORTS=1
 for arg in "$@"; do
   case "$arg" in
     --dry-run|-n)     DRY_RUN=1 ;;
-    --reset-ports|-r) RESET_PORTS=1 ;;
+    --keep-ports|-k)  RESET_PORTS=0 ;;
   esac
 done
 
