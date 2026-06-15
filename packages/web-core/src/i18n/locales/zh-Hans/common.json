@@ -560,6 +560,9 @@
     "title": "流水线",
     "description": "选择此卡片应经过的阶段。所选阶段会追加到卡片描述中，供代理遵循。",
     "noSteps": "尚未配置任何流水线步骤。请在“设置 → 流水线”中添加。",
+    "agentLabel": "执行代理",
+    "agentDefault": "默认（由编排器决定）",
+    "agentHelper": "固定编排器用于运行此卡片的编码代理。保持默认则由其自动选择。",
     "addonLabel": "提示词附加内容（可编辑）",
     "addonPlaceholder": "勾选上方阶段以组合流水线内容块，或自行输入。",
     "resetToCheckboxes": "重置为复选框"
