@@ -66,6 +66,15 @@ fn base_command(claude_code_router: bool) -> &'static str {
     }
 }
 
+/// Name of the locally-installed Claude Code CLI, resolved on `PATH`.
+///
+/// Headed sessions default to spawning this binary (see
+/// [`ClaudeCodeHeaded::local_binary`]) rather than the pinned npx package in
+/// [`base_command`]: the headed TUI is an interactive surface where running the
+/// operator's own, normally-updated `claude` install is preferable to a version
+/// frozen at build time.
+pub const LOCAL_CLAUDE_BINARY: &str = "claude";
+
 fn normalize_claude_stderr_logs(
     msg_store: Arc<MsgStore>,
     entry_index_provider: EntryIndexProvider,
@@ -764,12 +773,32 @@ pub struct ClaudeCodeHeaded {
         description = "Load the Sombrax Telegram channel and auto-confirm the startup prompts"
     )]
     pub telegram_channel: Option<bool>,
+
+    /// Spawn the locally-installed `claude` binary (resolved on `PATH`) instead
+    /// of the pinned npx package used by the headless path. Defaults to **on**:
+    /// the headed TUI is interactive, so the operator's own — normally more
+    /// up-to-date — install is preferable to a version frozen at build time.
+    /// An explicit `base_command_override` or `claude_code_router` take
+    /// precedence (see the container's interactive launch path). Disable to fall
+    /// back to the pinned npx package.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        title = "Use local Claude binary",
+        description = "Spawn the locally-installed `claude` binary (kept up to date) instead of the pinned npx package"
+    )]
+    pub local_binary: Option<bool>,
 }
 
 impl ClaudeCodeHeaded {
     /// Whether the Telegram channel option is enabled for this headed session.
     pub fn telegram_channel_enabled(&self) -> bool {
         self.telegram_channel.unwrap_or(false)
+    }
+
+    /// Whether to spawn the locally-installed `claude` binary for this headed
+    /// session. Defaults to `true` when unset.
+    pub fn local_binary_enabled(&self) -> bool {
+        self.local_binary.unwrap_or(true)
     }
 }
 
@@ -3119,6 +3148,27 @@ mod tests {
         // (false, _): option off -> never appended, regardless of resume.
         assert_eq!(build_headed_seed_prompt(BASE, false, false, BRANCH), BASE);
         assert_eq!(build_headed_seed_prompt(BASE, false, true, BRANCH), BASE);
+    }
+
+    #[test]
+    fn headed_local_binary_defaults_on() {
+        // Deserializing an empty headed config leaves `local_binary` unset, and
+        // the accessor treats unset as enabled — so a headed session spawns the
+        // operator's local `claude` install by default rather than the pinned
+        // npx package the headless path uses.
+        let headed: ClaudeCodeHeaded = serde_json::from_str("{}").unwrap();
+        assert_eq!(headed.local_binary, None);
+        assert!(headed.local_binary_enabled());
+
+        // Explicit values are honoured (disable to fall back to the npx package).
+        let off: ClaudeCodeHeaded = serde_json::from_str(r#"{"local_binary": false}"#).unwrap();
+        assert!(!off.local_binary_enabled());
+        let on: ClaudeCodeHeaded = serde_json::from_str(r#"{"local_binary": true}"#).unwrap();
+        assert!(on.local_binary_enabled());
+
+        // The local binary is the bare `claude` command (resolved on PATH); the
+        // container swaps it in via `base_command_override`.
+        assert_eq!(LOCAL_CLAUDE_BINARY, "claude");
     }
 
     #[test]

@@ -1350,7 +1350,22 @@ impl LocalContainerService {
                 CodingAgent::ClaudeCode(cc) => (cc, false),
                 CodingAgent::ClaudeCodeHeaded(cch) => {
                     let telegram_channel = cch.telegram_channel_enabled();
-                    (cch.inner, telegram_channel)
+                    let use_local_binary = cch.local_binary_enabled();
+                    let mut inner = cch.inner;
+                    // Default-on: a headed session spawns the operator's
+                    // locally-installed `claude` (kept up to date) rather than
+                    // the pinned npx package the headless path uses. An explicit
+                    // base_command_override or the claude-code-router take
+                    // precedence, so honour those and only swap in the local
+                    // binary when neither is set.
+                    if use_local_binary
+                        && inner.cmd.base_command_override.is_none()
+                        && !inner.claude_code_router.unwrap_or(false)
+                    {
+                        inner.cmd.base_command_override =
+                            Some(executors::executors::claude::LOCAL_CLAUDE_BINARY.to_string());
+                    }
+                    (inner, telegram_channel)
                 }
                 other => {
                     return Err(ContainerError::Other(anyhow!(

@@ -800,7 +800,17 @@ export type ClaudeCodeHeaded = {
  * and auto-confirms the startup prompts (folder-trust + the dev-channel
  * warning) by pressing Enter in the tmux session.
  */
-telegram_channel?: boolean | null, append_prompt: AppendPrompt, claude_code_router?: boolean | null, plan?: boolean | null, approvals?: boolean | null, model?: string | null, effort?: ClaudeEffort | null, agent?: string | null, dangerously_skip_permissions?: boolean | null, disable_api_key?: boolean | null, base_command_override?: string | null, additional_params?: Array<string> | null, env?: { [key in string]?: string } | null, };
+telegram_channel?: boolean | null, 
+/**
+ * Spawn the locally-installed `claude` binary (resolved on `PATH`) instead
+ * of the pinned npx package used by the headless path. Defaults to **on**:
+ * the headed TUI is interactive, so the operator's own — normally more
+ * up-to-date — install is preferable to a version frozen at build time.
+ * An explicit `base_command_override` or `claude_code_router` take
+ * precedence (see the container's interactive launch path). Disable to fall
+ * back to the pinned npx package.
+ */
+local_binary?: boolean | null, append_prompt: AppendPrompt, claude_code_router?: boolean | null, plan?: boolean | null, approvals?: boolean | null, model?: string | null, effort?: ClaudeEffort | null, agent?: string | null, dangerously_skip_permissions?: boolean | null, disable_api_key?: boolean | null, base_command_override?: string | null, additional_params?: Array<string> | null, env?: { [key in string]?: string } | null, };
 
 export type Gemini = { append_prompt: AppendPrompt, model?: string | null, yolo?: boolean | null, base_command_override?: string | null, additional_params?: Array<string> | null, env?: { [key in string]?: string } | null, };
 

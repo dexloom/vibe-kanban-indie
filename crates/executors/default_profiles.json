@@ -10,7 +10,8 @@
     "CLAUDE_CODE_HEADED": {
       "DEFAULT": {
         "CLAUDE_CODE_HEADED": {
-          "dangerously_skip_permissions": true
+          "dangerously_skip_permissions": true,
+          "local_binary": true
         }
       }
     },

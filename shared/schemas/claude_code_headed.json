@@ -104,6 +104,14 @@
         "boolean",
         "null"
       ]
+    },
+    "local_binary": {
+      "title": "Use local Claude binary",
+      "description": "Spawn the locally-installed `claude` binary (kept up to date) instead of the pinned npx package",
+      "type": [
+        "boolean",
+        "null"
+      ]
     }
   },
   "type": "object"
