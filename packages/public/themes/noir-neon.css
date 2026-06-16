@@ -125,3 +125,18 @@ html[data-theme-variant="noir-neon"] .text-high {
     0 0 6px hsl(var(--brand) / 0.5),
     0 0 16px hsl(var(--brand) / 0.22);
 }
+
+/* ===== brand wordmark: KANBAN reversed into a filled orange box =====
+   Signature of the noir-neon lockup — "KANBAN" sits on the neon-orange
+   accent with dark text (not just orange-colored text), glow on the box
+   itself. The glyph text-shadow is cleared so the dark text stays crisp. */
+html[data-theme-variant="noir-neon"] [data-brand-word="kanban"] {
+  background-color: hsl(var(--brand));
+  color: hsl(var(--text-on-brand));
+  padding: 0.18em 0.4em;
+  border-radius: 4px;
+  box-shadow:
+    0 0 6px hsl(var(--brand) / 0.6),
+    0 0 16px hsl(var(--brand) / 0.28);
+  text-shadow: none;
+}

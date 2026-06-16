@@ -46,15 +46,22 @@ export function FeatherCaret({
 export function BrandWordmark({ className }: { className?: string }) {
   return (
     <span
+      data-brand-wordmark
       className={cn(
         'flex items-baseline gap-2.5 font-ibm-plex-mono select-none',
         className
       )}
     >
-      <span className="text-[21px] font-extrabold leading-none tracking-[0.14em] text-high">
+      <span
+        data-brand-word="vibe"
+        className="text-[21px] font-extrabold leading-none tracking-[0.14em] text-high"
+      >
         VIBE
       </span>
-      <span className="text-[21px] font-extrabold leading-none tracking-[0.14em] text-brand">
+      <span
+        data-brand-word="kanban"
+        className="text-[21px] font-extrabold leading-none tracking-[0.14em] text-brand"
+      >
         KANBAN
       </span>
       <span className="self-center rounded-[3px] border border-border px-1.5 py-0.5 text-[9px] font-semibold leading-none tracking-[0.3em] text-low">
