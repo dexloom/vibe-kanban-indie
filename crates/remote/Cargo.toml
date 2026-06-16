@@ -1,6 +1,6 @@
 [package]
 name = "remote"
-version = "0.2.8-beta.4"
+version = "0.2.8-beta.5"
 edition = "2024"
 publish = false
 
