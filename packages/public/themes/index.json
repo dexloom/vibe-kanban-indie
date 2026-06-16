@@ -15,6 +15,11 @@
       "id": "amber",
       "name": "Amber Terminal",
       "description": "Amber command-line aesthetic on deep navy, CRT texture."
+    },
+    {
+      "id": "noir-neon",
+      "name": "Noir Neon",
+      "description": "Near-black charcoal base with electric neon-orange accent and soft glow."
     }
   ]
 }
