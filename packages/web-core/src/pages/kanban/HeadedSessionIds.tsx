@@ -208,13 +208,13 @@ export function HeadedSessionIds({
               text="cd"
               copyValue={`cd ${folderPath}`}
               title={`Copy: cd ${folderPath}`}
-              className="text-[11px] text-low/70 shrink-0"
+              className="text-[11px] text-normal shrink-0"
             />
             <CopyText
               text={folderName}
               copyValue={folderPath}
               title={folderPath}
-              className="text-[11px] text-normal truncate flex-1 min-w-0"
+              className="text-[11px] text-low truncate flex-1 min-w-0"
             />
             <IconButton
               glyph=">_"
