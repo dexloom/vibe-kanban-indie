@@ -237,15 +237,27 @@ async fn open_claude_resume_process(
     Ok(ResponseJson(ApiResponse::success(())))
 }
 
-/// Open a terminal in the execution's owning workspace directory AND reveal that
-/// folder in the OS file manager (Finder / xdg-open), in one call.
-async fn open_workspace_process(
+/// Open a terminal in the execution's owning workspace directory.
+async fn open_workspace_terminal_process(
     Extension(execution_process): Extension<ExecutionProcess>,
     State(deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
     deployment
         .container()
-        .open_workspace_terminal_and_reveal(&execution_process)
+        .open_workspace_terminal_for_process(&execution_process)
+        .await?;
+    Ok(ResponseJson(ApiResponse::success(())))
+}
+
+/// Reveal the execution's owning workspace directory in the OS file manager
+/// (Finder / xdg-open).
+async fn reveal_workspace_process(
+    Extension(execution_process): Extension<ExecutionProcess>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
+    deployment
+        .container()
+        .reveal_workspace_for_process(&execution_process)
         .await?;
     Ok(ResponseJson(ApiResponse::success(())))
 }
@@ -378,7 +390,11 @@ pub(super) fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .route("/stop", post(stop_execution_process))
         .route("/open-terminal", post(open_terminal_process))
         .route("/open-claude-resume", post(open_claude_resume_process))
-        .route("/open-workspace", post(open_workspace_process))
+        .route(
+            "/open-workspace-terminal",
+            post(open_workspace_terminal_process),
+        )
+        .route("/reveal-workspace", post(reveal_workspace_process))
         .route("/send-input", post(send_input_process))
         .route("/repo-states", get(get_execution_process_repo_states))
         .route("/agent-progress", get(get_agent_progress))

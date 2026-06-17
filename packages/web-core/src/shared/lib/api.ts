@@ -918,11 +918,22 @@ export const executionProcessesApi = {
     return handleApiResponse<void>(response);
   },
 
-  // Open a terminal in the execution's owning workspace directory AND reveal
-  // that folder in the OS file manager (Finder / xdg-open), in one call.
-  openWorkspaceAndReveal: async (processId: string): Promise<void> => {
+  // Open a terminal in the execution's owning workspace directory.
+  openWorkspaceTerminal: async (processId: string): Promise<void> => {
     const response = await makeRequest(
-      `/api/execution-processes/${processId}/open-workspace`,
+      `/api/execution-processes/${processId}/open-workspace-terminal`,
+      {
+        method: 'POST',
+      }
+    );
+    return handleApiResponse<void>(response);
+  },
+
+  // Reveal the execution's owning workspace directory in the OS file manager
+  // (Finder / xdg-open).
+  revealWorkspace: async (processId: string): Promise<void> => {
+    const response = await makeRequest(
+      `/api/execution-processes/${processId}/reveal-workspace`,
       {
         method: 'POST',
       }

@@ -2678,34 +2678,21 @@ impl ContainerService for LocalContainerService {
             })
     }
 
-    async fn open_workspace_terminal_and_reveal(
+    async fn open_workspace_terminal_for_process(
+        &self,
+        execution_process: &ExecutionProcess,
+    ) -> Result<(), ContainerError> {
+        let workspace = self.workspace_for_process(execution_process).await?;
+        self.open_workspace_terminal(&workspace).await
+    }
+
+    async fn reveal_workspace_for_process(
         &self,
         execution_process: &ExecutionProcess,
     ) -> Result<(), ContainerError> {
         let workspace = self.workspace_for_process(execution_process).await?;
         let working_dir = self.workspace_working_dir(&workspace).await?;
-
-        // Fire both actions independently: a failure of one must not abort the
-        // other. Only if BOTH fail do we surface an error (preferring the
-        // terminal error, since that's the primary action).
-        let terminal_kind = self.config.read().await.terminal;
-        let title = workspace
-            .name
-            .clone()
-            .unwrap_or_else(|| workspace.branch.clone());
-        let terminal_res = terminal::open_shell_window(terminal_kind, &working_dir, &title)
-            .await
-            .map_err(|e| match e {
-                terminal::TerminalError::TerminalUnavailable { attach_cmd, .. } => {
-                    ContainerError::TerminalUnavailable(attach_cmd)
-                }
-                other => ContainerError::Other(anyhow!(other)),
-            });
-        if let Err(e) = &terminal_res {
-            tracing::warn!("open-workspace: terminal open failed: {e}");
-        }
-
-        let reveal_res = terminal::reveal_in_file_manager(&working_dir)
+        terminal::reveal_in_file_manager(&working_dir)
             .await
             .map_err(|e| match e {
                 e @ (terminal::TerminalError::RevealUnavailable { .. }
@@ -2713,15 +2700,7 @@ impl ContainerService for LocalContainerService {
                     ContainerError::TerminalUnavailable(e.to_string())
                 }
                 other => ContainerError::Other(anyhow!(other)),
-            });
-        if let Err(e) = &reveal_res {
-            tracing::warn!("open-workspace: reveal in file manager failed: {e}");
-        }
-
-        match (terminal_res, reveal_res) {
-            (Ok(()), _) | (_, Ok(())) => Ok(()),
-            (Err(terminal_err), Err(_)) => Err(terminal_err),
-        }
+            })
     }
 
     async fn send_interactive_input(

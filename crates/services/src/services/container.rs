@@ -870,13 +870,23 @@ pub trait ContainerService {
         Err(ContainerError::NotInteractive)
     }
 
-    /// For the execution's owning workspace: open a terminal in the workspace
-    /// working directory AND reveal that directory in the OS file manager
-    /// (Finder / xdg-open), from a single call. The two actions run independently
-    /// — a failure of one does not abort the other; only a failure of BOTH is
-    /// surfaced as an error. The workspace is resolved server-side from the
-    /// process. Default: unsupported. Overridden by local backends.
-    async fn open_workspace_terminal_and_reveal(
+    /// Open a terminal in the working directory of the execution's owning
+    /// workspace (workspace resolved server-side from the process). Equivalent to
+    /// [`Self::open_workspace_terminal`] but addressed by execution process so the
+    /// headed Session pane — which holds only a process id — can trigger it.
+    /// Default: unsupported. Overridden by local backends.
+    async fn open_workspace_terminal_for_process(
+        &self,
+        _execution_process: &ExecutionProcess,
+    ) -> Result<(), ContainerError> {
+        Err(ContainerError::NotInteractive)
+    }
+
+    /// Reveal the working directory of the execution's owning workspace in the OS
+    /// file manager (macOS Finder via `open`, Linux via `xdg-open`). The workspace
+    /// is resolved server-side from the process. Default: unsupported. Overridden
+    /// by local backends.
+    async fn reveal_workspace_for_process(
         &self,
         _execution_process: &ExecutionProcess,
     ) -> Result<(), ContainerError> {

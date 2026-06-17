@@ -211,8 +211,8 @@ export const RightSidebar = memo(function RightSidebar({
 
   return (
     <div className="h-full border-l bg-secondary overflow-y-auto">
-      {/* Headed (interactive tmux) session ids; renders null for non-headed sessions */}
-      <HeadedSessionIds />
+      {/* Headed (interactive tmux) session pane; renders null for non-headed sessions */}
+      <HeadedSessionIds workspace={selectedWorkspace} />
       <div className="divide-y border-b">
         {sections
           .filter((section) => section.visible)
