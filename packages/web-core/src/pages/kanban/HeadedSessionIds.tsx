@@ -203,20 +203,19 @@ export function HeadedSessionIds({
         <div className="flex flex-col">
           {/* Workspace folder row */}
           <div className="flex items-center gap-2 pl-2.5 pr-2 py-[7px] border rounded-md bg-panel">
-            <span className="text-brand text-[13px]">▣</span>
-            <span
-              className="text-[11px] text-normal truncate flex-1"
-              title={folderPath}
-            >
-              {folderName}
-            </span>
+            <span className="text-brand text-[13px] shrink-0">▣</span>
             <CopyText
-              text="⧉"
-              copyValue={folderPath}
-              title="Copy path"
-              className="text-low text-xs px-1"
+              text="cd"
+              copyValue={`cd ${folderPath}`}
+              title={`Copy: cd ${folderPath}`}
+              className="text-[11px] text-low/70 shrink-0"
             />
-            <span className="w-px h-4 bg-border" />
+            <CopyText
+              text={folderName}
+              copyValue={folderPath}
+              title={folderPath}
+              className="text-[11px] text-normal truncate flex-1 min-w-0"
+            />
             <IconButton
               glyph=">_"
               title="Open a terminal in the workspace folder"
