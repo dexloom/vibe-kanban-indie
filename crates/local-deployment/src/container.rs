@@ -1298,6 +1298,115 @@ impl LocalContainerService {
             .ok_or(ContainerError::NotInteractive)
     }
 
+    /// Resolve the workspace owning an execution process: process → session →
+    /// workspace. `None` at either lookup is surfaced as a clean error (never an
+    /// unwrap) so a stale process id can't panic the handler.
+    async fn workspace_for_process(
+        &self,
+        execution_process: &ExecutionProcess,
+    ) -> Result<Workspace, ContainerError> {
+        let session = Session::find_by_id(&self.db.pool, execution_process.session_id)
+            .await?
+            .ok_or_else(|| {
+                ContainerError::Other(anyhow!("Session not found for execution process"))
+            })?;
+        Workspace::find_by_id(&self.db.pool, session.workspace_id)
+            .await?
+            .ok_or_else(|| ContainerError::Other(anyhow!("Workspace not found for session")))
+    }
+
+    /// The directory a workspace-rooted terminal/file-manager action opens in:
+    /// the worktree root, or — when the workspace has exactly one repo — that
+    /// repo's subdirectory (mirrors the web terminal). Errors if the workspace
+    /// has no working directory or it does not exist on disk.
+    async fn workspace_working_dir(
+        &self,
+        workspace: &Workspace,
+    ) -> Result<PathBuf, ContainerError> {
+        let container_ref = workspace
+            .container_ref
+            .clone()
+            .ok_or_else(|| ContainerError::Other(anyhow!("Workspace has no working directory")))?;
+        let base_dir = PathBuf::from(&container_ref);
+        if !base_dir.exists() {
+            return Err(ContainerError::Other(anyhow!(
+                "Workspace directory does not exist"
+            )));
+        }
+        let mut working_dir = base_dir.clone();
+        if let Ok(repos) =
+            WorkspaceRepo::find_repos_for_workspace(&self.db.pool, workspace.id).await
+            && repos.len() == 1
+        {
+            let repo_dir = base_dir.join(&repos[0].name);
+            if repo_dir.exists() {
+                working_dir = repo_dir;
+            }
+        }
+        Ok(working_dir)
+    }
+
+    /// Resolve the `ClaudeCode` config for an interactive (headed) execution's
+    /// action, mirroring `start_detached_tmux`'s resolution: profile id +
+    /// overrides → cached coding agent → the inner `ClaudeCode` (swapping in the
+    /// local `claude` binary for a headed agent under the same default-on rule as
+    /// launch). Used to rebuild a `claude --resume` command for the session.
+    /// Telegram-channel / approval-hook wiring is intentionally NOT applied — a
+    /// manual resume seeds no prompt and installs no hooks.
+    fn resolve_claude_config(
+        executor_action: &ExecutorAction,
+    ) -> Result<executors::executors::claude::ClaudeCode, ContainerError> {
+        use executors::{executors::CodingAgent, profile::ExecutorConfigs};
+
+        let (profile_id, has_overrides, executor_config) = match executor_action.typ() {
+            ExecutorActionType::CodingAgentInitialRequest(req) => (
+                req.executor_config.profile_id(),
+                req.executor_config.has_overrides(),
+                req.executor_config.clone(),
+            ),
+            ExecutorActionType::CodingAgentFollowUpRequest(req) => (
+                req.executor_config.profile_id(),
+                req.executor_config.has_overrides(),
+                req.executor_config.clone(),
+            ),
+            _ => {
+                return Err(ContainerError::Other(anyhow!(
+                    "Interactive mode requires a coding-agent action"
+                )));
+            }
+        };
+
+        let mut agent = ExecutorConfigs::get_cached()
+            .get_coding_agent(&profile_id)
+            .ok_or_else(|| {
+                ContainerError::Other(anyhow!(
+                    "Unknown executor profile for interactive mode: {profile_id}"
+                ))
+            })?;
+        if has_overrides {
+            agent.apply_overrides(&executor_config);
+        }
+        match agent {
+            CodingAgent::ClaudeCode(cc) => Ok(cc),
+            CodingAgent::ClaudeCodeHeaded(cch) => {
+                let use_local_binary = cch.local_binary_enabled();
+                let mut inner = cch.inner;
+                if use_local_binary
+                    && inner.cmd.base_command_override.is_none()
+                    && !inner.claude_code_router.unwrap_or(false)
+                {
+                    inner.cmd.base_command_override =
+                        Some(executors::executors::claude::LOCAL_CLAUDE_BINARY.to_string());
+                }
+                Ok(inner)
+            }
+            other => Err(ContainerError::Other(anyhow!(
+                "Interactive terminal mode currently supports Claude Code only (got {:?})",
+                other
+            ))),
+        }
+    }
+
     async fn start_detached_tmux(
         &self,
         execution_process: &ExecutionProcess,
@@ -2452,29 +2561,7 @@ impl ContainerService for LocalContainerService {
     }
 
     async fn open_workspace_terminal(&self, workspace: &Workspace) -> Result<(), ContainerError> {
-        let container_ref = workspace
-            .container_ref
-            .clone()
-            .ok_or_else(|| ContainerError::Other(anyhow!("Workspace has no working directory")))?;
-        let base_dir = PathBuf::from(&container_ref);
-        if !base_dir.exists() {
-            return Err(ContainerError::Other(anyhow!(
-                "Workspace directory does not exist"
-            )));
-        }
-
-        // Mirror the web terminal: when the workspace has exactly one repo, root
-        // the shell in that repo's subdirectory rather than the bare worktree.
-        let mut working_dir = base_dir.clone();
-        if let Ok(repos) =
-            WorkspaceRepo::find_repos_for_workspace(&self.db.pool, workspace.id).await
-            && repos.len() == 1
-        {
-            let repo_dir = base_dir.join(&repos[0].name);
-            if repo_dir.exists() {
-                working_dir = repo_dir;
-            }
-        }
+        let working_dir = self.workspace_working_dir(workspace).await?;
 
         // Spawn a fresh terminal window every press (no singleton, no tmux
         // reuse): each click pops open a new emulator window with a shell in the
@@ -2492,6 +2579,149 @@ impl ContainerService for LocalContainerService {
                 }
                 other => ContainerError::Other(anyhow!(other)),
             })
+    }
+
+    async fn open_claude_resume_terminal(
+        &self,
+        execution_process: &ExecutionProcess,
+    ) -> Result<(), ContainerError> {
+        let cfg = Self::interactive_config_of(execution_process)?;
+        let executor_action = execution_process
+            .executor_action()
+            .map_err(|e| ContainerError::Other(anyhow!(e)))?;
+        let claude = Self::resolve_claude_config(executor_action)?;
+        let workspace = self.workspace_for_process(execution_process).await?;
+
+        // Resume in the SAME effective directory the headed launch used: the
+        // worktree root, joined with the action's optional working_dir subpath.
+        let current_dir =
+            PathBuf::from(workspace.container_ref.clone().ok_or_else(|| {
+                ContainerError::Other(anyhow!("Workspace has no working directory"))
+            })?);
+        if !current_dir.exists() {
+            return Err(ContainerError::Other(anyhow!(
+                "Workspace directory does not exist"
+            )));
+        }
+        let effective_dir = match executor_action.typ() {
+            ExecutorActionType::CodingAgentInitialRequest(req) => req.effective_dir(&current_dir),
+            ExecutorActionType::CodingAgentFollowUpRequest(req) => req.effective_dir(&current_dir),
+            _ => current_dir.clone(),
+        };
+
+        // Build a clean `claude --resume <uuid>` argv (no positional prompt).
+        let session_uuid = cfg.session_uuid.to_string();
+        let command = claude
+            .build_interactive_resume_command(&session_uuid)
+            .map_err(|e| {
+                ContainerError::Other(anyhow!("Failed to build claude resume command: {e}"))
+            })?;
+        let (program, args) = command
+            .into_resolved()
+            .await
+            .map_err(ContainerError::ExecutorError)?;
+        let mut argv = vec![program.to_string_lossy().into_owned()];
+        argv.extend(args);
+
+        // Replicate the headed launch env so a configured Claude install / auth
+        // keeps working: profile env + NPM_CONFIG_LOGLEVEL, and unset
+        // ANTHROPIC_API_KEY when the profile disables it.
+        let repos = WorkspaceRepo::find_repos_for_workspace(&self.db.pool, workspace.id).await?;
+        let repo_names: Vec<String> = repos.iter().map(|r| r.name.clone()).collect();
+        let repo_context = RepoContext::new(current_dir.clone(), repo_names);
+        let mut env = ExecutionEnv::new(repo_context, false, String::new());
+        env.insert("VK_WORKSPACE_ID", workspace.id.to_string());
+        env.insert("VK_WORKSPACE_BRANCH", &workspace.branch);
+        let env = env.with_profile(&claude.cmd);
+        let mut env_map = env.vars.clone();
+        env_map.insert("NPM_CONFIG_LOGLEVEL".to_string(), "error".to_string());
+        let env_remove: Vec<String> = if claude.disable_api_key.unwrap_or(false) {
+            vec!["ANTHROPIC_API_KEY".to_string()]
+        } else {
+            vec![]
+        };
+
+        // A distinct session name so the resume session never collides with the
+        // live `vk-<process_id>` session nor interferes with the running agent.
+        let resume_session = format!("vk-resume-{}", Uuid::new_v4());
+        terminal::tmux_new_session(
+            &resume_session,
+            &effective_dir,
+            &argv,
+            &env_map,
+            &env_remove,
+        )
+        .await
+        .map_err(|e| ContainerError::Other(anyhow!(e)))?;
+
+        tracing::info!(
+            "claude resume session started: tmux={resume_session} claude={session_uuid} \
+             attach=`{}`",
+            terminal::attach_command(&resume_session)
+        );
+
+        let iterm_tabs = self.config.read().await.iterm_tabs;
+        let title = format!(
+            "resume {}",
+            workspace
+                .name
+                .clone()
+                .unwrap_or_else(|| workspace.branch.clone())
+        );
+        terminal::open_in_terminal(cfg.terminal, &resume_session, &title, iterm_tabs)
+            .await
+            .map_err(|e| match e {
+                terminal::TerminalError::TerminalUnavailable { attach_cmd, .. } => {
+                    ContainerError::TerminalUnavailable(attach_cmd)
+                }
+                other => ContainerError::Other(anyhow!(other)),
+            })
+    }
+
+    async fn open_workspace_terminal_and_reveal(
+        &self,
+        execution_process: &ExecutionProcess,
+    ) -> Result<(), ContainerError> {
+        let workspace = self.workspace_for_process(execution_process).await?;
+        let working_dir = self.workspace_working_dir(&workspace).await?;
+
+        // Fire both actions independently: a failure of one must not abort the
+        // other. Only if BOTH fail do we surface an error (preferring the
+        // terminal error, since that's the primary action).
+        let terminal_kind = self.config.read().await.terminal;
+        let title = workspace
+            .name
+            .clone()
+            .unwrap_or_else(|| workspace.branch.clone());
+        let terminal_res = terminal::open_shell_window(terminal_kind, &working_dir, &title)
+            .await
+            .map_err(|e| match e {
+                terminal::TerminalError::TerminalUnavailable { attach_cmd, .. } => {
+                    ContainerError::TerminalUnavailable(attach_cmd)
+                }
+                other => ContainerError::Other(anyhow!(other)),
+            });
+        if let Err(e) = &terminal_res {
+            tracing::warn!("open-workspace: terminal open failed: {e}");
+        }
+
+        let reveal_res = terminal::reveal_in_file_manager(&working_dir)
+            .await
+            .map_err(|e| match e {
+                e @ (terminal::TerminalError::RevealUnavailable { .. }
+                | terminal::TerminalError::RevealUnsupported { .. }) => {
+                    ContainerError::TerminalUnavailable(e.to_string())
+                }
+                other => ContainerError::Other(anyhow!(other)),
+            });
+        if let Err(e) = &reveal_res {
+            tracing::warn!("open-workspace: reveal in file manager failed: {e}");
+        }
+
+        match (terminal_res, reveal_res) {
+            (Ok(()), _) | (_, Ok(())) => Ok(()),
+            (Err(terminal_err), Err(_)) => Err(terminal_err),
+        }
     }
 
     async fn send_interactive_input(

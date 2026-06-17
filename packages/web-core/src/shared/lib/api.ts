@@ -906,6 +906,30 @@ export const executionProcessesApi = {
     return handleApiResponse<void>(response);
   },
 
+  // Open a NEW detached tmux session running `claude --resume <session_uuid>`
+  // for this headed execution and attach a terminal to it.
+  openClaudeResume: async (processId: string): Promise<void> => {
+    const response = await makeRequest(
+      `/api/execution-processes/${processId}/open-claude-resume`,
+      {
+        method: 'POST',
+      }
+    );
+    return handleApiResponse<void>(response);
+  },
+
+  // Open a terminal in the execution's owning workspace directory AND reveal
+  // that folder in the OS file manager (Finder / xdg-open), in one call.
+  openWorkspaceAndReveal: async (processId: string): Promise<void> => {
+    const response = await makeRequest(
+      `/api/execution-processes/${processId}/open-workspace`,
+      {
+        method: 'POST',
+      }
+    );
+    return handleApiResponse<void>(response);
+  },
+
   // Type a line of input into an interactive (headed) execution's tmux session
   // (e.g. answer a question or approve a prompt) and submit it.
   sendInput: async (processId: string, text: string): Promise<void> => {

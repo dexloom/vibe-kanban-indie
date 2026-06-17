@@ -223,6 +223,33 @@ async fn open_terminal_process(
     Ok(ResponseJson(ApiResponse::success(())))
 }
 
+/// Open a NEW detached tmux session running `claude --resume <session_uuid>` for
+/// this headed execution and attach a terminal to it (distinct from the live
+/// `vk-<id>` session).
+async fn open_claude_resume_process(
+    Extension(execution_process): Extension<ExecutionProcess>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
+    deployment
+        .container()
+        .open_claude_resume_terminal(&execution_process)
+        .await?;
+    Ok(ResponseJson(ApiResponse::success(())))
+}
+
+/// Open a terminal in the execution's owning workspace directory AND reveal that
+/// folder in the OS file manager (Finder / xdg-open), in one call.
+async fn open_workspace_process(
+    Extension(execution_process): Extension<ExecutionProcess>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
+    deployment
+        .container()
+        .open_workspace_terminal_and_reveal(&execution_process)
+        .await?;
+    Ok(ResponseJson(ApiResponse::success(())))
+}
+
 #[derive(Debug, Deserialize)]
 struct SendInputBody {
     text: String,
@@ -350,6 +377,8 @@ pub(super) fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .route("/", get(get_execution_process_by_id))
         .route("/stop", post(stop_execution_process))
         .route("/open-terminal", post(open_terminal_process))
+        .route("/open-claude-resume", post(open_claude_resume_process))
+        .route("/open-workspace", post(open_workspace_process))
         .route("/send-input", post(send_input_process))
         .route("/repo-states", get(get_execution_process_repo_states))
         .route("/agent-progress", get(get_agent_progress))

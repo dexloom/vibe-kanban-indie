@@ -856,6 +856,33 @@ pub trait ContainerService {
         Err(ContainerError::NotInteractive)
     }
 
+    /// Open a NEW detached tmux session running `claude --resume <session_uuid>`
+    /// (resuming the headed execution's existing Claude session) in the
+    /// execution's working directory, then attach a terminal emulator to it. This
+    /// is distinct from [`Self::open_interactive_terminal`]: it spawns a separate
+    /// resume session the operator can drive by hand rather than attaching to the
+    /// live `vk-<exec_id>` session. The owning workspace is resolved server-side
+    /// from the process. Default: unsupported. Overridden by local backends.
+    async fn open_claude_resume_terminal(
+        &self,
+        _execution_process: &ExecutionProcess,
+    ) -> Result<(), ContainerError> {
+        Err(ContainerError::NotInteractive)
+    }
+
+    /// For the execution's owning workspace: open a terminal in the workspace
+    /// working directory AND reveal that directory in the OS file manager
+    /// (Finder / xdg-open), from a single call. The two actions run independently
+    /// — a failure of one does not abort the other; only a failure of BOTH is
+    /// surfaced as an error. The workspace is resolved server-side from the
+    /// process. Default: unsupported. Overridden by local backends.
+    async fn open_workspace_terminal_and_reveal(
+        &self,
+        _execution_process: &ExecutionProcess,
+    ) -> Result<(), ContainerError> {
+        Err(ContainerError::NotInteractive)
+    }
+
     /// Type a line of input into an interactive (headed) execution's tmux
     /// session (e.g. answer a question or approve a prompt) and submit it.
     /// Default: unsupported. Overridden by interactive backends.

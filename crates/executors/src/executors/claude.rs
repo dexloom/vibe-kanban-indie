@@ -227,6 +227,33 @@ impl ClaudeCode {
         prompt: &str,
         resume: bool,
     ) -> Result<CommandParts, CommandBuildError> {
+        let builder = self.interactive_builder(session_uuid, resume)?;
+        // The prompt must be the final positional argument.
+        builder.build_follow_up(&[prompt.to_string()])
+    }
+
+    /// Build a standalone `claude --resume <uuid>` invocation with NO positional
+    /// prompt — used to re-open an existing headed session in a fresh terminal so
+    /// the operator can drive it manually. Shares the same interactive flags as
+    /// [`Self::build_interactive_command`] but ends with `build_initial()` so no
+    /// trailing (empty) positional is emitted — an empty positional would be read
+    /// by Claude as a one-shot print query rather than an interactive resume.
+    pub fn build_interactive_resume_command(
+        &self,
+        session_uuid: &str,
+    ) -> Result<CommandParts, CommandBuildError> {
+        let builder = self.interactive_builder(session_uuid, true)?;
+        builder.build_initial()
+    }
+
+    /// Shared flag construction for the interactive (headed) Claude commands:
+    /// permission mode, model/effort/agent, the session-id/resume binding, and
+    /// the user's `cmd` overrides. Callers append (or omit) the positional prompt.
+    fn interactive_builder(
+        &self,
+        session_uuid: &str,
+        resume: bool,
+    ) -> Result<CommandBuilder, CommandBuildError> {
         let mut builder =
             CommandBuilder::new(base_command(self.claude_code_router.unwrap_or(false)));
 
@@ -252,9 +279,7 @@ impl ClaudeCode {
             builder = builder.extend_params(["--session-id", session_uuid]);
         }
 
-        let builder = apply_overrides(builder, &self.cmd)?;
-        // The prompt must be the final positional argument.
-        builder.build_follow_up(&[prompt.to_string()])
+        apply_overrides(builder, &self.cmd)
     }
 
     pub fn permission_mode(&self) -> PermissionMode {
@@ -3561,6 +3586,46 @@ mod tests {
             patch_count > 0,
             "Expected JsonPatch messages to be generated from streaming processing"
         );
+    }
+
+    #[test]
+    fn interactive_resume_command_has_resume_flag_and_no_empty_positional() {
+        let claude = ClaudeCode {
+            append_prompt: AppendPrompt::default(),
+            claude_code_router: Some(false),
+            plan: None,
+            approvals: None,
+            model: None,
+            effort: None,
+            agent: None,
+            dangerously_skip_permissions: None,
+            disable_api_key: None,
+            cmd: crate::command::CmdOverrides {
+                base_command_override: None,
+                additional_params: None,
+                env: None,
+            },
+            approvals_service: None,
+        };
+        let uuid = "11111111-1111-1111-1111-111111111111";
+
+        // The resume command binds the session via --resume and carries NO
+        // trailing positional (an empty positional would be read by Claude as a
+        // one-shot print query instead of an interactive resume).
+        let resume = claude.build_interactive_resume_command(uuid).unwrap();
+        let resume_dbg = format!("{resume:?}");
+        assert!(resume_dbg.contains("--resume"));
+        assert!(resume_dbg.contains(uuid));
+        assert!(
+            !resume_dbg.contains("\"\""),
+            "resume command must not contain an empty positional arg: {resume_dbg}"
+        );
+
+        // Contrast: build_interactive_command with an empty prompt DOES leave a
+        // trailing empty positional — which is exactly why the resume variant
+        // exists.
+        let seeded = claude.build_interactive_command(uuid, "", true).unwrap();
+        assert!(format!("{seeded:?}").contains("\"\""));
     }
 
     #[test]

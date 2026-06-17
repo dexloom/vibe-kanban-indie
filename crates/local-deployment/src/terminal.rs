@@ -43,6 +43,16 @@ pub enum TerminalError {
     },
     #[error("failed to escape tmux command: {0}")]
     Quote(String),
+    #[error(
+        "no file-manager opener is available on this platform; reveal the folder \
+         manually: {path}"
+    )]
+    RevealUnsupported { path: String },
+    #[error(
+        "file-manager opener '{program}' is not available; reveal the folder \
+         manually: {path}"
+    )]
+    RevealUnavailable { program: String, path: String },
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
@@ -384,6 +394,52 @@ pub async fn open_shell_window(
     }
 }
 
+/// The platform command that opens a directory in the OS file manager, or
+/// `None` on a platform we don't support. macOS uses `open` (reveals the folder
+/// in Finder); Linux uses `xdg-open` (hands off to the user's file manager).
+/// Factored out as a pure helper so it can be unit-tested without shelling out.
+pub fn reveal_program() -> Option<&'static str> {
+    #[cfg(target_os = "macos")]
+    {
+        Some("open")
+    }
+    #[cfg(target_os = "linux")]
+    {
+        Some("xdg-open")
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        None
+    }
+}
+
+/// Open `path` in the OS file manager (macOS Finder via `open`, Linux via
+/// `xdg-open`). Best-effort: returns a clean error (never panics) if no opener
+/// exists for the platform, the opener binary is missing, or it exits non-zero.
+pub async fn reveal_in_file_manager(path: &Path) -> Result<(), TerminalError> {
+    let path_str = path.to_string_lossy().into_owned();
+    let Some(program) = reveal_program() else {
+        return Err(TerminalError::RevealUnsupported { path: path_str });
+    };
+    match Command::new(program).arg(path).output().await {
+        Ok(out) if out.status.success() => Ok(()),
+        Ok(out) => Err(TerminalError::RevealUnavailable {
+            program: format!(
+                "{program} ({})",
+                String::from_utf8_lossy(&out.stderr).trim()
+            ),
+            path: path_str,
+        }),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            Err(TerminalError::RevealUnavailable {
+                program: program.to_string(),
+                path: path_str,
+            })
+        }
+        Err(e) => Err(TerminalError::Io(e)),
+    }
+}
+
 /// The `cd <dir>` command typed into a freshly opened shell, shell-quoted so a
 /// path with spaces or metacharacters stays a single argument. Also used as the
 /// fallback hint surfaced when the emulator itself is unavailable.
@@ -643,6 +699,17 @@ mod tests {
     #[test]
     fn attach_command_format() {
         assert_eq!(attach_command("vk-x"), "tmux attach -t vk-x");
+    }
+
+    #[test]
+    fn reveal_program_is_platform_appropriate() {
+        let program = reveal_program();
+        #[cfg(target_os = "macos")]
+        assert_eq!(program, Some("open"));
+        #[cfg(target_os = "linux")]
+        assert_eq!(program, Some("xdg-open"));
+        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+        assert_eq!(program, None);
     }
 
     #[test]

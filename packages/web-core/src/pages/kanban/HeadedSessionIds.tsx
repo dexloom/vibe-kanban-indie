@@ -1,7 +1,16 @@
 import { useCallback, useMemo, useState } from 'react';
-import { CheckIcon, CopyIcon } from '@phosphor-icons/react';
+import {
+  ArrowsClockwiseIcon,
+  CheckIcon,
+  CopyIcon,
+  FolderIcon,
+  SpinnerIcon,
+  TerminalWindowIcon,
+  WarningCircleIcon,
+} from '@phosphor-icons/react';
 import { useExecutionProcessesContext } from '@/shared/hooks/useExecutionProcessesContext';
 import { getInteractiveConfig } from '@/shared/lib/interactive';
+import { executionProcessesApi } from '@/shared/lib/api';
 import { writeClipboardViaBridge } from '@/shared/lib/clipboard';
 import { cn } from '@/shared/lib/utils';
 
@@ -46,40 +55,84 @@ function CopyTarget({
   );
 }
 
+type RowStatus = 'idle' | 'busy' | 'success' | 'error';
+
 /**
- * A click-to-copy chip with two independent targets: clicking the `label`
- * copies the `command` (e.g. the full attach/resume command), while clicking
- * the displayed `value` copies just the bare id.
+ * A Session-pane action row: an icon + label + optional monospace value whose
+ * primary click runs an async backend action, with a transient in-flight /
+ * success / error indicator. An optional `secondary` slot (e.g. a copy button)
+ * sits at the end of the row.
  */
-function CopyChip({
+function SessionActionRow({
+  icon,
   label,
   value,
-  command,
-  labelTitle,
-  valueTitle,
+  title,
+  onAction,
+  secondary,
 }: {
+  icon: React.ReactNode;
   label: string;
-  value: string;
-  command: string;
-  labelTitle: string;
-  valueTitle: string;
+  value?: string;
+  title: string;
+  onAction: () => Promise<void>;
+  secondary?: React.ReactNode;
 }) {
+  const [status, setStatus] = useState<RowStatus>('idle');
+  const run = useCallback(async () => {
+    setStatus((prev) => {
+      if (prev === 'busy') return prev;
+      return 'busy';
+    });
+    try {
+      await onAction();
+      setStatus('success');
+      setTimeout(() => setStatus('idle'), 1500);
+    } catch (err) {
+      console.error(`Session pane: ${label} action failed`, err);
+      setStatus('error');
+      setTimeout(() => setStatus('idle'), 2500);
+    }
+  }, [onAction, label]);
+
   return (
-    <span className="inline-flex items-center min-w-0">
-      <CopyTarget copyValue={command} title={labelTitle} className="shrink-0">
-        <span className="text-low/70">{label}</span>
-      </CopyTarget>
-      <CopyTarget copyValue={value} title={valueTitle} className="min-w-0">
-        <span className="truncate">{value}</span>
-      </CopyTarget>
-    </span>
+    <div className="flex items-center min-w-0">
+      <button
+        type="button"
+        onClick={run}
+        disabled={status === 'busy'}
+        title={title}
+        className="group flex flex-1 items-center gap-1.5 min-w-0 rounded-sm px-1 py-0.5 text-low hover:text-normal hover:bg-panel transition-colors disabled:opacity-60"
+      >
+        <span className="shrink-0 text-low/70">{icon}</span>
+        <span className="text-low/70 shrink-0">{label}</span>
+        {value && <span className="truncate">{value}</span>}
+        <span className="ml-auto shrink-0 inline-flex size-icon-sm justify-center items-center">
+          {status === 'busy' && (
+            <SpinnerIcon className="size-icon-sm animate-spin" weight="bold" />
+          )}
+          {status === 'success' && (
+            <CheckIcon className="size-icon-sm" weight="bold" />
+          )}
+          {status === 'error' && (
+            <WarningCircleIcon className="size-icon-sm" weight="bold" />
+          )}
+        </span>
+      </button>
+      {secondary}
+    </div>
   );
 }
 
 /**
- * Surfaces the tmux + Claude Code session identifiers for a headed (interactive
- * tmux) coding-agent execution, rendered as a thin row under the panel header.
- * Clicking a chip copies that identifier. Renders nothing for non-headed sessions.
+ * The Session pane for a headed (interactive tmux) coding-agent execution.
+ * Renders three action rows in the right sidebar:
+ *  - **tmux** — open a new terminal tab attached to the live `vk-<id>` session.
+ *  - **claude** — open a NEW tmux session running `claude --resume <uuid>`.
+ *  - **workspace** — open a terminal in the workspace dir AND reveal it in the
+ *    OS file manager (Finder / xdg-open).
+ * Each row's id is also copy-on-click (where applicable). Renders nothing when
+ * there is no live headed session.
  */
 export function HeadedSessionIds() {
   const { executionProcessesAll } = useExecutionProcessesContext();
@@ -99,6 +152,7 @@ export function HeadedSessionIds() {
     const config = getInteractiveConfig(process);
     if (!config) return null;
     return {
+      processId: process.id,
       tmuxSession: `vk-${process.id}`,
       sessionUuid: config.session_uuid,
     };
@@ -106,21 +160,47 @@ export function HeadedSessionIds() {
 
   if (!headed) return null;
 
+  const { processId, tmuxSession, sessionUuid } = headed;
+
   return (
-    <div className="flex items-center gap-2 px-base py-half border-b shrink-0 font-mono text-xs min-w-0">
-      <CopyChip
+    <div className="flex flex-col gap-0.5 px-base py-half border-b shrink-0 font-mono text-xs min-w-0">
+      <SessionActionRow
+        icon={<TerminalWindowIcon className="size-icon-sm" weight="regular" />}
         label="tmux"
-        value={headed.tmuxSession}
-        command={`tmux attach -t ${headed.tmuxSession}`}
-        labelTitle={`Copy attach command: tmux attach -t ${headed.tmuxSession}`}
-        valueTitle={`Copy tmux session id ${headed.tmuxSession}`}
+        value={tmuxSession}
+        title={`Open a terminal tab attached to ${tmuxSession}`}
+        onAction={() => executionProcessesApi.openTerminal(processId)}
+        secondary={
+          <CopyTarget
+            copyValue={`tmux attach -t ${tmuxSession}`}
+            title={`Copy attach command: tmux attach -t ${tmuxSession}`}
+            className="shrink-0"
+          >
+            <span className="sr-only">Copy attach command</span>
+          </CopyTarget>
+        }
       />
-      <CopyChip
+      <SessionActionRow
+        icon={<ArrowsClockwiseIcon className="size-icon-sm" weight="regular" />}
         label="claude"
-        value={headed.sessionUuid}
-        command={`claude --resume ${headed.sessionUuid}`}
-        labelTitle={`Copy resume command: claude --resume ${headed.sessionUuid}`}
-        valueTitle={`Copy Claude session id ${headed.sessionUuid}`}
+        value={sessionUuid}
+        title={`Open a new tmux session running claude --resume ${sessionUuid}`}
+        onAction={() => executionProcessesApi.openClaudeResume(processId)}
+        secondary={
+          <CopyTarget
+            copyValue={`claude --resume ${sessionUuid}`}
+            title={`Copy resume command: claude --resume ${sessionUuid}`}
+            className="shrink-0"
+          >
+            <span className="sr-only">Copy resume command</span>
+          </CopyTarget>
+        }
+      />
+      <SessionActionRow
+        icon={<FolderIcon className="size-icon-sm" weight="regular" />}
+        label="workspace"
+        title="Open a terminal in the workspace and reveal the folder in Finder"
+        onAction={() => executionProcessesApi.openWorkspaceAndReveal(processId)}
       />
     </div>
   );
