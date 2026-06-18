@@ -7,6 +7,20 @@ tag that matches `npx-cli/package.json` (see `.github/workflows/release-indie.ym
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Two built-in pipeline steps in the New Issue Pipeline control and the Pipeline-steps
+  settings catalog: **Wait for approval** (pause and wait for the operator's decision
+  before continuing) and **Update documentation** (update the docs the change affects).
+
+### Changed
+
+- `default_pipeline_steps()` reordered so **Orchestrate (auto-drive)** is the first item
+  (its prompt no longer says "the stages above"); `Wait for approval` sits after `Review
+  plan` and `Update documentation` after `Review code`. Regenerated `shared/types.ts`.
+
 ## [0.2.8-beta.6] - 2026-06-17
 
 ### Changed

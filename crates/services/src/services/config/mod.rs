@@ -78,6 +78,14 @@ The `description` value is a JSON string, so escape newlines as \n and quotes as
 pub fn default_pipeline_steps() -> Vec<PipelineStep> {
     vec![
         PipelineStep {
+            id: "orchestrate".to_string(),
+            label: "Orchestrate (auto-drive)".to_string(),
+            prompt_fragment:
+                "Have the orchestrator agent pick this card up and drive it to done autonomously, running the card's pipeline stages in order — regardless of which board column the card is in (it may be started even from Todo)."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
             id: "spec".to_string(),
             label: "Create spec".to_string(),
             prompt_fragment:
@@ -102,10 +110,26 @@ pub fn default_pipeline_steps() -> Vec<PipelineStep> {
             default_enabled: false,
         },
         PipelineStep {
+            id: "wait-for-approval".to_string(),
+            label: "Wait for approval".to_string(),
+            prompt_fragment:
+                "Pause for operator approval at this point: commit the work so far, then stop and wait for the operator's decision or instructions before continuing to later stages — do not advance on your own until the operator responds."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
             id: "code-review".to_string(),
             label: "Review code".to_string(),
             prompt_fragment:
                 "After implementing, run a code review on the diff and address findings before marking the card ready."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
+            id: "update-docs".to_string(),
+            label: "Update documentation".to_string(),
+            prompt_fragment:
+                "Update the documentation affected by this change so the docs match what shipped, and commit it before marking the card ready."
                     .to_string(),
             default_enabled: false,
         },
@@ -122,14 +146,6 @@ pub fn default_pipeline_steps() -> Vec<PipelineStep> {
             label: "Open pull request".to_string(),
             prompt_fragment:
                 "When the work is implemented and reviewed, open a pull request for this card against the base branch."
-                    .to_string(),
-            default_enabled: false,
-        },
-        PipelineStep {
-            id: "orchestrate".to_string(),
-            label: "Orchestrate (auto-drive)".to_string(),
-            prompt_fragment:
-                "Have the orchestrator agent pick this card up and drive it to done autonomously, running the stages above in order — regardless of which board column the card is in (it may be started even from Todo)."
                     .to_string(),
             default_enabled: false,
         },
