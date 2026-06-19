@@ -1,7 +1,7 @@
 {
   "name": "vibe-kanban-indie",
   "private": false,
-  "version": "0.2.8-beta.6",
+  "version": "0.2.8",
   "main": "index.js",
   "bin": {
     "vibe-kanban-indie": "bin/cli.js"

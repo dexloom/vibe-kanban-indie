@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-06-19
+
+First stable release on the `0.2.8` line — promotes the `0.2.8-beta` series to
+`@latest`.
+
 ### Added
 
 - Two built-in pipeline steps in the New Issue Pipeline control and the Pipeline-steps
@@ -247,7 +252,8 @@ full control surface from the web UI.
   npm release pipeline. First independent, self-hosted (no team, no cloud, no auth)
   release of the fork.
 
-[Unreleased]: https://github.com/dexloom/vibe-kanban-indie/compare/v0.2.8-beta.6...HEAD
+[Unreleased]: https://github.com/dexloom/vibe-kanban-indie/compare/v0.2.8...HEAD
+[0.2.8]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.8
 [0.2.8-beta.6]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.8-beta.6
 [0.2.8-beta.5]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.8-beta.5
 [0.2.8-beta.4]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.8-beta.4
