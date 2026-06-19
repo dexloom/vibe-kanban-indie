@@ -1,0 +1,112 @@
+---
+title: "How Indie Works"
+description: "The local-first architecture behind Vibe Kanban Indie — SQLite source of truth, the fallback transport, control surfaces, and MCP modes"
+---
+
+Vibe Kanban Indie runs entirely on your machine. This page explains the
+architecture that makes that possible: where data lives, how the board talks to
+the backend without a cloud, and how the control surfaces and agents connect to it.
+
+## One backend, no cloud
+
+Everything is served by the local backend (`npx vibe-kanban-indie`, or the `server`
+binary from source). There is no hosted service, no account, and no sign-in.
+
+- **SQLite is the source of truth.** Projects, repositories, board columns, issues,
+  workspaces, and sessions all live in a local SQLite database.
+- **A single local user.** One predefined user (named `Local` by default) creates
+  and is assigned issues. There is one organisation and no team.
+- **Portable static config.** Projects, repos, columns, and executor profiles can
+  be exported to and imported from a `projects.toml` bundle for backup or to
+  recreate a setup elsewhere. The database stays authoritative — see
+  [Local Projects](/cockpit/local-projects).
+
+## The fallback transport
+
+Upstream Vibe Kanban syncs the board through ElectricSQL. Indie keeps the same
+optimistic-update client but re-homes it onto local REST:
+
+- **Reads** come from `/v1/fallback/<table>`, which returns `{ "<table>": [...] }`.
+- **Mutations** go to `/v1/<table>`, which returns `{ data, txid }`, where a
+  monotonic local `txid` satisfies the handshake the cloud client expected.
+
+The frontend detects that the cloud is unavailable and switches to this fallback
+transport automatically, so the board, issues, tags, and assignees all work with
+no external dependency.
+
+```
+React board client
+   │  reads  ── GET  /v1/fallback/<table>  → { "<table>": [...] }
+   │  writes ── POST /v1/<table>           → { data, txid }
+   ▼
+local backend  ───────────▶  SQLite (source of truth)
+```
+
+## Control surfaces
+
+Beyond the web UI, Indie exposes the same backend to a terminal cockpit and to
+Telegram, so a blocked agent can be cleared from wherever you are.
+
+<CardGroup cols={2}>
+  <Card title="Web UI" icon="window">
+    The full board, workspaces, diffs, and interactive controls in the browser.
+  </Card>
+  <Card title="TUI cockpit" icon="terminal" href="/cockpit/tui">
+    `vibe-tui` talks directly to the backend, so it works even when the bridge and
+    supervising agent are down.
+  </Card>
+  <Card title="Telegram bridge" icon="telegram" href="/cockpit/telegram">
+    `vibe-telegram-bridge` is send-only: it streams escalations out and never reads
+    the bot token, so it coexists with a Telegram listener.
+  </Card>
+  <Card title="MCP server" icon="plug" href="/integrations/vibe-kanban-mcp-server">
+    Agents drive the board through local MCP tools.
+  </Card>
+</CardGroup>
+
+## How an approval flows
+
+A coding agent often stops mid-loop waiting for a tool-permission decision or a
+clarifying answer. The backend streams that block to every surface that is running:
+
+```
+worker agent blocks ──approval──▶ backend approvals stream
+                                          │
+                  ┌───────────────────────┼───────────────────────┐
+                  ▼                        ▼                        ▼
+            TUI inbox              telegram bridge            supervising agent
+         (direct to backend)       (send-only, with          (MCP approval tools)
+                  │                 machine-readable footer)        │
+                  └───────────────────────┴───────────────────────┘
+                                          ▼
+                              backend unblocks the worker
+```
+
+You can always override from the TUI or by replying in Telegram. None of this
+requires a hosted service.
+
+## MCP launch modes
+
+The local `vibe-kanban` MCP server runs in one of two modes, selected with
+`--mode` (or the `VIBE_MCP_MODE` environment variable):
+
+- **Global** — the full tool set targeting the local backend, including approval
+  tools (`respond_to_approval`, `stop_execution`, `list_pending_approvals`) so a
+  supervising agent can unblock work. With `--headed-local-control`, it also
+  surfaces headed direct-access identifiers (Claude session id, tmux session name).
+- **Orchestrator** — the dispatch subset used by the orchestrator agent to find
+  ready cards, start workspaces, and reflect card status.
+
+Launcher options are accepted as environment variables too, so they can be set
+declaratively in `.mcp.json`.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="What's different in Indie" icon="list-check" href="/indie/whats-different">
+    The full review of fork changes.
+  </Card>
+  <Card title="Agents & pipelines" icon="robot" href="/indie/agents-and-pipelines">
+    How the orchestrator, crew, and pipelines drive cards to done.
+  </Card>
+</CardGroup>

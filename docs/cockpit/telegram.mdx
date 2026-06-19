@@ -89,6 +89,12 @@ answer a clarifying question or approve a request. A supervising agent on the sa
 channel can read escalations and answer within its guardrails through the MCP
 approval tools — see the [Orchestrator](/cockpit/orchestrator).
 
+<Note>
+Inbound replies are handled by the **sombrax-telegram** listener plugin, which owns
+the bot poller; the bridge here is send-only, so the two coexist on one bot. See
+[Claude Code plugins & skills](/integrations/claude-code-plugins).
+</Note>
+
 ## Next steps
 
 <Card title="Add a supervising agent" icon="robot" href="/cockpit/orchestrator">

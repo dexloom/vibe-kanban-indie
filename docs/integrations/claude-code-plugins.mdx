@@ -1,0 +1,136 @@
+---
+title: "Claude Code Plugins & Skills"
+description: "Link Vibe Kanban Indie to the SombraX Claude Code plugins — vibe-kanban-indie, sombrax-telegram, and sombrax-codex — for orchestration, Telegram, and Codex review"
+---
+
+The automation layer in Vibe Kanban Indie is driven from Claude Code by three
+plugins published in the **`sombrax_plugins`** marketplace. Together they give
+Claude Code the skills, agents, and MCP tools to drive your board, escalate over
+Telegram, and gate work with an independent Codex review.
+
+<Info>
+These plugins are optional. Indie's web UI, board, and workspaces work without
+them. Install the plugins when you want to drive the board and the agent crew from
+Claude Code — see [Agents & pipelines](/indie/agents-and-pipelines).
+</Info>
+
+## Install
+
+Add the marketplace once, then install the plugins you want:
+
+```bash
+# Add the marketplace (once)
+/plugin marketplace add dexloom/sombrax_plugins
+
+# Install the plugins
+/plugin install vibe-kanban-indie@sombrax-plugins
+/plugin install sombrax-telegram@sombrax-plugins
+/plugin install sombrax-codex@sombrax-plugins
+```
+
+## The three plugins
+
+<CardGroup cols={3}>
+  <Card title="vibe-kanban-indie" icon="robot">
+    Drives the board and the coding-agent crew through a bundled MCP server.
+  </Card>
+  <Card title="sombrax-telegram" icon="telegram">
+    The Telegram channel listener and access control for inbound messaging.
+  </Card>
+  <Card title="sombrax-codex" icon="magnifying-glass">
+    Codex CLI helpers for independent plan and code review.
+  </Card>
+</CardGroup>
+
+### vibe-kanban-indie
+
+The core orchestration plugin. It bundles the `vibe-kanban` MCP server and ships
+the crew that drives a card from brief to merged.
+
+- **Skills:** `vibe-kanban-indie:vibe-kanban` (drive the board and agents),
+  `vibe-kanban-indie:product-manager` (turn a brief into a card),
+  `vibe-kanban-indie:answer-questions` (resolve a stale questionnaire).
+- **Agents:** `orchestrator` (the dispatch loop, launched as the session agent),
+  `product` (writes the spec), `planner` (writes the implementation plan), and
+  `decider` (auto-answers stale questions).
+- **MCP server:** the bundled `.mcp.json` launches
+  `npx -y vibe-kanban-indie --mcp` in global mode — no manual binary install. It
+  resolves the backend from `VIBE_BACKEND_URL`, then host/port environment
+  variables, then the port file a live backend writes.
+
+<Card title="Vibe Kanban MCP server" icon="plug" href="/integrations/vibe-kanban-mcp-server">
+  The MCP tools and launch modes the plugin uses.
+</Card>
+
+### sombrax-telegram
+
+The inbound counterpart to Indie's send-only Telegram bridge. It runs the
+**listener daemon** that owns the single bot poller and routes messages to the
+right Claude Code session, with built-in access control.
+
+- **Skills:** `sombrax-telegram:configure` (save the bot token, review policy),
+  `sombrax-telegram:access` (approve pairings, manage the allowlist), and
+  `sombrax-telegram:sombrax_telegram_channel` (start the listener, set topic
+  routing, check sessions).
+- **How it links:** the orchestrator (or PM agent) runs as a session on the
+  sombrax-telegram channel, so it can converse with you and with each dev agent in
+  that worktree's branch-named topic.
+
+<Warning>
+The listener is the **inbound** side; Indie's `vibe-telegram-bridge` is the
+**send-only outbound** side. The bridge never reads the bot token, so the two
+coexist on one bot without a poller conflict. See
+[Telegram orchestration](/cockpit/telegram).
+</Warning>
+
+### sombrax-codex
+
+Codex CLI helpers that provide an independent second opinion for the review stages
+of a card's pipeline.
+
+- **Skills:** `sombrax-codex:codex-review` (iterative code review),
+  `sombrax-codex:codex-review-plan` (review an implementation plan before any code
+  is written), and `sombrax-codex:codex-advisor` (architectural second opinion).
+- **How it links:** the coding agent delegates the **Review plan** stage to
+  `codex exec --sandbox read-only` against `IMPLEMENTATION_PLAN.md`, and the
+  **Review code** stage to `codex review --base <base>` against the diff. Codex runs
+  read-only and reports a `PASS` / `CHANGES REQUESTED` verdict; it never fixes code
+  in the review turn. If the Codex CLI is unavailable, the agent performs the review
+  inline against the same criteria rather than skipping it.
+
+## How they fit together
+
+The orchestrator dispatches a card to one coding agent, which then **self-drives**
+its pipeline and delegates the specialist stages to the crew and to Codex:
+
+```
+orchestrator (vibe-kanban-indie) ──start_workspace──▶ coding agent (self-driven)
+                                                          │ spec   → product   (vibe-kanban-indie)
+                                                          │ plan   → planner   (vibe-kanban-indie)
+                                                          │ review → codex      (sombrax-codex)
+                                                          ▼
+                              escalations / status  ◀──▶  Telegram (sombrax-telegram listener
+                                                          + send-only vibe-telegram-bridge)
+```
+
+The orchestrator reflects board state (In Review when development is finished and
+reviewed, Done once the merge lands); the merge decision stays with you.
+
+## Prerequisites
+
+- **A running Indie backend.** The MCP server is a thin client over the local HTTP
+  API; set `VIBE_BACKEND_URL` if it cannot auto-resolve the port.
+- **Node.js ≥ 20.19 with `npx`** on your `PATH` for the bundled MCP launcher.
+- **For Telegram only:** the `sombrax-telegram` plugin installed and its listener
+  daemon running.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Agents & pipelines" icon="robot" href="/indie/agents-and-pipelines">
+    How the crew and pipeline stages drive a card to done.
+  </Card>
+  <Card title="Telegram orchestration" icon="telegram" href="/cockpit/telegram">
+    The send-only bridge that pairs with the sombrax-telegram listener.
+  </Card>
+</CardGroup>

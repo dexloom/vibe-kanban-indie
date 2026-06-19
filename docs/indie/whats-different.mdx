@@ -1,0 +1,159 @@
+---
+title: "What's Different in Indie"
+description: "A complete review of how Vibe Kanban Indie diverges from upstream Vibe Kanban — local-first, single-developer, agent-orchestrated"
+---
+
+Vibe Kanban Indie is an independent, self-hosted fork of Vibe Kanban, rebuilt
+around a **single-developer process**: no team, no cloud, no auth. This page is a
+complete review of everything the fork changes or adds on top of upstream, with
+links to the detailed guides for each area.
+
+<Info>
+If you already know upstream Vibe Kanban, read this page top to bottom — it is the
+shortest path to understanding what is new. If you are new, start with the
+[Home](/) page and [Get Started](/getting-started) guide instead.
+</Info>
+
+## At a glance
+
+| Area | Upstream Vibe Kanban | Vibe Kanban Indie |
+|---|---|---|
+| Hosting | Cloud-backed projects and issues | Fully local — SQLite is the source of truth, no account |
+| Auth | Team accounts, sign-in | None — single local user |
+| Board data | ElectricSQL cloud sync | Local REST with a built-in fallback transport |
+| Control surfaces | Web UI | Web UI **plus** a terminal cockpit (`vibe-tui`) and Telegram |
+| Automation | Manual dispatch | Orchestrator + agent crew + per-card pipelines |
+| Package | `vibe-kanban` | `vibe-kanban-indie` (`npx vibe-kanban-indie`) |
+
+## Local-first architecture
+
+Indie removes the cloud entirely. Projects, repositories, board columns, and
+issues live in a SQLite database on your machine; there is no sign-in and nothing
+syncs off-box.
+
+- **No cloud, no auth.** A single predefined local user creates and is assigned
+  issues. There is one organisation and no team concept.
+- **Fallback transport.** The board reads from local `/v1/fallback/*` endpoints
+  and mutates through local `/v1/*` endpoints, satisfying the same optimistic-update
+  handshakes the cloud client expected — without ElectricSQL.
+- **Portable config.** Static configuration (projects, repos, columns, executor
+  profiles) imports and exports as a portable `projects.toml`, while the database
+  remains the source of truth.
+
+<Card title="How Indie works" icon="sitemap" href="/indie/architecture">
+  The full local-first architecture: SQLite source of truth, the fallback
+  transport, and the MCP launch modes.
+</Card>
+
+## The Solo Cockpit
+
+Because one developer cannot watch every agent, Indie adds control surfaces beyond
+the web UI so blocked agents can be cleared from the terminal or your phone.
+
+<CardGroup cols={2}>
+  <Card title="TUI cockpit" icon="terminal" href="/cockpit/tui">
+    `vibe-tui` — a terminal cockpit that lists workspaces and sessions, streams
+    live transcripts, and offers an approvals inbox to approve, deny, or answer
+    locally.
+  </Card>
+  <Card title="Telegram orchestration" icon="telegram" href="/cockpit/telegram">
+    A send-only bridge (`vibe-telegram-bridge`) that escalates blocked agents to a
+    Telegram supergroup, with a forum topic per worktree.
+  </Card>
+</CardGroup>
+
+## The agent crew and pipelines
+
+Indie turns dispatch and supervision into work that agents can do for you, within
+guardrails you control.
+
+- **Orchestrator** — a singleton headed Claude Code session that finds ready cards
+  and dispatches one coding agent per card on a recurring loop.
+- **Per-card pipelines** — opt-in stages (spec, plan, review, wait for approval,
+  update docs, merge, open PR) chosen with checkboxes when you create an issue.
+- **Spec and plan agents** — turn a rough brief into a development-ready card, then
+  into a concrete implementation plan, before any code is written.
+- **Decider subagent** — answers an agent's stale questions after a grace window so
+  work keeps moving when you are away.
+
+<Card title="Agents & pipelines" icon="robot" href="/indie/agents-and-pipelines">
+  How the crew, the pipeline stages, and the spec/plan artifacts fit together.
+</Card>
+
+## Headed (interactive) coding agents
+
+Indie adds **Claude Code Headed**: a coding agent that runs in a real interactive
+terminal (a detached tmux session) instead of a headless stream, with its live
+transcript mirrored read-only into the timeline.
+
+- **Direct control surface** — copy the `tmux attach` command, open a terminal, or
+  send input straight to the live session from the web UI's interactive control
+  bar.
+- **Live follow-ups** — follow-ups from the TUI or MCP inject into the running
+  tmux session via bracketed paste instead of spawning a second `--resume` agent.
+- **Questionnaire bridge** — headed agents in plan mode surface `AskUserQuestion`
+  and `ExitPlanMode` prompts to the UI and MCP through a `PreToolUse` hook, so
+  headed and headless gate the same set of tools.
+
+<Card title="Workspaces & interactive controls" icon="window" href="/workspaces/index">
+  Where headed sessions and their controls live in the workspace view.
+</Card>
+
+## Generate a spec from a brief
+
+The New Issue flow can expand a one-line brief into a full technical task by running
+a coding agent once, read-only, in a throwaway ephemeral workspace so it can explore
+your actual codebase before drafting the spec.
+
+<Card title="Generate a spec" icon="file-lines" href="/cockpit/spec-intake">
+  How spec intake works and why the throwaway workspace is the trust boundary.
+</Card>
+
+## A local MCP server
+
+The `vibe-kanban` MCP server is fully local in Indie — its project, issue, and org
+tools target the local backend rather than the disabled cloud API. It runs in
+**global** mode (board-wide tools, including approval tools so a supervising agent
+can unblock work) or **orchestrator** mode (the dispatch subset), and accepts its
+launcher options as environment variables for a declarative `.mcp.json`.
+
+<Card title="Vibe Kanban MCP server" icon="plug" href="/integrations/vibe-kanban-mcp-server">
+  The MCP tools, launch modes, and how agents drive the board through them.
+</Card>
+
+## Driven from Claude Code
+
+The crew and the board are driven from Claude Code by three plugins in the
+`sombrax_plugins` marketplace, which link together: **vibe-kanban-indie**
+(orchestration skills, the crew, and the bundled MCP server), **sombrax-telegram**
+(the inbound channel listener that pairs with the send-only bridge), and
+**sombrax-codex** (Codex review for the plan and code review stages).
+
+<Card title="Claude Code plugins & skills" icon="puzzle-piece" href="/integrations/claude-code-plugins">
+  Install the plugins and see how the vibe-kanban, Telegram, and Codex skills link
+  to Indie.
+</Card>
+
+## Branding and releases
+
+- **Package** — published to npm as `vibe-kanban-indie`; run it with
+  `npx vibe-kanban-indie`.
+- **Repository** — [`dexloom/vibe-kanban-indie`](https://github.com/dexloom/vibe-kanban-indie),
+  an independent fork with its own CI (`release-indie.yml`) and beta channel
+  (`npx vibe-kanban-indie@beta`).
+- **Workspace versioning** — every crate inherits its version from the workspace,
+  so a release is a one-line bump; the UI shows the version synced to npm.
+
+For the full release-by-release history, see the
+[CHANGELOG](https://github.com/dexloom/vibe-kanban-indie/blob/main/CHANGELOG.md).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="How Indie works" icon="sitemap" href="/indie/architecture">
+    The local-first architecture under the hood.
+  </Card>
+  <Card title="Set up the Solo Cockpit" icon="terminal" href="/cockpit/index">
+    Run the TUI and Telegram bridge to steer agents single-handedly.
+  </Card>
+</CardGroup>

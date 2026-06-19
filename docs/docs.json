@@ -21,9 +21,17 @@
   "navigation": {
     "groups": [
       {
-        "group": "Getting started",
+        "group": "Vibe Kanban Indie",
         "pages": [
           "index",
+          "indie/whats-different",
+          "indie/architecture",
+          "indie/agents-and-pipelines"
+        ]
+      },
+      {
+        "group": "Getting started",
+        "pages": [
           "getting-started",
           "vibe-guide",
           "browser-testing",
@@ -113,6 +121,7 @@
       {
         "group": "Integrations",
         "pages": [
+          "integrations/claude-code-plugins",
           "integrations/github-integration",
           "integrations/azure-repos-integration",
           "integrations/vscode-extension",

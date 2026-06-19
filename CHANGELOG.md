@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (its prompt no longer says "the stages above"); `Wait for approval` sits after `Review
   plan` and `Update documentation` after `Review code`. Regenerated `shared/types.ts`.
 
+### Documentation
+
+- New leading **Vibe Kanban Indie** docs chapter (`docs/indie/`) reviewing every fork
+  divergence from upstream: `whats-different`, `architecture` (local-first, fallback
+  transport, MCP modes), and `agents-and-pipelines`.
+- New **Claude Code Plugins & Skills** integration page documenting how the
+  `vibe-kanban-indie`, `sombrax-telegram`, and `sombrax-codex` plugins from the
+  `sombrax_plugins` marketplace link to Indie.
+
 ## [0.2.8-beta.6] - 2026-06-17
 
 ### Changed
@@ -238,6 +247,16 @@ full control surface from the web UI.
   npm release pipeline. First independent, self-hosted (no team, no cloud, no auth)
   release of the fork.
 
+[Unreleased]: https://github.com/dexloom/vibe-kanban-indie/compare/v0.2.8-beta.6...HEAD
+[0.2.8-beta.6]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.8-beta.6
+[0.2.8-beta.5]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.8-beta.5
+[0.2.8-beta.4]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.8-beta.4
+[0.2.8-beta.3]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.8-beta.3
+[0.2.8-beta.2]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.8-beta.2
+[0.2.8-beta.1]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.8-beta.1
+[0.2.7]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.7
+[0.2.6]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.6
+[0.2.5]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.5
 [0.2.4]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.4
 [0.2.3]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.3
 [0.2.2]: https://github.com/dexloom/vibe-kanban-indie/releases/tag/v0.2.2

@@ -1,0 +1,111 @@
+---
+title: "Agents & Pipelines"
+description: "How the orchestrator, the agent crew, per-card pipelines, and spec/plan artifacts drive a card from brief to merged"
+---
+
+Indie can take a card from a rough brief to a merged change with very little
+hands-on dispatch. It does this with three building blocks: **per-card pipelines**
+that declare what should happen, an **agent crew** that performs each stage, and an
+**orchestrator** that schedules the work. You stay in control — every risky step
+waits for you, and you can override from the [TUI](/cockpit/tui) or Telegram at any
+time.
+
+## Per-card pipelines
+
+When you create an issue, you choose its **pipeline** — the ordered stages that
+should run — with checkboxes. The selections are appended to the card description,
+so the pipeline travels with the card. All stages are opt-in and default to off.
+
+The built-in stages are:
+
+| Stage | What it does |
+|---|---|
+| Orchestrate (auto-drive) | Hand the card to the orchestrator to drive end to end |
+| Create spec | Turn the brief into a development-ready spec (`SPEC.md`) |
+| Create plan | Turn the spec into a concrete implementation plan (`IMPLEMENTATION_PLAN.md`) |
+| Review plan | Review the plan before any code is written (delegated to Codex) |
+| Wait for approval | Pause and wait for your decision before continuing |
+| Review code | Review the change once code is written (delegated to Codex) |
+| Update documentation | Update the docs the change affects |
+| Merge to base | Merge the workspace branch into its base |
+| Open pull request | Open a GitHub pull request |
+
+<Note>
+The stage catalogue is config-driven. The default order puts **Orchestrate
+(auto-drive)** first; `Wait for approval` follows `Review plan`, and `Update
+documentation` follows `Review code`.
+</Note>
+
+## The agent crew
+
+Each stage is performed by a focused agent. They are separate roles so that the
+agent writing the spec is not the one writing the code, which keeps each step
+honest.
+
+<CardGroup cols={2}>
+  <Card title="Product" icon="clipboard-list">
+    Turns a rough brief into a structured, development-ready card — the *what* and
+    the acceptance criteria.
+  </Card>
+  <Card title="Planner" icon="diagram-project">
+    Turns a specced card into a concrete, file-grounded `IMPLEMENTATION_PLAN.md` —
+    the *how*.
+  </Card>
+  <Card title="Orchestrator" icon="robot" href="/cockpit/orchestrator">
+    A singleton headed session that dispatches one coding agent per ready card on a
+    recurring loop.
+  </Card>
+  <Card title="Decider" icon="circle-question">
+    Answers an agent's stale questionnaire after a grace window, using the card,
+    spec, and plan as context.
+  </Card>
+</CardGroup>
+
+<Note>
+The crew is delivered as the `vibe-kanban-indie` Claude Code plugin, which links to
+the `sombrax-codex` plugin for the review stages and the `sombrax-telegram` plugin
+for fan-out. See [Claude Code plugins & skills](/integrations/claude-code-plugins).
+</Note>
+
+## Spec and plan artifacts
+
+The spec and plan are real files materialised at the workspace root —
+`SPEC.md` and `IMPLEMENTATION_PLAN.md` — so each subsequent stage reads the
+previous stage's output the same way a human reviewer would. The
+[Generate a spec](/cockpit/spec-intake) flow can also produce a spec directly from
+the New Issue dialog before any workspace exists.
+
+## How it runs
+
+The orchestrator runs on a `/loop` timer. On each sweep it:
+
+1. Finds cards that are ready to run but have no workspace.
+2. Resolves which coding agent to use — the one pinned in the card's pipeline, or
+   your last-used or default configuration.
+3. Starts one coding agent per ready card and moves the card to In Progress.
+
+By default the coding agent then owns its card's pipeline end to end. You can opt
+into orchestrator **directives** at spawn time — auto-unblock routine approvals,
+auto-answer stale questions (via the decider), and Telegram fan-out — each as a
+simple flag whose behaviour lives in the agent's instructions, not the app.
+
+<Card title="Orchestrator" icon="robot" href="/cockpit/orchestrator">
+  Spawn the orchestrator, opt into directives, and stay in control.
+</Card>
+
+## Staying in control
+
+Automation never removes the human. A `Wait for approval` stage pauses the
+pipeline for your decision, escalations surface in the TUI and Telegram, and you
+can attach to any headed session to watch or steer it.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Generate a spec" icon="file-lines" href="/cockpit/spec-intake">
+    Start a card from a one-line brief.
+  </Card>
+  <Card title="Set up the Solo Cockpit" icon="terminal" href="/cockpit/index">
+    Run the surfaces that let the crew work while you are away.
+  </Card>
+</CardGroup>
