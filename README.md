@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://vibekanban.com">
+  <a href="https://dexloom.mintlify.app">
     <picture>
       <source srcset="packages/public/vibe-kanban-logo-dark.svg" media="(prefers-color-scheme: dark)">
       <source srcset="packages/public/vibe-kanban-logo.svg" media="(prefers-color-scheme: light)">
@@ -27,7 +27,7 @@
   upstream <a href="https://github.com/BloopAI/vibe-kanban">vibe-kanban</a>.
 </p>
 
-![](packages/public/vibe-kanban-screenshot-overview.png)
+![](packages/public/vibe-kanban-indie-screenshot-overview.png)
 
 # Welcome to indie version of Vibe-Kanban
 
@@ -55,7 +55,7 @@ npx vibe-kanban-indie
 
 ## Installation
 
-Make sure you have authenticated with your favourite coding agent. A full list of supported coding agents can be found in the [docs](https://vibekanban.com/docs/supported-coding-agents). Then in your terminal run:
+Make sure you have authenticated with your favourite coding agent. A full list of supported coding agents can be found in the [docs](https://dexloom.mintlify.app/supported-coding-agents). Then in your terminal run:
 
 ```bash
 npx vibe-kanban-indie
@@ -110,21 +110,39 @@ The app surfaces a read-only **Settings → Telegram** panel (status + a "Send t
 
 For the full architecture (TUI, bridge, MCP approval tools, and the PM agent), see [`automation/README.md`](automation/README.md).
 
+## Claude Code Plugins (SombraX)
+
+The automation layer is driven from Claude Code by three plugins published in the **`sombrax_plugins`** marketplace: **vibe-kanban-indie** (orchestration skills, the agent crew, and the bundled `vibe-kanban` MCP server), **sombrax-telegram** (the inbound Telegram channel listener that pairs with the send-only bridge above), and **sombrax-codex** (Codex CLI helpers for independent plan and code review).
+
+Add the marketplace once, then install the plugins you want — from inside Claude Code:
+
+```text
+# Add the marketplace (once)
+/plugin marketplace add dexloom/sombrax_plugins
+
+# Install the plugins
+/plugin install vibe-kanban-indie@sombrax-plugins
+/plugin install sombrax-telegram@sombrax-plugins
+/plugin install sombrax-codex@sombrax-plugins
+```
+
+The plugins are optional — Indie's web UI, board, and workspaces work without them. Install them when you want to drive the board and the agent crew from Claude Code. See [Claude Code plugins & skills](https://dexloom.mintlify.app/integrations/claude-code-plugins) for the full breakdown.
+
 ## Documentation
 
-Head to the [website](https://vibekanban.com/docs) for the latest documentation and user guides.
+Head to the [documentation site](https://dexloom.mintlify.app) for the latest guides, including [What's different in Indie](https://dexloom.mintlify.app/indie/whats-different) and the [Solo Cockpit](https://dexloom.mintlify.app/cockpit/index).
 
 ## Self-Hosting
 
-Want to host your own Vibe Kanban Cloud instance? See our [self-hosting guide](https://vibekanban.com/docs/self-hosting/deploy-docker).
+Indie runs entirely on your own machine — no cloud, no account. See the [self-hosting guide](https://dexloom.mintlify.app/self-hosting/local-development) to run it locally or [behind Docker](https://dexloom.mintlify.app/self-hosting/deploy-docker).
 
 ## Support
 
-We use [GitHub Discussions](https://github.com/BloopAI/vibe-kanban/discussions) for feature requests. Please open a discussion to create a feature request. For bugs please open an issue on this repo.
+For feature requests and bugs, please open an issue on [`dexloom/vibe-kanban-indie`](https://github.com/dexloom/vibe-kanban-indie/issues).
 
 ## Contributing
 
-We would prefer that ideas and changes are first raised with the core team via [GitHub Discussions](https://github.com/BloopAI/vibe-kanban/discussions) or [Discord](https://discord.gg/AC4nwVtJM3), where we can discuss implementation details and alignment with the existing roadmap. Please do not open PRs without first discussing your proposal with the team.
+`vibe-kanban-indie` is an independent, single-developer fork. Please raise ideas and changes as issues on [`dexloom/vibe-kanban-indie`](https://github.com/dexloom/vibe-kanban-indie/issues) before opening a PR, so we can discuss implementation details and alignment with the roadmap.
 
 ## Development
 
@@ -218,4 +236,4 @@ When running Vibe Kanban on a remote server (e.g., via systemctl, Docker, or clo
 
 When configured, the "Open in VSCode" buttons will generate URLs like `vscode://vscode-remote/ssh-remote+user@host/path` that open your local editor and connect to the remote server.
 
-See the [documentation](https://vibekanban.com/docs/settings/general) for detailed setup instructions.
+See the [documentation](https://dexloom.mintlify.app/settings/general) for detailed setup instructions.

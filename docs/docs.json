@@ -24,6 +24,7 @@
         "group": "Vibe Kanban Indie",
         "pages": [
           "index",
+          "indie/philosophy",
           "indie/whats-different",
           "indie/architecture",
           "indie/agents-and-pipelines"

@@ -1,0 +1,112 @@
+---
+title: "Philosophy"
+description: "Why Vibe Kanban Indie exists — full control over every session on one side, as much automation as you want on the other, for a single developer"
+---
+
+Vibe Kanban Indie is built around one conviction: a solo developer should never
+have to choose between **control** and **automation**. You should be able to take
+the wheel of any session at any moment — and you should be able to let the board
+run itself when you step away. Indie is the dial between those two ends, and the
+dial is yours alone.
+
+## The two pulls of solo development
+
+Working with a crew of coding agents pulls you in two opposite directions at once.
+
+- **You want full control.** When an agent is doing something delicate, you want to
+  watch its live session, send it a keystroke, steer its plan, and approve every
+  step that touches your code. Nothing should merge that you did not see.
+- **You want full automation.** You are one person. You cannot babysit every agent.
+  Ready work should get picked up, specs and plans should get written, stale
+  questions should get answered, and status should advance — all without you in the
+  loop.
+
+Most tools pick a side. A chat-style agent gives you control but no automation; a
+fire-and-forget pipeline gives you automation but no handle to grab. Indie refuses
+the trade-off: the **same primitives** expose both ends, so you decide where to sit
+on the spectrum — per card, per moment.
+
+## Control: a handle on every session
+
+Every agent runs in a session you can reach and steer from three surfaces, so a
+running agent is never a black box.
+
+<CardGroup cols={3}>
+  <Card title="Web UI" icon="window" href="/workspaces/index">
+    Watch the live transcript, review the diff, leave inline comments, and drive a
+    headed agent through its interactive control bar.
+  </Card>
+  <Card title="TUI cockpit" icon="terminal" href="/cockpit/tui">
+    `vibe-tui` — list sessions, follow transcripts, attach to the live `tmux`
+    session, and approve, deny, or answer from one terminal.
+  </Card>
+  <Card title="Telegram" icon="telegram" href="/cockpit/telegram">
+    Get escalations on your phone and unblock a stuck agent with a reply, wherever
+    you are.
+  </Card>
+</CardGroup>
+
+Control is concrete, not advisory: you can copy an agent's `tmux attach` command,
+send input straight into its live session, inject a follow-up into a running headed
+agent, and gate every tool permission. **The merge decision always stays with
+you** — automation drives the work up to the edge of your repository, never across
+it.
+
+## Automation: as much as you want
+
+When you would rather not dispatch and supervise by hand, Indie does it for you —
+within guardrails you set.
+
+- **The orchestrator** finds ready cards and dispatches one coding agent per card on
+  a recurring loop, then reflects board status as work progresses.
+- **The agent crew** turns a rough brief into a spec, a spec into an implementation
+  plan, and answers an agent's stale questions after a grace window so work keeps
+  moving while you are away.
+- **Per-card pipelines** let you declare, with checkboxes, exactly which stages run
+  — spec, plan, review, wait for approval, update docs, merge, open PR — so each
+  card carries its own degree of automation.
+
+<Card title="Agents & pipelines" icon="robot" href="/indie/agents-and-pipelines">
+  How the orchestrator, the crew, and per-card pipelines take a card from brief to
+  merged.
+</Card>
+
+## The dial is per card, not global
+
+Control and automation are not a setting you flip once. They are a dial you turn for
+each piece of work:
+
+- Hand a routine card to the orchestrator with a full pipeline and let it run to
+  **In Review** untouched.
+- Keep a delicate card on a manual pipeline, attach to its session, and approve
+  every gate yourself.
+- Start a card automated, then grab the wheel the moment it does something you want
+  to shape — and hand it back when you are done.
+
+The same card, the same agent, the same surfaces — only your position on the dial
+changes.
+
+## What makes this safe: the worktree boundary
+
+Aggressive automation is only sane because every agent works inside an **isolated
+git worktree** on its own branch. The worktree is the trust boundary: an agent can
+explore, edit, and run freely, but its work stays quarantined on a branch until you
+review the diff and decide to merge. Automation reaches right up to that boundary
+and stops; crossing it is always a human decision.
+
+<Card title="How Indie works" icon="sitemap" href="/indie/architecture">
+  The local-first architecture and the worktree isolation that makes hands-off
+  automation safe.
+</Card>
+
+## One developer, one machine, no gatekeeper
+
+Indie is **local-first by design**: no team, no cloud, no auth. That is not just a
+deployment choice — it is what makes the dial yours. There is no platform deciding
+what you may automate, no account standing between you and your sessions, and
+nothing syncing off your machine. The full range, from hands-on to hands-off, lives
+entirely under your control.
+
+<Card title="What's different in Indie" icon="git-compare" href="/indie/whats-different">
+  Everything the fork changes and adds on top of upstream Vibe Kanban.
+</Card>
