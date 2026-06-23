@@ -20,7 +20,12 @@ interface TerminalState {
 }
 
 type TerminalAction =
-  | { type: 'CREATE_TAB'; workspaceId: string; cwd: string }
+  | {
+      type: 'CREATE_TAB';
+      workspaceId: string;
+      cwd: string;
+      executionProcessId?: string;
+    }
   | { type: 'CLOSE_TAB'; workspaceId: string; tabId: string }
   | { type: 'SET_ACTIVE_TAB'; workspaceId: string; tabId: string }
   | {
@@ -53,13 +58,16 @@ function terminalReducer(
 ): TerminalState {
   switch (action.type) {
     case 'CREATE_TAB': {
-      const { workspaceId, cwd } = action;
+      const { workspaceId, cwd, executionProcessId } = action;
       const existingTabs = state.tabsByWorkspace[workspaceId] || [];
       const newTab: TerminalTab = {
         id: generateTabId(),
-        title: `Terminal ${existingTabs.length + 1}`,
+        title: executionProcessId
+          ? 'Agent (tmux)'
+          : `Terminal ${existingTabs.length + 1}`,
         workspaceId,
         cwd,
+        executionProcessId,
       };
       return {
         ...state,
@@ -203,9 +211,12 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
     [state.tabsByWorkspace, state.activeTabByWorkspace]
   );
 
-  const createTab = useCallback((workspaceId: string, cwd: string) => {
-    dispatch({ type: 'CREATE_TAB', workspaceId, cwd });
-  }, []);
+  const createTab = useCallback(
+    (workspaceId: string, cwd: string, executionProcessId?: string) => {
+      dispatch({ type: 'CREATE_TAB', workspaceId, cwd, executionProcessId });
+    },
+    []
+  );
 
   const closeTerminalConnection = useCallback((tabId: string) => {
     // Mark as intentionally closed to prevent reconnection
@@ -364,6 +375,12 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
                 const callbacks = connectionCallbacksRef.current.get(tabId);
                 if (msg.type === 'output' && msg.data && callbacks) {
                   callbacks.onData(decodeBase64(msg.data));
+                } else if (msg.type === 'error' && msg.message && callbacks) {
+                  // Surface server-side errors (e.g. a dead/absent tmux attach
+                  // target, or the agent session ending) in the terminal. The
+                  // server pairs these with a clean close (code 1000), so this
+                  // is the last thing shown and no reconnect follows.
+                  callbacks.onData(`\r\n\x1b[31m${msg.message}\x1b[0m\r\n`);
                 } else if (msg.type === 'exit' && callbacks) {
                   callbacks.onExit?.();
                 }

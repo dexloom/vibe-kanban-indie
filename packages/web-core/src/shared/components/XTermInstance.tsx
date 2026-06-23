@@ -12,6 +12,11 @@ interface XTermInstanceProps {
   tabId: string;
   workspaceId: string;
   isActive: boolean;
+  /**
+   * When set, attach this terminal to the running headed agent's tmux session
+   * (`vk-<executionProcessId>`) instead of opening a plain workspace shell.
+   */
+  executionProcessId?: string;
   onClose?: () => void;
 }
 
@@ -19,6 +24,7 @@ export function XTermInstance({
   tabId,
   workspaceId,
   isActive,
+  executionProcessId,
   onClose,
 }: XTermInstanceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -37,8 +43,16 @@ export function XTermInstance({
   const endpoint = useMemo(() => {
     const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
     const host = window.location.host;
-    return `${protocol}//${host}/api/terminal/ws?workspace_id=${workspaceId}&cols=${initialSizeRef.current.cols}&rows=${initialSizeRef.current.rows}`;
-  }, [workspaceId]);
+    const params = new URLSearchParams({
+      workspace_id: workspaceId,
+      cols: String(initialSizeRef.current.cols),
+      rows: String(initialSizeRef.current.rows),
+    });
+    if (executionProcessId) {
+      params.set('execution_process_id', executionProcessId);
+    }
+    return `${protocol}//${host}/api/terminal/ws?${params.toString()}`;
+  }, [workspaceId, executionProcessId]);
 
   const fitTerminal = useCallback(() => {
     fitAddonRef.current?.fit();

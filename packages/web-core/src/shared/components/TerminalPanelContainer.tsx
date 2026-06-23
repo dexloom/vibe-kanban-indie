@@ -59,6 +59,9 @@ export function TerminalPanelContainer() {
           tabId={tabId}
           workspaceId={workspaceId ?? ''}
           isActive={isActive}
+          executionProcessId={
+            tabs.find((t) => t.id === tabId)?.executionProcessId
+          }
           onClose={() => workspaceId && closeTab(workspaceId, tabId)}
         />
       )}

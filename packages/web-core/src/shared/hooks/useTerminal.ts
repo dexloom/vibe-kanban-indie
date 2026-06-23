@@ -13,6 +13,8 @@ export interface TerminalTab {
   title: string;
   workspaceId: string;
   cwd: string;
+  /** When set, this tab is attached to the agent's tmux session (`vk-<id>`). */
+  executionProcessId?: string;
 }
 
 interface TerminalConnection {
@@ -24,7 +26,11 @@ interface TerminalConnection {
 export interface TerminalContextType {
   getTabsForWorkspace: (workspaceId: string) => TerminalTab[];
   getActiveTab: (workspaceId: string) => TerminalTab | null;
-  createTab: (workspaceId: string, cwd: string) => void;
+  createTab: (
+    workspaceId: string,
+    cwd: string,
+    executionProcessId?: string
+  ) => void;
   closeTab: (workspaceId: string, tabId: string) => void;
   setActiveTab: (workspaceId: string, tabId: string) => void;
   updateTabTitle: (workspaceId: string, tabId: string, title: string) => void;

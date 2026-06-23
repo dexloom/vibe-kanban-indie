@@ -139,6 +139,96 @@ impl PtyService {
 
         let (master, writer, output_handle) = result;
 
+        self.register_session(session_id, master, writer, output_handle)?;
+
+        Ok((session_id, output_rx))
+    }
+
+    /// Spawn a PTY running an arbitrary command (program + args) instead of an
+    /// interactive shell. Shares all of the PTY/IO plumbing with
+    /// [`Self::create_session`] (openpty, spawn, reader thread, session
+    /// registration) but skips the shell-specific prompt/PS1 tweaks. Used to
+    /// attach the web terminal to a running agent's tmux session
+    /// (`tmux attach-session -f ignore-size -t =vk-<id>`).
+    pub async fn create_session_with_command(
+        &self,
+        program: String,
+        args: Vec<String>,
+        working_dir: PathBuf,
+        cols: u16,
+        rows: u16,
+    ) -> Result<(Uuid, mpsc::UnboundedReceiver<Vec<u8>>), PtyError> {
+        let session_id = Uuid::new_v4();
+        let (output_tx, output_rx) = mpsc::unbounded_channel();
+
+        let result = tokio::task::spawn_blocking(move || {
+            let pty_system = NativePtySystem::default();
+
+            let pty_pair = pty_system
+                .openpty(PtySize {
+                    rows,
+                    cols,
+                    pixel_width: 0,
+                    pixel_height: 0,
+                })
+                .map_err(|e| PtyError::CreateFailed(e.to_string()))?;
+
+            let mut cmd = CommandBuilder::new(&program);
+            cmd.args(&args);
+            cmd.cwd(&working_dir);
+            cmd.env("TERM", "xterm-256color");
+            cmd.env("COLORTERM", "truecolor");
+
+            let child = pty_pair
+                .slave
+                .spawn_command(cmd)
+                .map_err(|e| PtyError::CreateFailed(e.to_string()))?;
+
+            let writer = pty_pair
+                .master
+                .take_writer()
+                .map_err(|e| PtyError::CreateFailed(e.to_string()))?;
+
+            let mut reader = pty_pair
+                .master
+                .try_clone_reader()
+                .map_err(|e| PtyError::CreateFailed(e.to_string()))?;
+
+            let output_handle = thread::spawn(move || {
+                let mut buf = [0u8; 4096];
+                loop {
+                    match reader.read(&mut buf) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            if output_tx.send(buf[..n].to_vec()).is_err() {
+                                break;
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+                drop(child);
+            });
+
+            Ok::<_, PtyError>((pty_pair.master, writer, output_handle))
+        })
+        .await
+        .map_err(|e| PtyError::CreateFailed(e.to_string()))??;
+
+        let (master, writer, output_handle) = result;
+
+        self.register_session(session_id, master, writer, output_handle)?;
+
+        Ok((session_id, output_rx))
+    }
+
+    fn register_session(
+        &self,
+        session_id: Uuid,
+        master: Box<dyn portable_pty::MasterPty + Send>,
+        writer: Box<dyn Write + Send>,
+        output_handle: thread::JoinHandle<()>,
+    ) -> Result<(), PtyError> {
         let session = PtySession {
             writer,
             master,
@@ -151,7 +241,7 @@ impl PtyService {
             .map_err(|e| PtyError::CreateFailed(e.to_string()))?
             .insert(session_id, session);
 
-        Ok((session_id, output_rx))
+        Ok(())
     }
 
     pub async fn write(&self, session_id: Uuid, data: &[u8]) -> Result<(), PtyError> {
