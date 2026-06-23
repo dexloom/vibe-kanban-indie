@@ -63,61 +63,77 @@ export function XTermInstance({
   }, [tabId, getTerminalConnection]);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
 
+    // A single xterm instance per tab is shared between the in-sidebar terminal
+    // and the expanded (full-pane) terminal: only one is mounted at a time, and
+    // we move the terminal's DOM element into whichever container is live.
     const existing = getTerminalInstance(tabId);
+    let terminal: Terminal;
+    let fitAddon: FitAddon;
+
     if (existing) {
-      const { terminal, fitAddon } = existing;
+      terminal = existing.terminal;
+      fitAddon = existing.fitAddon;
       if (terminal.element) {
-        containerRef.current.appendChild(terminal.element);
-        fitAddon.fit();
+        container.appendChild(terminal.element);
       }
-      terminalRef.current = terminal;
-      fitAddonRef.current = fitAddon;
-      return;
+    } else {
+      terminal = new Terminal({
+        cursorBlink: true,
+        fontSize: 12,
+        fontFamily: '"IBM Plex Mono", monospace',
+        theme: getTerminalTheme(),
+      });
+
+      fitAddon = new FitAddon();
+      const webLinksAddon = new WebLinksAddon();
+
+      terminal.loadAddon(fitAddon);
+      terminal.loadAddon(webLinksAddon);
+      terminal.open(container);
+
+      fitAddon.fit();
+      initialSizeRef.current = { cols: terminal.cols, rows: terminal.rows };
+
+      if (!getTerminalConnection(tabId)) {
+        createTerminalConnection(
+          tabId,
+          endpoint,
+          (data) => terminal.write(data),
+          onClose
+        );
+      }
+
+      registerTerminalInstance(tabId, terminal, fitAddon);
+
+      terminal.onData((data) => {
+        const conn = getTerminalConnection(tabId);
+        conn?.send(data);
+      });
     }
-
-    if (terminalRef.current) return;
-
-    const terminal = new Terminal({
-      cursorBlink: true,
-      fontSize: 12,
-      fontFamily: '"IBM Plex Mono", monospace',
-      theme: getTerminalTheme(),
-    });
-
-    const fitAddon = new FitAddon();
-    const webLinksAddon = new WebLinksAddon();
-
-    terminal.loadAddon(fitAddon);
-    terminal.loadAddon(webLinksAddon);
-    terminal.open(containerRef.current);
-
-    fitAddon.fit();
-    initialSizeRef.current = { cols: terminal.cols, rows: terminal.rows };
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
-    if (!getTerminalConnection(tabId)) {
-      createTerminalConnection(
-        tabId,
-        endpoint,
-        (data) => terminal?.write(data),
-        onClose
-      );
-    }
-
-    registerTerminalInstance(tabId, terminal, fitAddon);
-
-    terminal.onData((data) => {
-      const conn = getTerminalConnection(tabId);
-      conn?.send(data);
+    // Re-fit and force a repaint on the next frame: a moved element keeps its
+    // buffer, but the xterm renderer stays blank until it is refreshed, and the
+    // new container's size may differ. Also re-sync the PTY size to the client.
+    const raf = requestAnimationFrame(() => {
+      fitAddon.fit();
+      terminal.refresh(0, Math.max(0, terminal.rows - 1));
+      getTerminalConnection(tabId)?.resize(terminal.cols, terminal.rows);
     });
 
     return () => {
-      if (terminal.element && terminal.element.parentNode) {
-        terminal.element.parentNode.removeChild(terminal.element);
+      cancelAnimationFrame(raf);
+      // Only detach the element if it still lives in THIS container — never
+      // steal it from another container that may have re-parented it (e.g.
+      // when switching between the sidebar and expanded terminal views).
+      const el = terminal.element;
+      if (el && el.parentNode === container) {
+        container.removeChild(el);
       }
       terminalRef.current = null;
       fitAddonRef.current = null;

@@ -52,9 +52,19 @@ export function LogsPanelProvider({ children }: LogsPanelProviderProps) {
     setLogCurrentMatchIdx(0);
   }, [logSearchQuery]);
 
-  // Collapse terminal when switching away from Logs panel mode
+  // Collapse the expanded terminal only on a genuine transition AWAY from the
+  // Logs panel mode (e.g. the user clicks the Changes/Preview tab). Tracking the
+  // previous mode avoids a spurious collapse during `expandTerminal()`, where
+  // `setLogsPanelContent({ type: 'terminal' })` and `setRightMainPanelMode(LOGS)`
+  // may land such that `isTerminalExpanded` flips true before the mode reads as
+  // LOGS — which would otherwise immediately null the content and leave the
+  // terminal stuck in the small sidebar instead of expanding.
+  const prevRightMainPanelModeRef = useRef(rightMainPanelMode);
   useEffect(() => {
+    const prevMode = prevRightMainPanelModeRef.current;
+    prevRightMainPanelModeRef.current = rightMainPanelMode;
     if (
+      prevMode === RIGHT_MAIN_PANEL_MODES.LOGS &&
       rightMainPanelMode !== RIGHT_MAIN_PANEL_MODES.LOGS &&
       isTerminalExpanded
     ) {
