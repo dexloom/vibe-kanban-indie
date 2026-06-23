@@ -31,6 +31,16 @@ export interface TerminalContextType {
     cwd: string,
     executionProcessId?: string
   ) => void;
+  /**
+   * Open a terminal tab, or focus an existing one. When `executionProcessId` is
+   * given and a tab is already attached to that session, the existing tab is
+   * activated instead of opening a duplicate (idempotent attach).
+   */
+  openOrFocusTab: (
+    workspaceId: string,
+    cwd: string,
+    executionProcessId?: string
+  ) => void;
   closeTab: (workspaceId: string, tabId: string) => void;
   setActiveTab: (workspaceId: string, tabId: string) => void;
   updateTabTitle: (workspaceId: string, tabId: string, title: string) => void;

@@ -56,7 +56,7 @@ export const RightSidebar = memo(function RightSidebar({
   const isTerminalVisible = useUiPreferencesStore((s) => s.isTerminalVisible);
   const { expandTerminal, isTerminalExpanded } = useLogsPanel();
   const headedSession = useHeadedSession();
-  const { createTab } = useTerminal();
+  const { openOrFocusTab } = useTerminal();
 
   const openExternalTerminal = useCallback(() => {
     if (!selectedWorkspace) return;
@@ -70,13 +70,15 @@ export const RightSidebar = memo(function RightSidebar({
   // — so it shows regardless of the in-sidebar Terminal section's collapse state.
   const openAttachTerminal = useCallback(() => {
     if (!headedSession || !selectedWorkspace?.container_ref) return;
-    createTab(
+    // Idempotent: focuses the existing attach tab if this session is already
+    // attached, otherwise opens one. Never stacks duplicate sessions.
+    openOrFocusTab(
       selectedWorkspace.id,
       selectedWorkspace.container_ref,
       headedSession.processId
     );
     expandTerminal();
-  }, [headedSession, selectedWorkspace, createTab, expandTerminal]);
+  }, [headedSession, selectedWorkspace, openOrFocusTab, expandTerminal]);
 
   const [changesExpanded] = usePersistedExpanded(
     PERSIST_KEYS.changesSection,
