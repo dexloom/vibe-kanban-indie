@@ -52,6 +52,13 @@ export interface TerminalContextType {
   ) => void;
   getTerminalInstance: (tabId: string) => TerminalInstance | null;
   unregisterTerminalInstance: (tabId: string) => void;
+  /**
+   * Fully tear down a terminal that was mounted OUTSIDE the reducer tab list
+   * (e.g. the in-pane headed terminal): close its WebSocket, dispose the xterm
+   * instance, and unregister it. Mirrors `closeTab`'s cleanup without
+   * dispatching a tab action.
+   */
+  disposeStandaloneTerminal: (tabId: string) => void;
   createTerminalConnection: (
     tabId: string,
     endpoint: string,

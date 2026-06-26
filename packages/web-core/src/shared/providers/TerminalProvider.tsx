@@ -347,6 +347,22 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
     terminalInstancesRef.current.delete(tabId);
   }, []);
 
+  // Tear down a terminal mounted outside the reducer tab list (the in-pane
+  // headed terminal). Mirrors `closeTab`'s cleanup — dispose the xterm and close
+  // the WebSocket — but without dispatching a CLOSE_TAB action, since this
+  // terminal was never added to `tabsByWorkspace`.
+  const disposeStandaloneTerminal = useCallback(
+    (tabId: string) => {
+      const instance = terminalInstancesRef.current.get(tabId);
+      if (instance) {
+        instance.terminal.dispose();
+        terminalInstancesRef.current.delete(tabId);
+      }
+      closeTerminalConnection(tabId);
+    },
+    [closeTerminalConnection]
+  );
+
   const createTerminalConnection = useCallback(
     (
       tabId: string,
@@ -515,6 +531,7 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
       registerTerminalInstance,
       getTerminalInstance,
       unregisterTerminalInstance,
+      disposeStandaloneTerminal,
       createTerminalConnection,
       getTerminalConnection,
     }),
@@ -530,6 +547,7 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
       registerTerminalInstance,
       getTerminalInstance,
       unregisterTerminalInstance,
+      disposeStandaloneTerminal,
       createTerminalConnection,
       getTerminalConnection,
     ]
