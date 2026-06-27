@@ -68,7 +68,15 @@ targets:
             mkdir -p "$DEST"
             cp "$SRC" "$DEST/server"
             chmod +x "$DEST/server"
-            echo "Bundled backend from $SRC"
+            # Re-sign the nested binary with a proper ad-hoc signature. Cargo emits a
+            # "linker-signed" ad-hoc signature (codesign flags 0x20002); AMFI SIGKILLs
+            # such a binary (exit 137) when it is executed from inside another signed
+            # .app bundle. A fresh `codesign --force --sign -` (flags 0x2) runs fine.
+            # This must happen here (before Xcode's final bundle sign, which only seals
+            # CodeResources and leaves the nested binary's own signature untouched).
+            codesign --force --sign - --timestamp=none "$DEST/server" \
+              && echo "Bundled + re-signed backend from $SRC" \
+              || echo "warning: failed to re-sign nested backend (it may be SIGKILLed at runtime)"
           else
             echo "No staged backend at $SRC — managed mode uses repo/explicit path. Run scripts/build-backend.sh to bundle one."
           fi

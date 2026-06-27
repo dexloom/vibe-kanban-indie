@@ -61,9 +61,18 @@ needed — the app's Xcode build compiles and embeds it:
 
 - A **pre-build phase** runs `cargo build --release --bin server` (against the repo at
   `$SRCROOT/../..`) and stages the binary at `apps/macos/Backend/server`.
-- A **post-compile phase** copies it into the app at `Contents/Resources/Backend/server`.
+- A **post-compile phase** copies it into the app at `Contents/Resources/Backend/server`
+  **and re-signs it** with `codesign --force --sign -`.
 - So a normal `xcodebuild`/Xcode Run produces a **self-contained app** whose managed
   backend works with **zero configuration**.
+
+> **Why the re-sign matters.** Cargo emits a *linker-signed* ad-hoc signature
+> (`codesign` flags `0x20002`). When such a binary is executed from inside another
+> signed `.app` bundle, AMFI kills it immediately with **SIGKILL (exit 137)** — the
+> process dies before printing anything, so the app just reports the managed backend
+> never came up. Replacing it with a proper ad-hoc signature (`codesign --force --sign -`,
+> flags `0x2`) fixes this. The re-sign runs before Xcode's final bundle signing, which
+> only re-seals `CodeResources` and leaves the nested binary's own signature intact.
 
 First build is slow (cold Rust compile); afterwards cargo is incremental (near-no-op).
 For fast UI-only iteration, skip it with `SKIP_BACKEND_BUILD=1 xcodebuild …`. If `cargo`
