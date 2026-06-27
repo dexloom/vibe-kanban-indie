@@ -36,9 +36,10 @@ struct ConversationPatchApplier {
     }
 
     private static func entryIndex(from path: String) -> Int? {
-        // "/entries/3" -> 3
-        guard let last = path.split(separator: "/").last else { return nil }
-        return Int(last)
+        // Only "/entries/<int>" is a conversation entry op.
+        let prefix = "/entries/"
+        guard path.hasPrefix(prefix) else { return nil }
+        return Int(path.dropFirst(prefix.count))
     }
 
     private static func entry(from value: JSONValue) -> NormalizedEntry? {

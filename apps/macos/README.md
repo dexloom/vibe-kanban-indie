@@ -5,8 +5,13 @@ Rust backend over HTTP + WebSocket. This is a *sketch*: every screen of the web
 UI is scaffolded; the board, issue detail, and workspace/chat are wired to the
 live backend, and the rest are first-pass placeholders (each marked `// sketch`).
 
-> Status: **builds clean** (`xcodebuild`) and **all model tests pass**. It is a
-> starting point for porting the web UI (`packages/local-web` + `web-core`) to AppKit/SwiftUI.
+> Status: **builds clean** (`xcodebuild`) and the **unit-test suite passes (62 tests)**.
+> It is a starting point for porting the web UI (`packages/local-web` + `web-core`) to AppKit/SwiftUI.
+>
+> Tests (`Tests/VibeKanbanMacTests`) cover: wire decoding of every entity, request-body
+> encoding (create/update/bulk/spec/approval), JSON + date coding, the `## Pipeline`
+> markdown composer + composer-model metadata, the normalized-log patch applier, color
+> parsing, and backend mode/resolution/discovery. They run offline (no backend needed).
 
 ## Requirements
 
