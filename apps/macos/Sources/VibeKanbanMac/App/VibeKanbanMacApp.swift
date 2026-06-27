@@ -24,6 +24,7 @@ struct VibeKanbanMacApp: App {
                 Button("Command Palette…") { appState.showCommandPalette = true }
                     .keyboardShortcut("k", modifiers: .command)
             }
+            DictationCommands()
         }
 
         // Workspace / session window, opened per workspace id.

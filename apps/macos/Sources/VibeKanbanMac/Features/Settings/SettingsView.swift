@@ -10,6 +10,7 @@ struct SettingsView: View {
             GeneralSettings(vm: vm).tabItem { Label("General", systemImage: "gear") }
             BackendSettings().tabItem { Label("Backend", systemImage: "server.rack") }
             AgentsSettings(vm: vm).tabItem { Label("Agents", systemImage: "cpu") }
+            VoiceSettingsView().tabItem { Label("Voice", systemImage: "mic") }
             ProjectsSettingsView().tabItem { Label("Projects", systemImage: "rectangle.stack") }
             RepositoriesSettingsView().tabItem { Label("Repositories", systemImage: "folder") }
             PlaceholderSettings(

@@ -6,6 +6,7 @@ struct IssueComposerView: View {
     @Bindable var model: IssueComposerModel
     var onCancel: () -> Void
     var onCreate: () -> Void
+    @State private var dictation = DictationController()
 
     var body: some View {
         ScrollView {
@@ -47,12 +48,33 @@ struct IssueComposerView: View {
                     }.labelsHidden()
                 }
             }
-            field("Description") {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text("Description").font(.subheadline.weight(.medium))
+                    Spacer()
+                    MicButton(
+                        controller: dictation,
+                        situations: [.task],
+                        context: { DictationContext.task(title: model.title, project: model.project.name) }
+                    ) { transcript in
+                        appendDescription(transcript)
+                    }
+                }
                 TextEditor(text: $model.descriptionText)
                     .font(.body)
                     .frame(minHeight: 110)
                     .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.quaternary))
             }
+        }
+        .onDisappear { dictation.cancel() }
+    }
+
+    /// Append a dictated task spec to the description, separated by a blank line.
+    private func appendDescription(_ text: String) {
+        if model.descriptionText.isEmpty {
+            model.descriptionText = text
+        } else {
+            model.descriptionText += "\n\n" + text
         }
     }
 

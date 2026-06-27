@@ -98,7 +98,42 @@ does the same staging manually if you prefer.
 | Models | `Sources/VibeKanbanMac/Models` | `Codable` structs. **Board** entities mirror `shared/remote-types.ts` (served by `/v1/fallback/*`); **execution** entities mirror `shared/types.ts` (`/workspaces`, `/sessions`, `/execution-processes`, `/approvals`). All IDs are `String`. |
 | Networking | `Sources/VibeKanbanMac/Networking` | `APIClient` (REST), `PortDiscovery`, `WebSocketStream` (→ `AsyncStream<LogMsg>`), `ConversationPatchApplier` (RFC-6902 → `[NormalizedEntry]`). |
 | State | `App/AppState.swift` | `@Observable` connection + project list + selection. Board/workspace state in their own view models. |
+| Voice | `Sources/VibeKanbanMac/Voice` | Mic dictation via **Voicy** (see below). `VoicyDiscovery`, `VoicyClient` (actor), `DictationContext`/`DictationMode`, `DictationController`, `DictationCommands` (menu). The button is `Components/MicButton`. |
 | Features | `Sources/VibeKanbanMac/Features` | One folder per screen. |
+
+### Voice dictation (Voicy)
+
+The 🎤 in the workspace chat composer (and the **Dictate … with Voicy** menu
+commands, ⌥⌘D / ⌥⌘T) **open Voicy** — you do the dictation + refinement *in*
+Voicy (it owns the microphone and speech-to-text, so this app needs no mic
+entitlement), then click **"Send to vibe-kanban"** in Voicy and the prepared text
+lands in the chat box for review.
+
+- **Situations** (`DictationSituation`): the **chat composer** mic offers the
+  three agent situations — *instruction*, *answer questionnaire*, *review/approve*
+  (→ Voicy's Agents section); the **new-card composer** (`IssueComposerView`)
+  Description mic offers *task* (→ Voicy's Voice→Coding Task composer). The
+  app-menu commands cover the three chat situations.
+- **Agent depends on the situation**: the three agent situations default to Voicy's
+  seeded **`vibe-kanban`** agent and can be remapped per situation in **Settings →
+  Voice** (pickers populated from Voicy's `GET /agents`, persisted in
+  `VoiceAgentMap`). The resolved `agentId` rides in the session request and Voicy
+  preselects that agent. *task* uses the Task composer (no agent).
+- `VoicyClient` (actor) discovers Voicy's loopback server from
+  `~/.voicy/voicy.port` (launching Voicy via `NSWorkspace` if needed), opens a
+  session (`POST /dictate/session` with `{ context, mode, agentId? }`), then
+  **polls** `GET /dictate/session/{id}` until the user's Send (`status: sent`) or
+  cancel.
+- The context (`DictationContext.chat`: workspace title + last ~5 conversation
+  messages) is sent over IPC and used by Voicy both to **bias transcription** and
+  to **brief the agent** (recent messages + keywords folded into its
+  `{{projectContext}}`), so the agent is aware of the live conversation.
+- The menu commands target the focused workspace's composer via
+  `@FocusedValue(\.dictate)` (`DictationCommands`).
+- `VoiceTests` pins the route contract, the camelCase context wire shape, and the
+  session/poll flow. The Voicy IPC server lives on the
+  `feature/ipc-dictation-server` branch of the Voicy repo (see its README →
+  "Dictation IPC").
 
 ### Route prefixes (important)
 

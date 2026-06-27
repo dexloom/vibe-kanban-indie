@@ -67,9 +67,16 @@ struct WorkspaceWindowView: View {
                     .padding(10)
                 }
                 Divider()
-                ChatInputView { prompt in
-                    Task { await vm.sendFollowUp(prompt) }
-                }
+                ChatInputView(
+                    onSend: { prompt in Task { await vm.sendFollowUp(prompt) } },
+                    dictationContext: {
+                        DictationContext.chat(
+                            title: vm.workspace?.displayName,
+                            project: vm.workspace?.branch,
+                            entries: vm.entries
+                        )
+                    }
+                )
             }
             .frame(minWidth: 360)
 
