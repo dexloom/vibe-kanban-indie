@@ -5,7 +5,7 @@ Rust backend over HTTP + WebSocket. This is a *sketch*: every screen of the web
 UI is scaffolded; the board, issue detail, and workspace/chat are wired to the
 live backend, and the rest are first-pass placeholders (each marked `// sketch`).
 
-> Status: **builds clean** (`xcodebuild`) and the **unit-test suite passes (74 tests)**.
+> Status: **builds clean** (`xcodebuild`) and the **unit-test suite passes (77 tests)**.
 > It is a starting point for porting the web UI (`packages/local-web` + `web-core`) to AppKit/SwiftUI.
 >
 > Tests (`Tests/VibeKanbanMacTests`) cover: wire decoding of every entity, request-body
@@ -164,10 +164,16 @@ right away and reconciles with the server, reverting on error.
 - **Settings**:
   - *General* — live status + server version + port override + reconnect.
   - *Backend* — managed/external mode, executable/repo paths, start/stop, log.
-  - *Agents* — new-card defaults (default executor + model, stored locally and pre-filled
-    in the composer) **+** live availability via `/agents/check-availability`.
-  - *Projects* — create / rename / recolor / delete projects (`/v1/projects`), and link/unlink
-    repositories per project (`/v1/projects/{id}/repos`). Mutations refresh the sidebar.
+  - *Agents* — set the backend **default agent** (`config.executor_profile`: executor + variant,
+    round-tripped through `/api/info` and saved with `PUT /api/config`), edit the raw executor
+    **profiles JSON** (`/api/profiles` — per-agent variants/options), and live availability via
+    `/agents/check-availability`.
+  - *Projects* — create / rename / recolor / delete projects (`/v1/projects`), and link/unlink a
+    project's **default repositories**. ⚠️ These live in scratch **`PROJECT_REPO_DEFAULTS`**
+    (`/api/scratch/PROJECT_REPO_DEFAULTS/{projectId}`) — the same association the intake /
+    workspace-start flow reads — **not** the `project_repos` table (which the indie web/MCP flows
+    leave empty). Linked ids are cross-referenced against the `/api/repos` catalog for display.
+    Mutations refresh the sidebar.
   - *Repositories* — register a local git checkout (`POST /api/repos`, with a folder picker),
     edit display name / default branch / setup·cleanup·dev-server scripts (`PUT /api/repos/{id}`),
     and delete (`DELETE /api/repos/{id}`; surfaces the 409 "in use" conflict).

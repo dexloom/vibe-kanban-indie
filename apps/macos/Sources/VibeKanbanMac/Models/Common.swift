@@ -89,6 +89,21 @@ indirect enum JSONValue: Codable, Hashable {
         }
     }
 
+    /// The underlying string, only for `.string`.
+    var stringValue: String? {
+        if case let .string(s) = self { return s }
+        return nil
+    }
+
+    /// The underlying object, only for `.object`.
+    var objectValue: [String: JSONValue]? {
+        if case let .object(o) = self { return o }
+        return nil
+    }
+
+    /// Convenience object subscript (nil for non-objects / missing keys).
+    subscript(key: String) -> JSONValue? { objectValue?[key] }
+
     /// Best-effort string for display.
     var displayString: String {
         switch self {

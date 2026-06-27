@@ -244,15 +244,23 @@ final class ProjectsSettingsModel {
     var busy = false
     var error: String?
 
+    /// The raw defaults (repo id + target branch), kept so link/unlink preserve
+    /// each repo's branch when re-saving the scratch list.
+    private var linkedDefaults: [DraftWorkspaceRepo] = []
+
     func loadRepos() async {
         guard let client else { return }
-        do { allRepos = try await client.listAllRepos() } catch { self.error = error.localizedDescription }
+        do { allRepos = try await client.listAllRepos().sorted { $0.displayName < $1.displayName } }
+        catch { self.error = error.localizedDescription }
     }
 
     func loadLinked(projectId: String?) async {
-        guard let client, let projectId else { linkedRepos = []; return }
-        do { linkedRepos = try await client.listRepos(projectId: projectId) }
-        catch { self.error = error.localizedDescription }
+        guard let client, let projectId else { linkedRepos = []; linkedDefaults = []; return }
+        do {
+            linkedDefaults = try await client.projectRepoDefaults(projectId: projectId)
+            // Map ids to full repos for display; keep order from the defaults list.
+            linkedRepos = linkedDefaults.compactMap { d in allRepos.first { $0.id == d.repoId } }
+        } catch { self.error = error.localizedDescription }
     }
 
     @discardableResult
@@ -272,12 +280,17 @@ final class ProjectsSettingsModel {
     }
 
     func link(projectId: String, repoId: String) async {
-        await runVoid { try await $0.linkRepo(projectId: projectId, repoId: repoId) }
+        guard !linkedDefaults.contains(where: { $0.repoId == repoId }) else { return }
+        let raw = allRepos.first { $0.id == repoId }?.defaultTargetBranch
+        let branch = (raw?.isEmpty == false) ? raw! : "main"
+        let next = linkedDefaults + [DraftWorkspaceRepo(repoId: repoId, targetBranch: branch)]
+        await runVoid { try await $0.setProjectRepoDefaults(projectId: projectId, repos: next) }
         await loadLinked(projectId: projectId)
     }
 
     func unlink(projectId: String, repoId: String) async {
-        await runVoid { try await $0.unlinkRepo(projectId: projectId, repoId: repoId) }
+        let next = linkedDefaults.filter { $0.repoId != repoId }
+        await runVoid { try await $0.setProjectRepoDefaults(projectId: projectId, repos: next) }
         await loadLinked(projectId: projectId)
     }
 

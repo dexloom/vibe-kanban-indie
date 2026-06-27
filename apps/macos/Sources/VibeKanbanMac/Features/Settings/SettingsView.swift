@@ -61,50 +61,105 @@ private struct GeneralSettings: View {
 
 private struct AgentsSettings: View {
     @Bindable var vm: SettingsViewModel
-    @AppStorage(AgentDefaults.executorKey) private var defaultExecutor = ""
-    @AppStorage(AgentDefaults.modelKey) private var defaultModel = ""
+    @State private var profilesExpanded = false
 
     var body: some View {
         Form {
-            Section {
-                Picker("Default agent", selection: $defaultExecutor) {
-                    Text("Let orchestrator decide").tag("")
-                    ForEach(BaseCodingAgent.allCases, id: \.self) { agent in
-                        Text(agent.label).tag(agent.rawValue)
-                    }
-                }
-                TextField("Default model", text: $defaultModel,
-                          prompt: Text("optional, e.g. anthropic/claude-sonnet-4"))
-            } header: {
-                Text("New card defaults")
-            } footer: {
-                Text("Pre-selected in the card composer's agent picker. Stored locally.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-
-            Section {
-                ForEach(BaseCodingAgent.allCases, id: \.self) { agent in
-                    LabeledContent(agent.label) {
-                        availability(for: vm.agents[agent])
-                    }
-                }
-            } header: {
-                HStack {
-                    Text("Availability")
-                    Spacer()
-                    if vm.isLoading { ProgressView().controlSize(.small) }
-                    Button { Task { await vm.load(client: vm.lastClient) } } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .buttonStyle(.borderless)
-                }
-            } footer: {
-                Text("Availability from /agents/check-availability.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
+            defaultAgentSection
+            availabilitySection
+            profilesSection
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    @ViewBuilder
+    private var defaultAgentSection: some View {
+        Section {
+            Picker("Default agent", selection: $vm.defaultExecutor) {
+                Text("Select…").tag(BaseCodingAgent?.none)
+                ForEach(BaseCodingAgent.allCases, id: \.self) { agent in
+                    Text(agent.label).tag(BaseCodingAgent?.some(agent))
+                }
+            }
+            .onChange(of: vm.defaultExecutor) { _, exec in
+                if let exec, !vm.variants(for: exec).contains(vm.defaultVariant) {
+                    vm.defaultVariant = vm.variants(for: exec).first ?? "DEFAULT"
+                }
+            }
+            if let exec = vm.defaultExecutor {
+                Picker("Variant", selection: $vm.defaultVariant) {
+                    ForEach(vm.variants(for: exec), id: \.self) { Text($0).tag($0) }
+                }
+            }
+            HStack {
+                Button("Apply default") { Task { await vm.saveDefaultAgent() } }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(vm.defaultExecutor == nil || vm.savingAgent)
+                if vm.savingAgent { ProgressView().controlSize(.small) }
+                if let err = vm.agentSaveError {
+                    Text(err).font(.caption).foregroundStyle(.orange)
+                }
+            }
+        } header: {
+            Text("Default agent")
+        } footer: {
+            Text("Saved to the backend (`config.executor_profile`) — the agent the orchestrator runs by default.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var availabilitySection: some View {
+        Section {
+            ForEach(BaseCodingAgent.allCases, id: \.self) { agent in
+                LabeledContent(agent.label) {
+                    availability(for: vm.agents[agent])
+                }
+            }
+        } header: {
+            HStack {
+                Text("Availability")
+                Spacer()
+                if vm.isLoading { ProgressView().controlSize(.small) }
+                Button { Task { await vm.load(client: vm.lastClient) } } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+            }
+        } footer: {
+            Text("Availability from /agents/check-availability.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var profilesSection: some View {
+        Section {
+            DisclosureGroup("Executor profiles (advanced JSON)", isExpanded: $profilesExpanded) {
+                TextEditor(text: $vm.profilesText)
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(minHeight: 140)
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.quaternary))
+                HStack {
+                    Button("Reload") { Task { await vm.loadProfiles() } }
+                    Button("Save profiles") { Task { await vm.saveProfiles() } }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(vm.profilesSaving)
+                    if vm.profilesSaving { ProgressView().controlSize(.small) }
+                    if vm.profilesSaved { Text("Saved").font(.caption).foregroundStyle(.green) }
+                    if let err = vm.profilesError {
+                        Text(err).font(.caption).foregroundStyle(.orange)
+                    }
+                }
+            }
+            .onChange(of: profilesExpanded) { _, open in
+                if open, vm.profilesText.isEmpty { Task { await vm.loadProfiles() } }
+            }
+        } footer: {
+            Text("Raw `/profiles` JSON: per-agent variants and options (effort, models, append-prompt, …).")
+                .font(.caption).foregroundStyle(.secondary)
+        }
     }
 
     @ViewBuilder

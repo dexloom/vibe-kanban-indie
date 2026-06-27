@@ -102,6 +102,25 @@ final class APIPathTests: XCTestCase {
         XCTAssertEqual(p, "/api/repos/r1")
     }
 
+    func testConfigScratchAndProfilesRoutes() async {
+        let c = makeClient()
+        // Project repo defaults live in scratch under /api.
+        var p = await path { _ = try await c.projectRepoDefaults(projectId: "p1") }
+        XCTAssertEqual(p, "/api/scratch/PROJECT_REPO_DEFAULTS/p1")
+        p = await path { try await c.setProjectRepoDefaults(projectId: "p1", repos: []) }
+        XCTAssertEqual(p, "/api/scratch/PROJECT_REPO_DEFAULTS/p1")
+        XCTAssertEqual(RecordingURLProtocol.lastMethod, "PUT")
+        // Default agent + raw profiles are backend config under /api.
+        p = await path { try await c.updateConfig(.object([:])) }
+        XCTAssertEqual(p, "/api/config")
+        XCTAssertEqual(RecordingURLProtocol.lastMethod, "PUT")
+        p = await path { _ = try await c.profilesContent() }
+        XCTAssertEqual(p, "/api/profiles")
+        p = await path { try await c.updateProfiles("{}") }
+        XCTAssertEqual(p, "/api/profiles")
+        XCTAssertEqual(RecordingURLProtocol.lastMethod, "PUT")
+    }
+
     func testRepoMutationMethods() async {
         let c = makeClient()
         _ = await path { _ = try await c.registerRepo(RegisterRepoRequest(path: "/x")) }

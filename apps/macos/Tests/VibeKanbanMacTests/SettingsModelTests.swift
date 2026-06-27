@@ -91,4 +91,29 @@ final class SettingsModelTests: XCTestCase {
         let obj = try encodedObject(LinkRepoRequest(repoId: "repo-42"))
         XCTAssertEqual(obj["repo_id"] as? String, "repo-42")
     }
+
+    // MARK: - Project repo defaults (scratch)
+
+    func testProjectRepoDefaultsRecordDecodes() throws {
+        // The shape of `GET /api/scratch/PROJECT_REPO_DEFAULTS/{id}` -> .data.
+        let json = """
+        { "payload": { "type": "PROJECT_REPO_DEFAULTS",
+          "data": { "repos": [ { "repo_id": "r1", "target_branch": "main" } ] } } }
+        """
+        let rec = try APICoding.decoder.decode(ProjectRepoDefaultsRecord.self, from: Data(json.utf8))
+        XCTAssertEqual(rec.payload.type, "PROJECT_REPO_DEFAULTS")
+        XCTAssertEqual(rec.payload.data.repos.first?.repoId, "r1")
+        XCTAssertEqual(rec.payload.data.repos.first?.targetBranch, "main")
+    }
+
+    func testScratchUpdateRequestEncoding() throws {
+        let obj = try encodedObject(
+            ScratchUpdateRequest(repos: [DraftWorkspaceRepo(repoId: "r1", targetBranch: "dev")]))
+        let payload = try XCTUnwrap(obj["payload"] as? [String: Any])
+        XCTAssertEqual(payload["type"] as? String, "PROJECT_REPO_DEFAULTS")
+        let data = try XCTUnwrap(payload["data"] as? [String: Any])
+        let repos = try XCTUnwrap(data["repos"] as? [[String: Any]])
+        XCTAssertEqual(repos.first?["repo_id"] as? String, "r1")
+        XCTAssertEqual(repos.first?["target_branch"] as? String, "dev")
+    }
 }

@@ -68,12 +68,57 @@ struct UpdateRepoRequest: Codable {
 
 // MARK: - Project ↔ repo links (`/v1/projects/{id}/repos`)
 
-/// `POST /v1/projects/{id}/repos` — link an existing repo to a project.
+/// `POST /v1/projects/{id}/repos` — link an existing repo to a project (legacy
+/// `project_repos` table; the TUI uses this). The card intake / workspace flow
+/// instead reads the repos from scratch `PROJECT_REPO_DEFAULTS` (below).
 struct LinkRepoRequest: Codable {
     let repoId: String
 
     enum CodingKeys: String, CodingKey {
         case repoId = "repo_id"
+    }
+}
+
+// MARK: - Project repo defaults (scratch `PROJECT_REPO_DEFAULTS`, keyed by project)
+//
+// This is the association the indie intake/spec/workspace-start flow actually
+// reads (see `useProjectRepoDefaults` in the web app) — `/api/scratch/
+// PROJECT_REPO_DEFAULTS/{projectId}`.
+
+/// One repo + its default target branch in a project's repo defaults.
+struct DraftWorkspaceRepo: Codable, Hashable {
+    let repoId: String
+    var targetBranch: String
+
+    enum CodingKeys: String, CodingKey {
+        case repoId = "repo_id"
+        case targetBranch = "target_branch"
+    }
+}
+
+struct ProjectRepoDefaultsData: Codable, Hashable {
+    var repos: [DraftWorkspaceRepo]
+}
+
+/// Decodes the `GET /api/scratch/PROJECT_REPO_DEFAULTS/{id}` payload.
+struct ProjectRepoDefaultsRecord: Decodable {
+    struct Payload: Decodable {
+        let type: String
+        let data: ProjectRepoDefaultsData
+    }
+    let payload: Payload
+}
+
+/// Body for `PUT /api/scratch/PROJECT_REPO_DEFAULTS/{id}` (upsert).
+struct ScratchUpdateRequest: Encodable {
+    struct Payload: Encodable {
+        let type: String
+        let data: ProjectRepoDefaultsData
+    }
+    let payload: Payload
+
+    init(repos: [DraftWorkspaceRepo]) {
+        payload = Payload(type: "PROJECT_REPO_DEFAULTS", data: .init(repos: repos))
     }
 }
 

@@ -222,6 +222,46 @@ final class APIClient {
         _ = try await send("DELETE", "/v1/projects/\(projectId)/repos/\(repoId)")
     }
 
+    // MARK: - Project repo defaults (scratch `PROJECT_REPO_DEFAULTS`)
+
+    /// The repos a project defaults to for intake / workspace start. Returns an
+    /// empty list when no defaults have been saved (the backend 400/404s).
+    func projectRepoDefaults(projectId: String) async throws -> [DraftWorkspaceRepo] {
+        do {
+            let rec = try envelope(ProjectRepoDefaultsRecord.self,
+                                   await send("GET", "/api/scratch/PROJECT_REPO_DEFAULTS/\(projectId)"))
+            return rec.payload.data.repos
+        } catch APIError.http(let status, _) where status == 400 || status == 404 {
+            return []
+        } catch APIError.emptyEnvelope {
+            return []
+        }
+    }
+
+    func setProjectRepoDefaults(projectId: String, repos: [DraftWorkspaceRepo]) async throws {
+        _ = try await send("PUT", "/api/scratch/PROJECT_REPO_DEFAULTS/\(projectId)",
+                           body: try encode(ScratchUpdateRequest(repos: repos)))
+    }
+
+    // MARK: - Config / profiles (agent defaults)
+
+    /// PUT the full config object (round-tripped from `/api/info`) to persist a
+    /// change such as the default `executor_profile`.
+    func updateConfig(_ config: JSONValue) async throws {
+        _ = try await send("PUT", "/api/config", body: try encode(config))
+    }
+
+    /// The raw executor-profiles JSON (`{ content, path }`) for advanced editing.
+    func profilesContent() async throws -> String {
+        let value = try envelope(JSONValue.self, await send("GET", "/api/profiles"))
+        return value["content"]?.stringValue ?? ""
+    }
+
+    /// PUT the raw profiles JSON text. The endpoint takes the JSON as the body.
+    func updateProfiles(_ json: String) async throws {
+        _ = try await send("PUT", "/api/profiles", body: Data(json.utf8))
+    }
+
     // MARK: - Spec / intake
 
     func generateSpec(_ req: GenerateSpecRequest) async throws -> GenerateSpecResponse {
