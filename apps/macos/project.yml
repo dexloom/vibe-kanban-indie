@@ -1,0 +1,72 @@
+# XcodeGen spec for the native macOS VibeKanban sketch.
+# Regenerate the .xcodeproj with:  xcodegen generate
+name: VibeKanbanMac
+options:
+  bundleIdPrefix: dev.vibekanban
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Local-only dev tool: no sandbox so it can read ~/.vibe-kanban/vibe-kanban.port
+    # and talk to http://127.0.0.1. Ad-hoc sign so `xcodebuild` works with no team.
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: NO
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    GENERATE_INFOPLIST_FILE: NO
+
+targets:
+  VibeKanbanMac:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/VibeKanbanMac
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.vibekanban.mac
+        PRODUCT_NAME: VibeKanbanMac
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        COMBINE_HIDPI_IMAGES: YES
+    info:
+      path: Sources/VibeKanbanMac/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: "Vibe Kanban"
+        CFBundleName: "Vibe Kanban"
+        LSMinimumSystemVersion: "14.0"
+        LSApplicationCategoryType: public.app-category.developer-tools
+        ITSAppUsesNonExemptEncryption: false
+        # Allow plain-HTTP to the local backend (127.0.0.1).
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+
+  VibeKanbanMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/VibeKanbanMacTests
+    dependencies:
+      - target: VibeKanbanMac
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.vibekanban.mac.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  VibeKanbanMac:
+    build:
+      targets:
+        VibeKanbanMac: all
+        VibeKanbanMacTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - VibeKanbanMacTests
