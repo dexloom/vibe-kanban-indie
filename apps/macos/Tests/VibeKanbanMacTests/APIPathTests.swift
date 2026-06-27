@@ -74,6 +74,44 @@ final class APIPathTests: XCTestCase {
         XCTAssertEqual(p, "/api/health")
     }
 
+    func testSettingsRoutesUseCorrectPrefix() async {
+        let c = makeClient()
+        // Projects + links are root /v1 board mutations.
+        var p = await path {
+            _ = try await c.createProject(
+                CreateProjectRequest(id: nil, organizationId: "o", name: "n", color: "#fff"))
+        }
+        XCTAssertEqual(p, "/v1/projects")
+        p = await path { _ = try await c.updateProject(id: "p1", UpdateProjectRequest(name: "x")) }
+        XCTAssertEqual(p, "/v1/projects/p1")
+        p = await path { try await c.deleteProject(id: "p1") }
+        XCTAssertEqual(p, "/v1/projects/p1")
+        p = await path { try await c.linkRepo(projectId: "p1", repoId: "r1") }
+        XCTAssertEqual(p, "/v1/projects/p1/repos")
+        p = await path { try await c.unlinkRepo(projectId: "p1", repoId: "r1") }
+        XCTAssertEqual(p, "/v1/projects/p1/repos/r1")
+
+        // The repo catalog is under /api.
+        p = await path { _ = try await c.listAllRepos() }
+        XCTAssertEqual(p, "/api/repos")
+        p = await path { _ = try await c.registerRepo(RegisterRepoRequest(path: "/x")) }
+        XCTAssertEqual(p, "/api/repos")
+        p = await path { _ = try await c.updateRepo(id: "r1", UpdateRepoRequest(displayName: "d")) }
+        XCTAssertEqual(p, "/api/repos/r1")
+        p = await path { try await c.deleteRepo(id: "r1") }
+        XCTAssertEqual(p, "/api/repos/r1")
+    }
+
+    func testRepoMutationMethods() async {
+        let c = makeClient()
+        _ = await path { _ = try await c.registerRepo(RegisterRepoRequest(path: "/x")) }
+        XCTAssertEqual(RecordingURLProtocol.lastMethod, "POST")
+        _ = await path { _ = try await c.updateRepo(id: "r1", UpdateRepoRequest(displayName: "d")) }
+        XCTAssertEqual(RecordingURLProtocol.lastMethod, "PUT")
+        _ = await path { try await c.deleteProject(id: "p1") }
+        XCTAssertEqual(RecordingURLProtocol.lastMethod, "DELETE")
+    }
+
     func testBoardRoutesUseRootV1Prefix() async {
         let c = makeClient()
         var p = await path { _ = try await c.listProjects() }

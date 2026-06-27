@@ -172,6 +172,56 @@ final class APIClient {
         try decode(ReposResponse.self, await send("GET", "/v1/projects/\(projectId)/repos")).repos
     }
 
+    // MARK: - Projects (board mutations, data/txid envelope)
+
+    @discardableResult
+    func createProject(_ req: CreateProjectRequest) async throws -> Project {
+        try decode(MutationResponse<Project>.self, await send("POST", "/v1/projects", body: try encode(req))).data
+    }
+
+    @discardableResult
+    func updateProject(id: String, _ req: UpdateProjectRequest) async throws -> Project {
+        try decode(MutationResponse<Project>.self, await send("PATCH", "/v1/projects/\(id)", body: try encode(req))).data
+    }
+
+    func deleteProject(id: String) async throws {
+        _ = try await send("DELETE", "/v1/projects/\(id)")
+    }
+
+    // MARK: - Repositories (`/api/repos`, ApiResponse envelope)
+
+    func listAllRepos() async throws -> [Repo] {
+        try envelope([Repo].self, await send("GET", "/api/repos"))
+    }
+
+    @discardableResult
+    func registerRepo(_ req: RegisterRepoRequest) async throws -> Repo {
+        try envelope(Repo.self, await send("POST", "/api/repos", body: try encode(req)))
+    }
+
+    @discardableResult
+    func updateRepo(id: String, _ req: UpdateRepoRequest) async throws -> Repo {
+        try envelope(Repo.self, await send("PUT", "/api/repos/\(id)", body: try encode(req)))
+    }
+
+    func deleteRepo(id: String) async throws {
+        // Returns 200 on success, or 409 with a DeleteRepoConflict body when the
+        // repo is still used by active workspaces — `send` surfaces that as an
+        // `APIError.http(409, body)`.
+        _ = try await send("DELETE", "/api/repos/\(id)")
+    }
+
+    // MARK: - Project ↔ repo links (board mutations)
+
+    func linkRepo(projectId: String, repoId: String) async throws {
+        _ = try await send("POST", "/v1/projects/\(projectId)/repos",
+                           body: try encode(LinkRepoRequest(repoId: repoId)))
+    }
+
+    func unlinkRepo(projectId: String, repoId: String) async throws {
+        _ = try await send("DELETE", "/v1/projects/\(projectId)/repos/\(repoId)")
+    }
+
     // MARK: - Spec / intake
 
     func generateSpec(_ req: GenerateSpecRequest) async throws -> GenerateSpecResponse {

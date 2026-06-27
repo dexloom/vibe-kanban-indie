@@ -1,17 +1,34 @@
 import Foundation
 
-/// A repo linked to a project (`/v1/projects/{id}/repos`). Used to mount repos
-/// for spec generation / workspace start. Mirrors `shared/types.ts` `Repo`.
+/// A registered git repository (`/api/repos`, and `/v1/projects/{id}/repos` for
+/// the ones linked to a project). Mirrors `shared/types.ts` `Repo` / the Rust
+/// `db::models::repo::Repo`. Used to mount repos for spec generation / workspace
+/// start and to drive the Repositories settings tab.
 struct Repo: Codable, Identifiable, Hashable {
     let id: String
+    var path: String
     let name: String
-    let displayName: String?
-    let defaultTargetBranch: String?
+    var displayName: String
+    var setupScript: String?
+    var cleanupScript: String?
+    var archiveScript: String?
+    var devServerScript: String?
+    var defaultTargetBranch: String?
+    var defaultWorkingDir: String?
+    let createdAt: Date?
+    let updatedAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id, name
+        case id, path, name
         case displayName = "display_name"
+        case setupScript = "setup_script"
+        case cleanupScript = "cleanup_script"
+        case archiveScript = "archive_script"
+        case devServerScript = "dev_server_script"
         case defaultTargetBranch = "default_target_branch"
+        case defaultWorkingDir = "default_working_dir"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
     }
 }
 

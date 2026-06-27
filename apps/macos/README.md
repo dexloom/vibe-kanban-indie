@@ -5,14 +5,15 @@ Rust backend over HTTP + WebSocket. This is a *sketch*: every screen of the web
 UI is scaffolded; the board, issue detail, and workspace/chat are wired to the
 live backend, and the rest are first-pass placeholders (each marked `// sketch`).
 
-> Status: **builds clean** (`xcodebuild`) and the **unit-test suite passes (65 tests)**.
+> Status: **builds clean** (`xcodebuild`) and the **unit-test suite passes (74 tests)**.
 > It is a starting point for porting the web UI (`packages/local-web` + `web-core`) to AppKit/SwiftUI.
 >
 > Tests (`Tests/VibeKanbanMacTests`) cover: wire decoding of every entity, request-body
-> encoding (create/update/bulk/spec/approval), JSON + date coding, the `## Pipeline`
-> markdown composer + composer-model metadata, the normalized-log patch applier, color
-> parsing, backend mode/resolution/discovery, and the REST route-prefix contract
-> (`/api/*` execution routes vs root `/v1/*` board routes). They run offline (no backend needed).
+> encoding (create/update/bulk/spec/approval + project/repo/link settings bodies), JSON +
+> date coding, the `## Pipeline` markdown composer + composer-model metadata, the
+> normalized-log patch applier, color parsing, backend mode/resolution/discovery, and the
+> REST route-prefix contract (`/api/*` execution + repo routes vs root `/v1/*` board +
+> project routes). They run offline (no backend needed).
 
 ## Requirements
 
@@ -160,11 +161,20 @@ right away and reconciles with the server, reverting on error.
 - Issue detail inspector: title / status / priority / description edits; linked workspaces open the workspace window.
 - **Workspaces list** (`/workspaces`): status, branch, state, open-in-window (double-click or button).
 - Workspace window: sessions, conversation (normalized-logs stream), raw logs, chat follow-up, approval responses.
-- **Settings**: General (live status + server version + port override + reconnect) and Agents (live availability via `/agents/check-availability`).
+- **Settings**:
+  - *General* — live status + server version + port override + reconnect.
+  - *Backend* — managed/external mode, executable/repo paths, start/stop, log.
+  - *Agents* — new-card defaults (default executor + model, stored locally and pre-filled
+    in the composer) **+** live availability via `/agents/check-availability`.
+  - *Projects* — create / rename / recolor / delete projects (`/v1/projects`), and link/unlink
+    repositories per project (`/v1/projects/{id}/repos`). Mutations refresh the sidebar.
+  - *Repositories* — register a local git checkout (`POST /api/repos`, with a folder picker),
+    edit display name / default branch / setup·cleanup·dev-server scripts (`PUT /api/repos/{id}`),
+    and delete (`DELETE /api/repos/{id}`; surfaces the 409 "in use" conflict).
 
 **First-pass placeholders (marked `// sketch`):** file tree, diff viewer, preview URL
 bar, issue intake/pipeline/relationships/sub-issues/comments sections, Settings →
-Editors/MCP/Data, notifications, export, multi-select bulk actions, rich-text (WYSIWYG)
+MCP/Data, notifications, export, multi-select bulk actions, rich-text (WYSIWYG)
 description editor.
 
 ## ⚠️ Verify: WebSocket vs. polling

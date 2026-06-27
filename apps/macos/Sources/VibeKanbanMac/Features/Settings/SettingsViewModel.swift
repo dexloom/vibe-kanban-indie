@@ -12,8 +12,12 @@ final class SettingsViewModel {
     var isLoading = false
     var error: String?
 
+    /// Remembered so the Agents tab's refresh button can reload without re-plumbing.
+    private(set) var lastClient: APIClient?
+
     func load(client: APIClient?) async {
         guard let client else { return }
+        lastClient = client
         isLoading = true
         defer { isLoading = false }
 

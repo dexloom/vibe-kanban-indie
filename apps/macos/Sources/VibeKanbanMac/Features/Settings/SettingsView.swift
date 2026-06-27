@@ -10,10 +10,8 @@ struct SettingsView: View {
             GeneralSettings(vm: vm).tabItem { Label("General", systemImage: "gear") }
             BackendSettings().tabItem { Label("Backend", systemImage: "server.rack") }
             AgentsSettings(vm: vm).tabItem { Label("Agents", systemImage: "cpu") }
-            PlaceholderSettings(
-                title: "Editors",
-                note: "Editor availability via /editors/check-availability. (sketch)"
-            ).tabItem { Label("Editors", systemImage: "chevron.left.forwardslash.chevron.right") }
+            ProjectsSettingsView().tabItem { Label("Projects", systemImage: "rectangle.stack") }
+            RepositoriesSettingsView().tabItem { Label("Repositories", systemImage: "folder") }
             PlaceholderSettings(
                 title: "MCP",
                 note: "MCP servers via /mcp-config. (sketch)"
@@ -23,7 +21,7 @@ struct SettingsView: View {
                 note: "Import/export config via /import and /export. (sketch)"
             ).tabItem { Label("Data", systemImage: "tray.and.arrow.down") }
         }
-        .frame(width: 520, height: 380)
+        .frame(width: 620, height: 460)
         .task { await vm.load(client: app.client) }
     }
 }
@@ -63,9 +61,27 @@ private struct GeneralSettings: View {
 
 private struct AgentsSettings: View {
     @Bindable var vm: SettingsViewModel
+    @AppStorage(AgentDefaults.executorKey) private var defaultExecutor = ""
+    @AppStorage(AgentDefaults.modelKey) private var defaultModel = ""
 
     var body: some View {
         Form {
+            Section {
+                Picker("Default agent", selection: $defaultExecutor) {
+                    Text("Let orchestrator decide").tag("")
+                    ForEach(BaseCodingAgent.allCases, id: \.self) { agent in
+                        Text(agent.label).tag(agent.rawValue)
+                    }
+                }
+                TextField("Default model", text: $defaultModel,
+                          prompt: Text("optional, e.g. anthropic/claude-sonnet-4"))
+            } header: {
+                Text("New card defaults")
+            } footer: {
+                Text("Pre-selected in the card composer's agent picker. Stored locally.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             Section {
                 ForEach(BaseCodingAgent.allCases, id: \.self) { agent in
                     LabeledContent(agent.label) {
@@ -74,9 +90,13 @@ private struct AgentsSettings: View {
                 }
             } header: {
                 HStack {
-                    Text("Coding agents")
+                    Text("Availability")
                     Spacer()
                     if vm.isLoading { ProgressView().controlSize(.small) }
+                    Button { Task { await vm.load(client: vm.lastClient) } } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.borderless)
                 }
             } footer: {
                 Text("Availability from /agents/check-availability.")

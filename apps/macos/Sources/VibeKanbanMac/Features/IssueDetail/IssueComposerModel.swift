@@ -38,6 +38,9 @@ final class IssueComposerModel {
         self.client = client
         self.statusId = initialStatusId
         self.enabledStepIds = Set(steps.filter(\.defaultEnabled).map(\.id))
+        // Pre-fill from the operator's default agent (Settings → Agents).
+        self.executor = AgentDefaults.executor
+        self.modelId = AgentDefaults.modelId
     }
 
     var canSubmit: Bool { !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
