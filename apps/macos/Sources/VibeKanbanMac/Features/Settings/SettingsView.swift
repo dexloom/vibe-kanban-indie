@@ -8,6 +8,7 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             GeneralSettings(vm: vm).tabItem { Label("General", systemImage: "gear") }
+            BackendSettings().tabItem { Label("Backend", systemImage: "server.rack") }
             AgentsSettings(vm: vm).tabItem { Label("Agents", systemImage: "cpu") }
             PlaceholderSettings(
                 title: "Editors",
@@ -95,6 +96,65 @@ private struct AgentsSettings: View {
         } else {
             Text("—").foregroundStyle(.tertiary)
         }
+    }
+}
+
+private struct BackendSettings: View {
+    @Environment(AppState.self) private var app
+    @AppStorage(BackendManager.modeKey) private var mode: BackendMode = .managed
+    @AppStorage(BackendManager.exePathKey) private var exePath = ""
+    @AppStorage(BackendManager.repoPathKey) private var repoPath = ""
+    @AppStorage(BackendManager.buildFromSourceKey) private var buildFromSource = false
+
+    var body: some View {
+        Form {
+            Section("Mode") {
+                Picker("Backend", selection: $mode) {
+                    ForEach(BackendMode.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.radioGroup)
+                Text(mode == .managed
+                     ? "The app launches and supervises its own `server` process."
+                     : "You run the server yourself (e.g. `pnpm run dev`); the app just connects.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            if mode == .managed {
+                Section("Server binary") {
+                    TextField("Executable path", text: $exePath,
+                              prompt: Text("/path/to/target/release/server (optional)"))
+                    TextField("Repo path", text: $repoPath,
+                              prompt: Text("/path/to/vibe-kanban-indie (to find target/{release,debug}/server)"))
+                    Toggle("Build from source with cargo if no binary is found", isOn: $buildFromSource)
+                    Text("Resolution order: bundled binary → executable path → <repo>/target/release/server → debug.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Status") {
+                LabeledContent("Connection", value: app.connection.label)
+                LabeledContent("Backend", value: app.backend.state.label)
+                HStack {
+                    Button("Apply & reconnect") { Task { await app.restartManagedBackend() } }
+                        .buttonStyle(.borderedProminent)
+                    Button("Stop") { app.backend.stop() }
+                }
+            }
+
+            if !app.backend.log.isEmpty {
+                Section("Log") {
+                    ScrollView {
+                        Text(app.backend.log)
+                            .font(.system(.caption2, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(height: 120)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
     }
 }
 

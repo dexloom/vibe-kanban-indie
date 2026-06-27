@@ -33,12 +33,38 @@ and reach `127.0.0.1` without a developer team.
 
 ## Connecting to the backend
 
-Start the backend from the repo root (`pnpm run dev` or `pnpm run backend:dev:watch`).
-On startup it writes its port to **`$TMPDIR/vibe-kanban/vibe-kanban.port`** (JSON
-`{"main_port":…}`); the app auto-discovers it. To point elsewhere, set an override
-in **Settings → General** (a bare port like `8080`, or a full URL).
+On launch the app: **(1)** reuses a backend that's already running (port file at
+`$TMPDIR/vibe-kanban/vibe-kanban.port`, or a manual override in Settings → General);
+**(2)** otherwise, in **managed** mode, spawns its own server; **(3)** otherwise reports
+that none is available. No auth — the local indie deployment is unsigned localhost.
 
-No auth — the local indie deployment is unsigned localhost.
+### Built-in (managed) backend
+
+`BackendManager` supervises the Rust `server` binary as a child process, so you don't
+have to run `pnpm run dev` separately. Configure it in **Settings → Backend**:
+
+- **Mode** — *Managed (built-in)* (default) or *External* (you run the server yourself).
+- The server is spawned with `HOST=127.0.0.1`, `BACKEND_PORT=0` (auto-assign),
+  `DISABLE_WORKTREE_CLEANUP=1`; the app polls the port file then `/health`, and sends
+  SIGTERM on quit (`applicationWillTerminate`).
+
+**Executable resolution order:**
+1. A binary **bundled** in the app at `Contents/Resources/Backend/server`.
+2. An explicit **executable path** (Settings → Backend).
+3. `<repo>/target/release/server` or `…/debug/server` under the configured **repo path**
+   (optionally `cargo build`-ed first if "build from source" is enabled).
+
+**Bundling a binary into the app:**
+```bash
+apps/macos/scripts/build-backend.sh     # cargo build --release --bin server → apps/macos/Backend/server
+cd apps/macos && xcodegen generate && xcodebuild … build   # copy phase bundles it
+```
+The `Backend/` staging dir is gitignored. If no binary is staged, the copy phase no-ops
+and managed mode falls back to the repo/explicit path.
+
+**Caveat:** the server only auto-opens a browser in *release* builds
+(`!cfg!(debug_assertions)`), so a managed **debug** binary won't pop a browser; a bundled
+**release** binary will (there is no suppression flag yet).
 
 ## Architecture
 

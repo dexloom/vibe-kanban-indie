@@ -3,6 +3,10 @@
 # Generated Info.plist (produced by XcodeGen from project.yml)
 Sources/VibeKanbanMac/Resources/Info.plist
 
+# Staged backend binary (built by scripts/build-backend.sh) — large, not committed.
+# Anchored so it does NOT match Sources/VibeKanbanMac/Backend/ (source code).
+/Backend/
+
 # Build artifacts
 build/
 DerivedData/

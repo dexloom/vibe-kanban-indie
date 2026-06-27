@@ -46,6 +46,9 @@ final class AppState {
     var showCommandPalette = false
     var lastError: String?
 
+    /// Supervises a built-in backend process when in managed mode.
+    let backend = BackendManager()
+
     var selectedProjectId: String? {
         if case .project(let id) = selection { return id }
         return nil
@@ -63,19 +66,50 @@ final class AppState {
         members.first { $0.userId == userId }?.displayName ?? String(userId.prefix(6))
     }
 
-    /// Discover the backend, verify it, and load the project list.
+    /// Connect to a backend: reuse one that's already running, else (in managed
+    /// mode) spawn the built-in server, else report that none is available.
     func bootstrap() async {
         connection = .connecting
-        guard let url = BackendDiscovery.resolveBaseURL() else {
-            connection = .disconnected("Backend not found — start the vibe-kanban server, or set a port in Settings.")
+
+        // 1. Reuse a backend that's already running (manual, or one we started).
+        if let url = BackendDiscovery.resolveBaseURL(), await isHealthy(url) {
+            finishConnect(url)
             return
         }
+        // 2. Managed mode: spawn and supervise our own.
+        if backend.mode == .managed {
+            let state = await backend.start()
+            if case .running(let url) = state {
+                finishConnect(url)
+            } else {
+                connection = .disconnected(backend.failureMessage ?? "Could not start the managed backend.")
+            }
+            return
+        }
+        // 3. External mode, nothing running.
+        connection = .disconnected("Backend not running. Start it, or switch to the managed backend in Settings → Backend.")
+    }
+
+    private func isHealthy(_ url: URL) async -> Bool {
+        await APIClient(baseURL: url).ping()
+    }
+
+    private func finishConnect(_ url: URL) {
         baseURL = url
-        let client = APIClient(baseURL: url)
-        self.client = client
-        // Optimistic: render the UI immediately; data fills in as it arrives.
-        connection = .connected
-        await reloadProjects()
+        client = APIClient(baseURL: url)
+        connection = .connected            // render immediately
+        Task { await reloadProjects() }    // data fills in in the background
+    }
+
+    /// Stop any managed backend and reconnect (used by Settings → Backend).
+    func restartManagedBackend() async {
+        backend.stop()
+        await bootstrap()
+    }
+
+    /// Called on app termination to stop a managed backend.
+    func shutdownBackend() {
+        backend.stop()
     }
 
     func reloadProjects() async {

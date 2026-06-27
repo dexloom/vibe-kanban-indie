@@ -59,4 +59,18 @@ enum BackendDiscovery {
         dirs.append(URL(fileURLWithPath: "/tmp"))
         return dirs
     }
+
+    /// Candidate locations of the backend's port file.
+    static func portFileCandidates() -> [URL] {
+        candidateTempDirs().map {
+            $0.appendingPathComponent("vibe-kanban", isDirectory: true)
+                .appendingPathComponent("vibe-kanban.port")
+        }
+    }
+
+    /// Remove any existing port file so a freshly-spawned backend's file is
+    /// unambiguous.
+    static func removeStalePortFile() {
+        for url in portFileCandidates() { try? FileManager.default.removeItem(at: url) }
+    }
 }

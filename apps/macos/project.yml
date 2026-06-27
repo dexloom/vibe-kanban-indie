@@ -34,6 +34,21 @@ targets:
         PRODUCT_NAME: VibeKanbanMac
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         COMBINE_HIDPI_IMAGES: YES
+    postCompileScripts:
+      - name: "Bundle backend binary (if staged)"
+        basedOnDependencyAnalysis: false
+        script: |
+          set -e
+          SRC="$SRCROOT/Backend/server"
+          if [ -f "$SRC" ]; then
+            DEST="$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Resources/Backend"
+            mkdir -p "$DEST"
+            cp "$SRC" "$DEST/server"
+            chmod +x "$DEST/server"
+            echo "Bundled backend from $SRC"
+          else
+            echo "No staged backend at $SRC — managed mode uses repo/explicit path. Run scripts/build-backend.sh to bundle one."
+          fi
     info:
       path: Sources/VibeKanbanMac/Resources/Info.plist
       properties:
