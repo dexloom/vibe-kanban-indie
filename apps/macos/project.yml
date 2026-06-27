@@ -80,6 +80,21 @@ targets:
           else
             echo "No staged backend at $SRC — managed mode uses repo/explicit path. Run scripts/build-backend.sh to bundle one."
           fi
+      - name: "Bundle executor schemas"
+        basedOnDependencyAnalysis: false
+        script: |
+          set -e
+          # Per-agent JSON Schemas drive the Settings → Agents config form (the
+          # same schemas the web app feeds to RJSF). Copy them into the app.
+          SRC="$SRCROOT/../../shared/schemas"
+          DEST="$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Resources/Schemas"
+          if [ -d "$SRC" ]; then
+            mkdir -p "$DEST"
+            cp "$SRC"/*.json "$DEST"/ 2>/dev/null || true
+            echo "Bundled executor schemas from $SRC"
+          else
+            echo "warning: no executor schemas at $SRC"
+          fi
     info:
       path: Sources/VibeKanbanMac/Resources/Info.plist
       properties:

@@ -2,7 +2,8 @@ import Foundation
 import Observation
 
 /// Loads live system info, the editable backend config (default agent), agent
-/// availability, and the raw executor-profiles JSON for the Settings window.
+/// availability, and the structured executor **profiles** (per-agent variants +
+/// config) for the Settings window.
 @MainActor
 @Observable
 final class SettingsViewModel {
@@ -14,7 +15,6 @@ final class SettingsViewModel {
     var error: String?
 
     // Default agent — the backend `config.executor_profile`, edited via PUT /config.
-    /// The full config object, round-tripped on save.
     private(set) var config: JSONValue?
     var defaultExecutor: BaseCodingAgent?
     var defaultVariant: String = "DEFAULT"
@@ -22,8 +22,8 @@ final class SettingsViewModel {
     var savingAgent = false
     var agentSaveError: String?
 
-    // Advanced: the raw executor-profiles JSON (`/api/profiles`).
-    var profilesText: String = ""
+    // Executor profiles (`/api/profiles`) — the per-agent variant configs.
+    private(set) var profilesRoot: JSONValue?
     var profilesSaving = false
     var profilesError: String?
     var profilesSaved = false
@@ -64,14 +64,12 @@ final class SettingsViewModel {
             defaultExecutor = profile["executor"]?.stringValue.flatMap(BaseCodingAgent.init(rawValue:))
             defaultVariant = profile["variant"]?.stringValue ?? "DEFAULT"
         }
-        // `executors` is the flattened profiles map: { AGENT: { VARIANT: {...}, "recently_used_models": {...} } }
         var variants: [BaseCodingAgent: [String]] = [:]
         if let execs = info["executors"]?.objectValue {
             for (key, value) in execs {
                 guard let agent = BaseCodingAgent(rawValue: key),
                       let inner = value.objectValue else { continue }
-                let keys = inner.keys.filter { $0 != "recently_used_models" }.sorted()
-                variants[agent] = keys
+                variants[agent] = inner.keys.filter { $0 != "recently_used_models" }.sorted()
             }
         }
         variantsByExecutor = variants
@@ -101,24 +99,63 @@ final class SettingsViewModel {
         }
     }
 
-    // MARK: - Raw profiles editing
+    // MARK: - Executor profiles (per-agent variant configs)
 
     func loadProfiles() async {
         guard let client = lastClient else { return }
-        do { profilesText = try await client.profilesContent(); profilesError = nil }
-        catch { profilesError = error.localizedDescription }
+        do {
+            let text = try await client.profilesContent()
+            profilesRoot = (try? APICoding.decoder.decode(JSONValue.self, from: Data(text.utf8))) ?? .object([:])
+            profilesError = nil
+        } catch {
+            profilesError = error.localizedDescription
+        }
     }
 
+    /// Variant names defined for an executor in the profiles (excludes the
+    /// `recently_used_models` meta entry). Always includes at least DEFAULT.
+    func profileVariants(for executor: BaseCodingAgent) -> [String] {
+        let inner = profilesRoot?.value(at: ["executors", executor.rawValue])?.objectValue ?? [:]
+        let names = inner.keys.filter { $0 != "recently_used_models" }.sorted()
+        return names.isEmpty ? ["DEFAULT"] : names
+    }
+
+    /// The config object for one (executor, variant): `executors[E][V][E]`.
+    func config(for executor: BaseCodingAgent, variant: String) -> [String: JSONValue] {
+        profilesRoot?.value(at: ["executors", executor.rawValue, variant, executor.rawValue])?
+            .objectValue ?? [:]
+    }
+
+    func setConfig(_ config: [String: JSONValue], for executor: BaseCodingAgent, variant: String) {
+        let root = profilesRoot ?? .object([:])
+        profilesRoot = root.setting(
+            ["executors", executor.rawValue, variant, executor.rawValue], to: .object(config))
+    }
+
+    func createVariant(_ name: String, for executor: BaseCodingAgent) {
+        let root = profilesRoot ?? .object([:])
+        profilesRoot = root.setting(
+            ["executors", executor.rawValue, name, executor.rawValue], to: .object([:]))
+    }
+
+    func deleteVariant(_ name: String, for executor: BaseCodingAgent) {
+        guard let root = profilesRoot else { return }
+        profilesRoot = root.setting(["executors", executor.rawValue, name], to: nil)
+    }
+
+    /// Serialize the profiles tree and PUT it to `/api/profiles`.
     func saveProfiles() async {
-        guard let client = lastClient else { return }
+        guard let client = lastClient, let root = profilesRoot else { return }
         profilesSaving = true; profilesSaved = false
         defer { profilesSaving = false }
         do {
-            try await client.updateProfiles(profilesText)
+            let data = try APICoding.encoder.encode(root)
+            let text = String(data: data, encoding: .utf8) ?? "{}"
+            try await client.updateProfiles(text)
             profilesError = nil
             profilesSaved = true
-            // Reload so variant lists reflect any new variants.
-            await load(client: client)
+            await load(client: client)   // refresh variant lists / default picker
+            await loadProfiles()
         } catch {
             profilesError = error.localizedDescription
         }

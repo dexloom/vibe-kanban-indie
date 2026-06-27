@@ -5,15 +5,16 @@ Rust backend over HTTP + WebSocket. This is a *sketch*: every screen of the web
 UI is scaffolded; the board, issue detail, and workspace/chat are wired to the
 live backend, and the rest are first-pass placeholders (each marked `// sketch`).
 
-> Status: **builds clean** (`xcodebuild`) and the **unit-test suite passes (77 tests)**.
+> Status: **builds clean** (`xcodebuild`) and the **unit-test suite passes (84 tests)**.
 > It is a starting point for porting the web UI (`packages/local-web` + `web-core`) to AppKit/SwiftUI.
 >
 > Tests (`Tests/VibeKanbanMacTests`) cover: wire decoding of every entity, request-body
 > encoding (create/update/bulk/spec/approval + project/repo/link settings bodies), JSON +
 > date coding, the `## Pipeline` markdown composer + composer-model metadata, the
-> normalized-log patch applier, color parsing, backend mode/resolution/discovery, and the
+> normalized-log patch applier, color parsing, backend mode/resolution/discovery, the
 > REST route-prefix contract (`/api/*` execution + repo routes vs root `/v1/*` board +
-> project routes). They run offline (no backend needed).
+> project routes), the executor-config **schema parser** (field kinds + order), and the
+> JSONValue deep get/set used to edit the profiles tree. They run offline (no backend needed).
 
 ## Requirements
 
@@ -165,9 +166,12 @@ right away and reconciles with the server, reverting on error.
   - *General* — live status + server version + port override + reconnect.
   - *Backend* — managed/external mode, executable/repo paths, start/stop, log.
   - *Agents* — set the backend **default agent** (`config.executor_profile`: executor + variant,
-    round-tripped through `/api/info` and saved with `PUT /api/config`), edit the raw executor
-    **profiles JSON** (`/api/profiles` — per-agent variants/options), and live availability via
-    `/agents/check-availability`.
+    round-tripped through `/api/info` and saved with `PUT /api/config`); a per-agent
+    **configuration editor** that mirrors the web's RJSF form — pick an agent + variant, edit its
+    options through a **schema-driven form** (text / textarea / enum / tri-state boolean / string
+    list / env map), and create/delete variants, all saved to `/api/profiles`. The forms are
+    driven by the per-agent JSON Schemas in `shared/schemas/`, bundled into the app at build time
+    (`Resources/Schemas/`). Plus live availability via `/agents/check-availability`.
   - *Projects* — create / rename / recolor / delete projects (`/v1/projects`), and link/unlink a
     project's **default repositories**. ⚠️ These live in scratch **`PROJECT_REPO_DEFAULTS`**
     (`/api/scratch/PROJECT_REPO_DEFAULTS/{projectId}`) — the same association the intake /

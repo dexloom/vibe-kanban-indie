@@ -104,6 +104,27 @@ indirect enum JSONValue: Codable, Hashable {
     /// Convenience object subscript (nil for non-objects / missing keys).
     subscript(key: String) -> JSONValue? { objectValue?[key] }
 
+    /// Follow a key path through nested objects.
+    func value(at path: [String]) -> JSONValue? {
+        var current: JSONValue? = self
+        for key in path { current = current?[key] }
+        return current
+    }
+
+    /// Return a copy with the value at `path` set (creating intermediate objects),
+    /// or removed when `newValue` is nil. The receiver is treated as an object.
+    func setting(_ path: [String], to newValue: JSONValue?) -> JSONValue {
+        guard let first = path.first else { return newValue ?? self }
+        var dict = objectValue ?? [:]
+        if path.count == 1 {
+            dict[first] = newValue
+        } else {
+            let child = dict[first] ?? .object([:])
+            dict[first] = child.setting(Array(path.dropFirst()), to: newValue)
+        }
+        return .object(dict)
+    }
+
     /// Best-effort string for display.
     var displayString: String {
         switch self {

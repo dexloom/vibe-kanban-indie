@@ -61,13 +61,12 @@ private struct GeneralSettings: View {
 
 private struct AgentsSettings: View {
     @Bindable var vm: SettingsViewModel
-    @State private var profilesExpanded = false
 
     var body: some View {
         Form {
             defaultAgentSection
+            AgentProfilesSection(vm: vm)
             availabilitySection
-            profilesSection
         }
         .formStyle(.grouped)
         .padding()
@@ -129,35 +128,6 @@ private struct AgentsSettings: View {
             }
         } footer: {
             Text("Availability from /agents/check-availability.")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-    }
-
-    @ViewBuilder
-    private var profilesSection: some View {
-        Section {
-            DisclosureGroup("Executor profiles (advanced JSON)", isExpanded: $profilesExpanded) {
-                TextEditor(text: $vm.profilesText)
-                    .font(.system(.caption, design: .monospaced))
-                    .frame(minHeight: 140)
-                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.quaternary))
-                HStack {
-                    Button("Reload") { Task { await vm.loadProfiles() } }
-                    Button("Save profiles") { Task { await vm.saveProfiles() } }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(vm.profilesSaving)
-                    if vm.profilesSaving { ProgressView().controlSize(.small) }
-                    if vm.profilesSaved { Text("Saved").font(.caption).foregroundStyle(.green) }
-                    if let err = vm.profilesError {
-                        Text(err).font(.caption).foregroundStyle(.orange)
-                    }
-                }
-            }
-            .onChange(of: profilesExpanded) { _, open in
-                if open, vm.profilesText.isEmpty { Task { await vm.loadProfiles() } }
-            }
-        } footer: {
-            Text("Raw `/profiles` JSON: per-agent variants and options (effort, models, append-prompt, …).")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

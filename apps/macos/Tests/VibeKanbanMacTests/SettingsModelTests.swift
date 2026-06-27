@@ -116,4 +116,35 @@ final class SettingsModelTests: XCTestCase {
         XCTAssertEqual(repos.first?["repo_id"] as? String, "r1")
         XCTAssertEqual(repos.first?["target_branch"] as? String, "dev")
     }
+
+    // MARK: - JSONValue deep get/set (used to edit the profiles tree)
+
+    func testJSONValueDeepGet() {
+        let root = JSONValue.object([
+            "executors": .object([
+                "CLAUDE_CODE": .object([
+                    "DEFAULT": .object(["CLAUDE_CODE": .object(["model": .string("opus")])])
+                ])
+            ])
+        ])
+        let path = ["executors", "CLAUDE_CODE", "DEFAULT", "CLAUDE_CODE", "model"]
+        XCTAssertEqual(root.value(at: path)?.stringValue, "opus")
+        XCTAssertNil(root.value(at: ["executors", "MISSING"]))
+    }
+
+    func testJSONValueDeepSetCreatesIntermediates() {
+        let root = JSONValue.object([:])
+        let path = ["executors", "CODEX", "PLAN", "CODEX"]
+        let updated = root.setting(path, to: .object(["plan": .bool(true)]))
+        XCTAssertEqual(updated.value(at: path + ["plan"]), .bool(true))
+    }
+
+    func testJSONValueDeepSetNilRemovesKey() {
+        let root = JSONValue.object([
+            "executors": .object(["CODEX": .object(["PLAN": .object([:]), "DEFAULT": .object([:])])])
+        ])
+        let updated = root.setting(["executors", "CODEX", "PLAN"], to: nil)
+        XCTAssertNil(updated.value(at: ["executors", "CODEX", "PLAN"]))
+        XCTAssertNotNil(updated.value(at: ["executors", "CODEX", "DEFAULT"]))
+    }
 }
