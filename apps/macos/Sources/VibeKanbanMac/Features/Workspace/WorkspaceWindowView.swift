@@ -12,7 +12,7 @@ struct WorkspaceWindowView: View {
             if let vm {
                 content(vm)
             } else if workspaceId == nil {
-                ContentUnavailableView("No workspace", systemImage: "cpu")
+                TopPlaceholder("No workspace", systemImage: "cpu")
             } else {
                 Loader(caption: "Loading workspace…")
             }

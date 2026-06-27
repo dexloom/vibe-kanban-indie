@@ -129,18 +129,24 @@ final class BackendManager {
         UserDefaults.standard.bool(forKey: Self.buildFromSourceKey)
     }
 
+    /// The Rust `server` binary bundled inside the app
+    /// (`Contents/Resources/Backend/server`). Present in normal builds; nil if the
+    /// backend wasn't compiled/staged (e.g. `SKIP_BACKEND_BUILD=1` with no prior stage).
+    func bundledExecutable() -> URL? {
+        Bundle.main.url(forResource: "server", withExtension: nil, subdirectory: "Backend")
+            ?? Bundle.main.url(forResource: "server", withExtension: nil)
+    }
+
     func resolveExecutable() -> URL? {
-        // 1. Bundled binary (Contents/Resources/Backend/server or .../server).
-        if let bundled = Bundle.main.url(forResource: "server", withExtension: nil, subdirectory: "Backend")
-            ?? Bundle.main.url(forResource: "server", withExtension: nil) {
-            return bundled
-        }
-        // 2. Explicit path.
+        // 1. Explicit path — an operator override in Settings → Backend wins over
+        //    the bundled default (so you can point at your own build).
         let explicit = UserDefaults.standard.string(forKey: Self.exePathKey) ?? ""
         if !explicit.isEmpty, isExecutable(explicit) {
             return URL(fileURLWithPath: explicit)
         }
-        // 3. Built binary under the repo.
+        // 2. Bundled binary — the zero-config default for a shipped app.
+        if let bundled = bundledExecutable() { return bundled }
+        // 3. Built binary under the configured repo.
         if let repo = repoURL {
             for sub in ["target/release/server", "target/debug/server"] {
                 let candidate = repo.appendingPathComponent(sub)
@@ -212,7 +218,10 @@ final class BackendManager {
 
     private func waitForHealth(_ base: URL, attempts: Int) async -> Bool {
         for _ in 0..<attempts {
-            var req = URLRequest(url: base.appendingPathComponent("health"))
+            // Hit `/api/health` (real JSON endpoint). The bare `/health` path is
+            // captured by the SPA fallback and returns index.html with a 200, which
+            // would falsely pass a lenient status check.
+            var req = URLRequest(url: base.appendingPathComponent("api/health"))
             req.timeoutInterval = 2
             if let (_, resp) = try? await URLSession.shared.data(for: req),
                let http = resp as? HTTPURLResponse, (200..<500).contains(http.statusCode) {

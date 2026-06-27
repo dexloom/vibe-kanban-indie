@@ -112,16 +112,16 @@ struct BoardScreen: View {
                     onCreate: { submitComposer() }
                 )
             } else {
-                ContentUnavailableView("Composer unavailable", systemImage: "plus")
+                TopPlaceholder("Composer unavailable", systemImage: "plus")
             }
         case .issue(let id):
             if let issue = vm.issue(id: id) {
                 IssueDetailView(issue: issue, vm: vm)
             } else {
-                ContentUnavailableView("Issue not found", systemImage: "doc.text")
+                TopPlaceholder("Issue not found", systemImage: "doc.text")
             }
         case .none:
-            ContentUnavailableView("No issue selected", systemImage: "doc.text")
+            TopPlaceholder("No issue selected", systemImage: "doc.text")
         }
     }
 }

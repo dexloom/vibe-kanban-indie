@@ -5,13 +5,14 @@ Rust backend over HTTP + WebSocket. This is a *sketch*: every screen of the web
 UI is scaffolded; the board, issue detail, and workspace/chat are wired to the
 live backend, and the rest are first-pass placeholders (each marked `// sketch`).
 
-> Status: **builds clean** (`xcodebuild`) and the **unit-test suite passes (62 tests)**.
+> Status: **builds clean** (`xcodebuild`) and the **unit-test suite passes (65 tests)**.
 > It is a starting point for porting the web UI (`packages/local-web` + `web-core`) to AppKit/SwiftUI.
 >
 > Tests (`Tests/VibeKanbanMacTests`) cover: wire decoding of every entity, request-body
 > encoding (create/update/bulk/spec/approval), JSON + date coding, the `## Pipeline`
 > markdown composer + composer-model metadata, the normalized-log patch applier, color
-> parsing, and backend mode/resolution/discovery. They run offline (no backend needed).
+> parsing, backend mode/resolution/discovery, and the REST route-prefix contract
+> (`/api/*` execution routes vs root `/v1/*` board routes). They run offline (no backend needed).
 
 ## Requirements
 
@@ -74,8 +75,8 @@ does the same staging manually if you prefer.
 `VK_DISABLE_BROWSER_OPEN` (set by the app) to suppress that — see `crates/server/src/main.rs`.
 
 **Executable resolution order (managed mode):**
-1. The **bundled** binary at `Contents/Resources/Backend/server` (the default path above).
-2. An explicit **executable path** (Settings → Backend).
+1. An explicit **executable path** (Settings → Backend) — an operator override wins.
+2. The **bundled** binary at `Contents/Resources/Backend/server` (the zero-config default above).
 3. `<repo>/target/release/server` or `…/debug/server` under the configured **repo path**
    (optionally `cargo build`-ed first if "build from source" is enabled).
 
@@ -87,6 +88,22 @@ does the same staging manually if you prefer.
 | Networking | `Sources/VibeKanbanMac/Networking` | `APIClient` (REST), `PortDiscovery`, `WebSocketStream` (→ `AsyncStream<LogMsg>`), `ConversationPatchApplier` (RFC-6902 → `[NormalizedEntry]`). |
 | State | `App/AppState.swift` | `@Observable` connection + project list + selection. Board/workspace state in their own view models. |
 | Features | `Sources/VibeKanbanMac/Features` | One folder per screen. |
+
+### Route prefixes (important)
+
+The backend router (`crates/server/src/routes/mod.rs`) serves two families of routes:
+
+- **Execution / config / approval / spec routes are nested under `/api`** — e.g.
+  `/api/workspaces`, `/api/sessions`, `/api/execution-processes/{id}/…`, `/api/approvals/…`,
+  `/api/spec/generate`, `/api/info`, `/api/agents/check-availability`, `/api/health`, and the
+  `*/ws` streams. Hitting these **without** the `/api` prefix falls through to the SPA
+  catch-all (`/{*path}`) and returns `index.html` → the classic `Unexpected character '<'`
+  JSON-decode failure.
+- **Board "fallback" routes are served at the root** under `/v1/*` — e.g.
+  `/v1/fallback/projects`, `/v1/issues`, `/v1/issues/bulk` (the web fallback transport hits
+  absolute `/v1/...`, not `/api/...`).
+
+`APIPathTests` pins this contract (via a `URLProtocol` stub) so a dropped prefix fails CI.
 
 ### Wire-format envelopes
 

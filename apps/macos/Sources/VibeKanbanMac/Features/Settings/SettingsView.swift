@@ -162,12 +162,7 @@ private struct PlaceholderSettings: View {
     let title: String
     let note: String
     var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "wrench.and.screwdriver").font(.largeTitle).foregroundStyle(.secondary)
-            Text(title).font(.headline)
-            Text(note).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
+        TopPlaceholder(title, systemImage: "wrench.and.screwdriver", description: note)
+            .padding()
     }
 }

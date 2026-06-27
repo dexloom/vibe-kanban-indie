@@ -55,6 +55,7 @@ final class BackendTests: XCTestCase {
 
     @MainActor
     func testResolveExecutableUsesExplicitPath() throws {
+        // An explicit path overrides even the bundled binary (operator intent wins).
         let dir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("vk-test-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -69,10 +70,12 @@ final class BackendTests: XCTestCase {
     }
 
     @MainActor
-    func testResolveExecutableNilWhenNothingConfigured() {
-        // No bundled binary in the test host, no path, no repo.
+    func testResolveExecutableFallsBackToBundled() {
+        // With no explicit path and no repo, resolution falls through to the
+        // bundled binary — present in normal builds, nil if none was staged. Either
+        // way `resolveExecutable()` must equal `bundledExecutable()`.
         let manager = BackendManager()
-        XCTAssertNil(manager.resolveExecutable())
+        XCTAssertEqual(manager.resolveExecutable()?.path, manager.bundledExecutable()?.path)
     }
 
     // MARK: - Discovery

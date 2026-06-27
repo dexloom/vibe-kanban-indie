@@ -27,12 +27,16 @@ final class APIClient {
     private(set) var baseURL: URL
     private let session: URLSession
 
-    init(baseURL: URL) {
+    init(baseURL: URL, session: URLSession? = nil) {
         self.baseURL = baseURL
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15
-        config.waitsForConnectivity = false
-        self.session = URLSession(configuration: config)
+        if let session {
+            self.session = session
+        } else {
+            let config = URLSessionConfiguration.default
+            config.timeoutIntervalForRequest = 15
+            config.waitsForConnectivity = false
+            self.session = URLSession(configuration: config)
+        }
     }
 
     // MARK: - Low level
@@ -95,7 +99,9 @@ final class APIClient {
     // MARK: - Connectivity
 
     func ping() async -> Bool {
-        (try? await send("GET", "/health")) != nil
+        // `/api/health` returns `ApiResponse<String>`; the bare `/health` path is
+        // swallowed by the SPA fallback (returns index.html), so it must be /api.
+        (try? await send("GET", "/api/health")) != nil
     }
 
     // MARK: - Board reads (fallback envelope)
@@ -169,61 +175,65 @@ final class APIClient {
     // MARK: - Spec / intake
 
     func generateSpec(_ req: GenerateSpecRequest) async throws -> GenerateSpecResponse {
-        try envelope(GenerateSpecResponse.self, await send("POST", "/spec/generate", body: try encode(req)))
+        try envelope(GenerateSpecResponse.self, await send("POST", "/api/spec/generate", body: try encode(req)))
     }
 
     // MARK: - Execution (ApiResponse envelope)
+    //
+    // These live under the `/api` prefix in the backend router (see
+    // `crates/server/src/routes/mod.rs` — `.nest("/api", api_routes)`). Only the
+    // board `/v1/*` routes are served at the root, so everything here needs `/api`.
 
     func listWorkspaces() async throws -> [Workspace] {
-        try envelope([Workspace].self, await send("GET", "/workspaces"))
+        try envelope([Workspace].self, await send("GET", "/api/workspaces"))
     }
 
     func getWorkspace(id: String) async throws -> Workspace {
-        try envelope(Workspace.self, await send("GET", "/workspaces/\(id)"))
+        try envelope(Workspace.self, await send("GET", "/api/workspaces/\(id)"))
     }
 
     @discardableResult
     func startWorkspace(_ req: CreateAndStartWorkspaceRequest) async throws -> CreateAndStartWorkspaceResponse {
-        try envelope(CreateAndStartWorkspaceResponse.self, await send("POST", "/workspaces/start", body: try encode(req)))
+        try envelope(CreateAndStartWorkspaceResponse.self, await send("POST", "/api/workspaces/start", body: try encode(req)))
     }
 
     func listSessions(workspaceId: String) async throws -> [Session] {
         try envelope([Session].self,
-                     await send("GET", "/sessions", query: [.init(name: "workspace_id", value: workspaceId)]))
+                     await send("GET", "/api/sessions", query: [.init(name: "workspace_id", value: workspaceId)]))
     }
 
     func listExecutions(sessionId: String) async throws -> [ExecutionProcess] {
-        try envelope([ExecutionProcess].self, await send("GET", "/sessions/\(sessionId)/executions"))
+        try envelope([ExecutionProcess].self, await send("GET", "/api/sessions/\(sessionId)/executions"))
     }
 
     func followUp(sessionId: String, _ req: CreateFollowUpAttempt) async throws {
-        _ = try await send("POST", "/sessions/\(sessionId)/follow-up", body: try encode(req))
+        _ = try await send("POST", "/api/sessions/\(sessionId)/follow-up", body: try encode(req))
     }
 
     func agentProgress(executionId: String) async throws -> JSONValue {
-        try envelope(JSONValue.self, await send("GET", "/execution-processes/\(executionId)/agent-progress"))
+        try envelope(JSONValue.self, await send("GET", "/api/execution-processes/\(executionId)/agent-progress"))
     }
 
     // MARK: - Approvals
 
     func pendingApprovals(executionId: String) async throws -> [ApprovalInfo] {
-        try envelope([ApprovalInfo].self, await send("GET", "/approvals/pending/\(executionId)"))
+        try envelope([ApprovalInfo].self, await send("GET", "/api/approvals/pending/\(executionId)"))
     }
 
     func respondToApproval(approvalId: String, _ response: ApprovalResponse) async throws {
-        _ = try await send("POST", "/approvals/\(approvalId)/respond", body: try encode(response))
+        _ = try await send("POST", "/api/approvals/\(approvalId)/respond", body: try encode(response))
     }
 
     // MARK: - Config / system
 
     func systemInfo() async throws -> JSONValue {
-        // `/info` returns `ApiResponse<UserSystemInfo>`; decode loosely.
-        try envelope(JSONValue.self, await send("GET", "/info"))
+        // `/api/info` returns `ApiResponse<UserSystemInfo>`; decode loosely.
+        try envelope(JSONValue.self, await send("GET", "/api/info"))
     }
 
     func agentAvailability(_ executor: BaseCodingAgent) async throws -> AvailabilityInfo {
         try envelope(AvailabilityInfo.self,
-                     await send("GET", "/agents/check-availability",
+                     await send("GET", "/api/agents/check-availability",
                                 query: [.init(name: "executor", value: executor.rawValue)]))
     }
 }

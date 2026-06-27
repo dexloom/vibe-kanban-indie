@@ -65,7 +65,7 @@ final class WorkspaceViewModel {
 
         if let url = WebSocketStream.url(
             base: client.baseURL,
-            path: "/execution-processes/\(exec.id)/normalized-logs/ws") {
+            path: "/api/execution-processes/\(exec.id)/normalized-logs/ws") {
             let stream = WebSocketStream(url: url)
             normalizedStream = stream
             streamTask = Task { [weak self] in
@@ -78,7 +78,7 @@ final class WorkspaceViewModel {
 
         if let url = WebSocketStream.url(
             base: client.baseURL,
-            path: "/execution-processes/\(exec.id)/raw-logs/ws") {
+            path: "/api/execution-processes/\(exec.id)/raw-logs/ws") {
             let stream = WebSocketStream(url: url)
             rawStream = stream
             rawTask = Task { [weak self] in

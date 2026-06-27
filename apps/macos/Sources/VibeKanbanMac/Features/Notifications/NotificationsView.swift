@@ -14,11 +14,11 @@ struct NotificationsView: View {
             }
             .padding(12)
             Divider()
-            ContentUnavailableView {
-                Label("No notifications", systemImage: "bell.slash")
-            } description: {
-                Text("Live notifications stream from /events/stream/ws and pending approvals — not wired in this sketch.")
-            }
+            TopPlaceholder(
+                "No notifications",
+                systemImage: "bell.slash",
+                description: "Live notifications stream from /events/stream/ws and pending approvals — not wired in this sketch."
+            )
         }
         .frame(width: 460, height: 360)
     }

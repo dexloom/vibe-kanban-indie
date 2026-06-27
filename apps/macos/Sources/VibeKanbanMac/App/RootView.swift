@@ -23,15 +23,12 @@ struct RootView: View {
     private var detail: some View {
         switch app.connection {
         case .connecting, .unknown:
-            ContentUnavailableView {
-                Label("Connecting to vibe-kanban…", systemImage: "antenna.radiowaves.left.and.right")
-            }
+            TopPlaceholder("Connecting to vibe-kanban…",
+                           systemImage: "antenna.radiowaves.left.and.right")
         case .disconnected(let message):
-            ContentUnavailableView {
-                Label("Backend unavailable", systemImage: "bolt.horizontal.circle")
-            } description: {
-                Text(message)
-            } actions: {
+            TopPlaceholder("Backend unavailable",
+                           systemImage: "bolt.horizontal.circle",
+                           description: message) {
                 Button("Retry") { Task { await app.bootstrap() } }
             }
         case .connected:
@@ -42,14 +39,14 @@ struct RootView: View {
                 if let project = app.selectedProject, let vm = app.board(for: project) {
                     BoardScreen(vm: vm)
                 } else {
-                    ContentUnavailableView("No project selected",
-                                           systemImage: "rectangle.stack",
-                                           description: Text("Pick a project from the sidebar."))
+                    TopPlaceholder("No project selected",
+                                   systemImage: "rectangle.stack",
+                                   description: "Pick a project from the sidebar.")
                 }
             case .none:
-                ContentUnavailableView("Nothing selected",
-                                       systemImage: "sidebar.left",
-                                       description: Text("Pick a project or Workspaces."))
+                TopPlaceholder("Nothing selected",
+                               systemImage: "sidebar.left",
+                               description: "Pick a project or Workspaces.")
             }
         }
     }

@@ -29,12 +29,11 @@ struct WorkspacesListView: View {
                     .padding(.horizontal, 12).padding(.vertical, 4)
             }
             if visible.isEmpty {
-                ContentUnavailableView {
-                    Label(loadedOnce ? "No workspaces" : "Loading workspaces…",
-                          systemImage: "cpu")
-                } description: {
-                    Text("Start an agent from an issue to create a workspace.")
-                }
+                TopPlaceholder(
+                    loadedOnce ? "No workspaces" : "Loading workspaces…",
+                    systemImage: "cpu",
+                    description: "Start an agent from an issue to create a workspace."
+                )
             } else {
                 table
             }
