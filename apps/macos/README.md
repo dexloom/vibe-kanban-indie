@@ -50,26 +50,34 @@ have to run `pnpm run dev` separately. Configure it in **Settings → Backend**:
 
 - **Mode** — *Managed (built-in)* (default) or *External* (you run the server yourself).
 - The server is spawned with `HOST=127.0.0.1`, `BACKEND_PORT=0` (auto-assign),
-  `DISABLE_WORKTREE_CLEANUP=1`; the app polls the port file then `/health`, and sends
-  SIGTERM on quit (`applicationWillTerminate`).
+  `DISABLE_WORKTREE_CLEANUP=1`, `VK_DISABLE_BROWSER_OPEN=1`; the app polls the port file
+  then `/health`, and sends SIGTERM on quit (`applicationWillTerminate`).
 
-**Executable resolution order:**
-1. A binary **bundled** in the app at `Contents/Resources/Backend/server`.
+### Bundled backend (Rust built into the app)
+
+The Rust backend lives in the **same repo** (`crates/server`), so no git submodule is
+needed — the app's Xcode build compiles and embeds it:
+
+- A **pre-build phase** runs `cargo build --release --bin server` (against the repo at
+  `$SRCROOT/../..`) and stages the binary at `apps/macos/Backend/server`.
+- A **post-compile phase** copies it into the app at `Contents/Resources/Backend/server`.
+- So a normal `xcodebuild`/Xcode Run produces a **self-contained app** whose managed
+  backend works with **zero configuration**.
+
+First build is slow (cold Rust compile); afterwards cargo is incremental (near-no-op).
+For fast UI-only iteration, skip it with `SKIP_BACKEND_BUILD=1 xcodebuild …`. If `cargo`
+isn't on PATH the phase warns and the app still builds (falling back to the resolution
+order below). The `apps/macos/Backend/` staging dir is gitignored. `scripts/build-backend.sh`
+does the same staging manually if you prefer.
+
+**Browser:** a release server normally auto-opens a browser; the backend now honors
+`VK_DISABLE_BROWSER_OPEN` (set by the app) to suppress that — see `crates/server/src/main.rs`.
+
+**Executable resolution order (managed mode):**
+1. The **bundled** binary at `Contents/Resources/Backend/server` (the default path above).
 2. An explicit **executable path** (Settings → Backend).
 3. `<repo>/target/release/server` or `…/debug/server` under the configured **repo path**
    (optionally `cargo build`-ed first if "build from source" is enabled).
-
-**Bundling a binary into the app:**
-```bash
-apps/macos/scripts/build-backend.sh     # cargo build --release --bin server → apps/macos/Backend/server
-cd apps/macos && xcodegen generate && xcodebuild … build   # copy phase bundles it
-```
-The `Backend/` staging dir is gitignored. If no binary is staged, the copy phase no-ops
-and managed mode falls back to the repo/explicit path.
-
-**Caveat:** the server only auto-opens a browser in *release* builds
-(`!cfg!(debug_assertions)`), so a managed **debug** binary won't pop a browser; a bundled
-**release** binary will (there is no suppression flag yet).
 
 ## Architecture
 

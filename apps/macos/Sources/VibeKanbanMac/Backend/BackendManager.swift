@@ -167,6 +167,7 @@ final class BackendManager {
         env["PREVIEW_PROXY_PORT"] = "0"
         env["RUST_LOG"] = env["RUST_LOG"] ?? "info"
         env["DISABLE_WORKTREE_CLEANUP"] = "1"
+        env["VK_DISABLE_BROWSER_OPEN"] = "1"   // we are the UI; don't pop a browser
         process.environment = env
 
         let pipe = Pipe()

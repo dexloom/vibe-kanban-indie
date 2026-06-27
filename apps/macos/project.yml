@@ -34,6 +34,29 @@ targets:
         PRODUCT_NAME: VibeKanbanMac
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         COMBINE_HIDPI_IMAGES: YES
+    preBuildScripts:
+      - name: "Compile Rust backend (server)"
+        basedOnDependencyAnalysis: false
+        script: |
+          set -uo pipefail
+          if [ "${SKIP_BACKEND_BUILD:-0}" = "1" ]; then
+            echo "SKIP_BACKEND_BUILD=1 — skipping backend compile"; exit 0
+          fi
+          export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+          [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env" || true
+          if ! command -v cargo >/dev/null 2>&1; then
+            echo "warning: cargo not found — building app without a bundled backend"; exit 0
+          fi
+          REPO_ROOT="$SRCROOT/../.."
+          echo "Compiling server (release) in $REPO_ROOT …"
+          if ( cd "$REPO_ROOT" && cargo build --release --bin server ); then
+            mkdir -p "$SRCROOT/Backend"
+            cp "$REPO_ROOT/target/release/server" "$SRCROOT/Backend/server"
+            chmod +x "$SRCROOT/Backend/server"
+            echo "Staged backend at $SRCROOT/Backend/server"
+          else
+            echo "warning: backend compile failed — building app without a bundled backend"
+          fi
     postCompileScripts:
       - name: "Bundle backend binary (if staged)"
         basedOnDependencyAnalysis: false
