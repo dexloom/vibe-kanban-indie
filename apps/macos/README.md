@@ -135,6 +135,50 @@ lands in the chat box for review.
   `feature/ipc-dictation-server` branch of the Voicy repo (see its README →
   "Dictation IPC").
 
+### Workspace panes
+
+The workspace window is a 2-pane layout: a left sidebar (sessions + file tree)
+and a **main pane** with a segmented switch — **Agent / Terminal / Logs / Changes
+/ Preview** (`WorkspacePane` in `WorkspaceWindowView`).
+
+- **Agent** — the conversation + approvals + composer.
+- **Terminal** — embedded interactive terminal (see below).
+- **Logs** — raw stdout/stderr from the execution's `raw-logs` WebSocket
+  (`TerminalLogView`), ANSI-stripped and auto-scrolling, with copy.
+- **Changes** — the live workspace **git diff** streamed over
+  `/workspaces/{id}/git/diff/ws` (`DiffView`). The stream is RFC-6902 patches
+  against `{ entries: { <repo>: { <file>: Diff } } }`; `DiffStreamApplier`
+  reconstructs the per-repo file map and `WorkspaceViewModel` exposes the flat
+  `[DiffEntry]`. Each file renders a collapsible unified diff computed from
+  `old`/`new` content with Swift's `CollectionDifference` (`Diff.render()`),
+  red/green lines, an A/D/M/R/C/P change badge, and +/- counts. Binary/omitted
+  or very large files collapse to a stats summary. The diff is workspace-level
+  (survives session switches) and tied to the window's lifetime.
+- **Preview** — `WKWebView` pointed at a dev-server URL.
+
+### Terminal pane (headed agents)
+
+The **Terminal** tab (`Features/Workspace/TerminalPane.swift`) is a real,
+interactive terminal embedded in the pane, attached to the **headed Claude Code
+agent's tmux session**. A headed (interactive) agent runs under
+`tmux new-session -d -s vk-<execId>`; any number of clients can attach.
+
+- **Embedded (built-in):** an [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)
+  `LocalProcessTerminalView` spawns the user's login shell and `exec`s
+  `tmux attach -t vk-<execId>`. The login shell (`-l`) makes the user's PATH
+  resolve Homebrew `tmux`, and `exec` makes the process exit cleanly when the
+  session detaches/ends (→ a "Not attached" overlay with **Reconnect**). tmux is
+  already required for headed mode, so this adds no new runtime dependency.
+- **Open in iTerm2:** the button calls `POST
+  /api/execution-processes/{id}/open-terminal` (`APIClient.openInteractiveTerminal`),
+  the backend's existing external-terminal flow, which opens the configured
+  emulator (iTerm2 on macOS) attached to the same session.
+- **SwiftTerm is pinned to `1.11.2`** in `project.yml` — the last release before
+  the Metal GPU backend (v1.12+), which needs the separately-downloaded Metal
+  Toolchain. 1.11.2 builds with a stock Xcode.
+- *Caveat:* tmux mirrors a window across all attached clients and sizes it to the
+  smallest one, so the embedded view and an open iTerm2 window share a size.
+
 ### Route prefixes (important)
 
 The backend router (`crates/server/src/routes/mod.rs`) serves two families of routes:

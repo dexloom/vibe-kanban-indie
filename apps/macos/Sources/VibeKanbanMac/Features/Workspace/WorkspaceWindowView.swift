@@ -1,11 +1,29 @@
 import SwiftUI
 
-/// The workspace / session window (analogue of `WorkspacesLayout`): a 3-pane
-/// IDE-like layout — sessions + files | conversation + composer | inspector.
+/// Which view the main workspace pane shows. `agent` is the conversation +
+/// composer; the rest mirror the old right-inspector tabs.
+private enum WorkspacePane: String, CaseIterable, Identifiable {
+    case agent, terminal, logs, changes, preview
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .agent:    return "Agent"
+        case .terminal: return "Terminal"
+        case .logs:     return "Logs"
+        case .changes:  return "Changes"
+        case .preview:  return "Preview"
+        }
+    }
+}
+
+/// The workspace / session window (analogue of `WorkspacesLayout`): a 2-pane
+/// IDE-like layout — sessions + files | a switchable main pane
+/// (Agent / Logs / Changes / Preview).
 struct WorkspaceWindowView: View {
     let workspaceId: String?
     @Environment(AppState.self) private var app
     @State private var vm: WorkspaceViewModel?
+    @State private var pane: WorkspacePane = .agent
 
     var body: some View {
         Group {
@@ -52,42 +70,76 @@ struct WorkspaceWindowView: View {
             .padding(10)
             .frame(minWidth: 180, idealWidth: 220, maxWidth: 300)
 
-            // Center: conversation + approvals + composer
+            // Main: switchable pane (Agent / Logs / Changes / Preview)
             VStack(spacing: 0) {
-                ConversationListView(entries: vm.entries, streamConnected: vm.streamConnected)
-                if !vm.pendingApprovals.isEmpty {
-                    Divider()
-                    VStack(spacing: 8) {
-                        ForEach(vm.pendingApprovals) { approval in
-                            ApprovalCardView(approval: approval) { outcome in
-                                Task { await vm.respond(to: approval, outcome: outcome) }
-                            }
-                        }
-                    }
-                    .padding(10)
+                Picker("View", selection: $pane) {
+                    ForEach(WorkspacePane.allCases) { Text($0.title).tag($0) }
                 }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
                 Divider()
-                ChatInputView(
-                    onSend: { prompt in Task { await vm.sendFollowUp(prompt) } },
-                    dictationContext: {
-                        DictationContext.chat(
-                            title: vm.workspace?.displayName,
-                            project: vm.workspace?.branch,
-                            entries: vm.entries
-                        )
-                    }
-                )
+                switch pane {
+                case .agent:    agentPane(vm)
+                case .terminal: terminalPane(vm)
+                case .logs:     TerminalLogView(text: vm.rawLog)
+                case .changes:  DiffView(diffs: vm.diffs, showRepo: vm.diffsSpanRepos)
+                case .preview:  PreviewBrowser()
+                }
             }
-            .frame(minWidth: 360)
-
-            // Right: inspector
-            RightInspector(rawLog: vm.rawLog, workspace: vm.workspace)
-                .frame(minWidth: 260, idealWidth: 320, maxWidth: 460)
+            .frame(minWidth: 420)
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button { Task { await vm.loadSession() } } label: { Image(systemName: "arrow.clockwise") }
             }
+        }
+    }
+
+    /// The Agent view: conversation + pending approvals + composer.
+    @ViewBuilder
+    private func agentPane(_ vm: WorkspaceViewModel) -> some View {
+        VStack(spacing: 0) {
+            ConversationListView(entries: vm.entries, streamConnected: vm.streamConnected)
+            if !vm.pendingApprovals.isEmpty {
+                Divider()
+                VStack(spacing: 8) {
+                    ForEach(vm.pendingApprovals) { approval in
+                        ApprovalCardView(approval: approval) { outcome in
+                            Task { await vm.respond(to: approval, outcome: outcome) }
+                        }
+                    }
+                }
+                .padding(10)
+            }
+            Divider()
+            ChatInputView(
+                onSend: { prompt in Task { await vm.sendFollowUp(prompt) } },
+                dictationContext: {
+                    DictationContext.chat(
+                        title: vm.workspace?.displayName,
+                        project: vm.workspace?.branch,
+                        entries: vm.entries
+                    )
+                }
+            )
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The Terminal view: an embedded terminal attached to the headed agent's
+    /// tmux session, with an "Open in iTerm2" escape hatch.
+    @ViewBuilder
+    private func terminalPane(_ vm: WorkspaceViewModel) -> some View {
+        if let exec = vm.activeExecution {
+            TerminalPane(execId: exec.id, client: app.client)
+        } else {
+            TopPlaceholder(
+                "No running execution",
+                systemImage: "terminal",
+                description: "Start a headed (interactive) agent to get a live terminal here."
+            )
         }
     }
 }

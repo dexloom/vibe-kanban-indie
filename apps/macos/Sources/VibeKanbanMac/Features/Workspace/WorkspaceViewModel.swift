@@ -17,15 +17,19 @@ final class WorkspaceViewModel {
 
     var entries: [NormalizedEntry] = []
     var rawLog: String = ""
+    var diffs: [DiffEntry] = []
     var pendingApprovals: [ApprovalInfo] = []
     var streamConnected = false
     var error: String?
 
     private var applier = ConversationPatchApplier()
+    private var diffApplier = DiffStreamApplier()
     private var normalizedStream: WebSocketStream?
     private var rawStream: WebSocketStream?
+    private var diffStream: WebSocketStream?
     private var streamTask: Task<Void, Never>?
     private var rawTask: Task<Void, Never>?
+    private var diffTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
 
     init(workspaceId: String, client: APIClient) {
@@ -37,8 +41,13 @@ final class WorkspaceViewModel {
         executions.last { $0.runReason == .codingagent } ?? executions.last
     }
 
+    /// Whether the streamed diff spans more than one repo (drives whether the
+    /// Changes pane prefixes file paths with the repo name).
+    var diffsSpanRepos: Bool { diffApplier.multiRepo }
+
     func load() async {
         workspace = try? await client.getWorkspace(id: workspaceId)
+        startDiffStream()   // workspace-level; independent of the selected session
         sessions = (try? await client.listSessions(workspaceId: workspaceId)) ?? []
         if selectedSessionId == nil {
             selectedSessionId = sessions.last?.id   // triggers loadSession via didSet
@@ -123,6 +132,44 @@ final class WorkspaceViewModel {
         streamConnected = false
     }
 
+    // MARK: - Diff stream (workspace-level)
+
+    /// Stream the workspace's git diff over `/workspaces/{id}/git/diff/ws`. The
+    /// diff is keyed by repo+file and survives session switches (it reflects the
+    /// worktree, not a single execution), so it lives for the window's lifetime.
+    private func startDiffStream() {
+        diffTask?.cancel()
+        diffStream?.cancel()
+        diffApplier.reset()
+        diffs = []
+        guard let url = WebSocketStream.url(
+            base: client.baseURL,
+            path: "/api/workspaces/\(workspaceId)/git/diff/ws") else { return }
+        let stream = WebSocketStream(url: url)
+        diffStream = stream
+        diffTask = Task { [weak self] in
+            for await msg in stream.messages() {
+                guard let self else { break }
+                await MainActor.run { self.handleDiff(msg) }
+            }
+        }
+    }
+
+    private func handleDiff(_ msg: LogMsg) {
+        switch msg {
+        case .jsonPatch(let ops):
+            diffApplier.apply(ops: ops)
+            diffs = diffApplier.entries
+        default:
+            break
+        }
+    }
+
+    private func stopDiffStream() {
+        diffTask?.cancel(); diffTask = nil
+        diffStream?.cancel(); diffStream = nil
+    }
+
     // MARK: - Approvals (polling)
 
     private func startPollingApprovals() {
@@ -162,6 +209,7 @@ final class WorkspaceViewModel {
 
     func teardown() {
         stopStreams()
+        stopDiffStream()
         pollTask?.cancel(); pollTask = nil
     }
 }

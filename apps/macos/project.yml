@@ -22,12 +22,24 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: NO
     GENERATE_INFOPLIST_FILE: NO
 
+packages:
+  # Embedded terminal emulator for the workspace Terminal pane (attaches to the
+  # headed agent's tmux session). MIT-licensed, pure Swift, native AppKit view.
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm
+    # Pinned to the last release before the Metal GPU backend (v1.12+), which
+    # needs the separately-downloaded Metal Toolchain. 1.11.2 builds with a
+    # stock Xcode and still has the full LocalProcessTerminalView.
+    exactVersion: "1.11.2"
+
 targets:
   VibeKanbanMac:
     type: application
     platform: macOS
     sources:
       - path: Sources/VibeKanbanMac
+    dependencies:
+      - package: SwiftTerm
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.vibekanban.mac

@@ -304,6 +304,12 @@ final class APIClient {
         try envelope(JSONValue.self, await send("GET", "/api/execution-processes/\(executionId)/agent-progress"))
     }
 
+    /// Open the headed execution's tmux session in an external terminal emulator
+    /// (iTerm2 on macOS) — the backend's `open_interactive_terminal` flow.
+    func openInteractiveTerminal(executionId: String) async throws {
+        _ = try await send("POST", "/api/execution-processes/\(executionId)/open-terminal")
+    }
+
     // MARK: - Approvals
 
     func pendingApprovals(executionId: String) async throws -> [ApprovalInfo] {
