@@ -20,9 +20,7 @@ export function TaskDependencyGraph({
   const byId = new Map<string, SpecKitTask>(tasks.map((t) => [t.id, t]));
 
   if (layers.length === 0) {
-    return (
-      <p className="text-sm text-low">No tasks to graph yet.</p>
-    );
+    return <p className="text-sm text-low">No tasks to graph yet.</p>;
   }
 
   return (

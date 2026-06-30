@@ -6,6 +6,7 @@ import {
 } from '@phosphor-icons/react';
 import type { SpecKitArtifact, SpecKitStage } from 'shared/types';
 import { MarkdownPreview } from '@/shared/components/MarkdownPreview';
+import { useTheme, getResolvedTheme } from '@/shared/hooks/useTheme';
 import { specKitApi, ApiError } from '@/shared/lib/api';
 import type { StageMeta } from './stages';
 
@@ -33,6 +34,8 @@ export function ArtifactStage({
   onRun,
   onRefresh,
 }: ArtifactStageProps) {
+  const { theme } = useTheme();
+  const resolvedTheme = getResolvedTheme(theme);
   const [input, setInput] = useState('');
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -174,7 +177,10 @@ export function ArtifactStage({
                 className="min-h-72 w-full rounded-sm border bg-panel/40 px-half py-half font-mono text-xs text-high"
               />
             ) : (
-              <MarkdownPreview content={primary.content ?? ''} />
+              <MarkdownPreview
+                content={primary.content ?? ''}
+                theme={resolvedTheme}
+              />
             )}
           </div>
         </section>
@@ -188,7 +194,9 @@ export function ArtifactStage({
       {/* Supporting artifacts (read-only) */}
       {supporting.filter((a) => a.exists).length > 0 && (
         <section className="space-y-half">
-          <h3 className="text-sm font-medium text-high">Supporting artifacts</h3>
+          <h3 className="text-sm font-medium text-high">
+            Supporting artifacts
+          </h3>
           {supporting
             .filter((a) => a.exists)
             .map((artifact) => (
@@ -205,7 +213,10 @@ export function ArtifactStage({
                       {artifact.content ?? ''}
                     </pre>
                   ) : (
-                    <MarkdownPreview content={artifact.content ?? ''} />
+                    <MarkdownPreview
+                      content={artifact.content ?? ''}
+                      theme={resolvedTheme}
+                    />
                   )}
                 </div>
               </details>

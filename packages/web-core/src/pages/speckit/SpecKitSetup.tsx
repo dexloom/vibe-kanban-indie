@@ -122,8 +122,7 @@ export function SpecKitSetup({
     [candidates, selectedRepoIds]
   );
 
-  const canCreate =
-    !creating && selectedRepos.length > 0 && !!executorConfig;
+  const canCreate = !creating && selectedRepos.length > 0 && !!executorConfig;
 
   const handleCreate = useCallback(async () => {
     if (!canCreate || !executorConfig) return;

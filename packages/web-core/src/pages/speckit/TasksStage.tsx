@@ -84,7 +84,11 @@ export function TasksStage({
             ) : (
               <PlayIcon className="size-icon-sm" weight="fill" />
             )}
-            {running ? 'Running…' : hasTasks ? 'Regenerate tasks' : 'Generate tasks'}
+            {running
+              ? 'Running…'
+              : hasTasks
+                ? 'Regenerate tasks'
+                : 'Generate tasks'}
           </button>
           <button
             type="button"

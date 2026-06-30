@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CircleNotchIcon, PlayIcon } from '@phosphor-icons/react';
 import type { SpecKitStage } from 'shared/types';
 import { MarkdownPreview } from '@/shared/components/MarkdownPreview';
+import { useTheme, getResolvedTheme } from '@/shared/hooks/useTheme';
 import { specKitApi, ApiError } from '@/shared/lib/api';
 
 interface ConstitutionStageProps {
@@ -22,6 +23,8 @@ export function ConstitutionStage({
   liveHref,
   onRun,
 }: ConstitutionStageProps) {
+  const { theme } = useTheme();
+  const resolvedTheme = getResolvedTheme(theme);
   const [content, setContent] = useState('');
   const [draft, setDraft] = useState('');
   const [editing, setEditing] = useState(false);
@@ -156,7 +159,7 @@ export function ConstitutionStage({
               className="min-h-72 w-full rounded-sm border bg-panel/40 px-half py-half font-mono text-xs text-high"
             />
           ) : content ? (
-            <MarkdownPreview content={content} />
+            <MarkdownPreview content={content} theme={resolvedTheme} />
           ) : (
             <p className="text-sm text-low">
               No constitution yet — draft one with the agent or edit directly.

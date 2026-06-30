@@ -8,11 +8,7 @@ import {
   type SpecKitStage,
   type SpecKitTasks,
 } from 'shared/types';
-import {
-  specKitApi,
-  executionProcessesApi,
-  ApiError,
-} from '@/shared/lib/api';
+import { specKitApi, executionProcessesApi, ApiError } from '@/shared/lib/api';
 import { STAGES, computeStageState } from './stages';
 import { StageRail } from './StageRail';
 import { ArtifactStage } from './ArtifactStage';
@@ -72,7 +68,9 @@ export function SpecKitWorkbench() {
       }
     } catch (e) {
       setError(
-        e instanceof ApiError ? e.message : 'Failed to load the SpecKit feature.'
+        e instanceof ApiError
+          ? e.message
+          : 'Failed to load the SpecKit feature.'
       );
     } finally {
       setLoading(false);
@@ -102,7 +100,10 @@ export function SpecKitWorkbench() {
       if (!issueId) return;
       setError(null);
       try {
-        const res = await specKitApi.runStage(issueId, { stage, input });
+        const res = await specKitApi.runStage(issueId, {
+          stage,
+          input: input ?? undefined,
+        });
         setActiveRun({ stage, executionProcessId: res.execution_process_id });
         stopPolling();
         // Poll the run + refresh artifacts while it executes.
@@ -124,7 +125,9 @@ export function SpecKitWorkbench() {
           })();
         }, 4000);
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Failed to start the run.');
+        setError(
+          e instanceof ApiError ? e.message : 'Failed to start the run.'
+        );
       }
     },
     [issueId, refreshArtifacts, stopPolling]

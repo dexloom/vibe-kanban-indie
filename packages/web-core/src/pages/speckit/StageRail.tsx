@@ -20,7 +20,9 @@ function StageIcon({ state }: { state: SpecKitStageState }) {
         <CircleNotchIcon className="size-icon-sm animate-spin text-brand" />
       );
     case 'done':
-      return <CheckCircleIcon className="size-icon-sm text-success" weight="fill" />;
+      return (
+        <CheckCircleIcon className="size-icon-sm text-success" weight="fill" />
+      );
     case 'needs_attention':
       return (
         <WarningCircleIcon className="size-icon-sm text-error" weight="fill" />

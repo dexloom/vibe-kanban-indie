@@ -510,9 +510,7 @@ export const specKitApi = {
   },
 
   getTasks: async (issueId: string): Promise<SpecKitTasks> => {
-    const response = await makeRequest(
-      `/api/speckit/feature/${issueId}/tasks`
-    );
+    const response = await makeRequest(`/api/speckit/feature/${issueId}/tasks`);
     return handleApiResponse<SpecKitTasks>(response);
   },
 
