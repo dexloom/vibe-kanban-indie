@@ -17,17 +17,20 @@ struct ApprovalCardView: View {
             case .planApproval: planBody
             }
         }
-        .padding(12)
-        .background(Color.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.yellow.opacity(0.5)))
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: FlightDeck.Radius.card).fill(FlightDeck.warning.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: FlightDeck.Radius.card).strokeBorder(FlightDeck.warning.opacity(0.4)))
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 1.5).fill(FlightDeck.warning).frame(width: 3).padding(.vertical, 2)
+        }
     }
 
     private var header: some View {
         HStack {
-            Image(systemName: "questionmark.circle.fill").foregroundStyle(.orange)
-            Text(headerText).font(.subheadline.weight(.semibold))
+            Image(systemName: "questionmark.circle.fill").foregroundStyle(FlightDeck.warning)
+            Text(headerText).font(.fd(14, .semibold)).foregroundStyle(FlightDeck.text)
             Spacer()
-            Text(approval.timeoutAt, style: .relative).font(.caption2).foregroundStyle(.secondary)
+            Text(approval.timeoutAt, style: .relative).font(.fdMono(11)).foregroundStyle(FlightDeck.textFaint)
         }
     }
 

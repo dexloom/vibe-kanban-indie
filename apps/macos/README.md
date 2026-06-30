@@ -100,6 +100,31 @@ does the same staging manually if you prefer.
 | State | `App/AppState.swift` | `@Observable` connection + project list + selection. Board/workspace state in their own view models. |
 | Voice | `Sources/VibeKanbanMac/Voice` | Mic dictation via **Voicy** (see below). `VoicyDiscovery`, `VoicyClient` (actor), `DictationContext`/`DictationMode`, `DictationController`, `DictationCommands` (menu). The button is `Components/MicButton`. |
 | Features | `Sources/VibeKanbanMac/Features` | One folder per screen. |
+| Theme | `Components/Theme.swift` | Flight Deck design system (see below). |
+
+### Design system — "Flight Deck"
+
+`Components/Theme.swift` implements the **Flight Deck** concept (imported from the
+claude.ai/design project of the same name): a dark-home theme built on the idea
+that *agents are running processes*. The app forces `.preferredColorScheme(.dark)`
+and `.tint(FlightDeck.accent)` on every scene.
+
+- **Tokens** (`enum FlightDeck`): one indigo accent (`#6172F3`), a status palette
+  (running `#35C98E`, review `#B07CF0`, failed `#F0616D`, warning/idle), a dark
+  neutral ramp (`#0B0C10` → `#2A2F3A`), text shades, hairlines, diff colors, and
+  corner radii.
+- **Type** (`Font.fd` / `Font.fdMono`): SF for UI/headings; monospace for IDs,
+  branches, code, metrics. `fdMono` prefers **Geist Mono** (the design face) and
+  falls back to the system monospaced face — bundling Geist Mono is an optional
+  follow-up.
+- **Components**: `FDStatusDot` (pulsing live dot), `FDStateBadge`, `FDBranchChip`,
+  `FDAgentChip` (gradient diamond + model + live dot), `FDDiffStat`,
+  `FDPrimaryButtonStyle` (`.fdPrimary`), and `.fdCard()` / `.fdWindowBackground()`.
+- **Surfaces re-skinned**: the **Workspaces** table (live-agent strip + process
+  rows), the **Kanban** cards/columns (dark cards, running glow), and the **Agent
+  session** — a *calm timeline* where thinking is quiet italics, tool calls
+  collapse to one-line status rows (with MCP tag + ok/fail), and system noise
+  folds into a chip — plus the composer, window chrome, and sidebar.
 
 ### Voice dictation (Voicy)
 

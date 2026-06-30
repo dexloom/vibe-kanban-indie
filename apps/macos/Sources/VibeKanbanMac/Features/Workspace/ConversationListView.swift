@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// The agent conversation (analogue of `ConversationList`): renders normalized
-/// entries and auto-scrolls to the newest.
+/// The agent conversation as a **calm timeline**: thinking is quiet italics, tool
+/// calls collapse to one-line status rows, system noise folds away, and messages
+/// read as flowing text. Auto-scrolls to the newest entry.
 struct ConversationListView: View {
     let entries: [NormalizedEntry]
     var streamConnected: Bool
@@ -9,7 +10,7 @@ struct ConversationListView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 10) {
+                LazyVStack(alignment: .leading, spacing: 14) {
                     if entries.isEmpty {
                         emptyState
                     }
@@ -17,8 +18,9 @@ struct ConversationListView: View {
                         ChatEntryRow(entry: entry).id(entry.id)
                     }
                 }
-                .padding(14)
+                .padding(22)
             }
+            .background(FlightDeck.bgTimeline)
             .onChange(of: entries.count) {
                 if let last = entries.last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } }
             }
@@ -29,93 +31,154 @@ struct ConversationListView: View {
         VStack(alignment: .leading, spacing: 6) {
             Label(streamConnected ? "Waiting for agent output…" : "Connecting to the agent stream…",
                   systemImage: "ellipsis.bubble")
-                .foregroundStyle(.secondary)
+                .font(.fd(13)).foregroundStyle(FlightDeck.textDim)
             Text("If the live stream is unavailable, the Logs tab shows raw output.")
-                .font(.caption).foregroundStyle(.tertiary)
+                .font(.fd(12)).foregroundStyle(FlightDeck.textFaint)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 40)
     }
 }
 
-/// One chat row, styled by entry kind.
+/// One timeline event, styled by kind.
 struct ChatEntryRow: View {
     let entry: NormalizedEntry
 
     var body: some View {
         switch entry.entryType {
         case .userMessage:
-            bubble(alignment: .trailing, tint: .accentColor.opacity(0.15), icon: "person.fill")
+            userBubble
         case .assistantMessage:
-            bubble(alignment: .leading, tint: Color(nsColor: .controlBackgroundColor), icon: "sparkle")
+            assistantMessage
         case .thinking:
-            Text(entry.content.isEmpty ? "Thinking…" : entry.content)
-                .font(.callout.italic()).foregroundStyle(.secondary)
+            thinking
         case .toolUse(let name, let status):
             toolRow(name: name, status: status)
         case .systemMessage:
-            Text(entry.content).font(.caption).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .center)
+            systemChip
         case .errorMessage:
             Label(entry.content, systemImage: "exclamationmark.octagon")
-                .font(.callout).foregroundStyle(.red)
+                .font(.fd(13)).foregroundStyle(FlightDeck.failedText)
         case .userFeedback(let denied):
             Label("Denied \(denied): \(entry.content)", systemImage: "hand.raised")
-                .font(.caption).foregroundStyle(.orange)
+                .font(.fd(12)).foregroundStyle(FlightDeck.warning)
         case .other(let t) where t == "stdout" || t == "stderr":
             Text(entry.content)
-                .font(.system(.caption2, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .font(.fdMono(11.5))
+                .foregroundStyle(FlightDeck.textFaint)
+                .frame(maxWidth: .infinity, alignment: .leading)
         default:
             if !entry.content.isEmpty {
-                Text(entry.content).font(.callout).foregroundStyle(.secondary)
+                Text(entry.content).font(.fd(13)).foregroundStyle(FlightDeck.textDim)
             }
         }
     }
 
-    private func bubble(alignment: HorizontalAlignment, tint: Color, icon: String) -> some View {
+    // User → right-aligned indigo bubble.
+    private var userBubble: some View {
         HStack {
-            if alignment == .trailing { Spacer(minLength: 40) }
-            VStack(alignment: .leading, spacing: 4) {
-                Image(systemName: icon).font(.caption2).foregroundStyle(.secondary)
-                MarkdownText(text: entry.content)
-            }
-            .padding(10)
-            .background(tint, in: RoundedRectangle(cornerRadius: 10))
-            if alignment == .leading { Spacer(minLength: 40) }
+            Spacer(minLength: 48)
+            MarkdownText(text: entry.content)
+                .padding(.horizontal, 13).padding(.vertical, 10)
+                .background(RoundedRectangle(cornerRadius: 12).fill(FlightDeck.accent.opacity(0.16)))
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(FlightDeck.accent.opacity(0.26)))
         }
     }
 
-    private func toolRow(name: String, status: ToolStatusKind) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: statusIcon(status)).foregroundStyle(statusColor(status))
-            Text(name).font(.system(.caption, design: .monospaced))
-            if !entry.content.isEmpty {
-                Text(entry.content).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+    // Assistant → left-aligned flowing text in a quiet card.
+    private var assistantMessage: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                Circle().fill(LinearGradient(colors: [FlightDeck.accent, FlightDeck.accentSoft],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                Image(systemName: "diamond.fill").font(.system(size: 7, weight: .bold)).foregroundStyle(.white)
             }
+            .frame(width: 20, height: 20)
+            MarkdownText(text: entry.content)
+                .frame(maxWidth: 760, alignment: .leading)
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 8).padding(.vertical, 4)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    // Thinking → sparkle + quiet italics.
+    private var thinking: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "sparkle")
+                .font(.system(size: 15)).foregroundStyle(FlightDeck.accent.opacity(0.85))
+                .padding(.top, 1)
+            Text(entry.content.isEmpty ? "Thinking…" : entry.content)
+                .font(.fd(14).italic()).foregroundStyle(FlightDeck.textDim)
+                .frame(maxWidth: 760, alignment: .leading)
+            Spacer(minLength: 0)
+        }
+    }
+
+    // System → a single folded chip.
+    private var systemChip: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold))
+            Text(entry.content.isEmpty ? "system message" : entry.content)
+                .lineLimit(1)
+        }
+        .font(.fd(12)).foregroundStyle(FlightDeck.textFaint)
+        .padding(.horizontal, 12).padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.03)))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(FlightDeck.hairlineSoft))
+    }
+
+    // Tool → one-line status row.
+    private func toolRow(name: String, status: ToolStatusKind) -> some View {
+        let isMCP = name.contains("__") || name.hasPrefix("mcp")
+        return HStack(spacing: 11) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6).fill(statusColor(status).opacity(0.16))
+                Image(systemName: statusIcon(status))
+                    .font(.system(size: 11, weight: .bold)).foregroundStyle(statusColor(status))
+            }
+            .frame(width: 19, height: 19)
+            Text(displayName(name)).font(.fdMono(12.5, .semibold)).foregroundStyle(FlightDeck.textSoft)
+            if isMCP {
+                Text("MCP").font(.fdMono(10, .semibold)).foregroundStyle(FlightDeck.reviewText)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(RoundedRectangle(cornerRadius: 5).fill(FlightDeck.review.opacity(0.14)))
+            }
+            if !entry.content.isEmpty {
+                Text(entry.content).font(.fdMono(12)).foregroundStyle(FlightDeck.textFaint)
+                    .lineLimit(1).truncationMode(.middle)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(FlightDeck.textGhost)
+        }
+        .padding(.horizontal, 13).padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(FlightDeck.card))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(FlightDeck.hairlineSoft))
+    }
+
+    /// Strip an MCP server prefix (`server__tool`) down to the tool name.
+    private func displayName(_ name: String) -> String {
+        if let r = name.range(of: "__", options: .backwards) { return String(name[r.upperBound...]) }
+        return name
     }
 
     private func statusIcon(_ s: ToolStatusKind) -> String {
         switch s {
-        case .success: return "checkmark.circle.fill"
-        case .failed: return "xmark.circle.fill"
+        case .success: return "checkmark"
+        case .failed: return "xmark"
         case .denied: return "hand.raised.fill"
-        case .pendingApproval: return "questionmark.circle.fill"
-        case .timedOut: return "clock.badge.exclamationmark"
+        case .pendingApproval: return "questionmark"
+        case .timedOut: return "clock"
         default: return "wrench.adjustable"
         }
     }
 
     private func statusColor(_ s: ToolStatusKind) -> Color {
         switch s {
-        case .success: return .green
-        case .failed, .timedOut: return .red
-        case .denied: return .orange
-        case .pendingApproval: return .yellow
-        default: return .secondary
+        case .success: return FlightDeck.running
+        case .failed, .timedOut: return FlightDeck.failed
+        case .denied: return FlightDeck.warning
+        case .pendingApproval: return FlightDeck.warning
+        default: return FlightDeck.textDim
         }
     }
 }

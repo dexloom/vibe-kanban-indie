@@ -8,14 +8,16 @@ struct KanbanFilterBar: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            HStack(spacing: 7) {
+                Image(systemName: "magnifyingglass").font(.system(size: 13)).foregroundStyle(FlightDeck.textFainter)
                 TextField("Search issues…", text: $vm.search)
                     .textFieldStyle(.plain)
+                    .font(.fd(13))
                     .frame(maxWidth: 240)
             }
-            .padding(.horizontal, 8).padding(.vertical, 5)
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: 7))
+            .padding(.horizontal, 11).padding(.vertical, 7)
+            .background(RoundedRectangle(cornerRadius: FlightDeck.Radius.control).fill(FlightDeck.card))
+            .overlay(RoundedRectangle(cornerRadius: FlightDeck.Radius.control).strokeBorder(FlightDeck.hairlineHi))
 
             Menu {
                 ForEach(IssuePriority.allCases, id: \.self) { p in

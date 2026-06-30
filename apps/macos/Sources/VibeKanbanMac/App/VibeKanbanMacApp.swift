@@ -12,6 +12,8 @@ struct VibeKanbanMacApp: App {
             RootView()
                 .environment(appState)
                 .frame(minWidth: 900, minHeight: 560)
+                .tint(FlightDeck.accent)
+                .preferredColorScheme(.dark)
                 .task {
                     appDelegate.appState = appState   // so the backend is stopped on quit
                     await appState.bootstrap()
@@ -32,12 +34,16 @@ struct VibeKanbanMacApp: App {
             WorkspaceWindowView(workspaceId: workspaceId)
                 .environment(appState)
                 .frame(minWidth: 800, minHeight: 520)
+                .tint(FlightDeck.accent)
+                .preferredColorScheme(.dark)
         }
 
         // Preferences (⌘,)
         Settings {
             SettingsView()
                 .environment(appState)
+                .tint(FlightDeck.accent)
+                .preferredColorScheme(.dark)
         }
     }
 }

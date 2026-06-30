@@ -23,7 +23,9 @@ struct KanbanColumnView: View {
                             tags: vm.tags(for: issue),
                             assigneeNames: vm.assigneeUserIds(for: issue).map { String($0.prefix(6)) },
                             workspaceCount: vm.showWorkspaces ? vm.workspaceCount(for: issue) : 0,
-                            isSelected: selectedIssueId == issue.id
+                            isSelected: selectedIssueId == issue.id,
+                            status: status,
+                            changes: vm.changes(for: issue)
                         )
                         .onTapGesture { onSelect(issue) }
                         .draggable(issue.id)
@@ -32,16 +34,16 @@ struct KanbanColumnView: View {
                 .padding(.bottom, 8)
             }
         }
-        .padding(8)
+        .padding(11)
         .frame(width: 290)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(isTargeted ? Color.accentColor.opacity(0.12) : Color(nsColor: .windowBackgroundColor))
+            RoundedRectangle(cornerRadius: FlightDeck.Radius.panel)
+                .fill(isTargeted ? FlightDeck.accent.opacity(0.12) : Color.white.opacity(0.015))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(isTargeted ? Color.accentColor : .clear, lineWidth: 1.5)
+            RoundedRectangle(cornerRadius: FlightDeck.Radius.panel)
+                .strokeBorder(isTargeted ? FlightDeck.accent : FlightDeck.hairlineSoft, lineWidth: isTargeted ? 1.5 : 1)
         )
         .dropDestination(for: String.self) { ids, _ in
             for id in ids { Task { await vm.move(issueId: id, to: status.id) } }
@@ -50,18 +52,19 @@ struct KanbanColumnView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 9) {
             ColorDot(hex: status.color)
-            Text(status.name).font(.system(size: 12, weight: .semibold))
+            Text(status.name).font(.fd(13.5, .semibold)).foregroundStyle(FlightDeck.textMuted)
             Text("\(columnIssues.count)")
-                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .font(.fdMono(12, .semibold)).foregroundStyle(FlightDeck.textFainter)
             Spacer()
             Button {
                 onAddCard(status)
             } label: { Image(systemName: "plus") }
                 .buttonStyle(.borderless)
+                .foregroundStyle(FlightDeck.textFainter)
                 .help("Add issue to \(status.name)")
         }
-        .padding(.horizontal, 2)
+        .padding(.horizontal, 4).padding(.bottom, 5)
     }
 }

@@ -9,13 +9,26 @@ struct ChatInputView: View {
     @State private var text = ""
     @State private var dictation = DictationController()
 
+    private var isEmpty: Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
     var body: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            TextEditor(text: $text)
-                .font(.body)
-                .frame(minHeight: 36, maxHeight: 120)
-                .padding(6)
-                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary))
+        HStack(alignment: .bottom, spacing: 11) {
+            FDAgentChip(model: "opus")
+
+            ZStack(alignment: .topLeading) {
+                if text.isEmpty {
+                    Text("Message the agent…")
+                        .font(.fd(13.5)).foregroundStyle(FlightDeck.textFainter)
+                        .padding(.vertical, 6).allowsHitTesting(false)
+                }
+                TextEditor(text: $text)
+                    .font(.fd(13.5))
+                    .foregroundStyle(FlightDeck.textSoft)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 24, maxHeight: 120)
+                    .padding(.vertical, 2)
+            }
+
             MicButton(
                 controller: dictation,
                 situations: DictationSituation.allCases.filter { $0.mode == .agent },
@@ -23,17 +36,25 @@ struct ChatInputView: View {
             ) { transcript in
                 appendTranscript(transcript)
             }
+
             Button {
                 send()
             } label: {
                 Image(systemName: "paperplane.fill")
-                    .frame(width: 28, height: 28)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 34, height: 34)
+                    .background(RoundedRectangle(cornerRadius: 9).fill(isEmpty ? FlightDeck.accent.opacity(0.4) : FlightDeck.accent))
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.plain)
             .keyboardShortcut(.return, modifiers: .command)
-            .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(isEmpty)
         }
-        .padding(10)
+        .padding(11)
+        .background(RoundedRectangle(cornerRadius: 13).fill(FlightDeck.card))
+        .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(FlightDeck.hairlineHi))
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        .background(FlightDeck.bgTimeline)
         .onDisappear { dictation.cancel() }
         .focusedSceneValue(\.dictate, DictateAction { situation in
             dictation.request(situation: situation, context: dictationContext(), insert: appendTranscript)

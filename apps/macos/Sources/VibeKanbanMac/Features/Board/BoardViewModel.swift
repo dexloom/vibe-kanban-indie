@@ -128,6 +128,23 @@ final class BoardViewModel {
         workspaceSummaries.filter { $0.issueId == issue.id && !$0.archived }.count
     }
 
+    /// Aggregate diff stats across an issue's non-archived workspaces.
+    struct IssueChanges: Equatable {
+        var files = 0
+        var added = 0
+        var removed = 0
+        var any: Bool { added > 0 || removed > 0 || files > 0 }
+    }
+
+    func changes(for issue: Issue) -> IssueChanges {
+        let summaries = workspaceSummaries.filter { $0.issueId == issue.id && !$0.archived }
+        return IssueChanges(
+            files: summaries.compactMap(\.filesChanged).reduce(0, +),
+            added: summaries.compactMap(\.linesAdded).reduce(0, +),
+            removed: summaries.compactMap(\.linesRemoved).reduce(0, +)
+        )
+    }
+
     func issue(id: String) -> Issue? { issues.first { $0.id == id } }
     func status(id: String) -> ProjectStatus? { statuses.first { $0.id == id } }
 

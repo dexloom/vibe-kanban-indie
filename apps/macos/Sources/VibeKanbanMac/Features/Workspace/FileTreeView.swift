@@ -7,18 +7,25 @@ struct FileTreeView: View {
     let workspace: Workspace?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label("Files", systemImage: "folder").font(.subheadline.weight(.semibold))
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Files").font(.fd(11, .semibold)).tracking(1.2)
+                .foregroundStyle(FlightDeck.textFainter)
             if let path = workspace?.containerRef {
-                Text(path)
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2).truncationMode(.middle)
+                HStack(spacing: 8) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 12)).foregroundStyle(FlightDeck.textFaint)
+                    Text(path)
+                        .font(.fdMono(11))
+                        .foregroundStyle(FlightDeck.textDim)
+                        .lineLimit(2).truncationMode(.middle)
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 8).fill(FlightDeck.panel))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(FlightDeck.hairlineSoft))
             } else {
-                Text("Worktree not available.").font(.caption).foregroundStyle(.tertiary)
+                Text("Worktree not available.").font(.fd(12)).foregroundStyle(FlightDeck.textFaint)
             }
-            Text("File tree not wired in this sketch.")
-                .font(.caption2).foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

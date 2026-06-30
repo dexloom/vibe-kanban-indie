@@ -7,13 +7,22 @@ struct KanbanCardView: View {
     let assigneeNames: [String]
     let workspaceCount: Int
     let isSelected: Bool
+    /// The issue's current status (state) — rendered as a tag in the footer.
+    var status: ProjectStatus? = nil
+    /// Aggregated diff stats across the issue's workspaces.
+    var changes: BoardViewModel.IssueChanges = .init()
+
+    private var hasAgent: Bool { workspaceCount > 0 }
+    private var hasFooter: Bool {
+        status != nil || hasAgent || changes.any || !assigneeNames.isEmpty
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 9) {
             HStack {
                 Text(issue.simpleId)
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .font(.fdMono(11, .semibold)).tracking(0.4)
+                    .foregroundStyle(FlightDeck.textFaint)
                 Spacer()
                 if let priority = issue.priority {
                     PriorityBadge(priority: priority, showLabel: false)
@@ -21,15 +30,18 @@ struct KanbanCardView: View {
             }
 
             Text(issue.title)
-                .font(.system(size: 13, weight: .medium))
+                .font(.fd(14, .semibold))
+                .foregroundStyle(FlightDeck.textSoft)
                 .lineLimit(3)
                 .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
 
             if let description = issue.description, !description.isEmpty {
                 Text(description)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .font(.fd(12.5))
+                    .foregroundStyle(FlightDeck.textDim)
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if !tags.isEmpty {
@@ -40,29 +52,34 @@ struct KanbanCardView: View {
                 }
             }
 
-            if !assigneeNames.isEmpty || workspaceCount > 0 {
-                HStack {
-                    if workspaceCount > 0 {
-                        Badge(text: "\(workspaceCount)", systemImage: "cpu", tint: .accentColor)
+            if hasFooter {
+                HStack(spacing: 8) {
+                    if let status {
+                        FDStatusTag(name: status.name, color: status.color)
                     }
-                    Spacer()
+                    if hasAgent {
+                        FDAgentChip(model: "opus", running: false)
+                    }
+                    Spacer(minLength: 4)
+                    if changes.any {
+                        FDDiffStat(add: changes.added, del: changes.removed)
+                    }
                     if !assigneeNames.isEmpty {
                         AvatarStack(names: assigneeNames)
                     }
                 }
             }
         }
-        .padding(10)
+        .padding(13)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(isSelected ? Color.accentColor : Color.black.opacity(0.08),
-                              lineWidth: isSelected ? 2 : 0.5)
-        )
-        .shadow(color: .black.opacity(0.06), radius: 1, y: 1)
+        .fdCard(selected: isSelected)
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: FlightDeck.Radius.card)
+                    .strokeBorder(FlightDeck.accent.opacity(0.55), lineWidth: 1.5)
+                    .shadow(color: FlightDeck.accent.opacity(0.5), radius: 13)
+            }
+        }
         .contentShape(Rectangle())
     }
 }

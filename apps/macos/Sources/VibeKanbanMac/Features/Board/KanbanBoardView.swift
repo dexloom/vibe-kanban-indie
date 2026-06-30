@@ -24,6 +24,6 @@ struct KanbanBoardView: View {
             .frame(maxHeight: .infinity, alignment: .top)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(nsColor: .underPageBackgroundColor))
+        .background(FlightDeck.bg)
     }
 }

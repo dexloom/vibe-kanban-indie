@@ -43,17 +43,18 @@ struct ProjectSidebarView: View {
     }
 
     private var connectionFooter: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Circle()
-                .fill(app.connection.isConnected ? Color.green : Color.orange)
+                .fill(app.connection.isConnected ? FlightDeck.running : FlightDeck.warning)
                 .frame(width: 8, height: 8)
+                .shadow(color: app.connection.isConnected ? FlightDeck.running : .clear, radius: 4)
             Text(app.connection.label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.fd(12, .medium))
+                .foregroundStyle(FlightDeck.textFaint)
                 .lineLimit(1)
             Spacer()
         }
-        .padding(.horizontal, 10).padding(.vertical, 6)
+        .padding(.horizontal, 12).padding(.vertical, 8)
         .background(.bar)
     }
 }
