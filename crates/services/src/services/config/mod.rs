@@ -94,6 +94,14 @@ pub fn default_pipeline_steps() -> Vec<PipelineStep> {
             default_enabled: false,
         },
         PipelineStep {
+            id: "recall-knowledge".to_string(),
+            label: "Recall prior knowledge".to_string(),
+            prompt_fragment:
+                "Before planning, recall what this project already knows: search the project knowledge base for pages relevant to this card and distill the matches into a `PRIOR_KNOWLEDGE.md` at the workspace root for the spec and plan stages to build on. Read-only on the knowledge base; if it is empty (first card), note that and continue."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
             id: "plan".to_string(),
             label: "Create plan".to_string(),
             prompt_fragment:
@@ -130,6 +138,14 @@ pub fn default_pipeline_steps() -> Vec<PipelineStep> {
             label: "Update documentation".to_string(),
             prompt_fragment:
                 "Update the documentation affected by this change so the docs match what shipped, and commit it before marking the card ready."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
+            id: "enrich-knowledge".to_string(),
+            label: "Enrich knowledge base".to_string(),
+            prompt_fragment:
+                "Once the change is implemented (and reviewed/documented, if those stages ran), distill any reusable knowledge from what shipped into the project knowledge base: add or update topic pages, tag each with this card's id, refresh the index, and commit the knowledge base before marking the card ready. If nothing reusable emerged, say so (\"no new knowledge to record\") rather than writing filler."
                     .to_string(),
             default_enabled: false,
         },
