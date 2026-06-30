@@ -538,6 +538,129 @@ export type GenerateSpecResponse = { title: string, description: string,
  */
 intake_metadata: JsonValue, };
 
+export type CreateSpecKitFeatureRequest = { 
+/**
+ * The kanban issue this feature belongs to. Its number + title derive the
+ * feature slug and branch.
+ */
+issue_id: string, 
+/**
+ * Repos (with target branch) to mount in the feature workspace.
+ */
+repos: Array<WorkspaceRepoInput>, 
+/**
+ * Agent parameters used when running SpecKit stages for this feature.
+ */
+executor_config: ExecutorConfig, };
+
+export type CreateSpecKitFeatureResponse = { workspace: Workspace, 
+/**
+ * `NNN-feature-slug` (also the workspace branch).
+ */
+feature_slug: string, 
+/**
+ * `specs/NNN-feature-slug`, relative to the repo root.
+ */
+feature_dir: string, };
+
+export type SpecKitStage = "constitution" | "specify" | "clarify" | "plan" | "tasks" | "analyze" | "implement";
+
+export type SpecKitStageState = "idle" | "running" | "done" | "needs_attention";
+
+export type SpecKitTask = { 
+/**
+ * Task identifier as written in tasks.md (e.g. "T001"). Falls back to the
+ * 1-based ordinal when the source line has no explicit id.
+ */
+id: string, 
+/**
+ * Human-readable task description (the text after the id/marker).
+ */
+description: string, 
+/**
+ * File paths referenced in the task line, when present.
+ */
+file_paths: Array<string>, 
+/**
+ * True when the task is marked `[P]` (safe to run in parallel).
+ */
+parallelizable: boolean, 
+/**
+ * Phase / user-story heading the task is grouped under, if any.
+ */
+phase?: string, 
+/**
+ * Whether the task's checkbox is ticked (`[x]`).
+ */
+done: boolean, };
+
+export type SpecKitTaskLayer = { 
+/**
+ * Task ids that make up this layer.
+ */
+task_ids: Array<string>, 
+/**
+ * True when the layer holds more than one task (i.e. real parallelism).
+ */
+parallel: boolean, };
+
+export type SpecKitTasks = { tasks: Array<SpecKitTask>, 
+/**
+ * Ordered parallel layers derived from `[P]` markers + task order.
+ */
+layers: Array<SpecKitTaskLayer>, total: number, completed: number, };
+
+export type SpecKitArtifact = { 
+/**
+ * Display name / filename (e.g. "spec.md").
+ */
+name: string, 
+/**
+ * Path relative to the feature dir (e.g. "contracts/api-spec.json").
+ */
+relative_path: string, content?: string, exists: boolean, };
+
+export type SpecKitArtifacts = { 
+/**
+ * Feature dir relative to the repo root, e.g. "specs/001-webhook-retries".
+ */
+feature_dir: string, spec: SpecKitArtifact, plan: SpecKitArtifact, tasks: SpecKitArtifact, research: SpecKitArtifact, data_model: SpecKitArtifact, quickstart: SpecKitArtifact, 
+/**
+ * Contract files under `contracts/` (json / markdown), if any.
+ */
+contracts: Array<SpecKitArtifact>, };
+
+export type RunStageRequest = { stage: SpecKitStage, 
+/**
+ * Free-form input for the stage: the feature description for `specify`,
+ * the clarification answers for `clarify`, etc.
+ */
+input?: string, };
+
+export type RunStageResponse = { stage: SpecKitStage, execution_process_id: string, session_id: string, };
+
+export type UpdateArtifactRequest = { 
+/**
+ * Path relative to the feature dir (e.g. "spec.md", "contracts/api.json").
+ */
+relative_path: string, content: string, };
+
+export type ToggleTaskRequest = { task_id: string, done: boolean, };
+
+export type ConstitutionContent = { content: string, exists: boolean, };
+
+export type SpecKitFeatureStatus = { issue_id: string, enabled: boolean, workspace_id?: string, feature_slug?: string, feature_dir?: string, };
+
+export type AnalyzeFinding = { 
+/**
+ * "error" | "warning" | "info".
+ */
+severity: string, message: string, 
+/**
+ * The artifact the finding points at, when known (e.g. "spec.md").
+ */
+artifact?: string, };
+
 export type UnifiedPrComment = { "comment_type": "general", id: string, author: string, author_association: string | null, body: string, created_at: string, url: string | null, } | { "comment_type": "review", id: bigint, author: string, author_association: string | null, body: string, created_at: string, url: string | null, path: string, line: bigint | null, side: string | null, diff_hunk: string | null, };
 
 export type ProviderKind = "git_hub" | "azure_dev_ops" | "unknown";
@@ -1099,4 +1222,4 @@ export const DEFAULT_PR_DESCRIPTION_PROMPT = "Update the PR that was just create
 
 export const DEFAULT_COMMIT_REMINDER_PROMPT = "There are uncommitted changes. Please stage and commit them now with a descriptive commit message.";
 
-export const DEFAULT_PIPELINE_STEPS: Array<PipelineStep> = [{"id":"orchestrate","label":"Orchestrate (auto-drive)","prompt_fragment":"Have the orchestrator agent pick this card up and drive it to done autonomously, running the card's pipeline stages in order — regardless of which board column the card is in (it may be started even from Todo).","default_enabled":false},{"id":"spec","label":"Create spec","prompt_fragment":"Write a technical spec for this card and save it to `SPEC.md` at the repo root before implementing.","default_enabled":false},{"id":"plan","label":"Create plan","prompt_fragment":"Write a step-by-step implementation plan and save it to `IMPLEMENTATION_PLAN.md` at the repo root.","default_enabled":false},{"id":"plan-review","label":"Review plan","prompt_fragment":"Have the implementation plan reviewed (e.g. a codex plan review, read-only) and resolve blockers before writing code.","default_enabled":false},{"id":"wait-for-approval","label":"Wait for approval","prompt_fragment":"Pause for operator approval at this point: commit the work so far, then stop and wait for the operator's decision or instructions before continuing to later stages — do not advance on your own until the operator responds.","default_enabled":false},{"id":"code-review","label":"Review code","prompt_fragment":"After implementing, run a code review on the diff and address findings before marking the card ready.","default_enabled":false},{"id":"update-docs","label":"Update documentation","prompt_fragment":"Update the documentation affected by this change so the docs match what shipped, and commit it before marking the card ready.","default_enabled":false},{"id":"merge","label":"Merge to base","prompt_fragment":"When the work is implemented and reviewed, merge this card's branch into the base branch.","default_enabled":false},{"id":"pr","label":"Open pull request","prompt_fragment":"When the work is implemented and reviewed, open a pull request for this card against the base branch.","default_enabled":false}];
+export const DEFAULT_PIPELINE_STEPS: Array<PipelineStep> = [{"id":"orchestrate","label":"Orchestrate (auto-drive)","prompt_fragment":"Have the orchestrator agent pick this card up and drive it to done autonomously, running the card's pipeline stages in order — regardless of which board column the card is in (it may be started even from Todo).","default_enabled":false},{"id":"spec","label":"Create spec","prompt_fragment":"Write a technical spec for this card and save it to `SPEC.md` at the repo root before implementing.","default_enabled":false},{"id":"plan","label":"Create plan","prompt_fragment":"Write a step-by-step implementation plan and save it to `IMPLEMENTATION_PLAN.md` at the repo root.","default_enabled":false},{"id":"plan-review","label":"Review plan","prompt_fragment":"Have the implementation plan reviewed (e.g. a codex plan review, read-only) and resolve blockers before writing code.","default_enabled":false},{"id":"wait-for-approval","label":"Wait for approval","prompt_fragment":"Pause for operator approval at this point: commit the work so far, then stop and wait for the operator's decision or instructions before continuing to later stages — do not advance on your own until the operator responds.","default_enabled":false},{"id":"code-review","label":"Review code","prompt_fragment":"After implementing, run a code review on the diff and address findings before marking the card ready.","default_enabled":false},{"id":"update-docs","label":"Update documentation","prompt_fragment":"Update the documentation affected by this change so the docs match what shipped, and commit it before marking the card ready.","default_enabled":false},{"id":"merge","label":"Merge to base","prompt_fragment":"When the work is implemented and reviewed, merge this card's branch into the base branch.","default_enabled":false},{"id":"pr","label":"Open pull request","prompt_fragment":"When the work is implemented and reviewed, open a pull request for this card against the base branch.","default_enabled":false},{"id":"speckit-constitution","label":"SpecKit: Constitution","prompt_fragment":"SpecKit: establish or refresh the project constitution at `.specify/memory/constitution.md` (run `/speckit.constitution`) before specifying.","default_enabled":false},{"id":"speckit-specify","label":"SpecKit: Specify","prompt_fragment":"SpecKit: write the feature specification to `specs/<current branch>/spec.md` (run `/speckit.specify`), focusing on what and why.","default_enabled":false},{"id":"speckit-clarify","label":"SpecKit: Clarify","prompt_fragment":"SpecKit: resolve the spec's open questions (run `/speckit.clarify`) before planning.","default_enabled":false},{"id":"speckit-plan","label":"SpecKit: Plan","prompt_fragment":"SpecKit: write the technical plan to `specs/<current branch>/plan.md` plus research/data-model/contracts as needed (run `/speckit.plan`).","default_enabled":false},{"id":"speckit-tasks","label":"SpecKit: Tasks","prompt_fragment":"SpecKit: break the plan into a dependency-ordered, parallel-aware `specs/<current branch>/tasks.md` (run `/speckit.tasks`).","default_enabled":false},{"id":"speckit-analyze","label":"SpecKit: Analyze","prompt_fragment":"SpecKit: cross-check spec, plan, and tasks for gaps and constitution violations (run `/speckit.analyze`) before implementing.","default_enabled":false},{"id":"speckit-implement","label":"SpecKit: Implement","prompt_fragment":"SpecKit: execute `specs/<current branch>/tasks.md` in dependency order, doing `[P]` tasks within a layer together and ticking each task off as it lands (run `/speckit.implement`).","default_enabled":false}];

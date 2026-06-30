@@ -109,6 +109,17 @@ import {
   ProfileResponse,
   TelegramStatus,
   TelegramTestResponse,
+  CreateSpecKitFeatureRequest,
+  CreateSpecKitFeatureResponse,
+  RunStageRequest,
+  RunStageResponse,
+  SpecKitArtifacts,
+  SpecKitArtifact,
+  SpecKitTasks,
+  UpdateArtifactRequest,
+  ToggleTaskRequest,
+  ConstitutionContent,
+  SpecKitFeatureStatus,
 } from 'shared/types';
 import type { Project as RemoteProject } from 'shared/remote-types';
 import type { WorkspaceWithSession } from '@/shared/types/attempt';
@@ -434,6 +445,104 @@ export const specApi = {
     } finally {
       clearTimeout(timeout);
     }
+  },
+};
+
+// SpecKit (Spec-Driven Development) workbench API. Stage runs are local-only
+// (they can exceed the remote relay's 30s timeout, like spec generation).
+export const specKitApi = {
+  /** Create a SpecKit feature: a persistent workspace for an issue, with the
+   * `.specify/` scaffold provisioned into the repo worktree. ~Long-running
+   * (worktree creation); uses an extended client timeout. */
+  createFeature: async (
+    data: CreateSpecKitFeatureRequest
+  ): Promise<CreateSpecKitFeatureResponse> => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 180_000);
+    try {
+      const response = await makeRequest(`/api/speckit/feature`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+        signal: controller.signal,
+      });
+      return handleApiResponse<CreateSpecKitFeatureResponse>(response);
+    } finally {
+      clearTimeout(timeout);
+    }
+  },
+
+  /** Kick off a stage's coding-agent run. Returns immediately with the
+   * execution/session ids so the caller can stream/observe the run. */
+  runStage: async (
+    issueId: string,
+    data: RunStageRequest
+  ): Promise<RunStageResponse> => {
+    const response = await makeRequest(
+      `/api/speckit/feature/${issueId}/stage`,
+      { method: 'POST', body: JSON.stringify(data) }
+    );
+    return handleApiResponse<RunStageResponse>(response);
+  },
+
+  /** Whether the issue is a SpecKit feature, plus its workspace id + slug.
+   * Returns `enabled: false` for issues that aren't features yet. */
+  getFeature: async (issueId: string): Promise<SpecKitFeatureStatus> => {
+    const response = await makeRequest(`/api/speckit/feature/${issueId}`);
+    return handleApiResponse<SpecKitFeatureStatus>(response);
+  },
+
+  getArtifacts: async (issueId: string): Promise<SpecKitArtifacts> => {
+    const response = await makeRequest(
+      `/api/speckit/feature/${issueId}/artifacts`
+    );
+    return handleApiResponse<SpecKitArtifacts>(response);
+  },
+
+  putArtifact: async (
+    issueId: string,
+    data: UpdateArtifactRequest
+  ): Promise<SpecKitArtifact> => {
+    const response = await makeRequest(
+      `/api/speckit/feature/${issueId}/artifact`,
+      { method: 'PUT', body: JSON.stringify(data) }
+    );
+    return handleApiResponse<SpecKitArtifact>(response);
+  },
+
+  getTasks: async (issueId: string): Promise<SpecKitTasks> => {
+    const response = await makeRequest(
+      `/api/speckit/feature/${issueId}/tasks`
+    );
+    return handleApiResponse<SpecKitTasks>(response);
+  },
+
+  toggleTask: async (
+    issueId: string,
+    data: ToggleTaskRequest
+  ): Promise<SpecKitTasks> => {
+    const response = await makeRequest(
+      `/api/speckit/feature/${issueId}/tasks`,
+      { method: 'PATCH', body: JSON.stringify(data) }
+    );
+    return handleApiResponse<SpecKitTasks>(response);
+  },
+
+  getConstitution: async (issueId: string): Promise<ConstitutionContent> => {
+    const response = await makeRequest(
+      `/api/speckit/feature/${issueId}/constitution`
+    );
+    return handleApiResponse<ConstitutionContent>(response);
+  },
+
+  putConstitution: async (
+    issueId: string,
+    data: ConstitutionContent
+  ): Promise<ConstitutionContent> => {
+    const response = await makeRequest(
+      `/api/speckit/feature/${issueId}/constitution`,
+      { method: 'PUT', body: JSON.stringify(data) }
+    );
+    return handleApiResponse<ConstitutionContent>(response);
   },
 };
 
