@@ -310,6 +310,58 @@ fn classify_send_keys_err(session_name: &str, stderr: &[u8]) -> TerminalError {
     }
 }
 
+/// The tmux invocations that make `session_name`'s outer terminal title read
+/// `title`. Returned as argv lists (no shell) so a title with quotes/spaces is
+/// passed verbatim.
+///
+/// Why this exists: when iTerm2 attaches, the login shell that runs `tmux
+/// attach` emits an OSC title escape naming the job — the word `tmux` — and
+/// iTerm shows it. tmux's default `set-titles off` means tmux never re-asserts
+/// the title, so `tmux` sticks (the iTerm session `name` we set via AppleScript
+/// governs a different title component and is defeated by that escape).
+///
+/// Turning `set-titles on` with a **literal** `set-titles-string` makes tmux
+/// continuously emit the card name as the terminal title (OSC 0/2), overriding
+/// the shell's escape. A literal string (rather than `#W`) is immune to tmux's
+/// automatic window renaming. We also rename the window (with automatic-rename
+/// off so it sticks) so `tmux ls` / the status line show the card name too.
+fn tmux_title_commands(session_name: &str, title: &str) -> Vec<Vec<String>> {
+    let t = session_name.to_string();
+    vec![
+        vec![
+            "set-option".into(),
+            "-t".into(),
+            t.clone(),
+            "set-titles".into(),
+            "on".into(),
+        ],
+        vec![
+            "set-option".into(),
+            "-t".into(),
+            t.clone(),
+            "set-titles-string".into(),
+            title.to_string(),
+        ],
+        vec![
+            "set-window-option".into(),
+            "-t".into(),
+            t.clone(),
+            "automatic-rename".into(),
+            "off".into(),
+        ],
+        vec!["rename-window".into(), "-t".into(), t, title.to_string()],
+    ]
+}
+
+/// Best-effort: pin the tmux-owned terminal title for `session_name` to `title`
+/// (see [`tmux_title_commands`]). Purely cosmetic, so any failure is ignored —
+/// the session stays alive and attachable regardless.
+async fn pin_tmux_title(session_name: &str, title: &str) {
+    for args in tmux_title_commands(session_name, title) {
+        let _ = Command::new("tmux").args(&args).output().await;
+    }
+}
+
 /// Open the chosen terminal emulator attached to the tmux session. For
 /// [`TerminalKind::None`] this is a no-op. If the emulator is unavailable,
 /// returns [`TerminalError::TerminalUnavailable`] — the caller should keep the
@@ -331,7 +383,13 @@ pub async fn open_in_terminal(
     let attach = attach_command(session_name);
     match kind {
         TerminalKind::None => Ok(()),
-        TerminalKind::ITerm2 => open_iterm_tab(&attach, title, iterm_tabs).await,
+        TerminalKind::ITerm2 => {
+            // Make tmux own the terminal title so the iTerm2 tab shows the card
+            // name instead of the shell's job-title escape ("tmux"). Best-effort
+            // and iTerm-scoped: WezTerm/Terminal.app already title correctly.
+            pin_tmux_title(session_name, title).await;
+            open_iterm_tab(&attach, title, iterm_tabs).await
+        }
         TerminalKind::TerminalApp => {
             let script = build_terminal_app_script(&attach, title);
             run_osascript(kind, &script, &attach).await.map(|_| ())
@@ -699,6 +757,40 @@ mod tests {
     #[test]
     fn attach_command_format() {
         assert_eq!(attach_command("vk-x"), "tmux attach -t vk-x");
+    }
+
+    #[test]
+    fn tmux_title_commands_assert_literal_card_name() {
+        // The card name (with a space) must ride as a single argv element so
+        // tmux receives it verbatim; the commands turn on tmux-owned titling and
+        // pin the literal string as both the terminal title and the window name.
+        let cmds = tmux_title_commands("vk-abc", "VIBE-42 Fix login");
+        assert_eq!(
+            cmds,
+            vec![
+                vec!["set-option", "-t", "vk-abc", "set-titles", "on"],
+                vec![
+                    "set-option",
+                    "-t",
+                    "vk-abc",
+                    "set-titles-string",
+                    "VIBE-42 Fix login"
+                ],
+                vec![
+                    "set-window-option",
+                    "-t",
+                    "vk-abc",
+                    "automatic-rename",
+                    "off"
+                ],
+                vec!["rename-window", "-t", "vk-abc", "VIBE-42 Fix login"],
+            ]
+        );
+        // set-titles-string is a *literal* (not `#W`), so tmux's automatic window
+        // rename can never revert the shown title to the job name.
+        let title_cmd = &cmds[1];
+        assert_eq!(title_cmd.last().unwrap(), "VIBE-42 Fix login");
+        assert!(!title_cmd.iter().any(|a| a == "#W"));
     }
 
     #[test]

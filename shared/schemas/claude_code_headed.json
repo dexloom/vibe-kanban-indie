@@ -112,6 +112,12 @@
         "boolean",
         "null"
       ]
+    },
+    "open_terminal": {
+      "title": "Open terminal window",
+      "description": "Open a terminal window attached to the session on start. When off, the agent runs in a background tmux session you can attach to later.",
+      "type": "boolean",
+      "default": true
     }
   },
   "type": "object"

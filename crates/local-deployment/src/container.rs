@@ -1455,11 +1455,14 @@ impl LocalContainerService {
             if has_overrides {
                 agent.apply_overrides(&executor_config);
             }
-            let (claude, telegram_channel) = match agent {
-                CodingAgent::ClaudeCode(cc) => (cc, false),
+            let (claude, telegram_channel, open_terminal) = match agent {
+                // A bare (non-headed) Claude reaching this interactive path keeps
+                // the historical behavior of opening a terminal.
+                CodingAgent::ClaudeCode(cc) => (cc, false, true),
                 CodingAgent::ClaudeCodeHeaded(cch) => {
                     let telegram_channel = cch.telegram_channel_enabled();
                     let use_local_binary = cch.local_binary_enabled();
+                    let open_terminal = cch.open_terminal_enabled();
                     let mut inner = cch.inner;
                     // Default-on: a headed session spawns the operator's
                     // locally-installed `claude` (kept up to date) rather than
@@ -1474,7 +1477,7 @@ impl LocalContainerService {
                         inner.cmd.base_command_override =
                             Some(executors::executors::claude::LOCAL_CLAUDE_BINARY.to_string());
                     }
-                    (inner, telegram_channel)
+                    (inner, telegram_channel, open_terminal)
                 }
                 other => {
                     return Err(ContainerError::Other(anyhow!(
@@ -1595,15 +1598,26 @@ impl LocalContainerService {
                 terminal::attach_command(&tmux_session)
             );
 
-            // Attach the chosen terminal emulator as a viewer. A missing emulator
-            // is non-fatal: the session is alive and reachable via `tmux attach`.
-            let iterm_tabs = self.config.read().await.iterm_tabs;
-            let tab_title = self.interactive_tab_title(exec_id, &tmux_session).await;
-            if let Err(e) =
-                terminal::open_in_terminal(cfg.terminal, &tmux_session, &tab_title, iterm_tabs)
-                    .await
-            {
-                tracing::warn!("Could not open terminal emulator for {tmux_session}: {e}");
+            // Attach the chosen terminal emulator as a viewer, unless the headed
+            // agent opted out (`open_terminal = false`): then the session simply
+            // runs detached in the background and the operator attaches on demand.
+            // A missing emulator is non-fatal either way: the session is alive and
+            // reachable via `tmux attach`.
+            if open_terminal {
+                let iterm_tabs = self.config.read().await.iterm_tabs;
+                let tab_title = self.interactive_tab_title(exec_id, &tmux_session).await;
+                if let Err(e) =
+                    terminal::open_in_terminal(cfg.terminal, &tmux_session, &tab_title, iterm_tabs)
+                        .await
+                {
+                    tracing::warn!("Could not open terminal emulator for {tmux_session}: {e}");
+                }
+            } else {
+                tracing::info!(
+                    "headed session {tmux_session} started detached (open_terminal=off); \
+                     attach with `{}`",
+                    terminal::attach_command(&tmux_session)
+                );
             }
 
             // With the Telegram channel enabled, the headed session opens behind

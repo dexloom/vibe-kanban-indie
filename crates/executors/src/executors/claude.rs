@@ -812,6 +812,27 @@ pub struct ClaudeCodeHeaded {
         description = "Spawn the locally-installed `claude` binary (kept up to date) instead of the pinned npx package"
     )]
     pub local_binary: Option<bool>,
+
+    /// Open a terminal-emulator window attached to the session when a headed run
+    /// starts. When disabled, the agent still runs in a detached tmux session
+    /// (attach later with `tmux attach -t vk-<id>`) but no window is opened.
+    ///
+    /// A non-`Option` `bool` with a serde default of `true` on purpose: schemars
+    /// emits that default into the generated schema (`"default": true`), which is
+    /// what makes the RJSF checkbox render *checked* by default. An `Option<bool>`
+    /// would leave the box unchecked-but-on (the `local_binary` wart above).
+    #[serde(default = "default_open_terminal")]
+    #[schemars(
+        title = "Open terminal window",
+        description = "Open a terminal window attached to the session on start. When off, the agent runs in a background tmux session you can attach to later."
+    )]
+    pub open_terminal: bool,
+}
+
+/// Default for [`ClaudeCodeHeaded::open_terminal`]: headed runs open a terminal
+/// window unless the operator opts out.
+fn default_open_terminal() -> bool {
+    true
 }
 
 impl ClaudeCodeHeaded {
@@ -824,6 +845,11 @@ impl ClaudeCodeHeaded {
     /// session. Defaults to `true` when unset.
     pub fn local_binary_enabled(&self) -> bool {
         self.local_binary.unwrap_or(true)
+    }
+
+    /// Whether to open a terminal window on headed start. Defaults to `true`.
+    pub fn open_terminal_enabled(&self) -> bool {
+        self.open_terminal
     }
 }
 
@@ -3194,6 +3220,23 @@ mod tests {
         // The local binary is the bare `claude` command (resolved on PATH); the
         // container swaps it in via `base_command_override`.
         assert_eq!(LOCAL_CLAUDE_BINARY, "claude");
+    }
+
+    #[test]
+    fn headed_open_terminal_defaults_on() {
+        // Missing field: the serde default makes `open_terminal` true, so a
+        // headed session opens a terminal window unless the operator opts out.
+        // (The field is a bool — not Option — so schemars emits `default: true`
+        // and the UI checkbox renders checked.)
+        let headed: ClaudeCodeHeaded = serde_json::from_str("{}").unwrap();
+        assert!(headed.open_terminal);
+        assert!(headed.open_terminal_enabled());
+
+        // Explicit values are honoured.
+        let off: ClaudeCodeHeaded = serde_json::from_str(r#"{"open_terminal": false}"#).unwrap();
+        assert!(!off.open_terminal_enabled());
+        let on: ClaudeCodeHeaded = serde_json::from_str(r#"{"open_terminal": true}"#).unwrap();
+        assert!(on.open_terminal_enabled());
     }
 
     #[test]

@@ -933,7 +933,18 @@ telegram_channel?: boolean | null,
  * precedence (see the container's interactive launch path). Disable to fall
  * back to the pinned npx package.
  */
-local_binary?: boolean | null, append_prompt: AppendPrompt, claude_code_router?: boolean | null, plan?: boolean | null, approvals?: boolean | null, model?: string | null, effort?: ClaudeEffort | null, agent?: string | null, dangerously_skip_permissions?: boolean | null, disable_api_key?: boolean | null, base_command_override?: string | null, additional_params?: Array<string> | null, env?: { [key in string]?: string } | null, };
+local_binary?: boolean | null, 
+/**
+ * Open a terminal-emulator window attached to the session when a headed run
+ * starts. When disabled, the agent still runs in a detached tmux session
+ * (attach later with `tmux attach -t vk-<id>`) but no window is opened.
+ *
+ * A non-`Option` `bool` with a serde default of `true` on purpose: schemars
+ * emits that default into the generated schema (`"default": true`), which is
+ * what makes the RJSF checkbox render *checked* by default. An `Option<bool>`
+ * would leave the box unchecked-but-on (the `local_binary` wart above).
+ */
+open_terminal: boolean, append_prompt: AppendPrompt, claude_code_router?: boolean | null, plan?: boolean | null, approvals?: boolean | null, model?: string | null, effort?: ClaudeEffort | null, agent?: string | null, dangerously_skip_permissions?: boolean | null, disable_api_key?: boolean | null, base_command_override?: string | null, additional_params?: Array<string> | null, env?: { [key in string]?: string } | null, };
 
 export type Gemini = { append_prompt: AppendPrompt, model?: string | null, yolo?: boolean | null, base_command_override?: string | null, additional_params?: Array<string> | null, env?: { [key in string]?: string } | null, };
 
