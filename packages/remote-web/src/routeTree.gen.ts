@@ -21,6 +21,7 @@ import { Route as InvitationsTokenCompleteRouteImport } from './routes/invitatio
 import { Route as InvitationsTokenAcceptRouteImport } from './routes/invitations.$token.accept'
 import { Route as HostsHostIdWorkspacesRouteImport } from './routes/hosts.$hostId.workspaces'
 import { Route as AccountOrganizationsOrgIdRouteImport } from './routes/account_.organizations.$orgId'
+import { Route as ProjectsProjectIdSpeckitFeatureIdRouteImport } from './routes/projects.$projectId_.speckit.$featureId'
 import { Route as ProjectsProjectIdIssuesIssueIdRouteImport } from './routes/projects.$projectId_.issues.$issueId'
 import { Route as HostsHostIdWorkspacesCreateRouteImport } from './routes/hosts.$hostId.workspaces_.create'
 import { Route as HostsHostIdWorkspacesWorkspaceIdRouteImport } from './routes/hosts.$hostId.workspaces_.$workspaceId'
@@ -91,6 +92,12 @@ const AccountOrganizationsOrgIdRoute =
     path: '/account/organizations/$orgId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ProjectsProjectIdSpeckitFeatureIdRoute =
+  ProjectsProjectIdSpeckitFeatureIdRouteImport.update({
+    id: '/projects/$projectId_/speckit/$featureId',
+    path: '/projects/$projectId/speckit/$featureId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ProjectsProjectIdIssuesIssueIdRoute =
   ProjectsProjectIdIssuesIssueIdRouteImport.update({
     id: '/projects/$projectId_/issues/$issueId',
@@ -154,6 +161,7 @@ export interface FileRoutesByFullPath {
   '/hosts/$hostId/workspaces/$workspaceId': typeof HostsHostIdWorkspacesWorkspaceIdRoute
   '/hosts/$hostId/workspaces/create': typeof HostsHostIdWorkspacesCreateRoute
   '/projects/$projectId/issues/$issueId': typeof ProjectsProjectIdIssuesIssueIdRoute
+  '/projects/$projectId/speckit/$featureId': typeof ProjectsProjectIdSpeckitFeatureIdRoute
   '/hosts/$hostId/workspaces/$workspaceId/vscode': typeof HostsHostIdWorkspacesWorkspaceIdVscodeRoute
   '/projects/$projectId/hosts/$hostId/workspaces/create/$draftId': typeof ProjectsProjectIdHostsHostIdWorkspacesCreateDraftIdRoute
   '/projects/$projectId/issues/$issueId/hosts/$hostId/workspaces/$workspaceId': typeof ProjectsProjectIdIssuesIssueIdHostsHostIdWorkspacesWorkspaceIdRoute
@@ -175,6 +183,7 @@ export interface FileRoutesByTo {
   '/hosts/$hostId/workspaces/$workspaceId': typeof HostsHostIdWorkspacesWorkspaceIdRoute
   '/hosts/$hostId/workspaces/create': typeof HostsHostIdWorkspacesCreateRoute
   '/projects/$projectId/issues/$issueId': typeof ProjectsProjectIdIssuesIssueIdRoute
+  '/projects/$projectId/speckit/$featureId': typeof ProjectsProjectIdSpeckitFeatureIdRoute
   '/hosts/$hostId/workspaces/$workspaceId/vscode': typeof HostsHostIdWorkspacesWorkspaceIdVscodeRoute
   '/projects/$projectId/hosts/$hostId/workspaces/create/$draftId': typeof ProjectsProjectIdHostsHostIdWorkspacesCreateDraftIdRoute
   '/projects/$projectId/issues/$issueId/hosts/$hostId/workspaces/$workspaceId': typeof ProjectsProjectIdIssuesIssueIdHostsHostIdWorkspacesWorkspaceIdRoute
@@ -197,6 +206,7 @@ export interface FileRoutesById {
   '/hosts/$hostId/workspaces_/$workspaceId': typeof HostsHostIdWorkspacesWorkspaceIdRoute
   '/hosts/$hostId/workspaces_/create': typeof HostsHostIdWorkspacesCreateRoute
   '/projects/$projectId_/issues/$issueId': typeof ProjectsProjectIdIssuesIssueIdRoute
+  '/projects/$projectId_/speckit/$featureId': typeof ProjectsProjectIdSpeckitFeatureIdRoute
   '/hosts/$hostId/workspaces/$workspaceId/vscode': typeof HostsHostIdWorkspacesWorkspaceIdVscodeRoute
   '/projects/$projectId_/hosts/$hostId/workspaces/create/$draftId': typeof ProjectsProjectIdHostsHostIdWorkspacesCreateDraftIdRoute
   '/projects/$projectId_/issues/$issueId_/hosts/$hostId/workspaces/$workspaceId': typeof ProjectsProjectIdIssuesIssueIdHostsHostIdWorkspacesWorkspaceIdRoute
@@ -220,6 +230,7 @@ export interface FileRouteTypes {
     | '/hosts/$hostId/workspaces/$workspaceId'
     | '/hosts/$hostId/workspaces/create'
     | '/projects/$projectId/issues/$issueId'
+    | '/projects/$projectId/speckit/$featureId'
     | '/hosts/$hostId/workspaces/$workspaceId/vscode'
     | '/projects/$projectId/hosts/$hostId/workspaces/create/$draftId'
     | '/projects/$projectId/issues/$issueId/hosts/$hostId/workspaces/$workspaceId'
@@ -241,6 +252,7 @@ export interface FileRouteTypes {
     | '/hosts/$hostId/workspaces/$workspaceId'
     | '/hosts/$hostId/workspaces/create'
     | '/projects/$projectId/issues/$issueId'
+    | '/projects/$projectId/speckit/$featureId'
     | '/hosts/$hostId/workspaces/$workspaceId/vscode'
     | '/projects/$projectId/hosts/$hostId/workspaces/create/$draftId'
     | '/projects/$projectId/issues/$issueId/hosts/$hostId/workspaces/$workspaceId'
@@ -262,6 +274,7 @@ export interface FileRouteTypes {
     | '/hosts/$hostId/workspaces_/$workspaceId'
     | '/hosts/$hostId/workspaces_/create'
     | '/projects/$projectId_/issues/$issueId'
+    | '/projects/$projectId_/speckit/$featureId'
     | '/hosts/$hostId/workspaces/$workspaceId/vscode'
     | '/projects/$projectId_/hosts/$hostId/workspaces/create/$draftId'
     | '/projects/$projectId_/issues/$issueId_/hosts/$hostId/workspaces/$workspaceId'
@@ -284,6 +297,7 @@ export interface RootRouteChildren {
   HostsHostIdWorkspacesWorkspaceIdRoute: typeof HostsHostIdWorkspacesWorkspaceIdRoute
   HostsHostIdWorkspacesCreateRoute: typeof HostsHostIdWorkspacesCreateRoute
   ProjectsProjectIdIssuesIssueIdRoute: typeof ProjectsProjectIdIssuesIssueIdRoute
+  ProjectsProjectIdSpeckitFeatureIdRoute: typeof ProjectsProjectIdSpeckitFeatureIdRoute
   ProjectsProjectIdHostsHostIdWorkspacesCreateDraftIdRoute: typeof ProjectsProjectIdHostsHostIdWorkspacesCreateDraftIdRoute
   ProjectsProjectIdIssuesIssueIdHostsHostIdWorkspacesWorkspaceIdRoute: typeof ProjectsProjectIdIssuesIssueIdHostsHostIdWorkspacesWorkspaceIdRoute
   ProjectsProjectIdIssuesIssueIdHostsHostIdWorkspacesCreateDraftIdRoute: typeof ProjectsProjectIdIssuesIssueIdHostsHostIdWorkspacesCreateDraftIdRoute
@@ -375,6 +389,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountOrganizationsOrgIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projects/$projectId_/speckit/$featureId': {
+      id: '/projects/$projectId_/speckit/$featureId'
+      path: '/projects/$projectId/speckit/$featureId'
+      fullPath: '/projects/$projectId/speckit/$featureId'
+      preLoaderRoute: typeof ProjectsProjectIdSpeckitFeatureIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/projects/$projectId_/issues/$issueId': {
       id: '/projects/$projectId_/issues/$issueId'
       path: '/projects/$projectId/issues/$issueId'
@@ -457,6 +478,8 @@ const rootRouteChildren: RootRouteChildren = {
   HostsHostIdWorkspacesWorkspaceIdRoute: HostsHostIdWorkspacesWorkspaceIdRoute,
   HostsHostIdWorkspacesCreateRoute: HostsHostIdWorkspacesCreateRoute,
   ProjectsProjectIdIssuesIssueIdRoute: ProjectsProjectIdIssuesIssueIdRoute,
+  ProjectsProjectIdSpeckitFeatureIdRoute:
+    ProjectsProjectIdSpeckitFeatureIdRoute,
   ProjectsProjectIdHostsHostIdWorkspacesCreateDraftIdRoute:
     ProjectsProjectIdHostsHostIdWorkspacesCreateDraftIdRoute,
   ProjectsProjectIdIssuesIssueIdHostsHostIdWorkspacesWorkspaceIdRoute:
