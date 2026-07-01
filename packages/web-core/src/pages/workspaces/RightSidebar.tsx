@@ -8,8 +8,14 @@ import { TerminalPanelContainer } from '@/shared/components/TerminalPanelContain
 import { WorkspaceNotesContainer } from './WorkspaceNotesContainer';
 import { HeadedSessionIds } from '@/pages/kanban/HeadedSessionIds';
 import { useDiffs } from '@/shared/stores/useWorkspaceDiffStore';
-import { ArrowsOutSimpleIcon, TerminalWindowIcon } from '@phosphor-icons/react';
+import {
+  ArrowsOutSimpleIcon,
+  PlugsConnectedIcon,
+  TerminalWindowIcon,
+} from '@phosphor-icons/react';
 import { useLogsPanel } from '@/shared/hooks/useLogsPanel';
+import { useHeadedSession } from '@/shared/hooks/useHeadedSession';
+import { useTerminal } from '@/shared/hooks/useTerminal';
 import { workspacesApi } from '@/shared/lib/api';
 import type { RepoWithTargetBranch, Workspace } from 'shared/types';
 import {
@@ -49,6 +55,8 @@ export const RightSidebar = memo(function RightSidebar({
   const diffs = useDiffs();
   const isTerminalVisible = useUiPreferencesStore((s) => s.isTerminalVisible);
   const { expandTerminal, isTerminalExpanded } = useLogsPanel();
+  const headedSession = useHeadedSession();
+  const { openOrFocusTab } = useTerminal();
 
   const openExternalTerminal = useCallback(() => {
     if (!selectedWorkspace) return;
@@ -56,6 +64,21 @@ export const RightSidebar = memo(function RightSidebar({
       console.error('Failed to open workspace terminal', err);
     });
   }, [selectedWorkspace]);
+
+  // Open an in-app terminal attached to the running agent's tmux session. Reveal
+  // it with `expandTerminal()` — the same path the neighbouring expand icon uses
+  // — so it shows regardless of the in-sidebar Terminal section's collapse state.
+  const openAttachTerminal = useCallback(() => {
+    if (!headedSession || !selectedWorkspace?.container_ref) return;
+    // Idempotent: focuses the existing attach tab if this session is already
+    // attached, otherwise opens one. Never stacks duplicate sessions.
+    openOrFocusTab(
+      selectedWorkspace.id,
+      selectedWorkspace.container_ref,
+      headedSession.processId
+    );
+    expandTerminal();
+  }, [headedSession, selectedWorkspace, openOrFocusTab, expandTerminal]);
 
   const [changesExpanded] = usePersistedExpanded(
     PERSIST_KEYS.changesSection,
@@ -124,6 +147,17 @@ export const RightSidebar = memo(function RightSidebar({
             onClick: openExternalTerminal,
             title: 'Open workspace in terminal',
           },
+          // Only when a headed (interactive tmux) agent is live for this
+          // workspace: attach the in-app terminal to its tmux session.
+          ...(headedSession && selectedWorkspace?.container_ref
+            ? [
+                {
+                  icon: PlugsConnectedIcon,
+                  onClick: openAttachTerminal,
+                  title: 'Attach to running agent (tmux)',
+                },
+              ]
+            : []),
           { icon: ArrowsOutSimpleIcon, onClick: expandTerminal },
         ],
       },
@@ -206,6 +240,8 @@ export const RightSidebar = memo(function RightSidebar({
     upperExpanded,
     expandTerminal,
     openExternalTerminal,
+    openAttachTerminal,
+    headedSession,
     t,
   ]);
 

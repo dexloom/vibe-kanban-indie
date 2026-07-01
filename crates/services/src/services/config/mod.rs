@@ -165,6 +165,68 @@ pub fn default_pipeline_steps() -> Vec<PipelineStep> {
                     .to_string(),
             default_enabled: false,
         },
+        // SpecKit (Spec-Driven Development) mode — an opt-in alternative to the
+        // classic spec/plan steps above. Each runs the matching SpecKit slash
+        // command in the feature worktree, writing artifacts under
+        // `specs/<branch>/`. The dedicated SpecKit workbench drives these
+        // interactively; enabling them here lets the orchestrator auto-drive a
+        // SpecKit card in order.
+        PipelineStep {
+            id: "speckit-constitution".to_string(),
+            label: "SpecKit: Constitution".to_string(),
+            prompt_fragment:
+                "SpecKit: establish or refresh the project constitution at `.specify/memory/constitution.md` (run `/speckit.constitution`) before specifying."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
+            id: "speckit-specify".to_string(),
+            label: "SpecKit: Specify".to_string(),
+            prompt_fragment:
+                "SpecKit: write the feature specification to `specs/<current branch>/spec.md` (run `/speckit.specify`), focusing on what and why."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
+            id: "speckit-clarify".to_string(),
+            label: "SpecKit: Clarify".to_string(),
+            prompt_fragment:
+                "SpecKit: resolve the spec's open questions (run `/speckit.clarify`) before planning."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
+            id: "speckit-plan".to_string(),
+            label: "SpecKit: Plan".to_string(),
+            prompt_fragment:
+                "SpecKit: write the technical plan to `specs/<current branch>/plan.md` plus research/data-model/contracts as needed (run `/speckit.plan`)."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
+            id: "speckit-tasks".to_string(),
+            label: "SpecKit: Tasks".to_string(),
+            prompt_fragment:
+                "SpecKit: break the plan into a dependency-ordered, parallel-aware `specs/<current branch>/tasks.md` (run `/speckit.tasks`)."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
+            id: "speckit-analyze".to_string(),
+            label: "SpecKit: Analyze".to_string(),
+            prompt_fragment:
+                "SpecKit: cross-check spec, plan, and tasks for gaps and constitution violations (run `/speckit.analyze`) before implementing."
+                    .to_string(),
+            default_enabled: false,
+        },
+        PipelineStep {
+            id: "speckit-implement".to_string(),
+            label: "SpecKit: Implement".to_string(),
+            prompt_fragment:
+                "SpecKit: execute `specs/<current branch>/tasks.md` in dependency order, doing `[P]` tasks within a layer together and ticking each task off as it lands (run `/speckit.implement`)."
+                    .to_string(),
+            default_enabled: false,
+        },
     ]
 }
 

@@ -23,6 +23,7 @@ import { Route as AppWorkspacesWorkspaceIdRouteImport } from './routes/_app.work
 import { Route as AppProjectsProjectIdRouteImport } from './routes/_app.projects.$projectId'
 import { Route as AppHostsHostIdWorkspacesRouteImport } from './routes/_app.hosts.$hostId.workspaces'
 import { Route as HostsHostIdWorkspacesWorkspaceIdVscodeRouteImport } from './routes/hosts.$hostId.workspaces.$workspaceId.vscode'
+import { Route as AppProjectsProjectIdSpeckitFeatureIdRouteImport } from './routes/_app.projects.$projectId_.speckit.$featureId'
 import { Route as AppProjectsProjectIdIssuesIssueIdRouteImport } from './routes/_app.projects.$projectId_.issues.$issueId'
 import { Route as AppHostsHostIdWorkspacesCreateRouteImport } from './routes/_app.hosts.$hostId.workspaces_.create'
 import { Route as AppHostsHostIdWorkspacesWorkspaceIdRouteImport } from './routes/_app.hosts.$hostId.workspaces_.$workspaceId'
@@ -107,6 +108,12 @@ const HostsHostIdWorkspacesWorkspaceIdVscodeRoute =
     path: '/hosts/$hostId/workspaces/$workspaceId/vscode',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AppProjectsProjectIdSpeckitFeatureIdRoute =
+  AppProjectsProjectIdSpeckitFeatureIdRouteImport.update({
+    id: '/projects/$projectId_/speckit/$featureId',
+    path: '/projects/$projectId/speckit/$featureId',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppProjectsProjectIdIssuesIssueIdRoute =
   AppProjectsProjectIdIssuesIssueIdRouteImport.update({
     id: '/projects/$projectId_/issues/$issueId',
@@ -182,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/hosts/$hostId/workspaces/$workspaceId': typeof AppHostsHostIdWorkspacesWorkspaceIdRoute
   '/hosts/$hostId/workspaces/create': typeof AppHostsHostIdWorkspacesCreateRoute
   '/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
+  '/projects/$projectId/speckit/$featureId': typeof AppProjectsProjectIdSpeckitFeatureIdRoute
   '/hosts/$hostId/workspaces/$workspaceId/vscode': typeof HostsHostIdWorkspacesWorkspaceIdVscodeRoute
   '/projects/$projectId/workspaces/create/$draftId': typeof AppProjectsProjectIdWorkspacesCreateDraftIdRoute
   '/projects/$projectId/issues/$issueId/workspaces/$workspaceId': typeof AppProjectsProjectIdIssuesIssueIdWorkspacesWorkspaceIdRoute
@@ -206,6 +214,7 @@ export interface FileRoutesByTo {
   '/hosts/$hostId/workspaces/$workspaceId': typeof AppHostsHostIdWorkspacesWorkspaceIdRoute
   '/hosts/$hostId/workspaces/create': typeof AppHostsHostIdWorkspacesCreateRoute
   '/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
+  '/projects/$projectId/speckit/$featureId': typeof AppProjectsProjectIdSpeckitFeatureIdRoute
   '/hosts/$hostId/workspaces/$workspaceId/vscode': typeof HostsHostIdWorkspacesWorkspaceIdVscodeRoute
   '/projects/$projectId/workspaces/create/$draftId': typeof AppProjectsProjectIdWorkspacesCreateDraftIdRoute
   '/projects/$projectId/issues/$issueId/workspaces/$workspaceId': typeof AppProjectsProjectIdIssuesIssueIdWorkspacesWorkspaceIdRoute
@@ -232,6 +241,7 @@ export interface FileRoutesById {
   '/_app/hosts/$hostId/workspaces_/$workspaceId': typeof AppHostsHostIdWorkspacesWorkspaceIdRoute
   '/_app/hosts/$hostId/workspaces_/create': typeof AppHostsHostIdWorkspacesCreateRoute
   '/_app/projects/$projectId_/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
+  '/_app/projects/$projectId_/speckit/$featureId': typeof AppProjectsProjectIdSpeckitFeatureIdRoute
   '/hosts/$hostId/workspaces/$workspaceId/vscode': typeof HostsHostIdWorkspacesWorkspaceIdVscodeRoute
   '/_app/projects/$projectId_/workspaces/create/$draftId': typeof AppProjectsProjectIdWorkspacesCreateDraftIdRoute
   '/_app/projects/$projectId_/issues/$issueId_/workspaces/$workspaceId': typeof AppProjectsProjectIdIssuesIssueIdWorkspacesWorkspaceIdRoute
@@ -258,6 +268,7 @@ export interface FileRouteTypes {
     | '/hosts/$hostId/workspaces/$workspaceId'
     | '/hosts/$hostId/workspaces/create'
     | '/projects/$projectId/issues/$issueId'
+    | '/projects/$projectId/speckit/$featureId'
     | '/hosts/$hostId/workspaces/$workspaceId/vscode'
     | '/projects/$projectId/workspaces/create/$draftId'
     | '/projects/$projectId/issues/$issueId/workspaces/$workspaceId'
@@ -282,6 +293,7 @@ export interface FileRouteTypes {
     | '/hosts/$hostId/workspaces/$workspaceId'
     | '/hosts/$hostId/workspaces/create'
     | '/projects/$projectId/issues/$issueId'
+    | '/projects/$projectId/speckit/$featureId'
     | '/hosts/$hostId/workspaces/$workspaceId/vscode'
     | '/projects/$projectId/workspaces/create/$draftId'
     | '/projects/$projectId/issues/$issueId/workspaces/$workspaceId'
@@ -307,6 +319,7 @@ export interface FileRouteTypes {
     | '/_app/hosts/$hostId/workspaces_/$workspaceId'
     | '/_app/hosts/$hostId/workspaces_/create'
     | '/_app/projects/$projectId_/issues/$issueId'
+    | '/_app/projects/$projectId_/speckit/$featureId'
     | '/hosts/$hostId/workspaces/$workspaceId/vscode'
     | '/_app/projects/$projectId_/workspaces/create/$draftId'
     | '/_app/projects/$projectId_/issues/$issueId_/workspaces/$workspaceId'
@@ -425,6 +438,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HostsHostIdWorkspacesWorkspaceIdVscodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/projects/$projectId_/speckit/$featureId': {
+      id: '/_app/projects/$projectId_/speckit/$featureId'
+      path: '/projects/$projectId/speckit/$featureId'
+      fullPath: '/projects/$projectId/speckit/$featureId'
+      preLoaderRoute: typeof AppProjectsProjectIdSpeckitFeatureIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/projects/$projectId_/issues/$issueId': {
       id: '/_app/projects/$projectId_/issues/$issueId'
       path: '/projects/$projectId/issues/$issueId'
@@ -503,6 +523,7 @@ interface AppRouteChildren {
   AppHostsHostIdWorkspacesWorkspaceIdRoute: typeof AppHostsHostIdWorkspacesWorkspaceIdRoute
   AppHostsHostIdWorkspacesCreateRoute: typeof AppHostsHostIdWorkspacesCreateRoute
   AppProjectsProjectIdIssuesIssueIdRoute: typeof AppProjectsProjectIdIssuesIssueIdRoute
+  AppProjectsProjectIdSpeckitFeatureIdRoute: typeof AppProjectsProjectIdSpeckitFeatureIdRoute
   AppProjectsProjectIdWorkspacesCreateDraftIdRoute: typeof AppProjectsProjectIdWorkspacesCreateDraftIdRoute
   AppProjectsProjectIdIssuesIssueIdWorkspacesWorkspaceIdRoute: typeof AppProjectsProjectIdIssuesIssueIdWorkspacesWorkspaceIdRoute
   AppProjectsProjectIdHostsHostIdWorkspacesCreateDraftIdRoute: typeof AppProjectsProjectIdHostsHostIdWorkspacesCreateDraftIdRoute
@@ -525,6 +546,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppHostsHostIdWorkspacesCreateRoute: AppHostsHostIdWorkspacesCreateRoute,
   AppProjectsProjectIdIssuesIssueIdRoute:
     AppProjectsProjectIdIssuesIssueIdRoute,
+  AppProjectsProjectIdSpeckitFeatureIdRoute:
+    AppProjectsProjectIdSpeckitFeatureIdRoute,
   AppProjectsProjectIdWorkspacesCreateDraftIdRoute:
     AppProjectsProjectIdWorkspacesCreateDraftIdRoute,
   AppProjectsProjectIdIssuesIssueIdWorkspacesWorkspaceIdRoute:

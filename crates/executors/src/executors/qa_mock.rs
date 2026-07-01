@@ -222,6 +222,7 @@ fn generate_mock_logs(prompt: &str) -> Vec<String> {
             prompt: None,
             summary: None,
             last_tool_name: None,
+            duration_ms: None,
         },
         // 2. Assistant thinking
         ClaudeJson::Assistant {

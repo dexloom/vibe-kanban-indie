@@ -11,6 +11,7 @@ export function TerminalPanelContainer() {
     getActiveTab,
     createTab,
     closeTab,
+    setActiveTab,
     clearWorkspaceTabs,
   } = useTerminal();
 
@@ -51,14 +52,19 @@ export function TerminalPanelContainer() {
 
   return (
     <TerminalPanel
-      tabs={tabs}
+      tabs={tabs.map((t) => ({ id: t.id, title: t.title }))}
       activeTabId={activeTab?.id ?? null}
+      onSelectTab={(tabId) => workspaceId && setActiveTab(workspaceId, tabId)}
+      onCloseTab={(tabId) => workspaceId && closeTab(workspaceId, tabId)}
       renderTab={(tabId, isActive) => (
         <XTermInstance
           key={tabId}
           tabId={tabId}
           workspaceId={workspaceId ?? ''}
           isActive={isActive}
+          executionProcessId={
+            tabs.find((t) => t.id === tabId)?.executionProcessId
+          }
           onClose={() => workspaceId && closeTab(workspaceId, tabId)}
         />
       )}
