@@ -105,16 +105,15 @@ impl Deployment for LocalDeployment {
             raw_config.executor_profile = recommended_executor;
         }
 
-        // Check if app version has changed and set release notes flag
+        // Track the running app version. The release-notes announcement was
+        // removed, so ensure the (now-unused) flag can never stay stuck true in
+        // existing configs.
         {
             let current_version = utils::version::APP_VERSION;
-            let stored_version = raw_config.last_app_version.as_deref();
-
-            if stored_version != Some(current_version) {
-                // Show release notes only if this is an upgrade (not first install)
-                raw_config.show_release_notes = stored_version.is_some();
+            if raw_config.last_app_version.as_deref() != Some(current_version) {
                 raw_config.last_app_version = Some(current_version.to_string());
             }
+            raw_config.show_release_notes = false;
         }
 
         // Always save config (may have been migrated or version updated)
