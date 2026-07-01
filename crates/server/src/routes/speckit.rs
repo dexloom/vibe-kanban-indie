@@ -346,6 +346,7 @@ async fn put_constitution(
 // Helpers
 // ---------------------------------------------------------------------------
 
+#[allow(clippy::result_large_err)]
 fn validate_repos(repos: &[WorkspaceRepoInput]) -> Result<(), ApiError> {
     if repos.iter().any(|r| r.target_branch.trim().is_empty()) {
         return Err(ApiError::BadRequest(
@@ -408,6 +409,7 @@ async fn persist_meta(
 }
 
 /// Resolve `(repo_root_abs, feature_dir_abs)` for a feature.
+#[allow(clippy::result_large_err)]
 fn resolve_paths(
     workspace: &Workspace,
     meta: &SpecKitMeta,
@@ -453,6 +455,7 @@ fn read_contracts(feature_abs: &Path) -> Vec<SpecKitArtifact> {
 }
 
 /// Join a caller-supplied relative path to a base dir, rejecting traversal.
+#[allow(clippy::result_large_err)]
 fn safe_join(base: &Path, rel: &str) -> Result<PathBuf, ApiError> {
     let rel = rel.trim();
     if rel.is_empty() {
