@@ -568,6 +568,8 @@
     "agentHelper": "固定编排器用于运行此卡片的编码代理。保持默认则由其自动选择。",
     "addonLabel": "提示词附加内容（可编辑）",
     "addonPlaceholder": "勾选上方阶段以组合流水线内容块，或自行输入。",
-    "resetToCheckboxes": "重置为复选框"
+    "resetToCheckboxes": "重置为复选框",
+    "pipelineLabel": "Pipeline",
+    "pipelineNone": "None"
   }
 }

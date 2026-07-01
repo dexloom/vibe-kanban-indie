@@ -1,8 +1,4 @@
-import {
-  type Config,
-  DEFAULT_PIPELINE_STEPS,
-  type PipelineStep,
-} from 'shared/types';
+import { type Pipeline } from 'shared/types';
 
 /**
  * Delimiters bounding the generated `## Pipeline` block inside a card
@@ -13,15 +9,12 @@ export const PIPELINE_START = '<!-- vk:pipeline:start -->';
 export const PIPELINE_END = '<!-- vk:pipeline:end -->';
 
 /**
- * The effective pipeline-step catalog for the current config: the operator's
- * customised list when set, otherwise the built-in defaults (single source of
- * truth defined in Rust, exported as `DEFAULT_PIPELINE_STEPS`).
+ * Instruction line that leads the stage list. Pipelines are now authored by
+ * vibe-kanban (from a pipeline file) and delivered pre-ordered, so the execution
+ * agent runs them top-to-bottom rather than choosing which apply.
  */
-export function effectiveSteps(
-  config: Config | null | undefined
-): PipelineStep[] {
-  return config?.pipeline_steps ?? DEFAULT_PIPELINE_STEPS;
-}
+const ORDER_INSTRUCTION =
+  'Execute these stages in the order listed. Do not add, skip, or reorder stages.';
 
 /**
  * Compose the directive line that pins the card to a specific execution agent.
@@ -39,34 +32,50 @@ export function composeExecutorLine(
 }
 
 /**
- * Compose the delimited `## Pipeline` markdown block from the ticked steps (in
- * catalog order), an optional pinned execution agent, plus any free-text the
- * operator added. Returns an empty string when nothing is selected and there is
- * no custom text, so callers can treat "no pipeline" as falsy.
+ * Compose the delimited `## Pipeline` markdown block for the chosen pipeline.
+ * Enabled stages render as an **ordered numbered list in pipeline order**, under
+ * a heading naming the pipeline, preceded by an explicit "run in order"
+ * instruction. An optional pinned execution agent leads the list.
+ *
+ * When `pipeline` is `null` (the "None" option) stages are ignored entirely: the
+ * block contains only the executor-pin line (if an agent is pinned) and/or the
+ * operator's custom text. Returns an empty string when there is nothing to emit,
+ * so callers can treat "no pipeline" as falsy.
  */
 export function composePipelineBlock(
-  steps: PipelineStep[],
+  pipeline: Pipeline | null,
   enabledIds: ReadonlySet<string> | readonly string[],
   customText: string,
   executor?: string | null
 ): string {
   const enabled = enabledIds instanceof Set ? enabledIds : new Set(enabledIds);
-  const stepBullets = steps
-    .filter((s) => enabled.has(s.id))
-    .map((s) => `- ${s.prompt_fragment}`);
   const executorLine = composeExecutorLine(executor);
-  // The execution-agent directive leads so the orchestrator sees it first.
-  const bullets = executorLine ? [executorLine, ...stepBullets] : stepBullets;
   const trimmedCustom = customText.trim();
 
-  if (bullets.length === 0 && trimmedCustom.length === 0) {
+  const stages = pipeline
+    ? pipeline.stages.filter((s) => enabled.has(s.id))
+    : [];
+
+  if (stages.length === 0 && !executorLine && trimmedCustom.length === 0) {
     return '';
   }
 
-  const lines = ['## Pipeline', ''];
-  lines.push(...bullets);
+  const heading = pipeline ? `## Pipeline: ${pipeline.name}` : '## Pipeline';
+  const lines: string[] = [heading, ''];
+
+  if (stages.length > 0) {
+    lines.push(ORDER_INSTRUCTION, '');
+  }
+  // The execution-agent directive leads so the orchestrator sees it first.
+  if (executorLine) {
+    lines.push(executorLine);
+    if (stages.length > 0) lines.push('');
+  }
+  stages.forEach((s, i) => {
+    lines.push(`${i + 1}. ${s.prompt_fragment}`);
+  });
   if (trimmedCustom.length > 0) {
-    if (bullets.length > 0) lines.push('');
+    if (stages.length > 0 || executorLine) lines.push('');
     lines.push(trimmedCustom);
   }
 

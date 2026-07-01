@@ -21,6 +21,7 @@ pub mod kanban;
 pub mod local_kanban;
 pub mod oauth;
 pub mod organizations;
+pub mod pipelines;
 pub mod preview;
 pub mod relay_auth;
 pub mod remote;
@@ -41,6 +42,7 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
     let relay_signed_routes = Router::new()
         .route("/health", get(health::health_check))
         .merge(config::router())
+        .merge(pipelines::router())
         .merge(containers::router(&deployment))
         .merge(kanban::router(&deployment))
         .merge(workspaces::router(&deployment))

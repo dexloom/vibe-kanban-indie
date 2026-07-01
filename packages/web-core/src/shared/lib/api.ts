@@ -120,6 +120,7 @@ import {
   ToggleTaskRequest,
   ConstitutionContent,
   SpecKitFeatureStatus,
+  Pipeline,
 } from 'shared/types';
 import type { Project as RemoteProject } from 'shared/remote-types';
 import type { WorkspaceWithSession } from '@/shared/types/attempt';
@@ -1270,6 +1271,48 @@ export const configApi = {
       `/api/agents/check-availability?executor=${encodeURIComponent(agent)}`
     );
     return handleApiResponse<AvailabilityInfo>(response);
+  },
+};
+
+// File-based card pipelines (`~/.vibe-kanban/pipelines/*.toml`).
+export const pipelinesApi = {
+  list: async (): Promise<Pipeline[]> => {
+    const response = await makeRequest('/api/pipelines', { cache: 'no-store' });
+    return handleApiResponse<Pipeline[]>(response);
+  },
+  getRaw: async (id: string): Promise<string> => {
+    const response = await makeRequest(
+      `/api/pipelines/${encodeURIComponent(id)}/raw`,
+      { cache: 'no-store' }
+    );
+    return handleApiResponse<string>(response);
+  },
+  saveRaw: async (id: string, content: string): Promise<Pipeline> => {
+    const response = await makeRequest(
+      `/api/pipelines/${encodeURIComponent(id)}/raw`,
+      { method: 'PUT', body: JSON.stringify({ content }) }
+    );
+    return handleApiResponse<Pipeline>(response);
+  },
+  resetOne: async (id: string): Promise<Pipeline> => {
+    const response = await makeRequest(
+      `/api/pipelines/${encodeURIComponent(id)}/reset`,
+      { method: 'POST' }
+    );
+    return handleApiResponse<Pipeline>(response);
+  },
+  resetDefaults: async (): Promise<Pipeline[]> => {
+    const response = await makeRequest('/api/pipelines/reset-defaults', {
+      method: 'POST',
+    });
+    return handleApiResponse<Pipeline[]>(response);
+  },
+  remove: async (id: string): Promise<void> => {
+    const response = await makeRequest(
+      `/api/pipelines/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    );
+    return handleApiResponse<void>(response);
   },
 };
 

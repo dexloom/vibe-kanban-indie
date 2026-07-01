@@ -568,6 +568,8 @@
     "agentHelper": "Pin which coding agent the orchestrator runs this card with. Leave on default to let it pick.",
     "addonLabel": "Prompt addon (editable)",
     "addonPlaceholder": "Tick stages above to compose the pipeline block, or type your own.",
-    "resetToCheckboxes": "Reset to checkboxes"
+    "resetToCheckboxes": "Reset to checkboxes",
+    "pipelineLabel": "Pipeline",
+    "pipelineNone": "None"
   }
 }

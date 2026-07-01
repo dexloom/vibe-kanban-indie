@@ -142,6 +142,13 @@ pub fn get_vibe_kanban_home_dir() -> std::path::PathBuf {
         .unwrap_or_else(get_vibe_kanban_temp_dir)
 }
 
+/// Directory holding the user-editable pipeline definition files
+/// (`~/.vibe-kanban/pipelines/*.toml`, or `~/.vibe-kanban-dev/pipelines` in
+/// debug builds). Each `*.toml` file is one selectable card pipeline.
+pub fn pipelines_dir() -> PathBuf {
+    get_vibe_kanban_home_dir().join("pipelines")
+}
+
 /// Expand leading ~ to user's home directory.
 pub fn expand_tilde(path_str: &str) -> std::path::PathBuf {
     shellexpand::tilde(path_str).as_ref().into()

@@ -340,7 +340,20 @@
           "add": "Add step",
           "remove": "Remove step"
         }
-      }
+      },
+      "files": {
+        "title": "Pipeline files",
+        "description": "Pipelines are TOML files in ~/.vibe-kanban/pipelines/. Pick one per card on the New Issue dialog. Edit a file's raw TOML below, or reset to the bundled defaults."
+      },
+      "resetAll": "Reset all to defaults",
+      "empty": "No pipeline files found.",
+      "stageCount": "{{n}} stages",
+      "remove": "Remove pipeline",
+      "rawPlaceholder": "Raw pipeline TOML…",
+      "saveButton": "Save",
+      "reset": "Reset to default",
+      "saved": "✓ Saved",
+      "saveError": "Failed to save pipeline"
     },
     "agents": {
       "title": "Coding Agent Configurations",

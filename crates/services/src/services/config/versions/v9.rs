@@ -40,10 +40,11 @@ fn default_iterm_tabs() -> bool {
     true
 }
 
-/// A single configurable per-card pipeline stage. The catalog of steps is
-/// user-editable in Settings; the New Issue "Pipeline" control reads it, the
-/// operator ticks which steps apply, and the ticked `prompt_fragment`s are
-/// appended as a `## Pipeline` block to the card description.
+/// A single per-card pipeline stage. Stages are defined in pipeline files
+/// (`~/.vibe-kanban/pipelines/*.toml`, loaded by `services::services::pipelines`
+/// into `Pipeline.stages`). The New Issue "Pipeline" control lets the operator
+/// pick a pipeline and tick which stages apply; the ticked `prompt_fragment`s
+/// are composed, in order, into a `## Pipeline` block on the card description.
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 pub struct PipelineStep {
     /// Stable slug, e.g. "spec".
@@ -100,8 +101,10 @@ pub struct Config {
     /// instead of opening a new window per session.
     #[serde(default = "default_iterm_tabs")]
     pub iterm_tabs: bool,
-    /// User-customised catalog of per-card pipeline steps. `None` = use the
-    /// built-in `default_pipeline_steps()`; `Some` = the operator's edited set.
+    /// Deprecated and ignored. Pipelines are now file-based
+    /// (`~/.vibe-kanban/pipelines/*.toml`, see `services::services::pipelines`);
+    /// this field is retained only so pre-existing configs still deserialise. It
+    /// is no longer read or written by the UI.
     #[serde(default)]
     pub pipeline_steps: Option<Vec<PipelineStep>>,
 }

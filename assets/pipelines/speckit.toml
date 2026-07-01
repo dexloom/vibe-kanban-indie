@@ -1,0 +1,62 @@
+name = "SpecKit"
+description = "Spec-Driven Development flow: run the /speckit.* slash commands in order, writing artifacts under specs/<branch>/."
+
+[[stage]]
+id = "orchestrate"
+label = "Orchestrate (auto-drive)"
+default_enabled = false
+prompt = "Have the orchestrator agent pick this card up and drive it to done autonomously, running the card's pipeline stages in order — regardless of which board column the card is in (it may be started even from Todo)."
+
+[[stage]]
+id = "speckit-constitution"
+label = "SpecKit: Constitution"
+default_enabled = true
+prompt = "SpecKit: establish or refresh the project constitution at `.specify/memory/constitution.md` (run `/speckit.constitution`) before specifying."
+
+[[stage]]
+id = "speckit-specify"
+label = "SpecKit: Specify"
+default_enabled = true
+prompt = "SpecKit: write the feature specification to `specs/<current branch>/spec.md` (run `/speckit.specify`), focusing on what and why."
+
+[[stage]]
+id = "speckit-clarify"
+label = "SpecKit: Clarify"
+default_enabled = true
+prompt = "SpecKit: resolve the spec's open questions (run `/speckit.clarify`) before planning."
+
+[[stage]]
+id = "speckit-plan"
+label = "SpecKit: Plan"
+default_enabled = true
+prompt = "SpecKit: write the technical plan to `specs/<current branch>/plan.md` plus research/data-model/contracts as needed (run `/speckit.plan`)."
+
+[[stage]]
+id = "speckit-tasks"
+label = "SpecKit: Tasks"
+default_enabled = true
+prompt = "SpecKit: break the plan into a dependency-ordered, parallel-aware `specs/<current branch>/tasks.md` (run `/speckit.tasks`)."
+
+[[stage]]
+id = "speckit-analyze"
+label = "SpecKit: Analyze"
+default_enabled = true
+prompt = "SpecKit: cross-check spec, plan, and tasks for gaps and constitution violations (run `/speckit.analyze`) before implementing."
+
+[[stage]]
+id = "speckit-implement"
+label = "SpecKit: Implement"
+default_enabled = true
+prompt = "SpecKit: execute `specs/<current branch>/tasks.md` in dependency order, doing `[P]` tasks within a layer together and ticking each task off as it lands (run `/speckit.implement`)."
+
+[[stage]]
+id = "code-review"
+label = "Review code"
+default_enabled = false
+prompt = "After implementing, run a code review on the diff and address findings before marking the card ready."
+
+[[stage]]
+id = "merge"
+label = "Merge to base"
+default_enabled = false
+prompt = "When the work is implemented and reviewed, merge this card's branch into the base branch."

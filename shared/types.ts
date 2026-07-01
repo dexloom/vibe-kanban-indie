@@ -758,8 +758,10 @@ terminal: TerminalKind,
  */
 iterm_tabs: boolean, 
 /**
- * User-customised catalog of per-card pipeline steps. `None` = use the
- * built-in `default_pipeline_steps()`; `Some` = the operator's edited set.
+ * Deprecated and ignored. Pipelines are now file-based
+ * (`~/.vibe-kanban/pipelines/*.toml`, see `services::services::pipelines`);
+ * this field is retained only so pre-existing configs still deserialise. It
+ * is no longer read or written by the UI.
  */
 pipeline_steps: Array<PipelineStep> | null, };
 
@@ -780,6 +782,26 @@ prompt_fragment: string,
  * Whether the card checkbox starts ticked.
  */
 default_enabled: boolean, };
+
+export type Pipeline = { 
+/**
+ * Stable slug = the file stem, e.g. "basic".
+ */
+id: string, 
+/**
+ * Display name from the file's `name` field.
+ */
+name: string, 
+/**
+ * Optional one-line description.
+ */
+description: string | null, 
+/**
+ * Ordered stages; this order is authoritative for the composed block.
+ */
+stages: Array<PipelineStep>, };
+
+export type PipelineRawBody = { content: string, };
 
 export type NotificationConfig = { sound_enabled: boolean, push_enabled: boolean, sound_file: SoundFile, };
 
@@ -1232,5 +1254,3 @@ session_id: string, };
 export const DEFAULT_PR_DESCRIPTION_PROMPT = "Update the PR that was just created with a better title and description.\nThe PR number is #{pr_number} and the URL is {pr_url}.\n\nAnalyze the changes in this branch and write:\n1. A concise, descriptive title that summarizes the changes, postfixed with \"(Vibe Kanban)\"\n2. A detailed description that explains:\n   - What changes were made\n   - Why they were made (based on the task context)\n   - Any important implementation details\n   - At the end, include a note: \"This PR was written using [Vibe Kanban](https://vibekanban.com)\"\n\nUse the appropriate CLI tool to update the PR (gh pr edit for GitHub, az repos pr update for Azure DevOps).";
 
 export const DEFAULT_COMMIT_REMINDER_PROMPT = "There are uncommitted changes. Please stage and commit them now with a descriptive commit message.";
-
-export const DEFAULT_PIPELINE_STEPS: Array<PipelineStep> = [{"id":"orchestrate","label":"Orchestrate (auto-drive)","prompt_fragment":"Have the orchestrator agent pick this card up and drive it to done autonomously, running the card's pipeline stages in order — regardless of which board column the card is in (it may be started even from Todo).","default_enabled":false},{"id":"spec","label":"Create spec","prompt_fragment":"Write a technical spec for this card and save it to `SPEC.md` at the repo root before implementing.","default_enabled":false},{"id":"recall-knowledge","label":"Recall prior knowledge","prompt_fragment":"Before planning, recall what this project already knows: search the project knowledge base for pages relevant to this card and distill the matches into a `PRIOR_KNOWLEDGE.md` at the workspace root for the spec and plan stages to build on. Read-only on the knowledge base; if it is empty (first card), note that and continue.","default_enabled":false},{"id":"plan","label":"Create plan","prompt_fragment":"Write a step-by-step implementation plan and save it to `IMPLEMENTATION_PLAN.md` at the repo root.","default_enabled":false},{"id":"plan-review","label":"Review plan","prompt_fragment":"Have the implementation plan reviewed (e.g. a codex plan review, read-only) and resolve blockers before writing code.","default_enabled":false},{"id":"wait-for-approval","label":"Wait for approval","prompt_fragment":"Pause for operator approval at this point: commit the work so far, then stop and wait for the operator's decision or instructions before continuing to later stages — do not advance on your own until the operator responds.","default_enabled":false},{"id":"code-review","label":"Review code","prompt_fragment":"After implementing, run a code review on the diff and address findings before marking the card ready.","default_enabled":false},{"id":"update-docs","label":"Update documentation","prompt_fragment":"Update the documentation affected by this change so the docs match what shipped, and commit it before marking the card ready.","default_enabled":false},{"id":"enrich-knowledge","label":"Enrich knowledge base","prompt_fragment":"Once the change is implemented (and reviewed/documented, if those stages ran), distill any reusable knowledge from what shipped into the project knowledge base: add or update topic pages, tag each with this card's id, refresh the index, and commit the knowledge base before marking the card ready. If nothing reusable emerged, say so (\"no new knowledge to record\") rather than writing filler.","default_enabled":false},{"id":"merge","label":"Merge to base","prompt_fragment":"When the work is implemented and reviewed, merge this card's branch into the base branch.","default_enabled":false},{"id":"pr","label":"Open pull request","prompt_fragment":"When the work is implemented and reviewed, open a pull request for this card against the base branch.","default_enabled":false},{"id":"speckit-constitution","label":"SpecKit: Constitution","prompt_fragment":"SpecKit: establish or refresh the project constitution at `.specify/memory/constitution.md` (run `/speckit.constitution`) before specifying.","default_enabled":false},{"id":"speckit-specify","label":"SpecKit: Specify","prompt_fragment":"SpecKit: write the feature specification to `specs/<current branch>/spec.md` (run `/speckit.specify`), focusing on what and why.","default_enabled":false},{"id":"speckit-clarify","label":"SpecKit: Clarify","prompt_fragment":"SpecKit: resolve the spec's open questions (run `/speckit.clarify`) before planning.","default_enabled":false},{"id":"speckit-plan","label":"SpecKit: Plan","prompt_fragment":"SpecKit: write the technical plan to `specs/<current branch>/plan.md` plus research/data-model/contracts as needed (run `/speckit.plan`).","default_enabled":false},{"id":"speckit-tasks","label":"SpecKit: Tasks","prompt_fragment":"SpecKit: break the plan into a dependency-ordered, parallel-aware `specs/<current branch>/tasks.md` (run `/speckit.tasks`).","default_enabled":false},{"id":"speckit-analyze","label":"SpecKit: Analyze","prompt_fragment":"SpecKit: cross-check spec, plan, and tasks for gaps and constitution violations (run `/speckit.analyze`) before implementing.","default_enabled":false},{"id":"speckit-implement","label":"SpecKit: Implement","prompt_fragment":"SpecKit: execute `specs/<current branch>/tasks.md` in dependency order, doing `[P]` tasks within a layer together and ticking each task off as it lands (run `/speckit.implement`).","default_enabled":false}];

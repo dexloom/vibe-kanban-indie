@@ -98,6 +98,13 @@ impl Deployment for LocalDeployment {
 
         let mut raw_config = load_config_from_file(&config_path()).await;
 
+        // Seed the bundled pipeline files on first run so the New Issue dialog
+        // has pipelines to offer even before the operator customises them.
+        if let Err(e) = services::services::pipelines::ensure_seeded(&utils::path::pipelines_dir())
+        {
+            tracing::warn!("failed to seed default pipelines: {}", e);
+        }
+
         let profiles = ExecutorConfigs::get_cached();
         if !raw_config.onboarding_acknowledged
             && let Ok(recommended_executor) = profiles.get_recommended_executor_profile().await

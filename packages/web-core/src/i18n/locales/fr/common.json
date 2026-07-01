@@ -568,6 +568,8 @@
     "agentHelper": "Définissez quel agent de codage l'orchestrateur utilise pour cette carte. Laissez sur par défaut pour le laisser choisir.",
     "addonLabel": "Complément d'invite (modifiable)",
     "addonPlaceholder": "Cochez des étapes ci-dessus pour composer le bloc de pipeline, ou saisissez le vôtre.",
-    "resetToCheckboxes": "Réinitialiser aux cases à cocher"
+    "resetToCheckboxes": "Réinitialiser aux cases à cocher",
+    "pipelineLabel": "Pipeline",
+    "pipelineNone": "None"
   }
 }

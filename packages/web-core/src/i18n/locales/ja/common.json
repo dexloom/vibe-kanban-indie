@@ -568,6 +568,8 @@
     "agentHelper": "このカードをオーケストレーターがどのコーディングエージェントで実行するかを固定します。デフォルトのままにすると自動で選択されます。",
     "addonLabel": "プロンプトアドオン（編集可能）",
     "addonPlaceholder": "上のステージをチェックしてパイプラインブロックを作成するか、独自に入力してください。",
-    "resetToCheckboxes": "チェックボックスにリセット"
+    "resetToCheckboxes": "チェックボックスにリセット",
+    "pipelineLabel": "Pipeline",
+    "pipelineNone": "None"
   }
 }

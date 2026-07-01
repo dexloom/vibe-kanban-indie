@@ -1,161 +1,179 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { cloneDeep, isEqual } from 'lodash';
-import { PlusIcon, SpinnerIcon, TrashIcon } from '@phosphor-icons/react';
-import { DEFAULT_PIPELINE_STEPS, type PipelineStep } from 'shared/types';
-import { useUserSystem } from '@/shared/hooks/useUserSystem';
+import {
+  CaretDownIcon,
+  CaretRightIcon,
+  SpinnerIcon,
+  TrashIcon,
+} from '@phosphor-icons/react';
+import type { Pipeline } from 'shared/types';
+import { pipelinesApi } from '@/shared/lib/api';
 import { PrimaryButton } from '@vibe/ui/components/PrimaryButton';
 import { IconButton } from '@vibe/ui/components/IconButton';
-import {
-  SettingsCard,
-  SettingsCheckbox,
-  SettingsField,
-  SettingsInput,
-  SettingsSaveBar,
-  SettingsTextarea,
-} from './SettingsComponents';
+import { SettingsCard, SettingsTextarea } from './SettingsComponents';
 import { useSettingsDirty } from './SettingsDirtyContext';
 
-/** Slug a label into a stable-ish id; collisions are de-duped by the caller. */
-function slugify(label: string): string {
-  return (
-    label
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'step'
-  );
+const BUNDLED_IDS = new Set(['basic', 'wikillm', 'speckit']);
+
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message ? err.message : fallback;
 }
 
 export function PipelineSettingsSection() {
   const { t } = useTranslation(['settings', 'common']);
   const { setDirty: setContextDirty } = useSettingsDirty();
-  const { config, loading, updateAndSaveConfig } = useUserSystem();
 
-  const [draft, setDraft] = useState(() => (config ? cloneDeep(config) : null));
-  const [dirty, setDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [pipelines, setPipelines] = useState<Pipeline[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Loaded raw TOML and the operator's in-progress edits, keyed by pipeline id.
+  const [rawById, setRawById] = useState<Record<string, string>>({});
+  const [draftById, setDraftById] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    try {
+      const list = await pipelinesApi.list();
+      setPipelines(list);
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(errorMessage(err, t('settings.pipeline.loadError')));
+      setPipelines([]);
+    }
+  }, [t]);
 
   useEffect(() => {
-    if (!config) return;
-    if (!dirty) {
-      setDraft(cloneDeep(config));
-    }
-  }, [config, dirty]);
+    void reload();
+  }, [reload]);
 
-  const hasUnsavedChanges = useMemo(() => {
-    if (!draft || !config) return false;
-    return !isEqual(draft, config);
-  }, [draft, config]);
+  const hasUnsavedChanges = useMemo(
+    () =>
+      Object.keys(draftById).some(
+        (id) => draftById[id] !== undefined && draftById[id] !== rawById[id]
+      ),
+    [draftById, rawById]
+  );
 
   useEffect(() => {
     setContextDirty('pipeline', hasUnsavedChanges);
     return () => setContextDirty('pipeline', false);
   }, [hasUnsavedChanges, setContextDirty]);
 
-  // Top-level replace (not deep-merge) so array edits/removals stick.
-  const setSteps = useCallback(
-    (steps: PipelineStep[] | null) => {
-      setDraft((prev) => {
-        if (!prev) return prev;
-        const next = { ...prev, pipeline_steps: steps };
-        if (!isEqual(next, config)) setDirty(true);
-        return next;
-      });
-    },
-    [config]
-  );
-
-  const steps = draft?.pipeline_steps ?? null;
-  const isCustom = steps != null;
-  const displaySteps = steps ?? DEFAULT_PIPELINE_STEPS;
-
-  const handleToggleCustom = useCallback(
-    (checked: boolean) => {
-      setSteps(checked ? cloneDeep(DEFAULT_PIPELINE_STEPS) : null);
-    },
-    [setSteps]
-  );
-
-  const handleReset = useCallback(() => {
-    setSteps(cloneDeep(DEFAULT_PIPELINE_STEPS));
-  }, [setSteps]);
-
-  const updateStep = useCallback(
-    (index: number, patch: Partial<PipelineStep>) => {
-      if (!steps) return;
-      const next = steps.map((s, i) => (i === index ? { ...s, ...patch } : s));
-      setSteps(next);
-    },
-    [steps, setSteps]
-  );
-
-  const removeStep = useCallback(
-    (index: number) => {
-      if (!steps) return;
-      setSteps(steps.filter((_, i) => i !== index));
-    },
-    [steps, setSteps]
-  );
-
-  const addStep = useCallback(() => {
-    const existing = steps ?? [];
-    const used = new Set(existing.map((s) => s.id));
-    let n = existing.length + 1;
-    let id = `step-${n}`;
-    while (used.has(id)) {
-      n += 1;
-      id = `step-${n}`;
-    }
-    setSteps([
-      ...existing,
-      { id, label: '', prompt_fragment: '', default_enabled: false },
-    ]);
-  }, [steps, setSteps]);
-
-  const handleSave = async () => {
-    if (!draft) return;
-    setSaving(true);
+  const flash = useCallback((message: string) => {
+    setSuccess(message);
     setError(null);
-    setSuccess(false);
-    try {
-      // Normalise ids so each step has a unique, slug-derived id before saving.
-      let normalised = draft.pipeline_steps;
-      if (normalised) {
-        const used = new Set<string>();
-        normalised = normalised.map((s) => {
-          let base = s.id?.trim() || slugify(s.label);
-          let id = base;
-          let n = 2;
-          while (used.has(id)) {
-            id = `${base}-${n}`;
-            n += 1;
-          }
-          used.add(id);
-          return { ...s, id };
-        });
+    setTimeout(() => setSuccess(null), 3000);
+  }, []);
+
+  const toggleExpand = useCallback(
+    async (id: string) => {
+      if (expandedId === id) {
+        setExpandedId(null);
+        return;
       }
-      await updateAndSaveConfig({ ...draft, pipeline_steps: normalised });
-      setDirty(false);
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      setExpandedId(id);
+      if (rawById[id] === undefined) {
+        try {
+          const raw = await pipelinesApi.getRaw(id);
+          setRawById((prev) => ({ ...prev, [id]: raw }));
+          setDraftById((prev) => ({ ...prev, [id]: raw }));
+        } catch (err) {
+          setError(errorMessage(err, t('settings.pipeline.loadError')));
+        }
+      }
+    },
+    [expandedId, rawById, t]
+  );
+
+  const handleSave = useCallback(
+    async (id: string) => {
+      const content = draftById[id];
+      if (content === undefined) return;
+      setBusyId(id);
+      setError(null);
+      try {
+        await pipelinesApi.saveRaw(id, content);
+        setRawById((prev) => ({ ...prev, [id]: content }));
+        await reload();
+        flash(t('settings.pipeline.saved'));
+      } catch (err) {
+        // Surfaces the server's parse/validation message.
+        setError(errorMessage(err, t('settings.pipeline.saveError')));
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [draftById, reload, flash, t]
+  );
+
+  const handleResetOne = useCallback(
+    async (id: string) => {
+      setBusyId(id);
+      setError(null);
+      try {
+        await pipelinesApi.resetOne(id);
+        const raw = await pipelinesApi.getRaw(id);
+        setRawById((prev) => ({ ...prev, [id]: raw }));
+        setDraftById((prev) => ({ ...prev, [id]: raw }));
+        await reload();
+        flash(t('settings.pipeline.saved'));
+      } catch (err) {
+        setError(errorMessage(err, t('settings.pipeline.saveError')));
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [reload, flash, t]
+  );
+
+  const handleRemove = useCallback(
+    async (id: string) => {
+      setBusyId(id);
+      setError(null);
+      try {
+        await pipelinesApi.remove(id);
+        setRawById((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        setDraftById((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        if (expandedId === id) setExpandedId(null);
+        await reload();
+        flash(t('settings.pipeline.saved'));
+      } catch (err) {
+        setError(errorMessage(err, t('settings.pipeline.saveError')));
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [expandedId, reload, flash, t]
+  );
+
+  const handleResetAll = useCallback(async () => {
+    setBusyId('__all__');
+    setError(null);
+    try {
+      await pipelinesApi.resetDefaults();
+      setRawById({});
+      setDraftById({});
+      setExpandedId(null);
+      await reload();
+      flash(t('settings.pipeline.saved'));
     } catch (err) {
-      setError(t('settings.pipeline.save.error'));
-      console.error('Error saving pipeline config:', err);
+      setError(errorMessage(err, t('settings.pipeline.saveError')));
     } finally {
-      setSaving(false);
+      setBusyId(null);
     }
-  };
+  }, [reload, flash, t]);
 
-  const handleDiscard = () => {
-    if (!config) return;
-    setDraft(cloneDeep(config));
-    setDirty(false);
-  };
-
-  if (loading) {
+  if (pipelines === null && loadError === null) {
     return (
       <div className="flex items-center justify-center py-8 gap-2">
         <SpinnerIcon
@@ -167,136 +185,115 @@ export function PipelineSettingsSection() {
     );
   }
 
-  if (!config) {
-    return (
-      <div className="py-8">
-        <div className="bg-error/10 border border-error/50 rounded-sm p-4 text-error">
-          {t('settings.pipeline.loadError')}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       {error && (
-        <div className="bg-error/10 border border-error/50 rounded-sm p-4 text-error">
+        <div className="bg-error/10 border border-error/50 rounded-sm p-4 text-error whitespace-pre-wrap">
           {error}
         </div>
       )}
       {success && (
         <div className="bg-success/10 border border-success/50 rounded-sm p-4 text-success font-medium">
-          {t('settings.pipeline.save.success')}
+          {success}
+        </div>
+      )}
+      {loadError && (
+        <div className="bg-error/10 border border-error/50 rounded-sm p-4 text-error">
+          {loadError}
         </div>
       )}
 
       <SettingsCard
-        title={t('settings.pipeline.steps.title')}
-        description={t('settings.pipeline.steps.description')}
+        title={t('settings.pipeline.files.title')}
+        description={t('settings.pipeline.files.description')}
         headerAction={
-          isCustom ? (
-            <PrimaryButton
-              variant="tertiary"
-              value={t('settings.pipeline.steps.reset')}
-              onClick={handleReset}
-            />
-          ) : undefined
+          <PrimaryButton
+            variant="tertiary"
+            value={t('settings.pipeline.resetAll')}
+            disabled={busyId === '__all__'}
+            onClick={handleResetAll}
+          />
         }
       >
-        <SettingsCheckbox
-          id="customize-pipeline-steps"
-          label={t('settings.pipeline.steps.customize.label')}
-          description={t('settings.pipeline.steps.customize.helper')}
-          checked={isCustom}
-          onChange={handleToggleCustom}
-        />
-
-        <div className="space-y-4">
-          {displaySteps.length === 0 ? (
-            <p className="text-sm text-low">
-              {t('settings.pipeline.steps.empty')}
-            </p>
+        <div className="space-y-3">
+          {pipelines && pipelines.length === 0 ? (
+            <p className="text-sm text-low">{t('settings.pipeline.empty')}</p>
           ) : (
-            displaySteps.map((step, index) => (
-              <div
-                key={index}
-                className="space-y-2 rounded-sm border border-border p-3"
-              >
-                <div className="flex items-start gap-2">
-                  <div className="flex-1 space-y-2">
-                    <SettingsField
-                      label={t('settings.pipeline.steps.fields.label')}
+            pipelines?.map((p) => {
+              const isOpen = expandedId === p.id;
+              const draft = draftById[p.id] ?? '';
+              const isDirty =
+                draftById[p.id] !== undefined &&
+                draftById[p.id] !== rawById[p.id];
+              return (
+                <div
+                  key={p.id}
+                  className="rounded-sm border border-border p-3 space-y-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(p.id)}
+                      className="flex items-center gap-half text-sm font-medium text-high flex-1 text-left"
                     >
-                      <SettingsInput
-                        value={step.label}
-                        disabled={!isCustom}
-                        onChange={(value) =>
-                          updateStep(index, { label: value })
-                        }
-                        placeholder={t(
-                          'settings.pipeline.steps.fields.labelPlaceholder'
-                        )}
-                      />
-                    </SettingsField>
-                  </div>
-                  {isCustom && (
+                      {isOpen ? (
+                        <CaretDownIcon className="size-icon-sm" weight="bold" />
+                      ) : (
+                        <CaretRightIcon
+                          className="size-icon-sm"
+                          weight="bold"
+                        />
+                      )}
+                      <span>{p.name}</span>
+                      <span className="text-xs text-low">
+                        {t('settings.pipeline.stageCount', {
+                          n: p.stages.length,
+                        })}
+                      </span>
+                    </button>
                     <IconButton
                       icon={TrashIcon}
-                      aria-label={t('settings.pipeline.steps.actions.remove')}
-                      title={t('settings.pipeline.steps.actions.remove')}
-                      onClick={() => removeStep(index)}
-                      className="mt-6 hover:text-error hover:bg-error/10"
+                      aria-label={t('settings.pipeline.remove')}
+                      title={t('settings.pipeline.remove')}
+                      disabled={busyId === p.id}
+                      onClick={() => handleRemove(p.id)}
+                      className="hover:text-error hover:bg-error/10"
                     />
+                  </div>
+
+                  {isOpen && (
+                    <div className="space-y-2">
+                      <SettingsTextarea
+                        value={draft}
+                        rows={14}
+                        onChange={(value) =>
+                          setDraftById((prev) => ({ ...prev, [p.id]: value }))
+                        }
+                        placeholder={t('settings.pipeline.rawPlaceholder')}
+                      />
+                      <div className="flex items-center gap-2">
+                        <PrimaryButton
+                          value={t('settings.pipeline.saveButton')}
+                          disabled={!isDirty || busyId === p.id}
+                          onClick={() => handleSave(p.id)}
+                        />
+                        {BUNDLED_IDS.has(p.id) && (
+                          <PrimaryButton
+                            variant="tertiary"
+                            value={t('settings.pipeline.reset')}
+                            disabled={busyId === p.id}
+                            onClick={() => handleResetOne(p.id)}
+                          />
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
-
-                <SettingsField
-                  label={t('settings.pipeline.steps.fields.prompt')}
-                >
-                  <SettingsTextarea
-                    value={step.prompt_fragment}
-                    disabled={!isCustom}
-                    rows={3}
-                    onChange={(value) =>
-                      updateStep(index, { prompt_fragment: value })
-                    }
-                    placeholder={t(
-                      'settings.pipeline.steps.fields.promptPlaceholder'
-                    )}
-                  />
-                </SettingsField>
-
-                <SettingsCheckbox
-                  id={`pipeline-step-default-${index}`}
-                  label={t('settings.pipeline.steps.fields.defaultEnabled')}
-                  checked={step.default_enabled}
-                  disabled={!isCustom}
-                  onChange={(checked) =>
-                    updateStep(index, { default_enabled: checked })
-                  }
-                />
-              </div>
-            ))
-          )}
-
-          {isCustom && (
-            <PrimaryButton
-              variant="tertiary"
-              onClick={addStep}
-              actionIcon={PlusIcon}
-            >
-              {t('settings.pipeline.steps.actions.add')}
-            </PrimaryButton>
+              );
+            })
           )}
         </div>
       </SettingsCard>
-
-      <SettingsSaveBar
-        show={hasUnsavedChanges}
-        saving={saving}
-        onSave={handleSave}
-        onDiscard={handleDiscard}
-      />
     </>
   );
 }

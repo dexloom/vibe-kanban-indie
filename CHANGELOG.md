@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **File-based pipelines.** Pipelines are now first-class, user-editable TOML
+  files in `~/.vibe-kanban/pipelines/` (bundled defaults `basic`, `wikillm`,
+  `speckit`, seeded on first run). The New Issue "Pipeline" control lets you pick
+  a pipeline and tick which of its stages to run; vibe-kanban composes an
+  **ordered, numbered** `## Pipeline` block that the execution agent runs
+  top-to-bottom (no more agent-side stage selection). Settings → Pipeline now
+  edits the pipeline files (raw TOML) with per-file and global reset. Managed via
+  a new `/api/pipelines` API. The old in-config `pipeline_steps` catalog is
+  deprecated and ignored (retained for config back-compat). The separate SpecKit
+  workbench engine is unchanged.
+
 ## [0.2.9] - 2026-07-01
 
 ### Added

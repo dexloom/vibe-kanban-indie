@@ -568,6 +568,8 @@
     "agentHelper": "固定編排器用於執行此卡片的編碼代理。保持預設則由其自動選擇。",
     "addonLabel": "提示附加內容（可編輯）",
     "addonPlaceholder": "勾選上方階段以組成流水線區塊，或自行輸入。",
-    "resetToCheckboxes": "重設為勾選項目"
+    "resetToCheckboxes": "重設為勾選項目",
+    "pipelineLabel": "Pipeline",
+    "pipelineNone": "None"
   }
 }

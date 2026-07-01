@@ -13,6 +13,7 @@ pub mod filesystem;
 pub mod filesystem_watcher;
 pub mod notification;
 pub mod oauth_credentials;
+pub mod pipelines;
 pub mod pr_monitor;
 pub mod project_config;
 
