@@ -261,7 +261,10 @@
     "terminal": "終端機",
     "openInTerminal": "Open in Terminal",
     "send": "Send",
-    "sendInputPlaceholder": "Answer or comment to the agent…"
+    "sendInputPlaceholder": "Answer or comment to the agent…",
+    "viewLog": "Log",
+    "viewTerminal": "終端機",
+    "sessionEnded": "The agent session ended."
   },
   "search": {
     "matchCount": "{{current}} / {{total}}",

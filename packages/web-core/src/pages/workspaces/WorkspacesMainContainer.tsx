@@ -7,9 +7,16 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Workspace, Session, RepoWithTargetBranch } from 'shared/types';
 import { createWorkspaceWithSession } from '@/shared/types/attempt';
 import { WorkspacesMain } from '@vibe/ui/components/WorkspacesMain';
+import {
+  ButtonGroup,
+  ButtonGroupItem,
+} from '@vibe/ui/components/IconButtonGroup';
+import { useHeadedSession } from '@/shared/hooks/useHeadedSession';
+import { HeadedTerminalView } from './HeadedTerminalView';
 import {
   ConversationList,
   type ConversationListHandle,
@@ -121,8 +128,27 @@ export const WorkspacesMainContainer = forwardRef<
   },
   ref
 ) {
+  const { t } = useTranslation('common');
   const containerRef = useRef<HTMLElement>(null);
   const conversationListRef = useRef<ConversationListHandle>(null);
+
+  // Live headed (interactive tmux) session for the selected session, if any.
+  // When present, the center pane offers a Log/Terminal switch so the operator
+  // can flip the rendered conversation to a live terminal attached to the
+  // agent's `vk-<processId>` tmux — right where they input data.
+  const headed = useHeadedSession();
+  const headedProcessId = headed?.processId ?? null;
+  // View choice tied to the headed process it belongs to. Derived at render
+  // time so it falls back to Log synchronously when the headed session changes
+  // or ends (headedProcessId becomes null).
+  const [viewState, setViewState] = useState<{
+    processId: string | null;
+    view: 'log' | 'terminal';
+  }>({ processId: null, view: 'log' });
+  const showTerminal =
+    !!headedProcessId &&
+    viewState.processId === headedProcessId &&
+    viewState.view === 'terminal';
 
   const workspaceWithSession = useMemo(() => {
     if (!selectedWorkspace) return undefined;
@@ -201,22 +227,56 @@ export const WorkspacesMainContainer = forwardRef<
     : 'empty';
 
   const conversationContent = workspaceWithSession ? (
-    <div
-      className="flex-1 min-h-0 overflow-hidden flex justify-center"
-      onWheel={(e) => forwardWheelToScroller(e, conversationListRef)}
-    >
-      <div className="w-chat max-w-full h-full">
-        <RetryUiProvider workspaceId={workspaceWithSession.id}>
-          <ConversationList
-            key={entriesProviderKey}
-            ref={conversationListRef}
-            attempt={workspaceWithSession}
-            repos={repos}
-            onAtBottomChange={handleAtBottomChange}
-            sessionScopeId={selectedSessionId}
-          />
-        </RetryUiProvider>
-      </div>
+    <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+      {headedProcessId && (
+        <div className="flex justify-center shrink-0 pt-2 pb-1 @container pl-px">
+          <div className="w-chat max-w-full flex items-center">
+            <ButtonGroup>
+              <ButtonGroupItem
+                active={!showTerminal}
+                onClick={() =>
+                  setViewState({ processId: headedProcessId, view: 'log' })
+                }
+              >
+                {t('processes.viewLog')}
+              </ButtonGroupItem>
+              <ButtonGroupItem
+                active={showTerminal}
+                onClick={() =>
+                  setViewState({ processId: headedProcessId, view: 'terminal' })
+                }
+              >
+                {t('processes.viewTerminal')}
+              </ButtonGroupItem>
+            </ButtonGroup>
+          </div>
+        </div>
+      )}
+      {showTerminal && headedProcessId ? (
+        <div className="flex-1 min-h-0 flex justify-center @container pl-px">
+          <div className="w-chat max-w-full h-full flex flex-col min-h-0">
+            <HeadedTerminalView processId={headedProcessId} />
+          </div>
+        </div>
+      ) : (
+        <div
+          className="flex-1 min-h-0 overflow-hidden flex justify-center"
+          onWheel={(e) => forwardWheelToScroller(e, conversationListRef)}
+        >
+          <div className="w-chat max-w-full h-full">
+            <RetryUiProvider workspaceId={workspaceWithSession.id}>
+              <ConversationList
+                key={entriesProviderKey}
+                ref={conversationListRef}
+                attempt={workspaceWithSession}
+                repos={repos}
+                onAtBottomChange={handleAtBottomChange}
+                sessionScopeId={selectedSessionId}
+              />
+            </RetryUiProvider>
+          </div>
+        </div>
+      )}
     </div>
   ) : null;
 

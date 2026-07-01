@@ -261,7 +261,10 @@
     "terminal": "Terminal",
     "openInTerminal": "Open in Terminal",
     "send": "Send",
-    "sendInputPlaceholder": "Answer or comment to the agent…"
+    "sendInputPlaceholder": "Answer or comment to the agent…",
+    "viewLog": "Log",
+    "viewTerminal": "Terminal",
+    "sessionEnded": "The agent session ended."
   },
   "search": {
     "matchCount": "{{current}} sur {{total}}",
