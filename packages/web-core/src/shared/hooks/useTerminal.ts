@@ -13,8 +13,6 @@ export interface TerminalTab {
   title: string;
   workspaceId: string;
   cwd: string;
-  /** When set, this tab is attached to the agent's tmux session (`vk-<id>`). */
-  executionProcessId?: string;
 }
 
 interface TerminalConnection {
@@ -26,21 +24,7 @@ interface TerminalConnection {
 export interface TerminalContextType {
   getTabsForWorkspace: (workspaceId: string) => TerminalTab[];
   getActiveTab: (workspaceId: string) => TerminalTab | null;
-  createTab: (
-    workspaceId: string,
-    cwd: string,
-    executionProcessId?: string
-  ) => void;
-  /**
-   * Open a terminal tab, or focus an existing one. When `executionProcessId` is
-   * given and a tab is already attached to that session, the existing tab is
-   * activated instead of opening a duplicate (idempotent attach).
-   */
-  openOrFocusTab: (
-    workspaceId: string,
-    cwd: string,
-    executionProcessId?: string
-  ) => void;
+  createTab: (workspaceId: string, cwd: string) => void;
   closeTab: (workspaceId: string, tabId: string) => void;
   setActiveTab: (workspaceId: string, tabId: string) => void;
   updateTabTitle: (workspaceId: string, tabId: string, title: string) => void;
@@ -52,13 +36,6 @@ export interface TerminalContextType {
   ) => void;
   getTerminalInstance: (tabId: string) => TerminalInstance | null;
   unregisterTerminalInstance: (tabId: string) => void;
-  /**
-   * Fully tear down a terminal that was mounted OUTSIDE the reducer tab list
-   * (e.g. the in-pane headed terminal): close its WebSocket, dispose the xterm
-   * instance, and unregister it. Mirrors `closeTab`'s cleanup without
-   * dispatching a tab action.
-   */
-  disposeStandaloneTerminal: (tabId: string) => void;
   createTerminalConnection: (
     tabId: string,
     endpoint: string,

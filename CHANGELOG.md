@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-07-01
+
+### Added
+
+- **SpecKit (Spec-Driven Development) workbench** — a per-feature workbench with
+  constitution, specify, clarify, plan, tasks, analyze, and implement stages,
+  plus matching SpecKit pipeline steps in the New Issue Pipeline catalog.
+- **Recall / Enrich knowledge-base pipeline steps** — "Recall prior knowledge"
+  (distill relevant project knowledge into `PRIOR_KNOWLEDGE.md` before planning)
+  and "Enrich knowledge base" (record reusable knowledge from what shipped).
+- **Native SwiftUI macOS app** (`apps/macos`) — a native VibeKanban desktop
+  shell that embeds the backend.
+
 ## [0.2.8] - 2026-06-19
 
 First stable release on the `0.2.8` line — promotes the `0.2.8-beta` series to

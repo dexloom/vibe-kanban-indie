@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Workspace } from 'shared/types';
-import { useHeadedSession } from '@/shared/hooks/useHeadedSession';
+import { useExecutionProcessesContext } from '@/shared/hooks/useExecutionProcessesContext';
+import { getInteractiveConfig } from '@/shared/lib/interactive';
 import { executionProcessesApi } from '@/shared/lib/api';
 import { writeClipboardViaBridge } from '@/shared/lib/clipboard';
 import { PERSIST_KEYS } from '@/shared/stores/useUiPreferencesStore';
@@ -143,9 +144,29 @@ export function HeadedSessionIds({
 }: {
   workspace?: Workspace | null;
 }) {
+  const { executionProcessesAll } = useExecutionProcessesContext();
   const [collapsed, setCollapsed] = useCollapsed(false);
 
-  const headed = useHeadedSession();
+  const headed = useMemo(() => {
+    // The list is sorted created_at ascending; the latest running headed
+    // coding-agent process owns the live tmux session.
+    const process = [...executionProcessesAll]
+      .reverse()
+      .find(
+        (p) =>
+          p.run_reason === 'codingagent' &&
+          p.status === 'running' &&
+          getInteractiveConfig(p) !== null
+      );
+    if (!process) return null;
+    const config = getInteractiveConfig(process);
+    if (!config) return null;
+    return {
+      processId: process.id,
+      tmuxSession: `vk-${process.id}`,
+      sessionUuid: config.session_uuid,
+    };
+  }, [executionProcessesAll]);
 
   if (!headed) return null;
 
