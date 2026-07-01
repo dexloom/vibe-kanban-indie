@@ -1,0 +1,145 @@
+# XcodeGen spec for the native macOS VibeKanban sketch.
+# Regenerate the .xcodeproj with:  xcodegen generate
+name: VibeKanbanMac
+options:
+  bundleIdPrefix: dev.vibekanban
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Local-only dev tool: no sandbox so it can read ~/.vibe-kanban/vibe-kanban.port
+    # and talk to http://127.0.0.1. Ad-hoc sign so `xcodebuild` works with no team.
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: NO
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    GENERATE_INFOPLIST_FILE: NO
+
+packages:
+  # Embedded terminal emulator for the workspace Terminal pane (attaches to the
+  # headed agent's tmux session). MIT-licensed, pure Swift, native AppKit view.
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm
+    # Pinned to the last release before the Metal GPU backend (v1.12+), which
+    # needs the separately-downloaded Metal Toolchain. 1.11.2 builds with a
+    # stock Xcode and still has the full LocalProcessTerminalView.
+    exactVersion: "1.11.2"
+
+targets:
+  VibeKanbanMac:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/VibeKanbanMac
+    dependencies:
+      - package: SwiftTerm
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.vibekanban.mac
+        PRODUCT_NAME: VibeKanbanMac
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        COMBINE_HIDPI_IMAGES: YES
+    preBuildScripts:
+      - name: "Compile Rust backend (server)"
+        basedOnDependencyAnalysis: false
+        script: |
+          set -uo pipefail
+          if [ "${SKIP_BACKEND_BUILD:-0}" = "1" ]; then
+            echo "SKIP_BACKEND_BUILD=1 — skipping backend compile"; exit 0
+          fi
+          export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+          [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env" || true
+          if ! command -v cargo >/dev/null 2>&1; then
+            echo "warning: cargo not found — building app without a bundled backend"; exit 0
+          fi
+          REPO_ROOT="$SRCROOT/../.."
+          echo "Compiling server (release) in $REPO_ROOT …"
+          if ( cd "$REPO_ROOT" && cargo build --release --bin server ); then
+            mkdir -p "$SRCROOT/Backend"
+            cp "$REPO_ROOT/target/release/server" "$SRCROOT/Backend/server"
+            chmod +x "$SRCROOT/Backend/server"
+            echo "Staged backend at $SRCROOT/Backend/server"
+          else
+            echo "warning: backend compile failed — building app without a bundled backend"
+          fi
+    postCompileScripts:
+      - name: "Bundle backend binary (if staged)"
+        basedOnDependencyAnalysis: false
+        script: |
+          set -e
+          SRC="$SRCROOT/Backend/server"
+          if [ -f "$SRC" ]; then
+            DEST="$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Resources/Backend"
+            mkdir -p "$DEST"
+            cp "$SRC" "$DEST/server"
+            chmod +x "$DEST/server"
+            # Re-sign the nested binary with a proper ad-hoc signature. Cargo emits a
+            # "linker-signed" ad-hoc signature (codesign flags 0x20002); AMFI SIGKILLs
+            # such a binary (exit 137) when it is executed from inside another signed
+            # .app bundle. A fresh `codesign --force --sign -` (flags 0x2) runs fine.
+            # This must happen here (before Xcode's final bundle sign, which only seals
+            # CodeResources and leaves the nested binary's own signature untouched).
+            codesign --force --sign - --timestamp=none "$DEST/server" \
+              && echo "Bundled + re-signed backend from $SRC" \
+              || echo "warning: failed to re-sign nested backend (it may be SIGKILLed at runtime)"
+          else
+            echo "No staged backend at $SRC — managed mode uses repo/explicit path. Run scripts/build-backend.sh to bundle one."
+          fi
+      - name: "Bundle executor schemas"
+        basedOnDependencyAnalysis: false
+        script: |
+          set -e
+          # Per-agent JSON Schemas drive the Settings → Agents config form (the
+          # same schemas the web app feeds to RJSF). Copy them into the app.
+          SRC="$SRCROOT/../../shared/schemas"
+          DEST="$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Resources/Schemas"
+          if [ -d "$SRC" ]; then
+            mkdir -p "$DEST"
+            cp "$SRC"/*.json "$DEST"/ 2>/dev/null || true
+            echo "Bundled executor schemas from $SRC"
+          else
+            echo "warning: no executor schemas at $SRC"
+          fi
+    info:
+      path: Sources/VibeKanbanMac/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: "Vibe Kanban"
+        CFBundleName: "Vibe Kanban"
+        LSMinimumSystemVersion: "14.0"
+        LSApplicationCategoryType: public.app-category.developer-tools
+        ITSAppUsesNonExemptEncryption: false
+        # Allow plain-HTTP to the local backend (127.0.0.1).
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+
+  VibeKanbanMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/VibeKanbanMacTests
+    dependencies:
+      - target: VibeKanbanMac
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.vibekanban.mac.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  VibeKanbanMac:
+    build:
+      targets:
+        VibeKanbanMac: all
+        VibeKanbanMacTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - VibeKanbanMacTests
