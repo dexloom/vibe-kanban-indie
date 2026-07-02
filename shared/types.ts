@@ -168,7 +168,7 @@ ephemeral: boolean,
  */
 kind: WorkspaceKind | null, };
 
-export type WorkspaceKind = "orchestrator";
+export type WorkspaceKind = "orchestrator" | "recurrent";
 
 export type WorkspaceWithStatus = { is_running: boolean, is_errored: boolean, id: string, task_id: string | null, container_ref: string | null, branch: string, setup_completed_at: string | null, created_at: string, updated_at: string, archived: boolean, pinned: boolean, name: string | null, worktree_deleted: boolean, 
 /**

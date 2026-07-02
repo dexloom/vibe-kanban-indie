@@ -36,6 +36,32 @@ pub enum WorkspaceError {
 pub enum WorkspaceKind {
     /// Headed Claude Code session driving the board via `/loop`.
     Orchestrator,
+    /// Recurring/scheduled task session, repo-independent, running from a
+    /// fixed `~/.vibe-kanban/recurrent/<slug>` directory.
+    Recurrent,
+}
+
+impl WorkspaceKind {
+    /// Kinds that run from a fixed on-demand directory instead of a git
+    /// worktree, and are therefore NOT board/kanban cards (never reaped as
+    /// throwaway worktrees, never listed as cards). Add future no-worktree
+    /// kinds here — the SQL card-exclusion filters compare against the
+    /// matching lowercase literals (keep them in sync; a test asserts it).
+    pub const NON_CARD: &'static [WorkspaceKind] =
+        &[WorkspaceKind::Orchestrator, WorkspaceKind::Recurrent];
+
+    /// True if this kind runs from a fixed dir (no git worktree).
+    pub fn is_no_worktree(self) -> bool {
+        Self::NON_CARD.contains(&self)
+    }
+
+    /// The lowercase discriminator string as stored in SQL / serialized.
+    pub fn as_sql_str(self) -> &'static str {
+        match self {
+            WorkspaceKind::Orchestrator => "orchestrator",
+            WorkspaceKind::Recurrent => "recurrent",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -301,9 +327,10 @@ impl Workspace {
             LEFT JOIN execution_processes ep ON s.id = ep.session_id AND ep.completed_at IS NOT NULL
             WHERE w.container_ref IS NOT NULL
                 AND w.worktree_deleted = FALSE
-                -- Never reap the orchestrator: its container_ref is the shared
-                -- fixed ~/.vibe-kanban/orchestrator folder, not a throwaway worktree.
-                AND (w.kind IS NULL OR w.kind <> 'orchestrator')
+                -- Never reap non-card workspaces (orchestrator, recurrent, …): their
+                -- container_ref is a fixed ~/.vibe-kanban/... folder, not a throwaway
+                -- worktree. Keep this list in sync with WorkspaceKind::NON_CARD.
+                AND (w.kind IS NULL OR w.kind NOT IN ('orchestrator', 'recurrent'))
                 AND w.id NOT IN (
                     SELECT DISTINCT s2.workspace_id
                     FROM sessions s2
@@ -912,6 +939,84 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(normal.kind, None);
+    }
+
+    #[tokio::test]
+    async fn recurrent_workspace_excluded_from_reaper_and_is_no_worktree() {
+        use chrono::{Duration, Utc};
+
+        let pool = pool().await;
+
+        let created = Workspace::create(
+            &pool,
+            &CreateWorkspace {
+                branch: "vk/recurrent".to_string(),
+                name: Some("nightly-cleanup".to_string()),
+                kind: Some(WorkspaceKind::Recurrent),
+            },
+            Uuid::new_v4(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(created.kind, Some(WorkspaceKind::Recurrent));
+        assert!(created.kind.unwrap().is_no_worktree());
+
+        // find_by_id preserves the discriminator.
+        let fetched = Workspace::find_by_id(&pool, created.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(fetched.kind, Some(WorkspaceKind::Recurrent));
+
+        // Recurrent workspaces still surface as ordinary sessions in the list
+        // query (they are not hidden like ephemeral workspaces).
+        let listed = Workspace::find_all_with_status(&pool, None, None)
+            .await
+            .unwrap();
+        let listed_ids: Vec<Uuid> = listed.iter().map(|w| w.workspace.id).collect();
+        assert!(listed_ids.contains(&created.id));
+
+        // Set a container_ref and backdate updated_at so this workspace WOULD
+        // be reaped (standard cleanup threshold is 72 hours) if the reaper
+        // filter did not exclude non-card kinds.
+        let old_updated_at = Utc::now() - Duration::hours(100);
+        let container_ref = "/tmp/does-not-matter".to_string();
+        sqlx::query!(
+            "UPDATE workspaces SET container_ref = ?, updated_at = ? WHERE id = ?",
+            container_ref,
+            old_updated_at,
+            created.id
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let expired = Workspace::find_expired_for_cleanup(&pool).await.unwrap();
+        let expired_ids: Vec<Uuid> = expired.iter().map(|w| w.id).collect();
+        assert!(!expired_ids.contains(&created.id));
+
+        // No cross-talk: find_orchestrator returns None when only a
+        // recurrent workspace exists.
+        assert!(Workspace::find_orchestrator(&pool).await.unwrap().is_none());
+    }
+
+    #[test]
+    fn non_card_kinds_serialize_to_expected_sql_literals() {
+        // Drift guard: keeps WorkspaceKind::NON_CARD, WorkspaceKind::as_sql_str,
+        // and the hardcoded SQL literal list in find_expired_for_cleanup's
+        // reaper filter in sync with each other.
+        let expected_sql_literals = ["orchestrator", "recurrent"];
+
+        for kind in WorkspaceKind::NON_CARD {
+            let serialized = serde_json::to_string(kind).unwrap();
+            assert_eq!(serialized, format!("\"{}\"", kind.as_sql_str()));
+            assert!(
+                expected_sql_literals.contains(&kind.as_sql_str()),
+                "as_sql_str() for {kind:?} ({}) is missing from the reaper filter's \
+                 hardcoded literal list — update both together",
+                kind.as_sql_str()
+            );
+        }
     }
 
     #[test]

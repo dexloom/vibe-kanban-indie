@@ -1,0 +1,92 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                w.id as \"id!: Uuid\",\n                w.task_id as \"task_id: Uuid\",\n                w.container_ref,\n                w.branch as \"branch!\",\n                w.setup_completed_at as \"setup_completed_at: DateTime<Utc>\",\n                w.created_at as \"created_at!: DateTime<Utc>\",\n                w.updated_at as \"updated_at!: DateTime<Utc>\",\n                w.archived as \"archived!: bool\",\n                w.pinned as \"pinned!: bool\",\n                w.name,\n                w.worktree_deleted as \"worktree_deleted!: bool\",\n                w.ephemeral as \"ephemeral!: bool\",\n                w.kind as \"kind: WorkspaceKind\"\n            FROM workspaces w\n            LEFT JOIN sessions s ON w.id = s.workspace_id\n            LEFT JOIN execution_processes ep ON s.id = ep.session_id AND ep.completed_at IS NOT NULL\n            WHERE w.container_ref IS NOT NULL\n                AND w.worktree_deleted = FALSE\n                -- Never reap non-card workspaces (orchestrator, recurrent, …): their\n                -- container_ref is a fixed ~/.vibe-kanban/... folder, not a throwaway\n                -- worktree. Keep this list in sync with WorkspaceKind::NON_CARD.\n                AND (w.kind IS NULL OR w.kind NOT IN ('orchestrator', 'recurrent'))\n                AND w.id NOT IN (\n                    SELECT DISTINCT s2.workspace_id\n                    FROM sessions s2\n                    JOIN execution_processes ep2 ON s2.id = ep2.session_id\n                    WHERE ep2.completed_at IS NULL\n                )\n            GROUP BY w.id, w.container_ref, w.updated_at\n            HAVING datetime('now', 'localtime',\n                CASE\n                    WHEN w.archived = 1\n                    THEN '-1 hours'\n                    ELSE '-72 hours'\n                END\n            ) > datetime(\n                MAX(\n                    max(\n                        datetime(w.updated_at),\n                        datetime(ep.completed_at)\n                    )\n                )\n            )\n            ORDER BY MAX(\n                CASE\n                    WHEN ep.completed_at IS NOT NULL THEN ep.completed_at\n                    ELSE w.updated_at\n                END\n            ) ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "task_id: Uuid",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "container_ref",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "branch!",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "setup_completed_at: DateTime<Utc>",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at!: DateTime<Utc>",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at!: DateTime<Utc>",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "archived!: bool",
+        "ordinal": 7,
+        "type_info": "Integer"
+      },
+      {
+        "name": "pinned!: bool",
+        "ordinal": 8,
+        "type_info": "Integer"
+      },
+      {
+        "name": "name",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "worktree_deleted!: bool",
+        "ordinal": 10,
+        "type_info": "Bool"
+      },
+      {
+        "name": "ephemeral!: bool",
+        "ordinal": 11,
+        "type_info": "Bool"
+      },
+      {
+        "name": "kind: WorkspaceKind",
+        "ordinal": 12,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "965dba4bd068c33c9347f08b4d8e31fd246dc4456ee4dc13d4fb21262bd6fd99"
+}

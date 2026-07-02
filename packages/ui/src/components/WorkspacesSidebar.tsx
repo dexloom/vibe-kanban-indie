@@ -9,6 +9,7 @@ import {
   RobotIcon,
 } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
+import type { WorkspaceKind } from 'shared/types';
 import { cn } from '../lib/cn';
 import { InputField } from './InputField';
 import { WorkspaceSummary } from './WorkspaceSummary';
@@ -28,7 +29,7 @@ export interface WorkspacesSidebarWorkspace {
   linesRemoved?: number;
   isRunning?: boolean;
   isPinned?: boolean;
-  kind?: 'orchestrator' | null;
+  kind?: WorkspaceKind | null;
   hasPendingApproval?: boolean;
   hasRunningDevServer?: boolean;
   hasUnseenActivity?: boolean;

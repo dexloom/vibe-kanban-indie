@@ -967,14 +967,30 @@ impl LocalContainerService {
         format!("{}-{}", short_uuid(workspace_id), task_title_id)
     }
 
-    /// Fixed working directory for the singleton orchestrator session:
-    /// `~/.vibe-kanban/orchestrator` (falling back to the asset dir if there is
-    /// no home directory). Shared across runs and never reaped.
-    fn orchestrator_dir() -> PathBuf {
+    /// Base `~/.vibe-kanban` dir (home), falling back to the asset dir when
+    /// there is no home directory. Shared by all fixed-dir workspace kinds.
+    fn vibe_kanban_base_dir() -> PathBuf {
         dirs::home_dir()
             .map(|home| home.join(".vibe-kanban"))
             .unwrap_or_else(utils::assets::asset_dir)
-            .join("orchestrator")
+    }
+
+    /// Fixed working directory for a no-worktree workspace kind. Orchestrator is
+    /// the singleton `~/.vibe-kanban/orchestrator`; recurrent gets one dir per
+    /// routine at `~/.vibe-kanban/recurrent/<short_uuid>-<name-slug>` (unique per
+    /// workspace via the short_uuid prefix). No git worktree = no git isolation;
+    /// the "recurrent tasks must not mutate repos" guardrail is enforced at the
+    /// routine/executor level in Card 2, not here.
+    fn fixed_dir_for_kind(workspace: &Workspace, kind: WorkspaceKind) -> PathBuf {
+        let base = Self::vibe_kanban_base_dir();
+        match kind {
+            WorkspaceKind::Orchestrator => base.join("orchestrator"),
+            WorkspaceKind::Recurrent => {
+                let label = workspace.name.as_deref().unwrap_or("recurrent");
+                base.join("recurrent")
+                    .join(Self::dir_name_from_workspace(&workspace.id, label))
+            }
+        }
     }
 
     async fn track_child_msgs_in_store(
@@ -2137,22 +2153,18 @@ impl ContainerService for LocalContainerService {
     }
 
     async fn create(&self, workspace: &Workspace) -> Result<ContainerRef, ContainerError> {
-        // The orchestrator is repo-independent: it runs from a fixed, shared
-        // `~/.vibe-kanban/orchestrator` folder (never a git worktree) and drives
-        // the board across projects via MCP. Just ensure the directory exists
-        // and point the container at it — no repos, no worktrees.
-        if workspace.kind == Some(WorkspaceKind::Orchestrator) {
-            let orchestrator_dir = Self::orchestrator_dir();
-            tokio::fs::create_dir_all(&orchestrator_dir)
-                .await
-                .map_err(|e| {
-                    ContainerError::Other(anyhow!(
-                        "Failed to create orchestrator directory {}: {}",
-                        orchestrator_dir.display(),
-                        e
-                    ))
-                })?;
-            let container_ref = orchestrator_dir.to_string_lossy().to_string();
+        // No-worktree kinds (orchestrator, recurrent) are repo-independent: they run
+        // from a fixed, on-demand ~/.vibe-kanban/... folder (never a git worktree).
+        // Ensure the dir exists and point the container at it — no repos, no worktrees.
+        if let Some(kind) = workspace.kind.filter(|k| k.is_no_worktree()) {
+            let dir = Self::fixed_dir_for_kind(workspace, kind);
+            tokio::fs::create_dir_all(&dir).await.map_err(|e| {
+                ContainerError::Other(anyhow!(
+                    "Failed to create {kind:?} directory {}: {e}",
+                    dir.display()
+                ))
+            })?;
+            let container_ref = dir.to_string_lossy().to_string();
             Workspace::update_container_ref(&self.db.pool, workspace.id, &container_ref).await?;
             return Ok(container_ref);
         }

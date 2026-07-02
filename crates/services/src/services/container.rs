@@ -19,7 +19,7 @@ use db::{
         },
         repo::Repo,
         session::{CreateSession, Session, SessionError},
-        workspace::{Workspace, WorkspaceError, WorkspaceKind},
+        workspace::{Workspace, WorkspaceError},
         workspace_repo::WorkspaceRepo,
     },
 };
@@ -1477,9 +1477,10 @@ pub trait ContainerService {
         // Capture current HEAD per repository as the "before" commit for this execution
         let repositories =
             WorkspaceRepo::find_repos_for_workspace(&self.db().pool, workspace.id).await?;
-        // The orchestrator is repo-independent: it runs from a fixed folder and
-        // reaches projects via MCP, so an empty repo set is expected for it.
-        if repositories.is_empty() && workspace.kind != Some(WorkspaceKind::Orchestrator) {
+        // No-worktree kinds (orchestrator, recurrent) are repo-independent: they
+        // run from a fixed folder, so an empty repo set is expected for them.
+        let is_no_worktree = workspace.kind.map(|k| k.is_no_worktree()).unwrap_or(false);
+        if repositories.is_empty() && !is_no_worktree {
             return Err(ContainerError::Other(anyhow!(
                 "Workspace has no repositories configured"
             )));
