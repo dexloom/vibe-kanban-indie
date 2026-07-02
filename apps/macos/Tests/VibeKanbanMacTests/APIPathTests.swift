@@ -68,6 +68,21 @@ final class APIPathTests: XCTestCase {
         XCTAssertEqual(p, "/api/agents/check-availability")
     }
 
+    func testSessionAndSendInputRoutesUseApiPrefix() async {
+        let c = makeClient()
+        var p = await path { _ = try await c.createSession(CreateSessionRequest(workspaceId: "w1")) }
+        XCTAssertEqual(p, "/api/sessions")
+        XCTAssertEqual(RecordingURLProtocol.lastMethod, "POST")
+
+        p = await path { _ = try await c.updateSession(id: "s1", name: "n") }
+        XCTAssertEqual(p, "/api/sessions/s1")
+        XCTAssertEqual(RecordingURLProtocol.lastMethod, "PUT")
+
+        p = await path { try await c.sendInput(executionId: "e1", text: "hi") }
+        XCTAssertEqual(p, "/api/execution-processes/e1/send-input")
+        XCTAssertEqual(RecordingURLProtocol.lastMethod, "POST")
+    }
+
     func testHealthUsesApiPrefix() async {
         let c = makeClient()
         let p = await path { _ = await c.ping() }
