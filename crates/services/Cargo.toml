@@ -38,6 +38,7 @@ ignore.workspace = true
 notify-rust.workspace = true
 os_info.workspace = true
 reqwest.workspace = true
+regex.workspace = true
 json-patch.workspace = true
 backon.workspace = true
 thiserror.workspace = true

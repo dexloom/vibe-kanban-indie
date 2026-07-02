@@ -54,6 +54,7 @@ use services::services::{
     execution_process,
     file::FileService,
     notification::NotificationService,
+    pipeline_stage::spawn_pipeline_stage_tracker,
     queued_message::QueuedMessageService,
     remote_client::RemoteClient,
     remote_sync,
@@ -1845,7 +1846,7 @@ impl LocalContainerService {
             };
 
             if let Some(executor) = ExecutorConfigs::get_cached().get_coding_agent(&profile_id) {
-                let _ = executor.normalize_logs(store, &effective_dir);
+                let _ = executor.normalize_logs(store.clone(), &effective_dir);
             }
             execution_process::spawn_stream_raw_logs_to_storage(
                 self.msg_stores.clone(),
@@ -1853,6 +1854,16 @@ impl LocalContainerService {
                 exec_id,
                 ctx.session.id,
             );
+
+            // Headed re-adoption is a separate call site from
+            // `start_execution` (it re-attaches an already-running tmux
+            // session after a server restart rather than creating a new
+            // execution), so it needs its own tracker spawn. The tracker's
+            // idempotency guard (keyed by execution_process_id) makes this
+            // safe even if `start_execution` already spawned one.
+            if process.run_reason == ExecutionProcessRunReason::CodingAgent {
+                spawn_pipeline_stage_tracker(store, ctx.workspace.id, exec_id, self.db.clone());
+            }
 
             // Resume the transcript tail after the lines already mirrored
             // (= count of persisted Stdout lines).
