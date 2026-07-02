@@ -52,6 +52,29 @@ impl Telegram {
         self.call("closeForumTopic", body).await.map(|_| ())
     }
 
+    /// Best-effort escalation send: resolves the bot token / chat id / general
+    /// thread id from `telegram.toml` (via [`crate::telegram_config`]) and sends
+    /// `text` into the configured general thread. Silently no-ops when
+    /// unconfigured (no token or no chat id); logs a warning on send failure.
+    /// Never returns an error — callers (e.g. the recurrent-task failure hook)
+    /// must not let a Telegram outage affect their own control flow.
+    pub async fn send_escalation_best_effort(text: &str) {
+        let cfg = crate::telegram_config::load();
+        let Some((token, _)) = crate::telegram_config::resolve_bot_token(cfg.as_ref()) else {
+            return;
+        };
+        let Some(chat_id) = crate::telegram_config::resolve_chat_id(cfg.as_ref()) else {
+            return;
+        };
+        let thread = crate::telegram_config::resolve_general_thread_id(cfg.as_ref())
+            .and_then(|s| s.trim().parse::<i64>().ok());
+
+        let telegram = Telegram::new(token, chat_id);
+        if let Err(e) = telegram.send_message(text, thread).await {
+            tracing::warn!("Failed to send Telegram escalation: {e}");
+        }
+    }
+
     async fn call(&self, method: &str, body: Value) -> Result<Value> {
         let url = format!("https://api.telegram.org/bot{}/{method}", self.token);
         let resp = self

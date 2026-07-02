@@ -19,7 +19,7 @@ use db::{
         },
         repo::Repo,
         session::{CreateSession, Session, SessionError},
-        workspace::{Workspace, WorkspaceError},
+        workspace::{Workspace, WorkspaceError, WorkspaceKind},
         workspace_repo::WorkspaceRepo,
     },
 };
@@ -158,6 +158,19 @@ pub fn latest_assistant_message_from_patches(patches: &[Patch]) -> Option<String
         }
     }
     best.map(|(_, text)| text).filter(|s| !s.is_empty())
+}
+
+/// Whether `finalize_task` should fire a recurrent-routine Telegram
+/// escalation: only steady-state `Failed` executions on a `Recurrent`
+/// workspace. `Killed` (max-runtime timeout) never escalates — timeout is
+/// not the same as failure — and `finalize_task` already early-returns for
+/// `Killed` before this is even reached. Extracted as a pure function so the
+/// condition is unit-testable without a `ContainerService` mock.
+fn should_escalate_recurrent_failure(
+    status: ExecutionProcessStatus,
+    kind: Option<WorkspaceKind>,
+) -> bool {
+    status == ExecutionProcessStatus::Failed && kind == Some(WorkspaceKind::Recurrent)
 }
 
 #[async_trait]
@@ -345,6 +358,32 @@ pub trait ContainerService {
         self.notification_service()
             .notify(&title, &message, Some(ctx.workspace.id))
             .await;
+
+        // Recurrent-routine failure escalation (steady-state failures that
+        // reach the monitor). Startup failures — which never make it to a
+        // finalized execution process — are escalated separately from
+        // `recurrent::spawn::spawn_routine_run`. `Killed` (max-runtime
+        // timeout) is excluded above (early return), which is correct:
+        // timeout is not the same as failure.
+        if should_escalate_recurrent_failure(
+            ctx.execution_process.status.clone(),
+            ctx.workspace.kind,
+        ) {
+            let text = format!(
+                "❌ Recurrent routine '{}' run failed (workspace {})",
+                workspace_name, ctx.workspace.id
+            );
+            // Non-blocking: never await the raw network send inside
+            // finalize_task. A missing/disabled telegram.toml is a silent
+            // no-op inside the helper itself.
+            tokio::spawn(async move {
+                let _ = tokio::time::timeout(
+                    std::time::Duration::from_secs(5),
+                    utils::telegram::Telegram::send_escalation_best_effort(&text),
+                )
+                .await;
+            });
+        }
     }
 
     /// Cleanup executions marked as running in the db, call at startup
@@ -1830,5 +1869,49 @@ mod latest_assistant_message_tests {
     #[test]
     fn empty_patches_returns_none() {
         assert_eq!(latest_assistant_message_from_patches(&[]), None);
+    }
+}
+
+#[cfg(test)]
+mod recurrent_escalation_tests {
+    use db::models::workspace::WorkspaceKind;
+
+    use super::{ExecutionProcessStatus, should_escalate_recurrent_failure};
+
+    #[test]
+    fn escalates_only_for_failed_recurrent_workspaces() {
+        assert!(should_escalate_recurrent_failure(
+            ExecutionProcessStatus::Failed,
+            Some(WorkspaceKind::Recurrent)
+        ));
+    }
+
+    #[test]
+    fn does_not_escalate_non_recurrent_failures() {
+        assert!(!should_escalate_recurrent_failure(
+            ExecutionProcessStatus::Failed,
+            None
+        ));
+        assert!(!should_escalate_recurrent_failure(
+            ExecutionProcessStatus::Failed,
+            Some(WorkspaceKind::Orchestrator)
+        ));
+    }
+
+    #[test]
+    fn does_not_escalate_non_failed_statuses_even_for_recurrent() {
+        // Killed (max-runtime timeout) must never escalate: timeout != failure.
+        assert!(!should_escalate_recurrent_failure(
+            ExecutionProcessStatus::Killed,
+            Some(WorkspaceKind::Recurrent)
+        ));
+        assert!(!should_escalate_recurrent_failure(
+            ExecutionProcessStatus::Completed,
+            Some(WorkspaceKind::Recurrent)
+        ));
+        assert!(!should_escalate_recurrent_failure(
+            ExecutionProcessStatus::Running,
+            Some(WorkspaceKind::Recurrent)
+        ));
     }
 }

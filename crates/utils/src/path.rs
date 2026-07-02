@@ -149,6 +149,14 @@ pub fn pipelines_dir() -> PathBuf {
     get_vibe_kanban_home_dir().join("pipelines")
 }
 
+/// Directory holding the user-editable recurrent routine definition files
+/// (`~/.vibe-kanban/recurrent/*.toml`, or `~/.vibe-kanban-dev/recurrent` in
+/// debug builds). Each `*.toml` file is one scheduled routine; the file stem
+/// is the routine id.
+pub fn recurrent_dir() -> PathBuf {
+    get_vibe_kanban_home_dir().join("recurrent")
+}
+
 /// Expand leading ~ to user's home directory.
 pub fn expand_tilde(path_str: &str) -> std::path::PathBuf {
     shellexpand::tilde(path_str).as_ref().into()

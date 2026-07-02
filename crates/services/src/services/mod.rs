@@ -17,6 +17,7 @@ pub mod pipeline_stage;
 pub mod pipelines;
 pub mod pr_monitor;
 pub mod project_config;
+pub mod recurrent;
 
 #[cfg(feature = "qa-mode")]
 pub mod qa_repos;

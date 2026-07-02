@@ -475,6 +475,39 @@ impl Workspace {
         .await
     }
 
+    /// Find the singleton recurrent-routine workspace for a given routine id
+    /// (non-archived), if any. Mirrors `find_orchestrator`, scoped by `name`
+    /// since there is one persistent workspace per routine. Newest first as a
+    /// tie-break, though at most one should ever be active per routine.
+    pub async fn find_recurrent_by_name(
+        pool: &SqlitePool,
+        name: &str,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            Workspace,
+            r#"SELECT  id                AS "id!: Uuid",
+                       task_id           AS "task_id: Uuid",
+                       container_ref,
+                       branch,
+                       setup_completed_at AS "setup_completed_at: DateTime<Utc>",
+                       created_at        AS "created_at!: DateTime<Utc>",
+                       updated_at        AS "updated_at!: DateTime<Utc>",
+                       archived          AS "archived!: bool",
+                       pinned            AS "pinned!: bool",
+                       name,
+                       worktree_deleted  AS "worktree_deleted!: bool",
+                       ephemeral         AS "ephemeral!: bool",
+                       kind              AS "kind: WorkspaceKind"
+               FROM    workspaces
+               WHERE   kind = 'recurrent' AND name = $1 AND archived = FALSE
+               ORDER BY created_at DESC
+               LIMIT 1"#,
+            name
+        )
+        .fetch_optional(pool)
+        .await
+    }
+
     pub async fn update_branch_name(
         pool: &SqlitePool,
         workspace_id: Uuid,
@@ -1031,6 +1064,60 @@ mod tests {
         // No cross-talk: find_orchestrator returns None when only a
         // recurrent workspace exists.
         assert!(Workspace::find_orchestrator(&pool).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn find_recurrent_by_name_scopes_by_name_and_archived() {
+        let pool = pool().await;
+
+        let routine_a = Workspace::create(
+            &pool,
+            &CreateWorkspace {
+                branch: "nightly-cleanup".to_string(),
+                name: Some("nightly-cleanup".to_string()),
+                kind: Some(WorkspaceKind::Recurrent),
+            },
+            Uuid::new_v4(),
+        )
+        .await
+        .unwrap();
+
+        Workspace::create(
+            &pool,
+            &CreateWorkspace {
+                branch: "inbox-triage".to_string(),
+                name: Some("inbox-triage".to_string()),
+                kind: Some(WorkspaceKind::Recurrent),
+            },
+            Uuid::new_v4(),
+        )
+        .await
+        .unwrap();
+
+        // Finds the exact routine by name, not the other one.
+        let found = Workspace::find_recurrent_by_name(&pool, "nightly-cleanup")
+            .await
+            .unwrap();
+        assert_eq!(found.map(|w| w.id), Some(routine_a.id));
+
+        // No routine with this name.
+        assert!(
+            Workspace::find_recurrent_by_name(&pool, "does-not-exist")
+                .await
+                .unwrap()
+                .is_none()
+        );
+
+        // Archiving hides it (a fresh singleton would be created next spawn).
+        Workspace::set_archived(&pool, routine_a.id, true)
+            .await
+            .unwrap();
+        assert!(
+            Workspace::find_recurrent_by_name(&pool, "nightly-cleanup")
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]

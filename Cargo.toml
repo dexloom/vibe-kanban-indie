@@ -65,6 +65,7 @@ codex-app-server-protocol = { git = "https://github.com/openai/codex.git", tag =
 codex-protocol = { git = "https://github.com/openai/codex.git", tag = "rust-v0.124.0" }
 command-group = { version = "5.0", features = ["with-tokio"] }
 convert_case = "0.6"
+croner = "3.0.1"
 crossterm = { version = "0.28", features = ["event-stream"] }
 dashmap = "6.1"
 db = { path = "crates/db" }

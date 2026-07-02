@@ -28,6 +28,7 @@ use services::services::{
     oauth_credentials::OAuthCredentials,
     pr_monitor::PrMonitorService,
     queued_message::QueuedMessageService,
+    recurrent::scheduler::RecurrentScheduler,
     remote_client::{RemoteClient, RemoteClientError},
     repo::RepoService,
 };
@@ -268,6 +269,12 @@ impl Deployment for LocalDeployment {
             let container = container.clone();
             let rc = remote_client.clone().ok();
             PrMonitorService::spawn(db, analytics, container, rc, pr_sync_notify.clone()).await;
+        }
+        {
+            let db = db.clone();
+            let container = container.clone();
+            tracing::info!("Starting recurrent scheduler");
+            RecurrentScheduler::spawn(db, container).await;
         }
 
         let deployment = Self {

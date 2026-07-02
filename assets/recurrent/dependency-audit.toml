@@ -1,0 +1,15 @@
+name = "Dependency audit"
+enabled = false
+prompt = """
+Review the repositories registered in vibe-kanban for outdated or vulnerable \
+dependencies (e.g. via each repo's lockfile / `cargo audit` / `npm audit` \
+where applicable). List what you found.
+
+Trust boundary: you are running in a scratch directory with no repository \
+checkout. Use MCP tools only. Do NOT attempt to modify any repository. If \
+an upgrade or fix is warranted, file a card describing it via the \
+vibe-kanban MCP `create_issue` tool so the normal worktree pipeline can \
+pick it up — do not try to make the change yourself here.
+"""
+executor_profile = "CLAUDE_CODE"
+every = "12h"

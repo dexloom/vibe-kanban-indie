@@ -817,6 +817,43 @@ stages: Array<PipelineStep>, };
 
 export type PipelineRawBody = { content: string, };
 
+export type Routine = { 
+/**
+ * Stable slug = the file stem, e.g. "inbox-triage".
+ */
+id: string, name: string, enabled: boolean, prompt: string, 
+/**
+ * Optional `--agent` id (e.g. "vibe-kanban-indie:orchestrator").
+ */
+agent: string | null, 
+/**
+ * Resolved `BaseCodingAgent` SCREAMING_SNAKE_CASE string, e.g. "CLAUDE_CODE".
+ */
+executor_profile: string, max_runtime_secs: bigint, schedule: RoutineScheduleView, last_run: RoutineLastRun | null, };
+
+export type RoutineLastRun = { status: string, at: string, };
+
+export type RoutineScheduleView = { 
+/**
+ * `"cron"` or `"interval"`.
+ */
+kind: string, 
+/**
+ * The raw expression (`"0 9 * * *"` or `"30m"`).
+ */
+expr: string, };
+
+export type RecurrentRawBody = { content: string, };
+
+export type RecurrentTomlError = { message: string, };
+
+export type RunRoutineResponse = { 
+/**
+ * `false` when a previous run was still active and nothing new was
+ * spawned (`SpawnOutcome::SkippedActive`).
+ */
+spawned: boolean, workspace_id: string | null, };
+
 export type NotificationConfig = { sound_enabled: boolean, push_enabled: boolean, sound_file: SoundFile, };
 
 export enum ThemeMode { LIGHT = "LIGHT", DARK = "DARK", SYSTEM = "SYSTEM" }

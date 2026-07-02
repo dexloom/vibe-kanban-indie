@@ -30,6 +30,7 @@ tracing.workspace = true
 sqlx.workspace = true
 chrono.workspace = true
 uuid.workspace = true
+croner.workspace = true
 ts-rs.workspace = true
 dirs.workspace = true
 async-trait.workspace = true

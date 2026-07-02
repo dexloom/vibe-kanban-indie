@@ -23,6 +23,7 @@ pub mod oauth;
 pub mod organizations;
 pub mod pipelines;
 pub mod preview;
+pub mod recurrent;
 pub mod relay_auth;
 pub mod remote;
 pub mod repo;
@@ -43,6 +44,7 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .route("/health", get(health::health_check))
         .merge(config::router())
         .merge(pipelines::router())
+        .merge(recurrent::router())
         .merge(containers::router(&deployment))
         .merge(kanban::router(&deployment))
         .merge(workspaces::router(&deployment))

@@ -1,0 +1,17 @@
+name = "Inbox triage"
+enabled = false
+prompt = """
+Triage the vibe-kanban board: look for cards that are stuck (no workspace, \
+or a workspace whose agent hasn't reported progress in a while) and cards \
+that look ready to move forward but haven't been picked up.
+
+Trust boundary: you are running in a scratch directory with no repository \
+checkout. Use MCP tools only. Do NOT attempt to modify any repository. If \
+you determine code changes are required, file a card describing the change \
+via the vibe-kanban MCP `create_issue` tool so the normal worktree pipeline \
+can pick it up — do not try to make the change yourself here.
+
+Summarize what you found and what (if anything) you filed.
+"""
+executor_profile = "CLAUDE_CODE"
+cron = "0 9 * * *"
