@@ -122,6 +122,8 @@ struct RawStage {
     prompt: String,
     #[serde(default)]
     default_enabled: bool,
+    #[serde(default)]
+    heavy: bool,
 }
 
 /// A slug is a non-empty run of ASCII alphanumerics, `-`, or `_`. Used for both
@@ -183,6 +185,7 @@ pub fn parse_pipeline(id: &str, raw: &str) -> Result<Pipeline, PipelineError> {
             label: st.label,
             prompt_fragment: st.prompt,
             default_enabled: st.default_enabled,
+            heavy: st.heavy,
         });
     }
     Ok(Pipeline {

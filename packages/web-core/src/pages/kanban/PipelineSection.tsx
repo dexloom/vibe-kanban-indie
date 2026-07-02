@@ -345,7 +345,14 @@ export function PipelineSection({
                     disabled={disabled}
                     onChange={() => toggleStep(step.id)}
                   />
-                  <span>{step.label}</span>
+                  <span>
+                    {step.label}
+                    {step.heavy && (
+                      <span className="ml-half rounded-sm border px-half text-xs text-low">
+                        {t('cardPipeline.heavyBadge')}
+                      </span>
+                    )}
+                  </span>
                 </label>
               ))}
             </div>

@@ -573,6 +573,7 @@
     "pipelinesHelper": "选择一个或多个流水线；它们的阶段会合并为一个有序列表。",
     "progressTitle": "流水线进度",
     "progressHeader": "第 {{n}}/{{total}} 阶段 — {{label}}",
-    "progressNotStarted": "共 {{total}} 个阶段，尚未开始"
+    "progressNotStarted": "共 {{total}} 个阶段，尚未开始",
+    "heavyBadge": "高负载"
   }
 }

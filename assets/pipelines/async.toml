@@ -34,7 +34,8 @@ prompt = "Do NOT write the implementation yourself. Spawn the `vibe-kanban-indie
 [[stage]]
 id = "review-fable"
 label = "Review via Fable subagent"
-default_enabled = true
+default_enabled = false
+heavy = true
 prompt = "Spawn a review subagent on the Fable model (Agent tool with model: 'fable') to review the full diff of this card for correctness bugs, spec deviations, and edge cases — give it the diff, `SPEC.md`, and `IMPLEMENTATION_PLAN.md`. This review may run concurrently with the Codex review stage: spawn both, then collect. Address confirmed findings by dispatching fix work to a Sonnet coding subagent, then re-verify."
 
 [[stage]]

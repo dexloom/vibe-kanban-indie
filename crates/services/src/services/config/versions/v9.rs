@@ -56,6 +56,10 @@ pub struct PipelineStep {
     /// Whether the card checkbox starts ticked.
     #[serde(default)]
     pub default_enabled: bool,
+    /// Whether this stage is marked "heavy" (resource-intensive); the UI
+    /// renders a badge and it starts unticked by convention.
+    #[serde(default)]
+    pub heavy: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
@@ -265,6 +269,7 @@ mod tests {
                 label: "Spec".to_string(),
                 prompt_fragment: "Write a spec.".to_string(),
                 default_enabled: true,
+                heavy: false,
             }]),
             ..Default::default()
         };

@@ -766,7 +766,12 @@ prompt_fragment: string,
 /**
  * Whether the card checkbox starts ticked.
  */
-default_enabled: boolean, };
+default_enabled: boolean, 
+/**
+ * Whether this stage is marked "heavy" (resource-intensive); the UI
+ * renders a badge and it starts unticked by convention.
+ */
+heavy: boolean, };
 
 export type Pipeline = { 
 /**

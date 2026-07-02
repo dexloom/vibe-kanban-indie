@@ -50,6 +50,12 @@ Async pipeline to its bundled default from **Settings** to pick up the new
 stage.
 </Note>
 
+A stage can also be marked `heavy = true` in its pipeline TOML — a
+resource-intensive stage that the New Issue dialog shows with a small "heavy"
+badge and, by convention, starts unticked. The bundled **Async** pipeline's
+"Review via Fable subagent" stage is marked heavy and is off by default; tick
+it explicitly when you want the extra Fable review pass.
+
 ## The agent crew
 
 Each stage is performed by a focused agent. They are separate roles so that the

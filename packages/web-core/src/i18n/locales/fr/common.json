@@ -573,6 +573,7 @@
     "pipelinesHelper": "Sélectionnez un ou plusieurs pipelines ; leurs étapes sont combinées en une seule liste ordonnée.",
     "progressTitle": "Progression du pipeline",
     "progressHeader": "Étape {{n}} sur {{total}} — {{label}}",
-    "progressNotStarted": "{{total}} étapes, pas encore commencé"
+    "progressNotStarted": "{{total}} étapes, pas encore commencé",
+    "heavyBadge": "lourde"
   }
 }

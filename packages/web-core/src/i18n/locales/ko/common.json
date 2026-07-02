@@ -573,6 +573,7 @@
     "pipelinesHelper": "하나 이상의 파이프라인을 선택하세요. 선택한 파이프라인의 단계가 하나의 순서 있는 목록으로 결합됩니다.",
     "progressTitle": "파이프라인 진행 상황",
     "progressHeader": "{{total}}단계 중 {{n}}단계 — {{label}}",
-    "progressNotStarted": "{{total}}단계, 아직 시작하지 않음"
+    "progressNotStarted": "{{total}}단계, 아직 시작하지 않음",
+    "heavyBadge": "무거움"
   }
 }
