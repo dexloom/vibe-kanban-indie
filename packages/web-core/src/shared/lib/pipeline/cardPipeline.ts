@@ -12,9 +12,16 @@ export const PIPELINE_END = '<!-- vk:pipeline:end -->';
  * Instruction line that leads the stage list. Pipelines are now authored by
  * vibe-kanban (from a pipeline file) and delivered pre-ordered, so the execution
  * agent runs them top-to-bottom rather than choosing which apply.
+ *
+ * Also instructs the agent to emit a `VK-PIPELINE-STAGE: N` marker as it
+ * starts each stage, which the server detects (from the execution's raw log
+ * stream) and persists onto the workspace so the card can render live
+ * "stage N of M" progress.
  */
 const ORDER_INSTRUCTION =
-  'Execute these stages in the order listed. Do not add, skip, or reorder stages.';
+  'Execute these stages in the order listed. Do not add, skip, or reorder stages. ' +
+  'As you begin each numbered stage below, output a single line exactly ' +
+  '`VK-PIPELINE-STAGE: N` (N = the number of the stage you are starting) so pipeline progress can be tracked.';
 
 /** Matches an executor-pin line in any pinned form (any agent name). */
 const EXECUTOR_LINE_RE =

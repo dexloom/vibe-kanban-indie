@@ -156,6 +156,17 @@ describe('composePipelineBlock', () => {
     expect(block.endsWith(PIPELINE_END)).toBe(true);
   });
 
+  it('instructs the agent to emit a VK-PIPELINE-STAGE marker per stage', () => {
+    const block = composePipelineBlock(pipeline, ['plan', 'spec'], '', null);
+    expect(block).toContain('VK-PIPELINE-STAGE: N');
+    expect(block).toContain('As you begin each numbered stage');
+  });
+
+  it('does not instruct marker reporting when there are no stages', () => {
+    const block = composePipelineBlock(null, [], '', 'CLAUDE_CODE');
+    expect(block).not.toContain('VK-PIPELINE-STAGE');
+  });
+
   it('leads with the executor-pin line before the stages', () => {
     const block = composePipelineBlock(pipeline, ['spec'], '', 'CODEX');
     const execIdx = block.indexOf('Run this card with the **CODEX**');
