@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
-import type { OrganizationMemberWithProfile } from 'shared/types';
+import type { JsonValue, OrganizationMemberWithProfile } from 'shared/types';
 import type { IssuePriority } from 'shared/remote-types';
 import { useDebouncedCallback } from '@/shared/hooks/useDebouncedCallback';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
@@ -21,8 +21,15 @@ import { IssueSubIssuesSectionContainer } from './IssueSubIssuesSectionContainer
 import { IssueRelationshipsSectionContainer } from './IssueRelationshipsSectionContainer';
 import { IssueWorkspacesSectionContainer } from './IssueWorkspacesSectionContainer';
 import { IssueIntakeSection } from './IssueIntakeSection';
-import { PipelineSection, type PipelineSelection } from './PipelineSection';
-import { appendPipelineToDescription } from '@/shared/lib/pipeline/cardPipeline';
+import {
+  PipelineSection,
+  type PipelineInitialSelection,
+  type PipelineSelection,
+} from './PipelineSection';
+import {
+  appendPipelineToDescription,
+  extractPipelineBlock,
+} from '@/shared/lib/pipeline/cardPipeline';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import {
   KanbanIssuePanel,
@@ -71,6 +78,49 @@ import {
 interface KanbanIssuePanelContainerProps {
   issueResolution: 'resolving' | 'ready' | 'missing' | null;
   onExpectIssueOpen: (issueId: string) => void;
+}
+
+type JsonObject = { [key in string]?: JsonValue };
+
+/** Narrow a `JsonValue` to a plain (non-array) object, or `null`. */
+function asJsonObject(value: JsonValue | undefined | null): JsonObject | null {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  return value;
+}
+
+function asStringArray(value: JsonValue | undefined): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is string => typeof v === 'string');
+}
+
+/**
+ * Read the `extension_metadata.pipeline` provenance an issue was created (or
+ * last edited) with. Type-guards every level since `extension_metadata` is
+ * untyped `JsonValue` (never validated server-side). Accepts the current
+ * `pipelineIds: string[]` shape as well as the legacy single `pipelineId`
+ * string, for cards created before the multi-pipeline change.
+ */
+function readPipelineProvenance(
+  extensionMetadata: JsonValue | undefined | null
+): { pipelineIds: string[]; enabledIds: string[]; executor: string | null } | null {
+  const em = asJsonObject(extensionMetadata);
+  if (!em) return null;
+  const prov = asJsonObject(em.pipeline);
+  if (!prov) return null;
+
+  const pipelineIds = Array.isArray(prov.pipelineIds)
+    ? asStringArray(prov.pipelineIds)
+    : typeof prov.pipelineId === 'string'
+      ? [prov.pipelineId]
+      : [];
+
+  return {
+    pipelineIds,
+    enabledIds: asStringArray(prov.enabledIds),
+    executor: typeof prov.executor === 'string' ? prov.executor : null,
+  };
 }
 
 /**
@@ -355,6 +405,22 @@ export function KanbanIssuePanelContainer({
     pipelineRef.current = null;
   }, [issueComposerKey]);
 
+  // Seed data for the edit-mode Pipeline control, derived from the card's
+  // persisted provenance + description block. Always an object in edit mode
+  // (never null) so PipelineSection seeds `selectedIds` explicitly — an
+  // empty array for a card that has no pipeline, rather than defaulting to
+  // Basic.
+  const editPipelineInitial = useMemo<PipelineInitialSelection | null>(() => {
+    if (mode !== 'edit' || !selectedIssue) return null;
+    const prov = readPipelineProvenance(selectedIssue.extension_metadata);
+    return {
+      pipelineIds: prov?.pipelineIds ?? [],
+      enabledIds: prov?.enabledIds ?? [],
+      executor: prov?.executor ?? null,
+      block: extractPipelineBlock(selectedIssue.description),
+    };
+  }, [mode, selectedIssue]);
+
   const isCreateDraftDirty = useMemo(() => {
     return selectIsCreateDraftDirty({
       state: formState,
@@ -395,6 +461,38 @@ export function KanbanIssuePanelContainer({
       setDescriptionSaveStatus('saved');
       setTimeout(() => setDescriptionSaveStatus('idle'), 1500);
     }
+  }, 500);
+
+  // Debounced save for edit-mode Pipeline changes. Description + provenance
+  // are written in ONE atomic updateIssue call so a quick close can never
+  // persist one without the other.
+  const {
+    debounced: debouncedSavePipelineEdit,
+    cancel: cancelDebouncedPipelineEdit,
+  } = useDebouncedCallback((selection: PipelineSelection) => {
+    if (!selectedKanbanIssueId || kanbanCreateMode) return;
+    const newDescription = appendPipelineToDescription(
+      latestDescriptionRef.current,
+      selection.block
+    );
+    latestDescriptionRef.current = newDescription;
+    dispatchFormState({
+      type: 'setEditDescription',
+      description: newDescription,
+    });
+    const base = asJsonObject(selectedIssue?.extension_metadata) ?? {};
+    updateIssue(selectedKanbanIssueId, {
+      description: newDescription,
+      extension_metadata: {
+        ...base,
+        pipeline: {
+          pipelineIds: selection.pipelineIds,
+          enabledIds: selection.enabledIds,
+          executor: selection.executor,
+          customText: selection.customText,
+        },
+      },
+    });
   }, 500);
 
   // Reset save status only when switching to a different issue or mode
@@ -586,6 +684,7 @@ export function KanbanIssuePanelContainer({
     // Cancel any pending debounced saves when switching issues
     cancelDebouncedTitle();
     cancelDebouncedDescription();
+    cancelDebouncedPipelineEdit();
 
     let nextCreateFormData: IssueFormData | null = null;
     let restoredFromScratch = false;
@@ -633,6 +732,7 @@ export function KanbanIssuePanelContainer({
     selectedKanbanIssueId,
     cancelDebouncedTitle,
     cancelDebouncedDescription,
+    cancelDebouncedPipelineEdit,
     createModeDefaults,
     issueComposerKey,
   ]);
@@ -845,11 +945,19 @@ export function KanbanIssuePanelContainer({
     [handlePropertyChange]
   );
 
-  // Stash the per-card Pipeline selection until the card is created. Null when
-  // nothing is selected so we don't append an empty block.
-  const handlePipelineChange = useCallback((selection: PipelineSelection) => {
-    pipelineRef.current = selection.block ? selection : null;
-  }, []);
+  // Create mode: stash the per-card Pipeline selection until the card is
+  // created (null when nothing is selected, so we don't append an empty
+  // block). Edit mode: persist description + provenance atomically.
+  const handlePipelineChange = useCallback(
+    (selection: PipelineSelection) => {
+      if (kanbanCreateMode) {
+        pipelineRef.current = selection.block ? selection : null;
+        return;
+      }
+      debouncedSavePipelineEdit(selection);
+    },
+    [kanbanCreateMode, debouncedSavePipelineEdit]
+  );
 
   // Submit handler
   const handleSubmit = useCallback(async () => {
@@ -882,7 +990,7 @@ export function KanbanIssuePanelContainer({
           ...(pipeline
             ? {
                 pipeline: {
-                  pipelineId: pipeline.pipelineId,
+                  pipelineIds: pipeline.pipelineIds,
                   enabledIds: pipeline.enabledIds,
                   executor: pipeline.executor,
                   customText: pipeline.customText,
@@ -1175,6 +1283,8 @@ export function KanbanIssuePanelContainer({
         <PipelineSection
           profiles={profiles}
           disabled={isSubmitting}
+          expanded
+          initialSelection={mode === 'edit' ? editPipelineInitial : null}
           onChange={handlePipelineChange}
         />
       )}

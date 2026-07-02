@@ -503,6 +503,11 @@ export function KanbanIssuePanel({
         {/* Per-card Pipeline control (Create mode only) */}
         {isCreateMode && renderPipeline && renderPipeline()}
 
+        {/* Per-card Pipeline control (Edit mode only). PipelineSection
+            renders its own border-t/padding (same as the create-mode
+            instance above), so it isn't wrapped in another border-t div. */}
+        {!isCreateMode && issueId && renderPipeline && renderPipeline()}
+
         {/* Create Draft Workspace Toggle (Create mode only) */}
         {isCreateMode && (
           <div className="p-base border-t">
