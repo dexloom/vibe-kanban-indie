@@ -69,7 +69,7 @@ export const RightSidebar = memo(function RightSidebar({
   // it with `expandTerminal()` — the same path the neighbouring expand icon uses
   // — so it shows regardless of the in-sidebar Terminal section's collapse state.
   const openAttachTerminal = useCallback(() => {
-    if (!headedSession || !selectedWorkspace?.container_ref) return;
+    if (!headedSession?.live || !selectedWorkspace?.container_ref) return;
     // Idempotent: focuses the existing attach tab if this session is already
     // attached, otherwise opens one. Never stacks duplicate sessions.
     openOrFocusTab(
@@ -149,7 +149,7 @@ export const RightSidebar = memo(function RightSidebar({
           },
           // Only when a headed (interactive tmux) agent is live for this
           // workspace: attach the in-app terminal to its tmux session.
-          ...(headedSession && selectedWorkspace?.container_ref
+          ...(headedSession?.live && selectedWorkspace?.container_ref
             ? [
                 {
                   icon: PlugsConnectedIcon,

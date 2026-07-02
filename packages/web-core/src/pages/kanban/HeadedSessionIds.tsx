@@ -50,10 +50,12 @@ function IconButton({
   glyph,
   title,
   onAction,
+  disabled,
 }: {
   glyph: string;
   title: string;
   onAction: () => Promise<void>;
+  disabled?: boolean;
 }) {
   const [status, setStatus] = useState<ActionStatus>('idle');
   const run = useCallback(async () => {
@@ -67,11 +69,12 @@ function IconButton({
       setTimeout(() => setStatus('idle'), 2500);
     }
   }, [onAction, title]);
+  const isDisabled = disabled || status === 'busy';
   return (
     <button
       type="button"
       onClick={run}
-      disabled={status === 'busy'}
+      disabled={isDisabled}
       title={title}
       aria-label={title}
       className={cn(
@@ -135,8 +138,11 @@ function workspaceFolderName(workspace: Workspace | null | undefined): string {
  * a collapsible `▾ SESSIONS [n]` block containing the workspace folder row
  * (folder glyph + name + copy + open-terminal `>_` + reveal-in-Finder `◫`) and
  * one row per session — `tmux` and `claude` — each with a status LED, the
- * session id, and an open-in-terminal `>_` icon. Renders nothing when there is
- * no live headed session.
+ * session id, and an open-in-terminal `>_` icon. Renders for the latest headed
+ * coding-agent session whether or not its tmux is still live; when it is not,
+ * the tmux row's LED and attach action reflect the dead state while the
+ * claude row's resume action stays available (it spawns a fresh tmux).
+ * Renders nothing when there is no headed session at all.
  */
 export function HeadedSessionIds({
   workspace,
@@ -149,12 +155,22 @@ export function HeadedSessionIds({
 
   if (!headed) return null;
 
-  const { processId, tmuxSession, sessionUuid } = headed;
+  const { processId, tmuxSession, sessionUuid, live } = headed;
   const folderName = workspaceFolderName(workspace);
   const folderPath = workspace?.container_ref ?? folderName;
   // Short, design-style ids (e.g. `vk-126fbec2…`, `93a3443b…`).
   const tmuxShort = `${tmuxSession.slice(0, 11)}…`;
   const claudeShort = `${sessionUuid.slice(0, 8)}…`;
+  // tmux row: green + glow while the vk-<id> session is actually attachable;
+  // a flat dead tone once tmux has exited.
+  const tmuxLedClass = live
+    ? 'bg-success shadow-[0_0_5px_hsl(var(--_success)/0.6)]'
+    : 'bg-low';
+  // claude row: green + glow when live, otherwise a neutral "resumable" brand
+  // tone — resume is always available, it just spawns a fresh tmux session.
+  const claudeLedClass = live
+    ? 'bg-success shadow-[0_0_5px_hsl(var(--_success)/0.6)]'
+    : 'bg-brand';
 
   return (
     <div className="border-b bg-secondary px-3 pt-[11px] pb-3 font-mono">
@@ -213,7 +229,12 @@ export function HeadedSessionIds({
           <div className="flex flex-col gap-1.5 mt-2">
             {/* tmux — the live, attached session */}
             <div className="flex items-center gap-[9px] pl-2.5 pr-2 py-2 border border-brand/40 rounded-md bg-panel shadow-[0_0_6px_hsl(var(--_primary)/0.35)]">
-              <span className="w-[7px] h-[7px] rounded-full bg-success shadow-[0_0_5px_hsl(var(--_success)/0.6)] shrink-0" />
+              <span
+                className={cn(
+                  'w-[7px] h-[7px] rounded-full shrink-0',
+                  tmuxLedClass
+                )}
+              />
               <CopyText
                 text="tmux"
                 copyValue={`tmux attach -t ${tmuxSession}`}
@@ -229,14 +250,24 @@ export function HeadedSessionIds({
               <span className="flex-1" />
               <IconButton
                 glyph=">_"
-                title={`Open a terminal tab attached to ${tmuxSession}`}
+                title={
+                  live
+                    ? `Open a terminal tab attached to ${tmuxSession}`
+                    : 'Session ended — reattach unavailable'
+                }
+                disabled={!live}
                 onAction={() => executionProcessesApi.openTerminal(processId)}
               />
             </div>
 
             {/* claude — resume in a new tmux session */}
             <div className="flex items-center gap-[9px] pl-2.5 pr-2 py-2 border border-border/60 rounded-md bg-panel">
-              <span className="w-[7px] h-[7px] rounded-full bg-success shadow-[0_0_5px_hsl(var(--_success)/0.6)] shrink-0" />
+              <span
+                className={cn(
+                  'w-[7px] h-[7px] rounded-full shrink-0',
+                  claudeLedClass
+                )}
+              />
               <CopyText
                 text="claude"
                 copyValue={`claude --resume ${sessionUuid}`}

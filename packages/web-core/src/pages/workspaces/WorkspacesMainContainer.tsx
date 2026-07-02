@@ -133,11 +133,14 @@ export const WorkspacesMainContainer = forwardRef<
   const conversationListRef = useRef<ConversationListHandle>(null);
 
   // Live headed (interactive tmux) session for the selected session, if any.
-  // When present, the center pane offers a Log/Terminal switch so the operator
-  // can flip the rendered conversation to a live terminal attached to the
-  // agent's `vk-<processId>` tmux — right where they input data.
+  // When present and live, the center pane offers a Log/Terminal switch so the
+  // operator can flip the rendered conversation to a live terminal attached to
+  // the agent's `vk-<processId>` tmux — right where they input data. Gated on
+  // `.live` because the in-app terminal only works while that tmux session is
+  // still running; a headed session that has exited keeps the Sessions HUD but
+  // not this in-pane attach affordance.
   const headed = useHeadedSession();
-  const headedProcessId = headed?.processId ?? null;
+  const headedProcessId = headed?.live ? headed.processId : null;
   // View choice tied to the headed process it belongs to. Derived at render
   // time so it falls back to Log synchronously when the headed session changes
   // or ends (headedProcessId becomes null).
