@@ -64,6 +64,16 @@ final class WorkspaceViewModel {
         sessions.first { $0.id == selectedSessionId }
     }
 
+    /// Whether the live headed execution is idle-between-turns — safe to type
+    /// into via `send-input` instead of spawning a follow-up (SPEC "Optional
+    /// headed live-input parity"). Only true while the streamed conversation
+    /// is actually for that same (live) execution and no `.loading` entry is
+    /// pending, mirroring the web's signal (`SessionChatBoxContainer.tsx:559-569`).
+    var headedLiveIdle: Bool {
+        guard let live = liveHeadedExecution, activeExecution?.id == live.id else { return false }
+        return !entries.contains { if case .loading = $0.entryType { return true }; return false }
+    }
+
     /// Whether the streamed diff spans more than one repo (drives whether the
     /// Changes pane prefixes file paths with the repo name).
     var diffsSpanRepos: Bool { diffApplier.multiRepo }
@@ -246,13 +256,41 @@ final class WorkspaceViewModel {
 
     /// Single entry point for the composer: routes to the create-session flow
     /// in new-session mode (or when nothing is selected — a zero-session
-    /// workspace), otherwise sends a follow-up to the selected session.
+    /// workspace); to live headed input when a live, idle headed execution
+    /// exists (SPEC "Optional headed live-input parity"); otherwise sends a
+    /// follow-up to the selected session.
     func send(_ prompt: String) async {
         if isNewSessionMode || selectedSessionId == nil {
             await createSessionAndSend(prompt)
+        } else if let live = liveHeadedExecution, headedLiveIdle {
+            await sendLiveInput(prompt, to: live)
         } else {
             await sendFollowUp(prompt)
         }
+    }
+
+    /// Types a single line into a live, idle headed agent's tmux/TUI instead
+    /// of spawning a follow-up execution. The backend rejects multi-line /
+    /// control-char input (`execution_processes.rs::send_input_process`), so
+    /// newlines are flattened to spaces client-side rather than rejected
+    /// outright — the composer is a free-form text box, not a single-line field.
+    private func sendLiveInput(_ prompt: String, to execution: ExecutionProcess) async {
+        let text = Self.sanitizeForLiveInput(prompt)
+        guard !text.isEmpty else { return }
+        do {
+            try await client.sendInput(executionId: execution.id, text: text)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private static func sanitizeForLiveInput(_ text: String) -> String {
+        let flattened = text
+            .replacingOccurrences(of: "\r\n", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+        let scalars = flattened.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }
+        return String(String.UnicodeScalarView(scalars)).trimmingCharacters(in: .whitespaces)
     }
 
     func sendFollowUp(_ prompt: String) async {

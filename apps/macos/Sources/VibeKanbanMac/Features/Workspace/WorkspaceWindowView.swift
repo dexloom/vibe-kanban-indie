@@ -248,7 +248,10 @@ struct WorkspaceWindowView: View {
                         project: vm.workspace?.branch,
                         entries: vm.entries
                     )
-                }
+                },
+                // A live headed agent mid-turn can't take a follow-up or a
+                // send-input line yet — grey out Send rather than queueing.
+                sendDisabled: vm.liveHeadedExecution != nil && !vm.headedLiveIdle
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
