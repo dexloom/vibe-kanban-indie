@@ -570,6 +570,9 @@
     "addonPlaceholder": "Cochez des étapes ci-dessus pour composer le bloc de pipeline, ou saisissez le vôtre.",
     "resetToGenerated": "Réinitialiser au contenu généré",
     "pipelinesLabel": "Pipelines",
-    "pipelinesHelper": "Sélectionnez un ou plusieurs pipelines ; leurs étapes sont combinées en une seule liste ordonnée."
+    "pipelinesHelper": "Sélectionnez un ou plusieurs pipelines ; leurs étapes sont combinées en une seule liste ordonnée.",
+    "progressTitle": "Progression du pipeline",
+    "progressHeader": "Étape {{n}} sur {{total}} — {{label}}",
+    "progressNotStarted": "{{total}} étapes, pas encore commencé"
   }
 }

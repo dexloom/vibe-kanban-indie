@@ -160,6 +160,10 @@ export interface KanbanIssuePanelProps {
   onDismissAttachmentError?: () => void;
 
   // Edit-mode section renderers
+  // Read-only "stage N of M" pipeline progress, rendered above the
+  // workspaces section. Logic (parsing stages, picking the active
+  // workspace) lives in the container; this is just a render slot.
+  renderPipelineProgress?: (issueId: string) => ReactNode;
   renderWorkspacesSection?: (issueId: string) => ReactNode;
   renderRelationshipsSection?: (issueId: string) => ReactNode;
   renderSubIssuesSection?: (issueId: string) => ReactNode;
@@ -202,6 +206,7 @@ export function KanbanIssuePanel({
   isUploading,
   attachmentError,
   onDismissAttachmentError,
+  renderPipelineProgress,
   renderWorkspacesSection,
   renderRelationshipsSection,
   renderSubIssuesSection,
@@ -544,6 +549,11 @@ export function KanbanIssuePanel({
               />
             )}
           </div>
+        )}
+
+        {/* Pipeline Progress (Edit mode only; renders nothing if the card has no parsed pipeline) */}
+        {!isCreateMode && issueId && renderPipelineProgress && (
+          <div className="border-t">{renderPipelineProgress(issueId)}</div>
         )}
 
         {/* Workspaces Section (Edit mode only) */}

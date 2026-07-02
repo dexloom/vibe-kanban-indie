@@ -110,8 +110,7 @@ pub fn spawn_pipeline_stage_tracker(
             {
                 last_stage = Some(stage);
                 if let Err(e) =
-                    Workspace::set_current_pipeline_stage(&db.pool, workspace_id, Some(stage))
-                        .await
+                    Workspace::set_current_pipeline_stage(&db.pool, workspace_id, Some(stage)).await
                 {
                     tracing::warn!(
                         "Failed to persist pipeline stage {stage} for workspace {workspace_id}: {e}"
@@ -135,10 +134,7 @@ mod tests {
 
     #[test]
     fn parses_digit_marker() {
-        assert_eq!(
-            parse_pipeline_stage_marker("VK-PIPELINE-STAGE: 3"),
-            Some(3)
-        );
+        assert_eq!(parse_pipeline_stage_marker("VK-PIPELINE-STAGE: 3"), Some(3));
     }
 
     #[test]
@@ -176,10 +172,7 @@ mod tests {
 
     #[test]
     fn word_boundary_rejects_suffixed_token() {
-        assert_eq!(
-            parse_pipeline_stage_marker("FOOVK-PIPELINE-STAGE: 1"),
-            None
-        );
+        assert_eq!(parse_pipeline_stage_marker("FOOVK-PIPELINE-STAGE: 1"), None);
     }
 
     #[test]

@@ -9,7 +9,7 @@ import {
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import type { JsonValue, OrganizationMemberWithProfile } from 'shared/types';
-import type { IssuePriority } from 'shared/remote-types';
+import type { IssuePriority, Workspace } from 'shared/remote-types';
 import { useDebouncedCallback } from '@/shared/hooks/useDebouncedCallback';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
 import { useOrgContext } from '@/shared/hooks/useOrgContext';
@@ -23,13 +23,16 @@ import { IssueWorkspacesSectionContainer } from './IssueWorkspacesSectionContain
 import { IssueIntakeSection } from './IssueIntakeSection';
 import {
   PipelineSection,
+  PipelineProgress,
   type PipelineInitialSelection,
   type PipelineSelection,
 } from './PipelineSection';
 import {
   appendPipelineToDescription,
   extractPipelineBlock,
+  parsePipelineStages,
 } from '@/shared/lib/pipeline/cardPipeline';
+import { selectActiveWorkspace } from '@/shared/lib/pipeline/selectActiveWorkspace';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import {
   KanbanIssuePanel,
@@ -128,6 +131,29 @@ function readPipelineProvenance(
 }
 
 /**
+ * TODO(VIBE-47): `shared/remote-types.ts`'s generated `Workspace` type
+ * (from `api_types::Workspace`, via `crates/remote/src/bin/
+ * remote-generate-types.rs`) does not yet include `current_pipeline_stage` —
+ * regenerating it requires building `crates/remote`, which was not possible
+ * in the sandbox this was authored in (a private git dependency was
+ * unreachable there). The Rust struct field already exists
+ * (`crates/api-types/src/workspace.rs`) and every remote SQL site projects
+ * it. Once `pnpm run remote:generate-types` runs somewhere with access, the
+ * field lands on `Workspace` natively (as `bigint | null`, matching the
+ * existing i64 convention e.g. `exit_code`) and this accessor should be
+ * deleted in favor of reading `workspace.current_pipeline_stage` directly.
+ */
+function readCurrentPipelineStage(workspace: Workspace | null): number | null {
+  if (!workspace) return null;
+  const raw = (
+    workspace as unknown as {
+      current_pipeline_stage?: number | bigint | null;
+    }
+  ).current_pipeline_stage;
+  return raw === null || raw === undefined ? null : Number(raw);
+}
+
+/**
  * KanbanIssuePanelContainer manages the issue detail/create panel.
  * Uses ProjectContext and OrgContext for data and mutations.
  * Must be rendered within both OrgProvider and ProjectProvider.
@@ -171,6 +197,7 @@ export function KanbanIssuePanelContainer({
     insertTag,
     getTagsForIssue,
     getPullRequestsForIssue,
+    getWorkspacesForIssue,
     isLoading: projectLoading,
   } = useProjectContext();
   const selectedKanbanIssueId = routeState.issueId;
@@ -301,6 +328,20 @@ export function KanbanIssuePanelContainer({
       status: pr.status,
     }));
   }, [getPullRequestsForIssue, selectedKanbanIssueId]);
+
+  // Parse the card's numbered ## Pipeline stages (M) from its live
+  // description, and pick the workspace whose live progress (N) drives the
+  // "you are here" view. Re-derives on every description/workspaces change
+  // so it can't drift from what's actually in the card.
+  const pipelineStages = useMemo(() => {
+    if (!selectedIssue) return [];
+    return parsePipelineStages(selectedIssue.description ?? null);
+  }, [selectedIssue]);
+
+  const activePipelineWorkspace = useMemo(() => {
+    if (!selectedKanbanIssueId || pipelineStages.length === 0) return null;
+    return selectActiveWorkspace(getWorkspacesForIssue(selectedKanbanIssueId));
+  }, [selectedKanbanIssueId, pipelineStages.length, getWorkspacesForIssue]);
 
   // Determine mode from composer state (create) or issue route (edit).
   const mode = kanbanCreateMode ? 'create' : 'edit';
@@ -1302,6 +1343,16 @@ export function KanbanIssuePanelContainer({
           onChange={handlePipelineChange}
         />
       )}
+      renderPipelineProgress={
+        pipelineStages.length > 0
+          ? () => (
+              <PipelineProgress
+                stages={pipelineStages}
+                currentStage={readCurrentPipelineStage(activePipelineWorkspace)}
+              />
+            )
+          : undefined
+      }
       renderWorkspacesSection={(issueId) => (
         <IssueWorkspacesSectionContainer issueId={issueId} />
       )}
