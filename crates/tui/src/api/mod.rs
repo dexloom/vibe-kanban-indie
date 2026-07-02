@@ -16,7 +16,8 @@ use uuid::Uuid;
 use crate::api::types::{
     CreateAndStartRequest, CreateAndStartResponse, CreateIssueRequest, CreatePrRequest,
     FollowUpRequest, GitRepoStatus, Issue, Project, ProjectStatus, QueueRequest, RebaseRequest,
-    RemoteWorkspace, Repo, RepoIdRequest, Session, Workspace, WorkspaceSummary,
+    RemoteWorkspace, Repo, RepoIdRequest, Routine, RunRoutineResponse, Session, Workspace,
+    WorkspaceSummary,
 };
 
 /// Outcome of a (non-force) push attempt. The backend returns the
@@ -451,6 +452,40 @@ impl ApiClient {
             .send()
             .await?;
         unwrap_api_ok(resp).await
+    }
+
+    // ---- recurrent routines (Settings → Routines) ----
+
+    /// `GET /api/recurrent` — all routines, enriched with `last_run`.
+    pub async fn list_routines(&self) -> Result<Vec<Routine>, ApiError> {
+        let resp = self
+            .http
+            .get(format!("{}/recurrent", self.base))
+            .send()
+            .await?;
+        unwrap_api(resp).await
+    }
+
+    /// `POST /api/recurrent/{id}/enable` or `.../disable`. `id` is the routine
+    /// slug (file stem), not a `Uuid`.
+    pub async fn set_routine_enabled(&self, id: &str, enabled: bool) -> Result<Routine, ApiError> {
+        let action = if enabled { "enable" } else { "disable" };
+        let resp = self
+            .http
+            .post(format!("{}/recurrent/{id}/{action}", self.base))
+            .send()
+            .await?;
+        unwrap_api(resp).await
+    }
+
+    /// `POST /api/recurrent/{id}/run` — trigger a routine run now.
+    pub async fn run_routine(&self, id: &str) -> Result<RunRoutineResponse, ApiError> {
+        let resp = self
+            .http
+            .post(format!("{}/recurrent/{id}/run", self.base))
+            .send()
+            .await?;
+        unwrap_api(resp).await
     }
 
     /// GET a `/v1/fallback/<table>` endpoint and pull the keyed array. These

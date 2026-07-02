@@ -22,8 +22,9 @@ use crate::{
         types::{
             CreateAndStartRequest, CreateIssueRequest, CreatePrRequest, EXECUTORS,
             ExecutionProcess, ExecutorConfigInput, FollowUpRequest, GitRepoStatus, Issue,
-            PRIORITIES, Project, ProjectStatus, QueueRequest, RemoteWorkspace, Repo, RunReason,
-            Session, Workspace, WorkspaceRepoInput, WorkspaceSummary,
+            PRIORITIES, Project, ProjectStatus, QueueRequest, RemoteWorkspace, Repo, Routine,
+            RunReason, RunRoutineResponse, Session, Workspace, WorkspaceRepoInput,
+            WorkspaceSummary,
         },
     },
     state::{
@@ -122,6 +123,17 @@ pub enum AppEvent {
         repo_name: String,
         result: Result<PushResult, String>,
     },
+    /// Routines loaded for the Routines screen.
+    Routines(Result<Vec<Routine>, String>),
+    /// Result of a routine action (toggle enabled / run now). The `Ok` payload
+    /// is a toast message; either way the routines list is re-fetched.
+    RoutineActionDone(Result<String, String>),
+    /// Resolved session for a routine's last run, tagged with the jump token
+    /// that was current when the lookup started (stale-result guard).
+    RoutineJump {
+        token: u64,
+        result: Result<Option<Session>, String>,
+    },
     Toast(String),
 }
 
@@ -160,6 +172,7 @@ pub enum Screen {
     Inbox,
     Create,
     Kanban,
+    Routines,
 }
 
 /// Which field of the create-task form has focus.
@@ -526,6 +539,13 @@ pub struct App {
     pub kanban: Option<KanbanView>,
     pub show_help: bool,
 
+    pub routines: Loadable<Vec<Routine>>,
+    pub routine_selected: usize,
+    /// Stale-result guard for the async "jump to last run's session" lookup:
+    /// bumped each time a jump starts, so a superseded lookup's result is
+    /// ignored when it resolves.
+    routine_jump_token: u64,
+
     pub toast: Option<String>,
 }
 
@@ -554,6 +574,9 @@ impl App {
             create: None,
             kanban: None,
             show_help: false,
+            routines: Loadable::Loading,
+            routine_selected: 0,
+            routine_jump_token: 0,
             toast: None,
         }
     }
@@ -634,6 +657,9 @@ impl App {
                 repo_name,
                 result,
             } => self.on_push_done(workspace_id, repo_id, repo_name, result),
+            AppEvent::Routines(r) => self.on_routines(r),
+            AppEvent::RoutineActionDone(r) => self.on_routine_action_done(r),
+            AppEvent::RoutineJump { token, result } => self.on_routine_jump(token, result),
             AppEvent::Toast(t) => self.toast = Some(t),
         }
     }
@@ -722,6 +748,7 @@ impl App {
             Screen::Inbox => self.on_key_inbox(k),
             Screen::Create => self.on_key_create(k),
             Screen::Kanban => self.on_key_kanban(k),
+            Screen::Routines => self.on_key_routines(k),
         }
     }
 
@@ -730,6 +757,7 @@ impl App {
             KeyCode::Char('r') => self.load_workspaces(),
             KeyCode::Char('n') => self.open_create(),
             KeyCode::Char('b') => self.open_kanban(),
+            KeyCode::Char('g') => self.open_routines(),
             KeyCode::Tab => self.toggle_focus(),
             KeyCode::Left | KeyCode::Char('h') => self.focus = Focus::Workspaces,
             KeyCode::Right | KeyCode::Char('l') => self.focus = Focus::Sessions,
@@ -1064,19 +1092,28 @@ impl App {
     // ---- detail screen ----
 
     fn open_detail(&mut self) {
-        let Some(session) = self.selected_session() else {
+        let Some(session) = self.selected_session().cloned() else {
             return;
         };
-        let session_id = session.id;
-        let label = session.label();
-        let session_executor = session.executor.clone();
-        let workspace_id = session.workspace_id;
         // The session's workspace is the one selected in the list; grab its
         // branch for the `branch → target` display in the git pane.
         let workspace_branch = self
             .selected_workspace()
             .map(|w| w.branch.clone())
             .unwrap_or_default();
+        self.open_detail_for(session, workspace_branch);
+    }
+
+    /// Open the Detail screen for `session`, streaming its execution-process
+    /// list. Takes `Session` by value (rather than `&Session`) so callers that
+    /// need it via an async lookup (the routine "jump to last run" path) can
+    /// hand off ownership without a `&self` borrow outliving this `&mut self`
+    /// call.
+    fn open_detail_for(&mut self, session: Session, workspace_branch: String) {
+        let session_id = session.id;
+        let label = session.label();
+        let session_executor = session.executor.clone();
+        let workspace_id = session.workspace_id;
 
         // Tear down any previous detail and bump the generation.
         if let Some(mut d) = self.detail.take() {
@@ -2490,6 +2527,164 @@ impl App {
                 result,
             });
         });
+    }
+
+    // ---- routines screen ----
+
+    fn on_key_routines(&mut self, k: KeyEvent) {
+        match k.code {
+            KeyCode::Esc => self.screen = Screen::List,
+            KeyCode::Down | KeyCode::Char('j') => {
+                if let Loadable::Ready(list) = &self.routines {
+                    self.routine_selected = step(self.routine_selected, 1, list.len());
+                }
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                if let Loadable::Ready(list) = &self.routines {
+                    self.routine_selected = step(self.routine_selected, -1, list.len());
+                }
+            }
+            KeyCode::Char(' ') | KeyCode::Char('t') => self.toggle_selected_routine(),
+            KeyCode::Char('x') => self.run_selected_routine(),
+            KeyCode::Enter => self.jump_to_last_run(),
+            KeyCode::Char('r') => self.load_routines(),
+            _ => {}
+        }
+    }
+
+    fn open_routines(&mut self) {
+        self.routines = Loadable::Loading;
+        self.screen = Screen::Routines;
+        self.load_routines();
+    }
+
+    fn load_routines(&self) {
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let r = client.list_routines().await.map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::Routines(r));
+        });
+    }
+
+    fn on_routines(&mut self, r: Result<Vec<Routine>, String>) {
+        match r {
+            Ok(list) => {
+                if self.routine_selected >= list.len() {
+                    self.routine_selected = list.len().saturating_sub(1);
+                }
+                self.routines = Loadable::Ready(list);
+            }
+            Err(e) => self.routines = Loadable::Failed(e),
+        }
+    }
+
+    pub fn selected_routine(&self) -> Option<&Routine> {
+        match &self.routines {
+            Loadable::Ready(list) => list.get(self.routine_selected),
+            _ => None,
+        }
+    }
+
+    /// Toggle the selected routine's `enabled` flag. Every value the async
+    /// closure needs is snapshotted into a local *before* the closure is
+    /// built, so no `&Routine` (borrowed from `self.routines`) outlives this
+    /// function — only owned `String`/`bool` locals cross into `tokio::spawn`.
+    fn toggle_selected_routine(&mut self) {
+        let Some(routine) = self.selected_routine() else {
+            return;
+        };
+        let id = routine.id.clone();
+        let name = routine.name.clone();
+        let want = !routine.enabled;
+
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let result = client
+                .set_routine_enabled(&id, want)
+                .await
+                .map(|_| {
+                    let verb = if want { "enabled" } else { "disabled" };
+                    format!("{verb} {name}")
+                })
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::RoutineActionDone(result));
+        });
+    }
+
+    /// Trigger a run of the selected routine now.
+    fn run_selected_routine(&mut self) {
+        let Some(routine) = self.selected_routine() else {
+            return;
+        };
+        let id = routine.id.clone();
+        let name = routine.name.clone();
+
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let result = client
+                .run_routine(&id)
+                .await
+                .map(|RunRoutineResponse { spawned, .. }| {
+                    if spawned {
+                        format!("triggered {name}")
+                    } else {
+                        format!("{name}: already running — skipped")
+                    }
+                })
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::RoutineActionDone(result));
+        });
+    }
+
+    fn on_routine_action_done(&mut self, result: Result<String, String>) {
+        self.toast = Some(match result {
+            Ok(msg) => msg,
+            Err(e) => format!("routine error: {e}"),
+        });
+        // Re-fetch so the toggle / last_run reflect the mutation.
+        self.load_routines();
+    }
+
+    /// Jump to the Detail screen for the selected routine's last run, by
+    /// looking up the most recent session in its run workspace.
+    fn jump_to_last_run(&mut self) {
+        let Some(routine) = self.selected_routine() else {
+            return;
+        };
+        let Some(last_run) = &routine.last_run else {
+            self.toast = Some("no runs yet".to_string());
+            return;
+        };
+        let workspace_id = last_run.workspace_id;
+
+        self.routine_jump_token = self.routine_jump_token.wrapping_add(1);
+        let token = self.routine_jump_token;
+
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let result = client
+                .list_sessions(workspace_id)
+                .await
+                .map(|list| list.into_iter().next())
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::RoutineJump { token, result });
+        });
+    }
+
+    fn on_routine_jump(&mut self, token: u64, result: Result<Option<Session>, String>) {
+        // A newer jump (or navigation away) superseded this lookup.
+        if token != self.routine_jump_token {
+            return;
+        }
+        match result {
+            Ok(Some(session)) => self.open_detail_for(session, String::new()),
+            Ok(None) => self.toast = Some("no session for this run yet".to_string()),
+            Err(e) => self.toast = Some(format!("routine jump error: {e}")),
+        }
     }
 }
 

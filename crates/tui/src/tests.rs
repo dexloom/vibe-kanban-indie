@@ -18,7 +18,10 @@ use uuid::Uuid;
 use crate::{
     api::{
         ApiClient,
-        types::{GitRepoStatus, Issue, Project, ProjectStatus, Session, Workspace},
+        types::{
+            GitRepoStatus, Issue, Project, ProjectStatus, Routine, RoutineLastRun,
+            RoutineScheduleView, Session, Workspace,
+        },
     },
     app::{
         App, AppEvent, CardField, Detail, DetailFocus, GitOp, KanbanView, Loadable, Modal, PrField,
@@ -356,6 +359,86 @@ fn renders_card_modals_without_panic() {
         text.contains("workspaces"),
         "detail workspaces section missing"
     );
+}
+
+fn sample_routine(
+    name: &str,
+    schedule_kind: &str,
+    schedule_expr: &str,
+    enabled: bool,
+    last_run_status: Option<&str>,
+) -> Routine {
+    Routine {
+        id: name.to_lowercase().replace(' ', "-"),
+        name: name.to_string(),
+        enabled,
+        prompt: "do the thing".to_string(),
+        agent: None,
+        executor_profile: "CLAUDE_CODE".to_string(),
+        max_runtime_secs: 1800,
+        schedule: RoutineScheduleView {
+            kind: schedule_kind.to_string(),
+            expr: schedule_expr.to_string(),
+        },
+        last_run: last_run_status.map(|status| RoutineLastRun {
+            status: status.to_string(),
+            at: Utc::now(),
+            workspace_id: Uuid::new_v4(),
+        }),
+    }
+}
+
+#[test]
+fn renders_routines_screen() {
+    let mut app = stub_app();
+    app.screen = Screen::Routines;
+    app.routines = Loadable::Ready(vec![
+        sample_routine("Inbox triage", "cron", "0 9 * * *", true, Some("failed")),
+        sample_routine("Dependency audit", "interval", "30m", false, None),
+    ]);
+    app.routine_selected = 0;
+
+    let text = render_to_string(&app, 100, 24);
+    assert!(text.contains("Inbox triage"), "routine name missing");
+    assert!(text.contains("0 9 * * *"), "schedule expr missing");
+    assert!(text.contains("failed"), "failure status missing");
+    assert!(text.contains("Dependency audit"), "second routine missing");
+    assert!(text.contains("30m"), "interval schedule missing");
+    assert!(text.contains("never run"), "no-runs status missing");
+}
+
+#[test]
+fn renders_routines_states_without_panic() {
+    // Loading.
+    let mut app = stub_app();
+    app.screen = Screen::Routines;
+    let _ = render_to_string(&app, 80, 24);
+
+    // Empty.
+    let mut app = stub_app();
+    app.screen = Screen::Routines;
+    app.routines = Loadable::Ready(Vec::new());
+    let text = render_to_string(&app, 80, 24);
+    assert!(text.contains("no routines"));
+
+    // Failed.
+    let mut app = stub_app();
+    app.screen = Screen::Routines;
+    app.routines = Loadable::Failed("connection refused".to_string());
+    let text = render_to_string(&app, 80, 24);
+    assert!(text.contains("error"));
+
+    // Tiny terminal must not panic.
+    let mut app = stub_app();
+    app.screen = Screen::Routines;
+    app.routines = Loadable::Ready(vec![sample_routine(
+        "Inbox triage",
+        "cron",
+        "0 9 * * *",
+        true,
+        Some("failed"),
+    )]);
+    let _ = render_to_string(&app, 4, 3);
 }
 
 #[test]

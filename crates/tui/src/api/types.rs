@@ -350,3 +350,58 @@ pub struct ExecutionProcess {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+// ---------------------------------------------------------------------------
+// Recurrent routines (Settings → Routines) — mirrors of the `/api/recurrent`
+// wire shapes.
+// ---------------------------------------------------------------------------
+
+/// Mirror of `services::services::recurrent::schedule::RoutineScheduleView`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RoutineScheduleView {
+    /// `"cron"` or `"interval"`.
+    pub kind: String,
+    /// The raw expression (`"0 9 * * *"` or `"30m"`).
+    pub expr: String,
+}
+
+/// Mirror of `services::services::recurrent::RoutineLastRun`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RoutineLastRun {
+    /// `running`/`completed`/`failed`/`killed`.
+    pub status: String,
+    pub at: DateTime<Utc>,
+    /// Workspace the run executed in, so the UI can jump straight to it.
+    pub workspace_id: Uuid,
+}
+
+/// Mirror of `services::services::recurrent::Routine`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Routine {
+    /// Stable slug = the file stem, e.g. "inbox-triage".
+    pub id: String,
+    pub name: String,
+    pub enabled: bool,
+    pub prompt: String,
+    pub agent: Option<String>,
+    pub executor_profile: String,
+    pub max_runtime_secs: u64,
+    pub schedule: RoutineScheduleView,
+    pub last_run: Option<RoutineLastRun>,
+}
+
+impl Routine {
+    /// Human schedule label, e.g. `"cron 0 9 * * *"` or `"interval 30m"`.
+    pub fn schedule_label(&self) -> String {
+        format!("{} {}", self.schedule.kind, self.schedule.expr)
+    }
+}
+
+/// Mirror of `routes::recurrent::RunRoutineResponse`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RunRoutineResponse {
+    /// `false` when a previous run was still active and nothing new was
+    /// spawned (`SpawnOutcome::SkippedActive`).
+    pub spawned: bool,
+    pub workspace_id: Option<Uuid>,
+}

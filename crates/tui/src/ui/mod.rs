@@ -8,6 +8,7 @@ mod inbox;
 mod kanban;
 mod list;
 mod modal;
+mod routines;
 
 use ratatui::{
     Frame,
@@ -48,6 +49,7 @@ pub fn render(f: &mut Frame, app: &App) {
                 kanban::render(f, k, chunks[1]);
             }
         }
+        Screen::Routines => routines::render(f, app, chunks[1]),
     }
     render_footer(f, app, chunks[2]);
 
@@ -66,7 +68,9 @@ fn render_help(f: &mut Frame, area: Rect) {
         Line::from(" vibe-tui — keys ".bold()),
         Line::from(""),
         Line::from("  global    a  approvals inbox   ?  help   q  quit"),
-        Line::from("  list      ↑↓/jk move · ⇥ pane · ⏎ open · n new task · b board · r refresh"),
+        Line::from(
+            "  list      ↑↓/jk move · ⇥ pane · ⏎ open · n new task · b board · g routines · r refresh",
+        ),
         Line::from(
             "  detail    ⇥/←→ pane · ↑↓ navigate · f follow · i message · s stop · esc back",
         ),
@@ -75,6 +79,9 @@ fn render_help(f: &mut Frame, area: Rect) {
         Line::from("  create    ⇥ field · ←→ cycle option · ^s create · esc cancel"),
         Line::from(
             "  board     ←→ column · ↑↓ card · [ ] move · n new · e edit · d delete · w workspace · p project · ⏎ detail",
+        ),
+        Line::from(
+            "  routines  ↑↓/jk move · space/t toggle · x run now · ⏎ open last run · r refresh · esc back",
         ),
         Line::from(""),
         Line::from("  press any key to close".to_string()).dim(),
@@ -193,6 +200,20 @@ fn render_footer(f: &mut Frame, app: &App, area: Rect) {
             Span::raw(" workspace  "),
             key(" ⏎ "),
             Span::raw(" detail  "),
+            key(" esc "),
+            Span::raw(" back  "),
+        ],
+        Screen::Routines => vec![
+            key(" ↑↓/jk "),
+            Span::raw(" move  "),
+            key(" space "),
+            Span::raw(" toggle  "),
+            key(" x "),
+            Span::raw(" run  "),
+            key(" ⏎ "),
+            Span::raw(" open run  "),
+            key(" r "),
+            Span::raw(" refresh  "),
             key(" esc "),
             Span::raw(" back  "),
         ],
