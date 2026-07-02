@@ -93,10 +93,10 @@ of a card's pipeline.
   is written), and `sombrax-codex:codex-advisor` (architectural second opinion).
 - **How it links:** the coding agent delegates the **Review plan** stage to
   `codex exec --sandbox read-only` against `IMPLEMENTATION_PLAN.md`, and the
-  **Review code** stage to `codex review --base <base>` against the diff. Codex runs
-  read-only and reports a `PASS` / `CHANGES REQUESTED` verdict; it never fixes code
-  in the review turn. If the Codex CLI is unavailable, the agent performs the review
-  inline against the same criteria rather than skipping it.
+  **Review via Codex** stage to `codex review --base <base>` against the diff. Codex
+  runs read-only and reports a `PASS` / `CHANGES REQUESTED` verdict; it never fixes
+  code in the review turn. If the Codex CLI is unavailable, the agent performs the
+  review inline against the same criteria rather than skipping it.
 
 ## How they fit together
 

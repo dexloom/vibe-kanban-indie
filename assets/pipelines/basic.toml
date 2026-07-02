@@ -33,9 +33,9 @@ prompt = "Pause for operator approval at this point: commit the work so far, the
 
 [[stage]]
 id = "code-review"
-label = "Review code"
+label = "Review via Codex"
 default_enabled = true
-prompt = "After implementing, run a code review on the diff and address findings before marking the card ready."
+prompt = "After implementing, run an independent Codex review of the card's diff (the `codex-review` skill / Codex CLI), iterating until it reports no significant findings. Address confirmed findings and re-verify before marking the card ready."
 
 [[stage]]
 id = "update-docs"

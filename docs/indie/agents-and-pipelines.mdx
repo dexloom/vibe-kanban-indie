@@ -27,7 +27,7 @@ The built-in stages are:
 | Review plan | Review the plan before any code is written (delegated to Codex) |
 | Codex plan review | Independently review the implementation plan with Codex before any code is written (Async pipeline, on by default) |
 | Wait for approval | Pause and wait for your decision before continuing |
-| Review code | Review the change once code is written (delegated to Codex) |
+| Review via Codex | Independently review the change's diff with Codex once code is written |
 | Update documentation | Update the docs the change affects |
 | Merge to base | Merge the workspace branch into its base |
 | Open pull request | Open a GitHub pull request |
@@ -35,11 +35,12 @@ The built-in stages are:
 <Note>
 The stage catalogue is config-driven. The default order puts **Orchestrate
 (auto-drive)** first; `Wait for approval` follows `Review plan`, and `Update
-documentation` follows `Review code`. In the **Async** pipeline, the ordering
-is `Create plan` → **Codex plan review** → coder stage → diff-review stages
-(`Review via Fable`, `Review via Codex`): the plan is independently reviewed
-before any code is written, and the diff reviews run only after the coder
-stage.
+documentation` follows `Review via Codex`. In the **Async** pipeline, the
+ordering is `Create plan` → **Codex plan review** → coder stage → **Review via
+Codex** (the shared code-review stage): the plan is independently reviewed
+before any code is written, and the diff review runs only after the coder
+stage. The optional heavy `Review via Fable` stage also runs after the coder
+stage when you tick it.
 </Note>
 
 <Note>
@@ -48,6 +49,15 @@ stage was added, it will not gain **Codex plan review** automatically —
 bundled pipelines are only seeded into an empty pipelines directory. Reset the
 Async pipeline to its bundled default from **Settings** to pick up the new
 stage.
+</Note>
+
+<Note>
+Basic's code review and Async's Codex review are the same canonical
+`code-review` stage. A card that combines Basic and Async dedupes them to a
+single **Review via Codex** stage instead of running the diff review twice.
+If your `~/.vibe-kanban/pipelines/async.toml` predates this change, it still
+has the old, separate `review-codex` stage until you reset the Async pipeline
+to its bundled default from **Settings**.
 </Note>
 
 A stage can also be marked `heavy = true` in its pipeline TOML — a

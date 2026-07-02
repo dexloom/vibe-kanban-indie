@@ -79,7 +79,7 @@ const basicPipeline: Pipeline = {
     },
     {
       id: 'code-review',
-      label: 'Review code',
+      label: 'Review via Codex',
       prompt_fragment: 'Review the code.',
       default_enabled: true,
       heavy: false,
@@ -129,7 +129,7 @@ const wikillmPipeline: Pipeline = {
     },
     {
       id: 'code-review',
-      label: 'Review code',
+      label: 'Review via Codex',
       prompt_fragment: 'Review the code.',
       default_enabled: true,
       heavy: false,
@@ -159,11 +159,12 @@ const basicWikillmEnabledUnion = [
   ]),
 ];
 
-// Fixture mirroring the real, post-plan-review-codex `async.toml` pipeline
-// file: same stage ids/order/default-enabled flags, including the
-// `plan-review-codex` stage inserted between `plan` and `code-subagent`
-// (unlike `basicPipeline` above, this fixture fully mirrors the real file —
-// see the fixture-fidelity note on the merged test below).
+// Fixture mirroring the real, post-VIBE-4 `async.toml` pipeline file: same
+// stage ids/order/default-enabled flags, including the `plan-review-codex`
+// stage inserted between `plan` and `code-subagent`, and the renamed
+// `review-codex` -> `code-review` stage (now the same canonical id the
+// `basicPipeline`/`wikillmPipeline` fixtures use, so it dedupes against
+// theirs in a merge) — this fixture fully mirrors the real file.
 const asyncPipeline: Pipeline = {
   id: 'async',
   name: 'Async',
@@ -203,12 +204,12 @@ const asyncPipeline: Pipeline = {
       id: 'review-fable',
       label: 'Review via Fable subagent',
       prompt_fragment: 'Review via Fable.',
-      default_enabled: true,
+      default_enabled: false,
     },
     {
-      id: 'review-codex',
+      id: 'code-review',
       label: 'Review via Codex',
-      prompt_fragment: 'Review via Codex.',
+      prompt_fragment: 'Review the code.',
       default_enabled: true,
     },
     {
@@ -341,20 +342,20 @@ describe('composePipelineBlock', () => {
       .filter((l) => /^\d+\.\s/.test(l))
       .map((l) => l.replace(/^\d+\.\s+/, ''));
 
-    // spec -> plan -> plan-review-codex -> code-subagent -> review-fable ->
-    // review-codex: the Codex plan review sits immediately after `plan` and
-    // immediately before the coder stage, per spec.
+    // spec -> plan -> plan-review-codex -> code-subagent -> code-review
+    // (review-fable is default-off): the Codex plan review sits immediately
+    // after `plan` and immediately before the coder stage, and the Codex
+    // code review is the final default-enabled stage, per spec.
     expect(stageLines).toEqual([
       'Write a spec.',
       'Write a plan.',
       'Have Codex review the plan.',
       'Code via a Sonnet subagent.',
-      'Review via Fable.',
-      'Review via Codex.',
+      'Review the code.',
     ]);
   });
 
-  it("documents pre-existing Basic+Async merge quirk: basic's code-review sorts before the async coder stage", () => {
+  it("dedupes Basic's and Async's shared code-review stage: one Codex review, after the coder stage", () => {
     const block = composePipelineBlock(
       [basicPipeline, asyncPipeline],
       basicAsyncEnabledUnion,
@@ -368,45 +369,37 @@ describe('composePipelineBlock', () => {
       .filter((l) => /^\d+\.\s/.test(l))
       .map((l) => l.replace(/^\d+\.\s+/, ''));
 
-    // The full merged order is LOCKED here for visibility, including a
-    // pre-existing quirk: with `basicPipeline` first and `asyncPipeline`
-    // second, the Kahn merge's first-seen tiebreak walks basic's whole chain
-    // (spec -> plan -> plan-review -> code-review -> merge) before touching
-    // async's new `plan -> plan-review-codex` branch, so basic's
-    // `code-review` sorts *before* the Codex plan review and the coder
-    // stage. This quirk (a) pre-dates this card — `code-review` already
-    // sorted before `code-subagent` in the merged view before
-    // `plan-review-codex` existed; (b) is explicitly out of scope for this
-    // card (spec: "Existing diff-review stages … are unchanged"; fixing the
-    // tiebreak in `canonicalStageOrder` is a separate follow-up card); and
-    // (c) does not violate this card's acceptance criterion, which is only
-    // that `plan` < `plan-review-codex` < `code-subagent` — asserted
-    // separately below via `indexOf` so it survives even if this locked
-    // array changes when the quirk is eventually fixed.
+    // VIBE-4: unifying the id gave `code-review` an incoming
+    // `review-fable -> code-review` edge from async, so it now sorts after
+    // `code-subagent` instead of before it (the pre-existing quirk this test
+    // used to document). The full merged order is LOCKED here for
+    // visibility: the Codex code review appears exactly once, last.
     expect(stageLines).toEqual([
       'Write a spec.',
       'Write a plan.',
-      'Review the code.',
       'Have Codex review the plan.',
       'Code via a Sonnet subagent.',
-      'Review via Fable.',
-      'Review via Codex.',
+      'Review the code.',
     ]);
 
     // basic's own (default-off) `plan-review` stage stays hidden by default,
     // per spec *Decisions* — only the Codex plan review renders.
     expect(block).not.toContain('Review the plan.');
 
-    // Acceptance criterion that matters regardless of the quirk above:
-    // plan < plan-review-codex < code-subagent.
+    // Acceptance criterion 1: the deduped Codex review appears exactly once.
+    expect(stageLines.filter((l) => l === 'Review the code.')).toHaveLength(1);
+
+    // plan < plan-review-codex < code-subagent < code-review.
     const planIdx = stageLines.indexOf('Write a plan.');
     const planReviewCodexIdx = stageLines.indexOf(
       'Have Codex review the plan.'
     );
     const coderIdx = stageLines.indexOf('Code via a Sonnet subagent.');
+    const codeReviewIdx = stageLines.indexOf('Review the code.');
     expect(planIdx).toBeGreaterThanOrEqual(0);
     expect(planReviewCodexIdx).toBeGreaterThan(planIdx);
     expect(coderIdx).toBeGreaterThan(planReviewCodexIdx);
+    expect(codeReviewIdx).toBeGreaterThan(coderIdx);
   });
 
   it('orderedEnabledStages produces the same order composePipelineBlock uses', () => {
