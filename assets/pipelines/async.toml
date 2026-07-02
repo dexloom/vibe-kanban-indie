@@ -20,6 +20,12 @@ default_enabled = true
 prompt = "Write a step-by-step implementation plan and save it to `IMPLEMENTATION_PLAN.md` at the repo root."
 
 [[stage]]
+id = "plan-review-codex"
+label = "Codex plan review"
+default_enabled = true
+prompt = "Before any code is written, have Codex independently review `IMPLEMENTATION_PLAN.md`. Run Codex as the reviewer (`codex exec --sandbox read-only` over the plan, or the `codex-review-plan` skill if available) — do NOT review the plan yourself. Iterate until Codex reports no significant findings. Resolve confirmed findings by revising the plan (re-run the planner subagent, or edit `IMPLEMENTATION_PLAN.md` directly) before proceeding to the coding stage. This is a read-only plan review: do not modify code here."
+
+[[stage]]
 id = "code-subagent"
 label = "Code via Sonnet subagent"
 default_enabled = true

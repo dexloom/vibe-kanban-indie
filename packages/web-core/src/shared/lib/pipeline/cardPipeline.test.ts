@@ -143,6 +143,81 @@ const basicWikillmEnabledUnion = [
   ]),
 ];
 
+// Fixture mirroring the real, post-plan-review-codex `async.toml` pipeline
+// file: same stage ids/order/default-enabled flags, including the
+// `plan-review-codex` stage inserted between `plan` and `code-subagent`
+// (unlike `basicPipeline` above, this fixture fully mirrors the real file —
+// see the fixture-fidelity note on the merged test below).
+const asyncPipeline: Pipeline = {
+  id: 'async',
+  name: 'Async',
+  description: 'Subagent fan-out flow.',
+  stages: [
+    {
+      id: 'orchestrate',
+      label: 'Orchestrate (auto-drive)',
+      prompt_fragment: 'Orchestrate.',
+      default_enabled: false,
+    },
+    {
+      id: 'spec',
+      label: 'Create spec',
+      prompt_fragment: 'Write a spec.',
+      default_enabled: true,
+    },
+    {
+      id: 'plan',
+      label: 'Create plan',
+      prompt_fragment: 'Write a plan.',
+      default_enabled: true,
+    },
+    {
+      id: 'plan-review-codex',
+      label: 'Codex plan review',
+      prompt_fragment: 'Have Codex review the plan.',
+      default_enabled: true,
+    },
+    {
+      id: 'code-subagent',
+      label: 'Code via Sonnet subagent',
+      prompt_fragment: 'Code via a Sonnet subagent.',
+      default_enabled: true,
+    },
+    {
+      id: 'review-fable',
+      label: 'Review via Fable subagent',
+      prompt_fragment: 'Review via Fable.',
+      default_enabled: true,
+    },
+    {
+      id: 'review-codex',
+      label: 'Review via Codex',
+      prompt_fragment: 'Review via Codex.',
+      default_enabled: true,
+    },
+    {
+      id: 'merge',
+      label: 'Merge to base',
+      prompt_fragment: 'Merge to base.',
+      default_enabled: false,
+    },
+    {
+      id: 'pr',
+      label: 'Open pull request',
+      prompt_fragment: 'Open a pull request.',
+      default_enabled: false,
+    },
+  ],
+};
+
+/** Union of `basicPipeline`'s and `asyncPipeline`'s default-enabled stage ids. */
+const basicAsyncEnabledUnion = [
+  ...new Set([
+    ...basicPipeline.stages.filter((s) => s.default_enabled).map((s) => s.id),
+    ...asyncPipeline.stages.filter((s) => s.default_enabled).map((s) => s.id),
+  ]),
+];
+
 describe('composePipelineBlock', () => {
   it('renders enabled stages as an ordered numbered list in pipeline order', () => {
     const block = composePipelineBlock(pipeline, ['plan', 'spec'], '', null);
@@ -231,6 +306,91 @@ describe('composePipelineBlock', () => {
       'Review the code.',
       'Enrich the knowledge base.',
     ]);
+  });
+
+  it('LOCKED: Async default-enabled order places the Codex plan review between plan and the coder stage', () => {
+    const asyncEnabledIds = asyncPipeline.stages
+      .filter((s) => s.default_enabled)
+      .map((s) => s.id);
+    const block = composePipelineBlock(
+      [asyncPipeline],
+      asyncEnabledIds,
+      '',
+      null
+    );
+    expect(block).toContain('## Pipeline: Async');
+
+    const stageLines = block
+      .split('\n')
+      .filter((l) => /^\d+\.\s/.test(l))
+      .map((l) => l.replace(/^\d+\.\s+/, ''));
+
+    // spec -> plan -> plan-review-codex -> code-subagent -> review-fable ->
+    // review-codex: the Codex plan review sits immediately after `plan` and
+    // immediately before the coder stage, per spec.
+    expect(stageLines).toEqual([
+      'Write a spec.',
+      'Write a plan.',
+      'Have Codex review the plan.',
+      'Code via a Sonnet subagent.',
+      'Review via Fable.',
+      'Review via Codex.',
+    ]);
+  });
+
+  it("documents pre-existing Basic+Async merge quirk: basic's code-review sorts before the async coder stage", () => {
+    const block = composePipelineBlock(
+      [basicPipeline, asyncPipeline],
+      basicAsyncEnabledUnion,
+      '',
+      null
+    );
+    expect(block).toContain('## Pipeline: Basic + Async');
+
+    const stageLines = block
+      .split('\n')
+      .filter((l) => /^\d+\.\s/.test(l))
+      .map((l) => l.replace(/^\d+\.\s+/, ''));
+
+    // The full merged order is LOCKED here for visibility, including a
+    // pre-existing quirk: with `basicPipeline` first and `asyncPipeline`
+    // second, the Kahn merge's first-seen tiebreak walks basic's whole chain
+    // (spec -> plan -> plan-review -> code-review -> merge) before touching
+    // async's new `plan -> plan-review-codex` branch, so basic's
+    // `code-review` sorts *before* the Codex plan review and the coder
+    // stage. This quirk (a) pre-dates this card — `code-review` already
+    // sorted before `code-subagent` in the merged view before
+    // `plan-review-codex` existed; (b) is explicitly out of scope for this
+    // card (spec: "Existing diff-review stages … are unchanged"; fixing the
+    // tiebreak in `canonicalStageOrder` is a separate follow-up card); and
+    // (c) does not violate this card's acceptance criterion, which is only
+    // that `plan` < `plan-review-codex` < `code-subagent` — asserted
+    // separately below via `indexOf` so it survives even if this locked
+    // array changes when the quirk is eventually fixed.
+    expect(stageLines).toEqual([
+      'Write a spec.',
+      'Write a plan.',
+      'Review the code.',
+      'Have Codex review the plan.',
+      'Code via a Sonnet subagent.',
+      'Review via Fable.',
+      'Review via Codex.',
+    ]);
+
+    // basic's own (default-off) `plan-review` stage stays hidden by default,
+    // per spec *Decisions* — only the Codex plan review renders.
+    expect(block).not.toContain('Review the plan.');
+
+    // Acceptance criterion that matters regardless of the quirk above:
+    // plan < plan-review-codex < code-subagent.
+    const planIdx = stageLines.indexOf('Write a plan.');
+    const planReviewCodexIdx = stageLines.indexOf(
+      'Have Codex review the plan.'
+    );
+    const coderIdx = stageLines.indexOf('Code via a Sonnet subagent.');
+    expect(planIdx).toBeGreaterThanOrEqual(0);
+    expect(planReviewCodexIdx).toBeGreaterThan(planIdx);
+    expect(coderIdx).toBeGreaterThan(planReviewCodexIdx);
   });
 
   it('orderedEnabledStages produces the same order composePipelineBlock uses', () => {

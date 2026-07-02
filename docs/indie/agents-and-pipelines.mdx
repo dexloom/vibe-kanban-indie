@@ -14,7 +14,8 @@ time.
 
 When you create an issue, you choose its **pipeline** — the ordered stages that
 should run — with checkboxes. The selections are appended to the card description,
-so the pipeline travels with the card. All stages are opt-in and default to off.
+so the pipeline travels with the card. Each stage is toggleable; a pipeline ships
+each stage on or off by default (its recommended setting).
 
 The built-in stages are:
 
@@ -24,6 +25,7 @@ The built-in stages are:
 | Create spec | Turn the brief into a development-ready spec (`SPEC.md`) |
 | Create plan | Turn the spec into a concrete implementation plan (`IMPLEMENTATION_PLAN.md`) |
 | Review plan | Review the plan before any code is written (delegated to Codex) |
+| Codex plan review | Independently review the implementation plan with Codex before any code is written (Async pipeline, on by default) |
 | Wait for approval | Pause and wait for your decision before continuing |
 | Review code | Review the change once code is written (delegated to Codex) |
 | Update documentation | Update the docs the change affects |
@@ -33,7 +35,19 @@ The built-in stages are:
 <Note>
 The stage catalogue is config-driven. The default order puts **Orchestrate
 (auto-drive)** first; `Wait for approval` follows `Review plan`, and `Update
-documentation` follows `Review code`.
+documentation` follows `Review code`. In the **Async** pipeline, the ordering
+is `Create plan` → **Codex plan review** → coder stage → diff-review stages
+(`Review via Fable`, `Review via Codex`): the plan is independently reviewed
+before any code is written, and the diff reviews run only after the coder
+stage.
+</Note>
+
+<Note>
+If your `~/.vibe-kanban/pipelines/async.toml` already existed before this
+stage was added, it will not gain **Codex plan review** automatically —
+bundled pipelines are only seeded into an empty pipelines directory. Reset the
+Async pipeline to its bundled default from **Settings** to pick up the new
+stage.
 </Note>
 
 ## The agent crew
