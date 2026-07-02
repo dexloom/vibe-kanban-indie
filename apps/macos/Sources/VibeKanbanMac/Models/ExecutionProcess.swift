@@ -49,3 +49,75 @@ struct AgentProgress: Codable {
 }
 
 struct ExecutionsResponse: Codable { let executions: [ExecutionProcess]? }
+
+// MARK: - Executor / interactive derivation from `executor_action`
+//
+// `executor_action` mirrors Rust's `ExecutorAction { typ, next_action }`, where
+// `typ` is an externally-tagged `ExecutorActionType` (`{"type": "...", ...}`).
+// These port `packages/web-core/src/shared/lib/executor.ts` and `interactive.ts`.
+
+extension ExecutionProcess {
+    /// Walk this process's `executor_action` chain (`typ` → `next_action`) for
+    /// the first coding-agent/review request's `executor_config`. Mirrors the
+    /// web's `executorConfigFromAction`.
+    var derivedExecutorConfig: ExecutorConfig? {
+        Self.executorConfig(fromAction: executorAction)
+    }
+
+    private static func executorConfig(fromAction action: JSONValue?) -> ExecutorConfig? {
+        guard let action, let typ = action["typ"] else { return nil }
+        switch typ["type"]?.stringValue {
+        case "CodingAgentInitialRequest", "CodingAgentFollowUpRequest", "ReviewRequest":
+            guard let raw = typ["executor_config"],
+                  let data = try? APICoding.encoder.encode(raw)
+            else { return nil }
+            return try? APICoding.decoder.decode(ExecutorConfig.self, from: data)
+        default:
+            return executorConfig(fromAction: action["next_action"])
+        }
+    }
+
+    /// Whether this process's action carries a non-null `interactive` (detached
+    /// tmux / "headed") config. Only coding-agent request types can be
+    /// interactive — mirrors the web's `getInteractiveConfig`.
+    var hasInteractiveConfig: Bool {
+        guard let typ = executorAction?["typ"] else { return false }
+        guard typ["type"]?.stringValue == "CodingAgentInitialRequest"
+            || typ["type"]?.stringValue == "CodingAgentFollowUpRequest"
+        else { return false }
+        guard let interactive = typ["interactive"] else { return false }
+        if case .null = interactive { return false }
+        return true
+    }
+
+    /// A "live headed" process: a running coding-agent execution with an
+    /// interactive (tmux) config — the gate for the Terminal pane's attach
+    /// affordance. Mirrors the web's headed-live gate
+    /// (`SessionChatBoxContainer.tsx`).
+    var isLiveInteractiveCodingAgent: Bool {
+        runReason == .codingagent && status == .running && hasInteractiveConfig
+    }
+}
+
+/// Choose the `ExecutorConfig` to use for a session's next follow-up, mirroring
+/// the web's precedence (`SessionChatBoxContainer.tsx` +
+/// `getLatestConfigFromProcesses`): the session's own executions (newest
+/// first) → the session's / a fallback session's `executor` field → `nil`
+/// (callers use `.defaultConfig` only for a brand-new, executor-less session).
+///
+/// `executions` is expected oldest-first (as `GET /sessions/{id}/executions`
+/// returns it); this scans newest-first internally.
+func deriveExecutorConfig(
+    executions: [ExecutionProcess],
+    session: Session?,
+    fallbackSessions: [Session]
+) -> ExecutorConfig? {
+    for execution in executions.reversed() {
+        if let config = execution.derivedExecutorConfig { return config }
+    }
+    if let raw = session?.executor ?? fallbackSessions.first?.executor,
+       let agent = BaseCodingAgent(rawValue: raw) {
+        return ExecutorConfig(executor: agent)
+    }
+    return nil
+}
