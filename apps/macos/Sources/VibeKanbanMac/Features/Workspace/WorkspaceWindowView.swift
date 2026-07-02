@@ -118,29 +118,27 @@ struct WorkspaceWindowView: View {
 
     @ViewBuilder
     private func sessionSelector(_ vm: WorkspaceViewModel) -> some View {
-        if vm.sessions.isEmpty {
-            Text("No sessions").font(.fd(13)).foregroundStyle(FlightDeck.textFaint)
-        } else {
-            Menu {
-                ForEach(vm.sessions) { session in
-                    Button(session.displayName) { vm.selectedSessionId = session.id }
-                }
-            } label: {
-                HStack {
-                    Text(selectedSession(vm)?.displayName ?? "—")
-                        .font(.fdMono(13, .semibold)).foregroundStyle(FlightDeck.textSoft)
-                        .lineLimit(1).truncationMode(.middle)
-                    Spacer()
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 11, weight: .semibold)).foregroundStyle(FlightDeck.textFaint)
-                }
-                .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(RoundedRectangle(cornerRadius: 9).fill(FlightDeck.card))
-                .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(FlightDeck.hairlineHi))
-                .contentShape(Rectangle())
+        Menu {
+            ForEach(vm.sessions) { session in
+                Button(session.displayName) { vm.selectedSessionId = session.id }
             }
-            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
+            if !vm.sessions.isEmpty { Divider() }
+            Button("New Session") { vm.startNewSession() }
+        } label: {
+            HStack {
+                Text(vm.isNewSessionMode ? "New session" : (selectedSession(vm)?.displayName ?? "—"))
+                    .font(.fdMono(13, .semibold)).foregroundStyle(FlightDeck.textSoft)
+                    .lineLimit(1).truncationMode(.middle)
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(FlightDeck.textFaint)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 9)
+            .background(RoundedRectangle(cornerRadius: 9).fill(FlightDeck.card))
+            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(FlightDeck.hairlineHi))
+            .contentShape(Rectangle())
         }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
     }
 
     private func execBadge(_ status: ExecutionProcessStatus) -> some View {
@@ -199,9 +197,13 @@ struct WorkspaceWindowView: View {
         .padding(.top, 6)
     }
 
+    /// The session driving the info panel/agent label. Returns nil in
+    /// new-session mode — it must not fall back to `sessions.first`, or the
+    /// info panel would silently show the *previous* session's agent while the
+    /// composer is actually targeting a brand-new one.
     private func selectedSession(_ vm: WorkspaceViewModel) -> Session? {
-        if let id = vm.selectedSessionId, let s = vm.sessions.first(where: { $0.id == id }) { return s }
-        return vm.sessions.first
+        guard !vm.isNewSessionMode, let id = vm.selectedSessionId else { return nil }
+        return vm.sessions.first(where: { $0.id == id })
     }
 
     private func agentLabel(_ vm: WorkspaceViewModel) -> String? {
@@ -221,7 +223,11 @@ struct WorkspaceWindowView: View {
     @ViewBuilder
     private func agentPane(_ vm: WorkspaceViewModel) -> some View {
         VStack(spacing: 0) {
-            ConversationListView(entries: vm.entries, streamConnected: vm.streamConnected)
+            if vm.isNewSessionMode {
+                newSessionPlaceholder
+            } else {
+                ConversationListView(entries: vm.entries, streamConnected: vm.streamConnected)
+            }
             if !vm.pendingApprovals.isEmpty {
                 Divider().overlay(FlightDeck.hairline)
                 VStack(spacing: 8) {
@@ -235,7 +241,7 @@ struct WorkspaceWindowView: View {
                 .background(FlightDeck.bgTimeline)
             }
             ChatInputView(
-                onSend: { prompt in Task { await vm.sendFollowUp(prompt) } },
+                onSend: { prompt in Task { await vm.send(prompt) } },
                 dictationContext: {
                     DictationContext.chat(
                         title: vm.workspace?.displayName,
@@ -245,6 +251,15 @@ struct WorkspaceWindowView: View {
                 }
             )
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var newSessionPlaceholder: some View {
+        TopPlaceholder(
+            "New session",
+            systemImage: "plus.bubble",
+            description: "Send a prompt to start a new session in this workspace."
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
