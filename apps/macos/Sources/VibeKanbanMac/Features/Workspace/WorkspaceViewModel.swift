@@ -12,7 +12,16 @@ final class WorkspaceViewModel {
 
     var workspace: Workspace?
     var sessions: [Session] = []
-    var selectedSessionId: String? { didSet { Task { await loadSession() } } }
+    var selectedSessionId: String? {
+        didSet {
+            if selectedSessionId != nil { isNewSessionMode = false }
+            Task { await loadSession() }
+        }
+    }
+    /// Mirrors web's `useWorkspaceSessions` new-session mode: true when the
+    /// operator explicitly started a new session, or the workspace has zero
+    /// sessions. The composer routes its send target off this flag.
+    var isNewSessionMode = false
     var executions: [ExecutionProcess] = []
 
     var entries: [NormalizedEntry] = []
@@ -41,6 +50,11 @@ final class WorkspaceViewModel {
         executions.last { $0.runReason == .codingagent } ?? executions.last
     }
 
+    /// The currently selected session, or nil in new-session mode.
+    var selectedSession: Session? {
+        sessions.first { $0.id == selectedSessionId }
+    }
+
     /// Whether the streamed diff spans more than one repo (drives whether the
     /// Changes pane prefixes file paths with the repo name).
     var diffsSpanRepos: Bool { diffApplier.multiRepo }
@@ -49,11 +63,25 @@ final class WorkspaceViewModel {
         workspace = try? await client.getWorkspace(id: workspaceId)
         startDiffStream()   // workspace-level; independent of the selected session
         sessions = (try? await client.listSessions(workspaceId: workspaceId)) ?? []
-        if selectedSessionId == nil {
-            selectedSessionId = sessions.last?.id   // triggers loadSession via didSet
+        if sessions.isEmpty {
+            // Zero sessions ⇒ new-session mode (web treats this the same as an
+            // explicit "New session" click).
+            isNewSessionMode = true
+            await loadSession()
+        } else if selectedSessionId == nil {
+            selectedSessionId = sessions.first?.id   // most-recently-used-first; triggers loadSession via didSet
         } else {
             await loadSession()
         }
+    }
+
+    /// Enter new-session mode (the "New session" affordance): clears the
+    /// selection (tearing down the current session's streams via
+    /// `loadSession()`'s early return) and marks new-session mode so the
+    /// composer routes to `createSessionAndSend`.
+    func startNewSession() {
+        isNewSessionMode = true
+        selectedSessionId = nil   // triggers loadSession via didSet (clears state)
     }
 
     func loadSession() async {
@@ -195,13 +223,53 @@ final class WorkspaceViewModel {
         }
     }
 
-    // MARK: - Follow-up
+    // MARK: - Follow-up / send
 
-    func sendFollowUp(_ prompt: String, executor: ExecutorConfig = .defaultConfig) async {
+    /// The executor config to use for the next message: the selected session's
+    /// own executions (newest first) → the session's / most-recent session's
+    /// `executor` field → `.defaultConfig`. Mirrors the web's precedence
+    /// (`SessionChatBoxContainer.tsx`); never hardcodes an executor for an
+    /// established session, so follow-ups don't trip `ExecutorMismatch`.
+    private func currentExecutorConfig() -> ExecutorConfig {
+        deriveExecutorConfig(executions: executions, session: selectedSession, fallbackSessions: sessions)
+            ?? .defaultConfig
+    }
+
+    /// Single entry point for the composer: routes to the create-session flow
+    /// in new-session mode (or when nothing is selected — a zero-session
+    /// workspace), otherwise sends a follow-up to the selected session.
+    func send(_ prompt: String) async {
+        if isNewSessionMode || selectedSessionId == nil {
+            await createSessionAndSend(prompt)
+        } else {
+            await sendFollowUp(prompt)
+        }
+    }
+
+    func sendFollowUp(_ prompt: String) async {
         guard let sid = selectedSessionId else { return }
         do {
-            try await client.followUp(sessionId: sid, CreateFollowUpAttempt(prompt: prompt, executorConfig: executor))
+            try await client.followUp(sessionId: sid, CreateFollowUpAttempt(prompt: prompt, executorConfig: currentExecutorConfig()))
             await loadSession()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    /// New-session mode's first send (mirrors web's `useCreateSession` +
+    /// `useSessionSend`): create an empty session, deliver the prompt as its
+    /// first follow-up, refresh the list, then select the new session (which
+    /// exits new-session mode via `selectedSessionId`'s `didSet`).
+    func createSessionAndSend(_ prompt: String) async {
+        // A brand-new session has no executions of its own yet — fall back to
+        // the most-recently-used session's executor, else the app default.
+        let config = deriveExecutorConfig(executions: [], session: nil, fallbackSessions: sessions)
+            ?? .defaultConfig
+        do {
+            let newSession = try await client.createSession(CreateSessionRequest(workspaceId: workspaceId))
+            try await client.followUp(sessionId: newSession.id, CreateFollowUpAttempt(prompt: prompt, executorConfig: config))
+            sessions = (try? await client.listSessions(workspaceId: workspaceId)) ?? sessions
+            selectedSessionId = newSession.id   // triggers loadSession via didSet; clears isNewSessionMode
         } catch {
             self.error = error.localizedDescription
         }
