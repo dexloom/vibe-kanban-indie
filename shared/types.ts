@@ -166,7 +166,14 @@ ephemeral: boolean,
 /**
  * Discriminator for special-purpose workspaces. `None` = normal workspace.
  */
-kind: WorkspaceKind | null, };
+kind: WorkspaceKind | null, 
+/**
+ * Which numbered `## Pipeline` stage the execution agent last reported
+ * itself as starting (1-based), detected from a `VK-PIPELINE-STAGE: N`
+ * marker in the execution's raw log stream. `None` when no coding-agent
+ * execution has reported a stage yet for the current run.
+ */
+current_pipeline_stage: bigint | null, };
 
 export type WorkspaceKind = "orchestrator" | "recurrent";
 
@@ -180,7 +187,14 @@ ephemeral: boolean,
 /**
  * Discriminator for special-purpose workspaces. `None` = normal workspace.
  */
-kind: WorkspaceKind | null, };
+kind: WorkspaceKind | null, 
+/**
+ * Which numbered `## Pipeline` stage the execution agent last reported
+ * itself as starting (1-based), detected from a `VK-PIPELINE-STAGE: N`
+ * marker in the execution's raw log stream. `None` when no coding-agent
+ * execution has reported a stage yet for the current run.
+ */
+current_pipeline_stage: bigint | null, };
 
 export type Session = { id: string, workspace_id: string, name: string | null, executor: string | null, agent_working_dir: string | null, created_at: string, updated_at: string, };
 

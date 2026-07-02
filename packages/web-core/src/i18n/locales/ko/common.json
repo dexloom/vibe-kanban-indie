@@ -570,6 +570,9 @@
     "addonPlaceholder": "위에서 단계를 선택해 파이프라인 블록을 구성하거나 직접 입력하세요.",
     "resetToGenerated": "생성된 내용으로 초기화",
     "pipelinesLabel": "파이프라인",
-    "pipelinesHelper": "하나 이상의 파이프라인을 선택하세요. 선택한 파이프라인의 단계가 하나의 순서 있는 목록으로 결합됩니다."
+    "pipelinesHelper": "하나 이상의 파이프라인을 선택하세요. 선택한 파이프라인의 단계가 하나의 순서 있는 목록으로 결합됩니다.",
+    "progressTitle": "파이프라인 진행 상황",
+    "progressHeader": "{{total}}단계 중 {{n}}단계 — {{label}}",
+    "progressNotStarted": "{{total}}단계, 아직 시작하지 않음"
   }
 }

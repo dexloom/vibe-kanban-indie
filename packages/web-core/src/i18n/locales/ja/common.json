@@ -570,6 +570,9 @@
     "addonPlaceholder": "上のステージをチェックしてパイプラインブロックを作成するか、独自に入力してください。",
     "resetToGenerated": "生成された内容にリセット",
     "pipelinesLabel": "パイプライン",
-    "pipelinesHelper": "1つ以上のパイプラインを選択してください。選択したパイプラインのステージは1つの順序付きリストに統合されます。"
+    "pipelinesHelper": "1つ以上のパイプラインを選択してください。選択したパイプラインのステージは1つの順序付きリストに統合されます。",
+    "progressTitle": "パイプラインの進捗",
+    "progressHeader": "ステージ {{n}}/{{total}} — {{label}}",
+    "progressNotStarted": "{{total}} ステージ、未開始"
   }
 }

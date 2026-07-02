@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CaretDownIcon, CaretRightIcon } from '@phosphor-icons/react';
+import {
+  ArrowRightIcon,
+  CaretDownIcon,
+  CaretRightIcon,
+  CheckCircleIcon,
+  CircleIcon,
+} from '@phosphor-icons/react';
 import type { Pipeline } from 'shared/types';
 import { pipelinesApi } from '@/shared/lib/api';
 import {
@@ -8,7 +14,9 @@ import {
   composePipelineBlock,
   extractManualLines,
   orderedEnabledStages,
+  type PipelineStage,
 } from '@/shared/lib/pipeline/cardPipeline';
+import { cn } from '@/shared/lib/utils';
 
 export interface PipelineSelection {
   /** Selected pipeline ids (additive; empty when nothing is chosen). */
@@ -371,6 +379,97 @@ export function PipelineSection({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+export interface PipelineProgressProps {
+  /** Parsed stage list (M), from `parsePipelineStages(description)`. */
+  stages: PipelineStage[];
+  /**
+   * The workspace's live `current_pipeline_stage` (N), or `null` when the
+   * execution agent hasn't reported a stage yet for the current run.
+   */
+  currentStage: number | null;
+}
+
+/**
+ * Read-only "you are here" view of a card's pipeline progress, driven by the
+ * active workspace's live `current_pipeline_stage` (N) against the stage
+ * list parsed from the description (M). Rendered in the issue panel's edit
+ * mode; purely presentational, never mutates anything.
+ */
+export function PipelineProgress({
+  stages,
+  currentStage,
+}: PipelineProgressProps) {
+  const { t } = useTranslation('common');
+
+  if (stages.length === 0) return null;
+
+  const total = stages.length;
+  // Clamp gracefully when N > M (e.g. the pipeline was edited down after the
+  // agent had already advanced past the new stage count): still show "N of
+  // M", but treat every stage as done rather than indexing past the list.
+  const clamped = currentStage !== null ? Math.min(currentStage, total) : null;
+  const currentLabel =
+    clamped !== null
+      ? (stages.find((s) => s.index === clamped)?.label ?? '')
+      : '';
+
+  return (
+    <div className="p-base border-t space-y-half">
+      <p className="text-xs font-medium text-high">
+        {t('cardPipeline.progressTitle')}
+        {': '}
+        {currentStage !== null
+          ? t('cardPipeline.progressHeader', {
+              n: currentStage,
+              total,
+              label: currentLabel,
+            })
+          : t('cardPipeline.progressNotStarted', { total })}
+      </p>
+      <ol className="flex flex-col gap-half">
+        {stages.map((stage) => {
+          const state: 'done' | 'current' | 'pending' =
+            clamped === null
+              ? 'pending'
+              : stage.index < clamped
+                ? 'done'
+                : stage.index === clamped
+                  ? 'current'
+                  : 'pending';
+          return (
+            <li
+              key={stage.index}
+              className={cn(
+                'flex items-center gap-half text-sm',
+                state === 'done' && 'text-low',
+                state === 'current' && 'text-high font-medium',
+                state === 'pending' && 'text-low'
+              )}
+            >
+              {state === 'done' ? (
+                <CheckCircleIcon
+                  className="size-icon-sm shrink-0 text-success"
+                  weight="fill"
+                />
+              ) : state === 'current' ? (
+                <ArrowRightIcon
+                  className="size-icon-sm shrink-0 text-brand"
+                  weight="bold"
+                />
+              ) : (
+                <CircleIcon className="size-icon-sm shrink-0" />
+              )}
+              <span className={cn(state === 'done' && 'line-through')}>
+                {stage.index}. {stage.label}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }

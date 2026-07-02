@@ -26,6 +26,7 @@ pub struct LinkedWorkspaceRow {
     pub archived: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub current_pipeline_stage: Option<i64>,
 }
 
 impl IssueWorkspace {
@@ -99,7 +100,8 @@ impl IssueWorkspace {
                       w.name          as "name",
                       w.archived      as "archived!: bool",
                       w.created_at    as "created_at!: DateTime<Utc>",
-                      w.updated_at    as "updated_at!: DateTime<Utc>"
+                      w.updated_at    as "updated_at!: DateTime<Utc>",
+                      w.current_pipeline_stage as "current_pipeline_stage"
                FROM issue_workspaces iw
                JOIN issues i ON i.id = iw.issue_id
                JOIN workspaces w ON w.id = iw.workspace_id
@@ -123,7 +125,8 @@ impl IssueWorkspace {
                       w.name          as "name",
                       w.archived      as "archived!: bool",
                       w.created_at    as "created_at!: DateTime<Utc>",
-                      w.updated_at    as "updated_at!: DateTime<Utc>"
+                      w.updated_at    as "updated_at!: DateTime<Utc>",
+                      w.current_pipeline_stage as "current_pipeline_stage"
                FROM issue_workspaces iw
                JOIN issues i ON i.id = iw.issue_id
                JOIN workspaces w ON w.id = iw.workspace_id
@@ -217,12 +220,45 @@ mod tests {
         assert_eq!(rows[0].issue_id, issue_id);
         assert_eq!(rows[0].project_id, project_id);
         assert_eq!(rows[0].name.as_deref(), Some("ws"));
+        assert_eq!(rows[0].current_pipeline_stage, None);
 
         // user_workspaces (all links) sees it too.
         assert_eq!(
             IssueWorkspace::list_linked_all(&pool).await.unwrap().len(),
             1
         );
+    }
+
+    #[tokio::test]
+    async fn current_pipeline_stage_flows_through_linked_workspace_queries() {
+        use crate::models::workspace::Workspace;
+
+        let pool = pool().await;
+        let (project_id, status_id) = seed_project_status(&pool).await;
+        let issue_id = seed_issue(&pool, project_id, status_id, 1).await;
+        let ws_id = seed_workspace(&pool).await;
+        IssueWorkspace::link(&pool, issue_id, ws_id).await.unwrap();
+
+        Workspace::set_current_pipeline_stage(&pool, ws_id, Some(2))
+            .await
+            .unwrap();
+
+        let by_project = IssueWorkspace::list_linked_by_project(&pool, project_id)
+            .await
+            .unwrap();
+        assert_eq!(by_project[0].current_pipeline_stage, Some(2));
+
+        let all = IssueWorkspace::list_linked_all(&pool).await.unwrap();
+        assert_eq!(all[0].current_pipeline_stage, Some(2));
+
+        // Resetting to NULL (e.g. a fresh coding-agent run) is reflected too.
+        Workspace::set_current_pipeline_stage(&pool, ws_id, None)
+            .await
+            .unwrap();
+        let reset = IssueWorkspace::list_linked_by_project(&pool, project_id)
+            .await
+            .unwrap();
+        assert_eq!(reset[0].current_pipeline_stage, None);
     }
 
     #[tokio::test]

@@ -94,6 +94,11 @@ pub struct Workspace {
     pub ephemeral: bool,
     /// Discriminator for special-purpose workspaces. `None` = normal workspace.
     pub kind: Option<WorkspaceKind>,
+    /// Which numbered `## Pipeline` stage the execution agent last reported
+    /// itself as starting (1-based), detected from a `VK-PIPELINE-STAGE: N`
+    /// marker in the execution's raw log stream. `None` when no coding-agent
+    /// execution has reported a stage yet for the current run.
+    pub current_pipeline_stage: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -148,7 +153,8 @@ impl Workspace {
                           name,
                           worktree_deleted AS "worktree_deleted!: bool",
                           ephemeral AS "ephemeral!: bool",
-                          kind AS "kind: WorkspaceKind"
+                          kind AS "kind: WorkspaceKind",
+                          current_pipeline_stage
                    FROM workspaces
                    ORDER BY created_at DESC"#
         )
@@ -252,7 +258,8 @@ impl Workspace {
                        name,
                        worktree_deleted  AS "worktree_deleted!: bool",
                        ephemeral         AS "ephemeral!: bool",
-                       kind              AS "kind: WorkspaceKind"
+                       kind              AS "kind: WorkspaceKind",
+                       current_pipeline_stage
                FROM    workspaces
                WHERE   id = $1"#,
             id
@@ -276,7 +283,8 @@ impl Workspace {
                        name,
                        worktree_deleted  AS "worktree_deleted!: bool",
                        ephemeral         AS "ephemeral!: bool",
-                       kind              AS "kind: WorkspaceKind"
+                       kind              AS "kind: WorkspaceKind",
+                       current_pipeline_stage
                FROM    workspaces
                WHERE   rowid = $1"#,
             rowid
@@ -321,7 +329,8 @@ impl Workspace {
                 w.name,
                 w.worktree_deleted as "worktree_deleted!: bool",
                 w.ephemeral as "ephemeral!: bool",
-                w.kind as "kind: WorkspaceKind"
+                w.kind as "kind: WorkspaceKind",
+                w.current_pipeline_stage
             FROM workspaces w
             LEFT JOIN sessions s ON w.id = s.workspace_id
             LEFT JOIN execution_processes ep ON s.id = ep.session_id AND ep.completed_at IS NOT NULL
@@ -373,7 +382,7 @@ impl Workspace {
             Workspace,
             r#"INSERT INTO workspaces (id, task_id, container_ref, branch, setup_completed_at, name, kind)
                VALUES ($1, $2, $3, $4, $5, $6, $7)
-               RETURNING id as "id!: Uuid", task_id as "task_id: Uuid", container_ref, branch, setup_completed_at as "setup_completed_at: DateTime<Utc>", created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>", archived as "archived!: bool", pinned as "pinned!: bool", name, worktree_deleted as "worktree_deleted!: bool", ephemeral as "ephemeral!: bool", kind as "kind: WorkspaceKind""#,
+               RETURNING id as "id!: Uuid", task_id as "task_id: Uuid", container_ref, branch, setup_completed_at as "setup_completed_at: DateTime<Utc>", created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>", archived as "archived!: bool", pinned as "pinned!: bool", name, worktree_deleted as "worktree_deleted!: bool", ephemeral as "ephemeral!: bool", kind as "kind: WorkspaceKind", current_pipeline_stage"#,
             id,
             Option::<Uuid>::None,
             Option::<String>::None,
@@ -398,7 +407,7 @@ impl Workspace {
             Workspace,
             r#"INSERT INTO workspaces (id, task_id, container_ref, branch, setup_completed_at, name, ephemeral)
                VALUES ($1, $2, $3, $4, $5, $6, TRUE)
-               RETURNING id as "id!: Uuid", task_id as "task_id: Uuid", container_ref, branch, setup_completed_at as "setup_completed_at: DateTime<Utc>", created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>", archived as "archived!: bool", pinned as "pinned!: bool", name, worktree_deleted as "worktree_deleted!: bool", ephemeral as "ephemeral!: bool", kind as "kind: WorkspaceKind""#,
+               RETURNING id as "id!: Uuid", task_id as "task_id: Uuid", container_ref, branch, setup_completed_at as "setup_completed_at: DateTime<Utc>", created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>", archived as "archived!: bool", pinned as "pinned!: bool", name, worktree_deleted as "worktree_deleted!: bool", ephemeral as "ephemeral!: bool", kind as "kind: WorkspaceKind", current_pipeline_stage"#,
             id,
             Option::<Uuid>::None,
             Option::<String>::None,
@@ -426,7 +435,8 @@ impl Workspace {
                       name,
                       worktree_deleted AS "worktree_deleted!: bool",
                       ephemeral AS "ephemeral!: bool",
-                      kind AS "kind: WorkspaceKind"
+                      kind AS "kind: WorkspaceKind",
+                      current_pipeline_stage
                FROM workspaces
                WHERE ephemeral = TRUE"#
         )
@@ -454,7 +464,8 @@ impl Workspace {
                        name,
                        worktree_deleted  AS "worktree_deleted!: bool",
                        ephemeral         AS "ephemeral!: bool",
-                       kind              AS "kind: WorkspaceKind"
+                       kind              AS "kind: WorkspaceKind",
+                       current_pipeline_stage
                FROM    workspaces
                WHERE   kind = 'orchestrator' AND archived = FALSE
                ORDER BY created_at DESC
@@ -569,6 +580,24 @@ impl Workspace {
         Ok(())
     }
 
+    /// Persist the workspace's currently-reported pipeline stage (1-based,
+    /// `None` = not yet reported / reset for a new coding-agent run).
+    /// Single source of truth for `VK-PIPELINE-STAGE` marker detection.
+    pub async fn set_current_pipeline_stage(
+        pool: &SqlitePool,
+        workspace_id: Uuid,
+        stage: Option<i64>,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "UPDATE workspaces SET current_pipeline_stage = $1, updated_at = datetime('now', 'subsec') WHERE id = $2",
+            stage,
+            workspace_id
+        )
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn get_first_user_message(
         pool: &SqlitePool,
         workspace_id: Uuid,
@@ -651,6 +680,7 @@ impl Workspace {
                 w.worktree_deleted AS "worktree_deleted!: bool",
                 w.ephemeral AS "ephemeral!: bool",
                 w.kind AS "kind: WorkspaceKind",
+                w.current_pipeline_stage,
 
                 CASE WHEN EXISTS (
                     SELECT 1
@@ -696,6 +726,7 @@ impl Workspace {
                     worktree_deleted: rec.worktree_deleted,
                     ephemeral: rec.ephemeral,
                     kind: rec.kind,
+                    current_pipeline_stage: rec.current_pipeline_stage,
                 },
                 is_running: rec.is_running != 0,
                 is_errored: rec.is_errored != 0,
@@ -750,6 +781,7 @@ impl Workspace {
                 w.worktree_deleted AS "worktree_deleted!: bool",
                 w.ephemeral AS "ephemeral!: bool",
                 w.kind AS "kind: WorkspaceKind",
+                w.current_pipeline_stage,
 
                 CASE WHEN EXISTS (
                     SELECT 1
@@ -797,6 +829,7 @@ impl Workspace {
                 worktree_deleted: rec.worktree_deleted,
                 ephemeral: rec.ephemeral,
                 kind: rec.kind,
+                current_pipeline_stage: rec.current_pipeline_stage,
             },
             is_running: rec.is_running != 0,
             is_errored: rec.is_errored != 0,

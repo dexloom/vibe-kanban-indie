@@ -570,6 +570,9 @@
     "addonPlaceholder": "勾選上方階段以組成流水線區塊，或自行輸入。",
     "resetToGenerated": "重設為產生內容",
     "pipelinesLabel": "流水線",
-    "pipelinesHelper": "選擇一個或多個流水線；其階段將合併為一個有序清單。"
+    "pipelinesHelper": "選擇一個或多個流水線；其階段將合併為一個有序清單。",
+    "progressTitle": "流水線進度",
+    "progressHeader": "第 {{n}}/{{total}} 階段 — {{label}}",
+    "progressNotStarted": "共 {{total}} 個階段，尚未開始"
   }
 }

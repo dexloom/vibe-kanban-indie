@@ -12,9 +12,16 @@ export const PIPELINE_END = '<!-- vk:pipeline:end -->';
  * Instruction line that leads the stage list. Pipelines are now authored by
  * vibe-kanban (from a pipeline file) and delivered pre-ordered, so the execution
  * agent runs them top-to-bottom rather than choosing which apply.
+ *
+ * Also instructs the agent to emit a `VK-PIPELINE-STAGE: N` marker as it
+ * starts each stage, which the server detects (from the execution's raw log
+ * stream) and persists onto the workspace so the card can render live
+ * "stage N of M" progress.
  */
 const ORDER_INSTRUCTION =
-  'Execute these stages in the order listed. Do not add, skip, or reorder stages.';
+  'Execute these stages in the order listed. Do not add, skip, or reorder stages. ' +
+  'As you begin each numbered stage below, output a single line exactly ' +
+  '`VK-PIPELINE-STAGE: N` (N = the number of the stage you are starting) so pipeline progress can be tracked.';
 
 /** Matches an executor-pin line in any pinned form (any agent name). */
 const EXECUTOR_LINE_RE =
@@ -313,4 +320,77 @@ export function appendPipelineToDescription(
   const base = stripPipelineBlock(description ?? '');
   if (!block) return base;
   return base.length > 0 ? `${base}\n\n${block}` : block;
+}
+
+/** One numbered stage as parsed from a card's `## Pipeline` block. */
+export interface PipelineStage {
+  /** 1-based position in the parsed list (re-sequenced; not the source card's stage id). */
+  index: number;
+  /** Short display label derived from the stage's prompt fragment. */
+  label: string;
+}
+
+const MAX_STAGE_LABEL_LEN = 60;
+const NUMBERED_LIST_ITEM = /^\s*\d+\.\s+(.*)$/;
+
+/** Shorten a stage's prompt fragment to a compact display label. */
+function shortenStageLabel(text: string): string {
+  const trimmed = text.trim();
+  const sentenceEnd = trimmed.indexOf('. ');
+  const cut = sentenceEnd === -1 ? trimmed : trimmed.slice(0, sentenceEnd);
+  if (cut.length <= MAX_STAGE_LABEL_LEN) return cut;
+  return `${cut.slice(0, MAX_STAGE_LABEL_LEN).trimEnd()}…`;
+}
+
+/**
+ * Slice out the text of the generated `## Pipeline` block from a description,
+ * for `parsePipelineStages` to walk. Prefers the `PIPELINE_START`/`PIPELINE_END`
+ * delimiters; falls back to the `## Pipeline` heading through end-of-text when
+ * delimiters are absent (e.g. an older card, or one whose block was hand-edited
+ * past the delimiters).
+ */
+function extractPipelineBlockText(description: string): string {
+  const start = description.indexOf(PIPELINE_START);
+  if (start !== -1) {
+    const end = description.indexOf(PIPELINE_END, start);
+    return end === -1
+      ? description.slice(start + PIPELINE_START.length)
+      : description.slice(start + PIPELINE_START.length, end);
+  }
+  const headingIdx = description.indexOf('## Pipeline');
+  return headingIdx === -1 ? '' : description.slice(headingIdx);
+}
+
+/**
+ * Parse the numbered stage list (M = length, plus a short label per stage)
+ * out of a card's `## Pipeline` block, for rendering live "stage N of M"
+ * progress. Always re-derived from the live description so it stays
+ * consistent with whatever the operator most recently edited.
+ *
+ * Only counts the *contiguous* run of numbered list items: once the list has
+ * started, the first line that isn't `N. ...` (blank line or prose) ends it.
+ * This keeps numbered text the operator appends after a blank line (their own
+ * notes, say) from being miscounted as pipeline stages. Returns `[]` when
+ * there is no pipeline block, or the block has no numbered list.
+ */
+export function parsePipelineStages(
+  description: string | null | undefined
+): PipelineStage[] {
+  const block = extractPipelineBlockText(description ?? '');
+  if (!block) return [];
+
+  const stages: PipelineStage[] = [];
+  for (const line of block.split('\n')) {
+    const match = NUMBERED_LIST_ITEM.exec(line);
+    if (match) {
+      stages.push({
+        index: stages.length + 1,
+        label: shortenStageLabel(match[1]),
+      });
+      continue;
+    }
+    if (stages.length > 0) break;
+  }
+
+  return stages;
 }

@@ -570,6 +570,9 @@
     "addonPlaceholder": "Tick stages above to compose the pipeline block, or type your own.",
     "resetToGenerated": "Reset to generated",
     "pipelinesLabel": "Pipelines",
-    "pipelinesHelper": "Select one or more pipelines; their stages combine into one ordered list."
+    "pipelinesHelper": "Select one or more pipelines; their stages combine into one ordered list.",
+    "progressTitle": "Pipeline progress",
+    "progressHeader": "Stage {{n}} of {{total}} — {{label}}",
+    "progressNotStarted": "{{total}} stages, not started yet"
   }
 }

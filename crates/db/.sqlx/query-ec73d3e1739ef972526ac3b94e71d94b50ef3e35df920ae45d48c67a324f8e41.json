@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!: Uuid\",\n                      task_id AS \"task_id: Uuid\",\n                      container_ref,\n                      branch,\n                      setup_completed_at AS \"setup_completed_at: DateTime<Utc>\",\n                      created_at AS \"created_at!: DateTime<Utc>\",\n                      updated_at AS \"updated_at!: DateTime<Utc>\",\n                      archived AS \"archived!: bool\",\n                      pinned AS \"pinned!: bool\",\n                      name,\n                      worktree_deleted AS \"worktree_deleted!: bool\",\n                      ephemeral AS \"ephemeral!: bool\",\n                      kind AS \"kind: WorkspaceKind\"\n               FROM workspaces\n               WHERE ephemeral = TRUE",
+  "query": "SELECT id AS \"id!: Uuid\",\n                      task_id AS \"task_id: Uuid\",\n                      container_ref,\n                      branch,\n                      setup_completed_at AS \"setup_completed_at: DateTime<Utc>\",\n                      created_at AS \"created_at!: DateTime<Utc>\",\n                      updated_at AS \"updated_at!: DateTime<Utc>\",\n                      archived AS \"archived!: bool\",\n                      pinned AS \"pinned!: bool\",\n                      name,\n                      worktree_deleted AS \"worktree_deleted!: bool\",\n                      ephemeral AS \"ephemeral!: bool\",\n                      kind AS \"kind: WorkspaceKind\",\n                      current_pipeline_stage\n               FROM workspaces\n               WHERE ephemeral = TRUE",
   "describe": {
     "columns": [
       {
@@ -67,6 +67,11 @@
         "name": "kind: WorkspaceKind",
         "ordinal": 12,
         "type_info": "Text"
+      },
+      {
+        "name": "current_pipeline_stage",
+        "ordinal": 13,
+        "type_info": "Integer"
       }
     ],
     "parameters": {
@@ -85,8 +90,9 @@
       true,
       false,
       false,
+      true,
       true
     ]
   },
-  "hash": "8a48c60f0ab9566cf0f82e1d9c40a95ab92cfead597e8fdfa8fd4b11448b8b63"
+  "hash": "ec73d3e1739ef972526ac3b94e71d94b50ef3e35df920ae45d48c67a324f8e41"
 }
