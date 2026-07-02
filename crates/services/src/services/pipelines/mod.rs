@@ -44,6 +44,10 @@ const BUNDLED: &[(&str, &str)] = &[
         "speckit.toml",
         include_str!("../../../../../assets/pipelines/speckit.toml"),
     ),
+    (
+        "async.toml",
+        include_str!("../../../../../assets/pipelines/async.toml"),
+    ),
 ];
 
 /// A selectable card pipeline loaded from a `*.toml` file.
@@ -392,7 +396,7 @@ mod tests {
         let d = TmpDir::new();
         let pipelines = load_pipelines(d.path());
         let ids: Vec<_> = pipelines.iter().map(|p| p.id.as_str()).collect();
-        assert_eq!(ids, vec!["basic", "wikillm", "speckit"]);
+        assert_eq!(ids, vec!["basic", "wikillm", "speckit", "async"]);
     }
 
     #[test]

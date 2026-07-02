@@ -9,11 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Async pipeline** — a fourth bundled pipeline (`async.toml`) built around
+  subagent fan-out: an Opus main loop specs and plans, then spawns the
+  `vibe-kanban-indie:coder` subagent (Sonnet) to implement from `SPEC.md` +
+  `IMPLEMENTATION_PLAN.md`, and runs a Fable review subagent alongside a Codex
+  review before merge/PR.
+
 ### Changed
 
 - **File-based pipelines.** Pipelines are now first-class, user-editable TOML
   files in `~/.vibe-kanban/pipelines/` (bundled defaults `basic`, `wikillm`,
-  `speckit`, seeded on first run). The New Issue "Pipeline" control lets you pick
+  `speckit`, `async`, seeded on first run). The New Issue "Pipeline" control lets you pick
   a pipeline and tick which of its stages to run; vibe-kanban composes an
   **ordered, numbered** `## Pipeline` block that the execution agent runs
   top-to-bottom (no more agent-side stage selection). Settings → Pipeline now
