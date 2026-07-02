@@ -120,6 +120,8 @@ import {
   Routine,
   RecurrentTomlError,
   RunRoutineResponse,
+  PipelineFileStatus,
+  PipelineValidation,
 } from 'shared/types';
 import type { Project as RemoteProject } from 'shared/remote-types';
 import type { WorkspaceWithSession } from '@/shared/types/attempt';
@@ -1246,6 +1248,22 @@ export const pipelinesApi = {
   list: async (): Promise<Pipeline[]> => {
     const response = await makeRequest('/api/pipelines', { cache: 'no-store' });
     return handleApiResponse<Pipeline[]>(response);
+  },
+  status: async (): Promise<PipelineFileStatus[]> => {
+    const response = await makeRequest('/api/pipelines/status', {
+      cache: 'no-store',
+    });
+    return handleApiResponse<PipelineFileStatus[]>(response);
+  },
+  validate: async (
+    id: string,
+    content: string
+  ): Promise<PipelineValidation> => {
+    const response = await makeRequest('/api/pipelines/validate', {
+      method: 'POST',
+      body: JSON.stringify({ id, content }),
+    });
+    return handleApiResponse<PipelineValidation>(response);
   },
   getRaw: async (id: string): Promise<string> => {
     const response = await makeRequest(

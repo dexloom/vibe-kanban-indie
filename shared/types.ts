@@ -786,7 +786,15 @@ description: string | null,
  */
 stages: Array<PipelineStep>, };
 
+export type PipelineParseError = { message: string, line: number | null, column: number | null, };
+
+export type PipelineValidation = { valid: boolean, error: PipelineParseError | null, };
+
+export type PipelineFileStatus = { id: string, name: string, stage_count: number | null, valid: boolean, error: PipelineParseError | null, };
+
 export type PipelineRawBody = { content: string, };
+
+export type PipelineValidateBody = { id: string | null, content: string, };
 
 export type Routine = { 
 /**

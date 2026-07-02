@@ -11,7 +11,9 @@ use axum::{
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
-use services::services::pipelines::{self as pl, Pipeline, PipelineError};
+use services::services::pipelines::{
+    self as pl, Pipeline, PipelineError, PipelineFileStatus, PipelineValidation,
+};
 use ts_rs::TS;
 use utils::{path::pipelines_dir, response::ApiResponse};
 
@@ -20,6 +22,8 @@ use crate::DeploymentImpl;
 pub fn router() -> Router<DeploymentImpl> {
     Router::new()
         .route("/pipelines", get(list_pipelines))
+        .route("/pipelines/status", get(list_pipeline_status))
+        .route("/pipelines/validate", post(validate_pipeline))
         .route("/pipelines/reset-defaults", post(reset_defaults))
         .route(
             "/pipelines/{id}/raw",
@@ -35,6 +39,15 @@ pub struct PipelineRawBody {
     pub content: String,
 }
 
+/// Body for `POST /pipelines/validate`. `id` defaults to a placeholder slug
+/// since the draft may not have been saved under a real id yet.
+#[derive(Debug, Serialize, Deserialize, TS)]
+pub struct PipelineValidateBody {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub content: String,
+}
+
 /// Human-readable message for a pipeline error (surfaced to Settings Save, etc.).
 fn err_message(e: &PipelineError) -> String {
     e.to_string()
@@ -42,6 +55,19 @@ fn err_message(e: &PipelineError) -> String {
 
 async fn list_pipelines() -> ResponseJson<ApiResponse<Vec<Pipeline>>> {
     ResponseJson(ApiResponse::success(pl::load_pipelines(&pipelines_dir())))
+}
+
+async fn list_pipeline_status() -> ResponseJson<ApiResponse<Vec<PipelineFileStatus>>> {
+    ResponseJson(ApiResponse::success(pl::load_pipeline_statuses(
+        &pipelines_dir(),
+    )))
+}
+
+async fn validate_pipeline(
+    Json(body): Json<PipelineValidateBody>,
+) -> ResponseJson<ApiResponse<PipelineValidation>> {
+    let id = body.id.as_deref().unwrap_or("pipeline");
+    ResponseJson(ApiResponse::success(pl::validate(id, &body.content)))
 }
 
 async fn get_pipeline_raw(Path(id): Path<String>) -> ResponseJson<ApiResponse<String>> {

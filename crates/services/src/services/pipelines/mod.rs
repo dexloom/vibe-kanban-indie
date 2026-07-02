@@ -63,6 +63,35 @@ pub struct Pipeline {
     pub stages: Vec<PipelineStep>,
 }
 
+/// A structured TOML parse/validation error, suitable for surfacing inline in
+/// the Settings editor (message plus a best-effort 1-based line/column when
+/// the underlying `toml` parser exposes a byte span).
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+pub struct PipelineParseError {
+    pub message: String,
+    pub line: Option<u32>,
+    pub column: Option<u32>,
+}
+
+/// Result of validating a pipeline TOML draft (`POST /api/pipelines/validate`).
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+pub struct PipelineValidation {
+    pub valid: bool,
+    pub error: Option<PipelineParseError>,
+}
+
+/// Per-file status for every `~/.vibe-kanban/pipelines/*.toml` file, including
+/// ones that currently fail to parse (and are therefore invisible to
+/// `load_pipelines`/`GET /api/pipelines`).
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+pub struct PipelineFileStatus {
+    pub id: String,
+    pub name: String,
+    pub stage_count: Option<u32>,
+    pub valid: bool,
+    pub error: Option<PipelineParseError>,
+}
+
 #[derive(Debug, Error)]
 pub enum PipelineError {
     #[error(transparent)]
@@ -164,6 +193,152 @@ pub fn parse_pipeline(id: &str, raw: &str) -> Result<Pipeline, PipelineError> {
     })
 }
 
+/// Convert a byte offset into 1-based (line, column) by scanning `content`.
+/// `\n` bumps the line and resets the column; anything else advances the
+/// column by one char. O(offset), fine for the small pipeline files here.
+fn offset_to_line_col(content: &str, offset: usize) -> (u32, u32) {
+    let mut line: u32 = 1;
+    let mut col: u32 = 1;
+    for (idx, ch) in content.char_indices() {
+        if idx >= offset {
+            break;
+        }
+        if ch == '\n' {
+            line += 1;
+            col = 1;
+        } else {
+            col += 1;
+        }
+    }
+    (line, col)
+}
+
+/// Build a structured error from a `PipelineError`, attaching line/column
+/// when the error is a TOML syntax error with a byte span; message-only for
+/// semantic errors (`Invalid`/`InvalidId`/`NotFound`/`Io`).
+pub fn structured_error(e: &PipelineError, content: &str) -> PipelineParseError {
+    match e {
+        PipelineError::Parse(de) => {
+            let message = {
+                let m = de.message();
+                if m.is_empty() {
+                    e.to_string()
+                } else {
+                    m.to_string()
+                }
+            };
+            let (line, column) = match de.span() {
+                Some(span) => {
+                    let (l, c) = offset_to_line_col(content, span.start);
+                    (Some(l), Some(c))
+                }
+                None => (None, None),
+            };
+            PipelineParseError {
+                message,
+                line,
+                column,
+            }
+        }
+        other => PipelineParseError {
+            message: other.to_string(),
+            line: None,
+            column: None,
+        },
+    }
+}
+
+/// Validate a pipeline TOML draft without touching disk.
+pub fn validate(id: &str, content: &str) -> PipelineValidation {
+    match parse_pipeline(id, content) {
+        Ok(_) => PipelineValidation {
+            valid: true,
+            error: None,
+        },
+        Err(e) => PipelineValidation {
+            valid: false,
+            error: Some(structured_error(&e, content)),
+        },
+    }
+}
+
+/// Sort order shared by `load_pipelines` and `load_pipeline_statuses`:
+/// bundled files first (in `BUNDLED` order), then alphabetical by id.
+fn bundled_order(id: &str) -> Option<usize> {
+    BUNDLED
+        .iter()
+        .position(|(n, _)| n.trim_end_matches(".toml") == id)
+}
+
+fn sort_by_bundled_order<T>(items: &mut [T], id_of: impl Fn(&T) -> &str) {
+    items.sort_by(
+        |a, b| match (bundled_order(id_of(a)), bundled_order(id_of(b))) {
+            (Some(x), Some(y)) => x.cmp(&y),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => id_of(a).cmp(id_of(b)),
+        },
+    );
+}
+
+/// Status for every `*.toml` file in `dir`, including malformed ones (which
+/// `load_pipelines` silently skips). Seeds bundled defaults first, mirroring
+/// `load_pipelines`.
+pub fn load_pipeline_statuses(dir: &Path) -> Vec<PipelineFileStatus> {
+    if let Err(e) = ensure_seeded(dir) {
+        tracing::warn!("failed to seed pipelines dir {}: {}", dir.display(), e);
+    }
+    let mut out: Vec<PipelineFileStatus> = Vec::new();
+    let rd = match std::fs::read_dir(dir) {
+        Ok(rd) => rd,
+        Err(e) => {
+            tracing::warn!("failed to read pipelines dir {}: {}", dir.display(), e);
+            return out;
+        }
+    };
+    for entry in rd.filter_map(|e| e.ok()) {
+        let path = entry.path();
+        if !path.is_file() || path.extension().and_then(|x| x.to_str()) != Some("toml") {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let stem = stem.to_string();
+        match std::fs::read_to_string(&path) {
+            Ok(raw) => match parse_pipeline(&stem, &raw) {
+                Ok(p) => out.push(PipelineFileStatus {
+                    id: p.id,
+                    name: p.name,
+                    stage_count: Some(p.stages.len() as u32),
+                    valid: true,
+                    error: None,
+                }),
+                Err(e) => out.push(PipelineFileStatus {
+                    id: stem.clone(),
+                    name: stem,
+                    stage_count: None,
+                    valid: false,
+                    error: Some(structured_error(&e, &raw)),
+                }),
+            },
+            Err(e) => out.push(PipelineFileStatus {
+                id: stem.clone(),
+                name: stem,
+                stage_count: None,
+                valid: false,
+                error: Some(PipelineParseError {
+                    message: e.to_string(),
+                    line: None,
+                    column: None,
+                }),
+            }),
+        }
+    }
+    sort_by_bundled_order(&mut out, |s| s.id.as_str());
+    out
+}
+
 fn has_toml(dir: &Path) -> bool {
     std::fs::read_dir(dir)
         .ok()
@@ -227,17 +402,7 @@ pub fn load_pipelines(dir: &Path) -> Vec<Pipeline> {
             Err(e) => tracing::warn!("skip invalid pipeline {}: {}", path.display(), e),
         }
     }
-    let bundled_order = |id: &str| {
-        BUNDLED
-            .iter()
-            .position(|(n, _)| n.trim_end_matches(".toml") == id)
-    };
-    out.sort_by(|a, b| match (bundled_order(&a.id), bundled_order(&b.id)) {
-        (Some(x), Some(y)) => x.cmp(&y),
-        (Some(_), None) => std::cmp::Ordering::Less,
-        (None, Some(_)) => std::cmp::Ordering::Greater,
-        (None, None) => a.id.cmp(&b.id),
-    });
+    sort_by_bundled_order(&mut out, |p| p.id.as_str());
     out
 }
 
@@ -436,6 +601,69 @@ mod tests {
         assert!(reset_one(d.path(), "not-bundled").is_err());
         let all = reset_all(d.path()).unwrap();
         assert!(all.iter().any(|p| p.id == "basic" && p.name == "Basic"));
+    }
+
+    #[test]
+    fn validate_reports_valid_pipeline() {
+        let raw = r#"
+            name = "Demo"
+            [[stage]]
+            id = "spec"
+            label = "Create spec"
+            prompt = "Write a spec."
+        "#;
+        let v = validate("demo", raw);
+        assert!(v.valid);
+        assert!(v.error.is_none());
+    }
+
+    #[test]
+    fn validate_reports_toml_syntax_error_with_line_col() {
+        let raw = "name = ";
+        let v = validate("broken", raw);
+        assert!(!v.valid);
+        let err = v.error.expect("expected a structured error");
+        assert!(err.line.is_some());
+        assert!(err.column.is_some());
+    }
+
+    #[test]
+    fn validate_reports_semantic_error_without_line_col() {
+        let raw = r#"
+            name = "Dup"
+            [[stage]]
+            id = "spec"
+            label = "A"
+            prompt = "x"
+            [[stage]]
+            id = "spec"
+            label = "B"
+            prompt = "y"
+        "#;
+        let v = validate("dup", raw);
+        assert!(!v.valid);
+        let err = v.error.expect("expected a structured error");
+        assert!(err.line.is_none());
+        assert!(err.column.is_none());
+    }
+
+    #[test]
+    fn load_pipeline_statuses_reports_good_and_broken_files() {
+        let d = TmpDir::new();
+        std::fs::write(
+            d.path().join("good.toml"),
+            "name = \"Good\"\n[[stage]]\nid = \"a\"\nlabel = \"A\"\nprompt = \"p\"\n",
+        )
+        .unwrap();
+        std::fs::write(d.path().join("broken.toml"), "this is = not [valid").unwrap();
+        let statuses = load_pipeline_statuses(d.path());
+        let good = statuses.iter().find(|s| s.id == "good").unwrap();
+        assert!(good.valid);
+        assert_eq!(good.stage_count, Some(1));
+        assert!(good.error.is_none());
+        let broken = statuses.iter().find(|s| s.id == "broken").unwrap();
+        assert!(!broken.valid);
+        assert!(broken.error.is_some());
     }
 
     #[test]

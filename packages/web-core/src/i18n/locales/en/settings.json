@@ -355,7 +355,10 @@
       "saveButton": "Save",
       "reset": "Reset to default",
       "saved": "✓ Saved",
-      "saveError": "Failed to save pipeline"
+      "saveError": "Failed to save pipeline",
+      "invalidBadge": "Invalid",
+      "parseError": "Parse error",
+      "errorAt": "line {{line}}, column {{column}}"
     },
     "recurrent": {
       "loading": "Loading routines…",
