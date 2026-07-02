@@ -8,6 +8,7 @@ import {
   composePipelineBlock,
   extractPipelineBlock,
   orderedEnabledStages,
+  parsePipelineStages,
 } from './cardPipeline';
 
 const pipeline: Pipeline = {
@@ -376,5 +377,69 @@ describe('extractPipelineBlock', () => {
     expect(extractPipelineBlock('Just some prose.')).toBe('');
     expect(extractPipelineBlock(null)).toBe('');
     expect(extractPipelineBlock(undefined)).toBe('');
+  });
+});
+
+describe('parsePipelineStages', () => {
+  it('counts the numbered stages, ignoring the order instruction and executor-pin lines', () => {
+    const block = composePipelineBlock(pipeline, ['spec', 'plan'], '', 'CODEX');
+    const stages = parsePipelineStages(block);
+    expect(stages).toEqual([
+      { index: 1, label: 'Write a spec.' },
+      { index: 2, label: 'Write a plan.' },
+    ]);
+  });
+
+  it('does not count numbered custom text that follows a blank line after the stage list', () => {
+    const block = composePipelineBlock(
+      pipeline,
+      ['spec'],
+      '1. Not a real stage\n2. Also not a stage',
+      null
+    );
+    expect(parsePipelineStages(block)).toEqual([
+      { index: 1, label: 'Write a spec.' },
+    ]);
+  });
+
+  it('returns [] when the description has no pipeline block', () => {
+    expect(parsePipelineStages(null)).toEqual([]);
+    expect(parsePipelineStages('Just some regular card prose.')).toEqual([]);
+  });
+
+  it('returns [] when the pipeline block has no numbered list', () => {
+    const block = composePipelineBlock(null, [], '', 'CLAUDE_CODE');
+    expect(parsePipelineStages(block)).toEqual([]);
+  });
+
+  it('tolerates a post-creation hand-edited block (still within the delimiters)', () => {
+    const edited = [
+      PIPELINE_START,
+      '## Pipeline: Custom',
+      '',
+      '1. Do the first thing',
+      '2. Do the second thing',
+      '3. Do the third thing',
+      PIPELINE_END,
+    ].join('\n');
+    expect(parsePipelineStages(edited)).toEqual([
+      { index: 1, label: 'Do the first thing' },
+      { index: 2, label: 'Do the second thing' },
+      { index: 3, label: 'Do the third thing' },
+    ]);
+  });
+
+  it('falls back to the ## Pipeline heading when delimiters are absent', () => {
+    const noDelimiters = [
+      'Some card prose up top.',
+      '',
+      '## Pipeline',
+      '1. First stage',
+      '2. Second stage',
+    ].join('\n');
+    expect(parsePipelineStages(noDelimiters)).toEqual([
+      { index: 1, label: 'First stage' },
+      { index: 2, label: 'Second stage' },
+    ]);
   });
 });
