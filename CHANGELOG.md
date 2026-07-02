@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `IMPLEMENTATION_PLAN.md`, and runs a Fable review subagent alongside a Codex
   review before merge/PR.
 
+## [0.2.10] - 2026-07-02
+
 ### Changed
 
 - **File-based pipelines.** Pipelines are now first-class, user-editable TOML
