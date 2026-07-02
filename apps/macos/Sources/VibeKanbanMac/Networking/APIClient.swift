@@ -292,6 +292,20 @@ final class APIClient {
                      await send("GET", "/api/sessions", query: [.init(name: "workspace_id", value: workspaceId)]))
     }
 
+    /// `POST /api/sessions` — create an empty session for a workspace (web
+    /// `useCreateSession`). The first prompt is then delivered via `followUp`.
+    @discardableResult
+    func createSession(_ req: CreateSessionRequest) async throws -> Session {
+        try envelope(Session.self, await send("POST", "/api/sessions", body: try encode(req)))
+    }
+
+    /// `PUT /api/sessions/{id}` — rename a session.
+    @discardableResult
+    func updateSession(id: String, name: String) async throws -> Session {
+        try envelope(Session.self,
+                     await send("PUT", "/api/sessions/\(id)", body: try encode(UpdateSessionRequest(name: name))))
+    }
+
     func listExecutions(sessionId: String) async throws -> [ExecutionProcess] {
         try envelope([ExecutionProcess].self, await send("GET", "/api/sessions/\(sessionId)/executions"))
     }
@@ -308,6 +322,13 @@ final class APIClient {
     /// (iTerm2 on macOS) — the backend's `open_interactive_terminal` flow.
     func openInteractiveTerminal(executionId: String) async throws {
         _ = try await send("POST", "/api/execution-processes/\(executionId)/open-terminal")
+    }
+
+    /// `POST /api/execution-processes/{id}/send-input` — type a single line into
+    /// a live headed (interactive) agent's tmux session, bypassing a follow-up.
+    func sendInput(executionId: String, text: String) async throws {
+        _ = try await send("POST", "/api/execution-processes/\(executionId)/send-input",
+                           body: try encode(SendInputRequest(text: text)))
     }
 
     // MARK: - Approvals

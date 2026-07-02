@@ -167,7 +167,9 @@ and a **main pane** with a segmented switch — **Agent / Terminal / Logs / Chan
 / Preview** (`WorkspacePane` in `WorkspaceWindowView`).
 
 - **Agent** — the conversation + approvals + composer.
-- **Terminal** — embedded interactive terminal (see below).
+- **Terminal** — a thin client over the backend terminal WS (see below);
+  available whenever a workspace is open, with a headed-agent attach mode
+  gated on a live execution.
 - **Logs** — raw stdout/stderr from the execution's `raw-logs` WebSocket
   (`TerminalLogView`), ANSI-stripped and auto-scrolling, with copy.
 - **Changes** — the live workspace **git diff** streamed over
@@ -181,28 +183,48 @@ and a **main pane** with a segmented switch — **Agent / Terminal / Logs / Chan
   (survives session switches) and tied to the window's lifetime.
 - **Preview** — `WKWebView` pointed at a dev-server URL.
 
-### Terminal pane (headed agents)
+### Terminal pane (backend WS, shell + headed attach)
 
-The **Terminal** tab (`Features/Workspace/TerminalPane.swift`) is a real,
-interactive terminal embedded in the pane, attached to the **headed Claude Code
-agent's tmux session**. A headed (interactive) agent runs under
-`tmux new-session -d -s vk-<execId>`; any number of clients can attach.
+The **Terminal** tab (`Features/Workspace/TerminalPane.swift`) is a thin
+[SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) client over the
+backend's `GET /api/terminal/ws` protocol — the **server owns the PTY**
+(spawns the shell or `tmux attach-session`), matching the web frontend's
+terminal (`packages/web-core/src/shared/providers/TerminalProvider.tsx`).
+There is no local `tmux`/shell dependency on the Mac itself; the app just
+speaks the WS protocol.
 
-- **Embedded (built-in):** an [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)
-  `LocalProcessTerminalView` spawns the user's login shell and `exec`s
-  `tmux attach -t vk-<execId>`. The login shell (`-l`) makes the user's PATH
-  resolve Homebrew `tmux`, and `exec` makes the process exit cleanly when the
-  session detaches/ends (→ a "Not attached" overlay with **Reconnect**). tmux is
-  already required for headed mode, so this adds no new runtime dependency.
+- **Wire protocol** (JSON text frames, base64 payloads; see
+  `Networking/TerminalMsg.swift`): client→server `{"type":"input","data":…}` /
+  `{"type":"resize","cols":N,"rows":N}`; server→client
+  `{"type":"output","data":…}` / `{"type":"error","message":…}`.
+- **Two modes, one endpoint** (`Networking/TerminalSocket.swift` builds the
+  query string):
+  - **Plain workspace shell** (no `execution_process_id`) — always available
+    while a workspace is open; a login shell in the workspace's repo dir.
+  - **Headed-agent attach** (`execution_process_id` set) — only meaningful for
+    a **running, interactive** coding-agent execution
+    (`WorkspaceViewModel.liveHeadedExecution`); the backend `tmux
+    attach-session`s to `vk-<execId>` and rejects anything else in-band (error
+    frame + clean close). The pane shows a Shell/Agent picker only once such a
+    live target exists, defaulting to Agent when one first appears.
+- **Reconnect:** `TerminalSocket` backs off exponentially (0.5s → 8s, max 6
+  retries — `TerminalReconnectPolicy`) on a transient drop, and stops
+  reconnecting on a clean close (WS code 1000, detected via
+  `URLSessionWebSocketDelegate.didCloseWith`) or an intentional `close()` —
+  the pane then shows a "Disconnected" overlay with **Reconnect**.
+- **SwiftTerm view:** `WSTerminalView` wraps the plain `TerminalView` (not
+  `LocalProcessTerminalView` — there's no local child process), feeding it
+  socket output via `feed(byteArray:)` and forwarding its
+  `TerminalViewDelegate.send(source:data:)` / `sizeChanged(source:newCols:newRows:)`
+  callbacks to `TerminalSocket.sendInput`/`resize`.
 - **Open in iTerm2:** the button calls `POST
   /api/execution-processes/{id}/open-terminal` (`APIClient.openInteractiveTerminal`),
   the backend's existing external-terminal flow, which opens the configured
-  emulator (iTerm2 on macOS) attached to the same session.
+  emulator (iTerm2 on macOS) attached to the live headed execution's tmux
+  session. Only enabled while a live attach target exists.
 - **SwiftTerm is pinned to `1.11.2`** in `project.yml` — the last release before
   the Metal GPU backend (v1.12+), which needs the separately-downloaded Metal
   Toolchain. 1.11.2 builds with a stock Xcode.
-- *Caveat:* tmux mirrors a window across all attached clients and sizes it to the
-  smallest one, so the embedded view and an open iTerm2 window share a size.
 
 ### Route prefixes (important)
 

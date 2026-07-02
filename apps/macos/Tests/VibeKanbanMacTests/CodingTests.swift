@@ -46,6 +46,27 @@ final class CodingTests: XCTestCase {
         XCTAssertNil(updates[0]["title"])
     }
 
+    func testCreateSessionRequestEncodesWorkspaceIdAndOmitsNilFields() throws {
+        let obj = try object(CreateSessionRequest(workspaceId: "w1"))
+        XCTAssertEqual(obj["workspace_id"] as? String, "w1")
+        XCTAssertNil(obj["executor"])
+        XCTAssertNil(obj["name"])
+
+        let full = try object(CreateSessionRequest(workspaceId: "w1", executor: "CODEX", name: "n"))
+        XCTAssertEqual(full["executor"] as? String, "CODEX")
+        XCTAssertEqual(full["name"] as? String, "n")
+    }
+
+    func testUpdateSessionRequestShape() throws {
+        let obj = try object(UpdateSessionRequest(name: "renamed"))
+        XCTAssertEqual(obj["name"] as? String, "renamed")
+    }
+
+    func testSendInputRequestShape() throws {
+        let obj = try object(SendInputRequest(text: "hello"))
+        XCTAssertEqual(obj["text"] as? String, "hello")
+    }
+
     func testGenerateSpecRequestShape() throws {
         let req = GenerateSpecRequest(
             projectId: "p1", brief: "do x",

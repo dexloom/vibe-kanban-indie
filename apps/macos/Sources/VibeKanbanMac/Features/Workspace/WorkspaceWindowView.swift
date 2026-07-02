@@ -24,6 +24,11 @@ struct WorkspaceWindowView: View {
     @Environment(AppState.self) private var app
     @State private var vm: WorkspaceViewModel?
     @State private var pane: WorkspacePane = .agent
+    /// Lazily latches `true` the first time the operator visits the Terminal
+    /// tab, then stays `true` for the window's lifetime so `TerminalPane`
+    /// keeps its identity (and therefore its PTYs) across further tab
+    /// switches — opening a workspace must not eagerly spawn a shell PTY.
+    @State private var terminalMounted = false
 
     var body: some View {
         Group {
@@ -69,16 +74,33 @@ struct WorkspaceWindowView: View {
                 .padding(.horizontal, 14).padding(.vertical, 9)
                 .background(FlightDeck.bgDeepest)
                 .overlay(alignment: .bottom) { Rectangle().fill(FlightDeck.hairline).frame(height: 1) }
-                switch pane {
-                case .agent:    agentPane(vm)
-                case .terminal: terminalPane(vm)
-                case .logs:     TerminalLogView(text: vm.rawLog)
-                case .changes:  DiffView(diffs: vm.diffs, showRepo: vm.diffsSpanRepos)
-                case .preview:  PreviewBrowser()
+                // `TerminalPane` is layered behind the switched content and
+                // hidden via opacity rather than being one branch of the
+                // `switch` — that would dismantle it (and kill its PTYs) on
+                // every switch away from the Terminal tab. It's only
+                // *mounted* once the operator first visits Terminal, so
+                // opening a workspace on another tab doesn't eagerly spawn a
+                // shell PTY.
+                ZStack {
+                    switch pane {
+                    case .agent:    agentPane(vm)
+                    case .terminal: Color.clear
+                    case .logs:     TerminalLogView(text: vm.rawLog)
+                    case .changes:  DiffView(diffs: vm.diffs, showRepo: vm.diffsSpanRepos)
+                    case .preview:  PreviewBrowser()
+                    }
+                    if terminalMounted {
+                        terminalPane(vm)
+                            .opacity(pane == .terminal ? 1 : 0)
+                            .allowsHitTesting(pane == .terminal)
+                    }
                 }
             }
             .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
             .background(FlightDeck.bg)
+        }
+        .onChange(of: pane) { _, newValue in
+            if newValue == .terminal { terminalMounted = true }
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -118,29 +140,27 @@ struct WorkspaceWindowView: View {
 
     @ViewBuilder
     private func sessionSelector(_ vm: WorkspaceViewModel) -> some View {
-        if vm.sessions.isEmpty {
-            Text("No sessions").font(.fd(13)).foregroundStyle(FlightDeck.textFaint)
-        } else {
-            Menu {
-                ForEach(vm.sessions) { session in
-                    Button(session.displayName) { vm.selectedSessionId = session.id }
-                }
-            } label: {
-                HStack {
-                    Text(selectedSession(vm)?.displayName ?? "—")
-                        .font(.fdMono(13, .semibold)).foregroundStyle(FlightDeck.textSoft)
-                        .lineLimit(1).truncationMode(.middle)
-                    Spacer()
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 11, weight: .semibold)).foregroundStyle(FlightDeck.textFaint)
-                }
-                .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(RoundedRectangle(cornerRadius: 9).fill(FlightDeck.card))
-                .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(FlightDeck.hairlineHi))
-                .contentShape(Rectangle())
+        Menu {
+            ForEach(vm.sessions) { session in
+                Button(session.displayName) { vm.selectedSessionId = session.id }
             }
-            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
+            if !vm.sessions.isEmpty { Divider() }
+            Button("New Session") { vm.startNewSession() }
+        } label: {
+            HStack {
+                Text(vm.isNewSessionMode ? "New session" : (selectedSession(vm)?.displayName ?? "—"))
+                    .font(.fdMono(13, .semibold)).foregroundStyle(FlightDeck.textSoft)
+                    .lineLimit(1).truncationMode(.middle)
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(FlightDeck.textFaint)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 9)
+            .background(RoundedRectangle(cornerRadius: 9).fill(FlightDeck.card))
+            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(FlightDeck.hairlineHi))
+            .contentShape(Rectangle())
         }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
     }
 
     private func execBadge(_ status: ExecutionProcessStatus) -> some View {
@@ -199,9 +219,13 @@ struct WorkspaceWindowView: View {
         .padding(.top, 6)
     }
 
+    /// The session driving the info panel/agent label. Returns nil in
+    /// new-session mode — it must not fall back to `sessions.first`, or the
+    /// info panel would silently show the *previous* session's agent while the
+    /// composer is actually targeting a brand-new one.
     private func selectedSession(_ vm: WorkspaceViewModel) -> Session? {
-        if let id = vm.selectedSessionId, let s = vm.sessions.first(where: { $0.id == id }) { return s }
-        return vm.sessions.first
+        guard !vm.isNewSessionMode, let id = vm.selectedSessionId else { return nil }
+        return vm.sessions.first(where: { $0.id == id })
     }
 
     private func agentLabel(_ vm: WorkspaceViewModel) -> String? {
@@ -221,7 +245,11 @@ struct WorkspaceWindowView: View {
     @ViewBuilder
     private func agentPane(_ vm: WorkspaceViewModel) -> some View {
         VStack(spacing: 0) {
-            ConversationListView(entries: vm.entries, streamConnected: vm.streamConnected)
+            if vm.isNewSessionMode {
+                newSessionPlaceholder
+            } else {
+                ConversationListView(entries: vm.entries, streamConnected: vm.streamConnected)
+            }
             if !vm.pendingApprovals.isEmpty {
                 Divider().overlay(FlightDeck.hairline)
                 VStack(spacing: 8) {
@@ -235,31 +263,41 @@ struct WorkspaceWindowView: View {
                 .background(FlightDeck.bgTimeline)
             }
             ChatInputView(
-                onSend: { prompt in Task { await vm.sendFollowUp(prompt) } },
+                onSend: { prompt in Task { await vm.send(prompt) } },
                 dictationContext: {
                     DictationContext.chat(
                         title: vm.workspace?.displayName,
                         project: vm.workspace?.branch,
                         entries: vm.entries
                     )
-                }
+                },
+                // A live headed agent mid-turn can't take a follow-up or a
+                // send-input line yet — grey out Send rather than queueing.
+                // Also disabled while a live-input send is in flight so a
+                // second quick Cmd+Return can't inject a stray line into the
+                // tmux session (mirrors the web's `isSendingLiveInput`).
+                sendDisabled: (vm.liveHeadedExecution != nil && !vm.headedLiveIdle)
+                    || vm.isSendingLiveInput
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// The Terminal view: an embedded terminal attached to the headed agent's
-    /// tmux session, with an "Open in iTerm2" escape hatch.
-    @ViewBuilder
+    private var newSessionPlaceholder: some View {
+        TopPlaceholder(
+            "New session",
+            systemImage: "plus.bubble",
+            description: "Send a prompt to start a new session in this workspace."
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The Terminal view: a plain workspace shell (always available) plus a
+    /// headed-agent attach, both over the backend's terminal WS. The attach
+    /// affordance is gated on a **live, running, interactive** coding-agent
+    /// execution (see `WorkspaceViewModel.liveHeadedExecution`) — not merely
+    /// on `activeExecution` existing.
     private func terminalPane(_ vm: WorkspaceViewModel) -> some View {
-        if let exec = vm.activeExecution {
-            TerminalPane(execId: exec.id, client: app.client)
-        } else {
-            TopPlaceholder(
-                "No running execution",
-                systemImage: "terminal",
-                description: "Start a headed (interactive) agent to get a live terminal here."
-            )
-        }
+        TerminalPane(workspaceId: vm.workspaceId, attachTarget: vm.liveHeadedExecution?.id, client: app.client)
     }
 }

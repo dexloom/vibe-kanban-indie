@@ -6,6 +6,9 @@ struct ChatInputView: View {
     /// Conversation context for voice dictation; evaluated lazily when the mic
     /// starts. Defaults to a bare chat context so other call sites need not supply it.
     var dictationContext: () -> DictationContext = { DictationContext(surface: "chat") }
+    /// Greys out Send regardless of draft content — used while a live headed
+    /// agent is mid-turn (SPEC acceptance item 12: "mid-turn, Send is disabled").
+    var sendDisabled: Bool = false
     @State private var text = ""
     @State private var dictation = DictationController()
 
@@ -44,11 +47,11 @@ struct ChatInputView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 34, height: 34)
-                    .background(RoundedRectangle(cornerRadius: 9).fill(isEmpty ? FlightDeck.accent.opacity(0.4) : FlightDeck.accent))
+                    .background(RoundedRectangle(cornerRadius: 9).fill((isEmpty || sendDisabled) ? FlightDeck.accent.opacity(0.4) : FlightDeck.accent))
             }
             .buttonStyle(.plain)
             .keyboardShortcut(.return, modifiers: .command)
-            .disabled(isEmpty)
+            .disabled(isEmpty || sendDisabled)
         }
         .padding(11)
         .background(RoundedRectangle(cornerRadius: 13).fill(FlightDeck.card))
