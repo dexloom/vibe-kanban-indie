@@ -1285,6 +1285,16 @@ export function KanbanIssuePanelContainer({
       )}
       renderPipeline={() => (
         <PipelineSection
+          // PipelineSection seeds its internal state from `initialSelection`
+          // only on mount (lazy useState initializers). The panel itself
+          // isn't remounted when the operator switches between cards, so key
+          // it on the edited issue (or the create-composer draft) to force a
+          // fresh instance instead of leaking the previous card's selection.
+          key={
+            mode === 'edit'
+              ? `edit:${selectedKanbanIssueId}`
+              : `create:${issueComposerKey}`
+          }
           profiles={profiles}
           disabled={isSubmitting}
           expanded
