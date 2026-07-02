@@ -138,9 +138,7 @@ const wikillmPipeline: Pipeline = {
 const basicWikillmEnabledUnion = [
   ...new Set([
     ...basicPipeline.stages.filter((s) => s.default_enabled).map((s) => s.id),
-    ...wikillmPipeline.stages
-      .filter((s) => s.default_enabled)
-      .map((s) => s.id),
+    ...wikillmPipeline.stages.filter((s) => s.default_enabled).map((s) => s.id),
   ]),
 ];
 

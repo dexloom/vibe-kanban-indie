@@ -104,7 +104,11 @@ function asStringArray(value: JsonValue | undefined): string[] {
  */
 function readPipelineProvenance(
   extensionMetadata: JsonValue | undefined | null
-): { pipelineIds: string[]; enabledIds: string[]; executor: string | null } | null {
+): {
+  pipelineIds: string[];
+  enabledIds: string[];
+  executor: string | null;
+} | null {
   const em = asJsonObject(extensionMetadata);
   if (!em) return null;
   const prov = asJsonObject(em.pipeline);
