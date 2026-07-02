@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT iw.workspace_id as \"workspace_id!: Uuid\",\n                      iw.issue_id     as \"issue_id!: Uuid\",\n                      i.project_id    as \"project_id!: Uuid\",\n                      w.name          as \"name\",\n                      w.archived      as \"archived!: bool\",\n                      w.created_at    as \"created_at!: DateTime<Utc>\",\n                      w.updated_at    as \"updated_at!: DateTime<Utc>\"\n               FROM issue_workspaces iw\n               JOIN issues i ON i.id = iw.issue_id\n               JOIN workspaces w ON w.id = iw.workspace_id\n               ORDER BY w.created_at DESC",
+  "query": "SELECT iw.workspace_id as \"workspace_id!: Uuid\",\n                      iw.issue_id     as \"issue_id!: Uuid\",\n                      i.project_id    as \"project_id!: Uuid\",\n                      w.name          as \"name\",\n                      w.archived      as \"archived!: bool\",\n                      w.created_at    as \"created_at!: DateTime<Utc>\",\n                      w.updated_at    as \"updated_at!: DateTime<Utc>\",\n                      w.current_pipeline_stage as \"current_pipeline_stage\"\n               FROM issue_workspaces iw\n               JOIN issues i ON i.id = iw.issue_id\n               JOIN workspaces w ON w.id = iw.workspace_id\n               ORDER BY w.created_at DESC",
   "describe": {
     "columns": [
       {
@@ -37,6 +37,11 @@
         "name": "updated_at!: DateTime<Utc>",
         "ordinal": 6,
         "type_info": "Text"
+      },
+      {
+        "name": "current_pipeline_stage",
+        "ordinal": 7,
+        "type_info": "Integer"
       }
     ],
     "parameters": {
@@ -49,8 +54,9 @@
       true,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "2865dac9ca9c173bb9fda05e34385d460c7cc94c7388cf3f900e7918f9342d08"
+  "hash": "6857b660e71d301040fc7b7d69402625c884ef1d787071de435e7b2d3902e2ec"
 }

@@ -202,6 +202,7 @@ fn to_api_workspace(row: LinkedWorkspaceRow) -> ApiWorkspace {
         lines_removed: None,
         created_at: row.created_at,
         updated_at: row.updated_at,
+        current_pipeline_stage: row.current_pipeline_stage,
     }
 }
 

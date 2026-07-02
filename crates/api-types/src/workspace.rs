@@ -18,4 +18,10 @@ pub struct Workspace {
     pub lines_removed: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Which numbered `## Pipeline` stage the workspace's execution agent last
+    /// reported itself as starting (1-based). `None` when not yet reported or
+    /// not applicable (e.g. remote deployments have no local pipeline
+    /// concept and always report `None` here).
+    #[serde(default)]
+    pub current_pipeline_stage: Option<i64>,
 }

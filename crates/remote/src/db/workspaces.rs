@@ -44,7 +44,8 @@ impl WorkspaceRepository {
                 lines_added         AS "lines_added: i32",
                 lines_removed       AS "lines_removed: i32",
                 created_at          AS "created_at!: DateTime<Utc>",
-                updated_at          AS "updated_at!: DateTime<Utc>"
+                updated_at          AS "updated_at!: DateTime<Utc>",
+                NULL::BIGINT        AS "current_pipeline_stage: i64"
             FROM workspaces
             WHERE owner_user_id = $1
             "#,
@@ -74,7 +75,8 @@ impl WorkspaceRepository {
                 lines_added         AS "lines_added: i32",
                 lines_removed       AS "lines_removed: i32",
                 created_at          AS "created_at!: DateTime<Utc>",
-                updated_at          AS "updated_at!: DateTime<Utc>"
+                updated_at          AS "updated_at!: DateTime<Utc>",
+                NULL::BIGINT        AS "current_pipeline_stage: i64"
             FROM workspaces
             WHERE project_id = $1
             "#,
@@ -118,7 +120,8 @@ impl WorkspaceRepository {
                 lines_added         AS "lines_added: i32",
                 lines_removed       AS "lines_removed: i32",
                 created_at          AS "created_at!: DateTime<Utc>",
-                updated_at          AS "updated_at!: DateTime<Utc>"
+                updated_at          AS "updated_at!: DateTime<Utc>",
+                NULL::BIGINT        AS "current_pipeline_stage: i64"
             "#,
             project_id,
             owner_user_id,
@@ -151,7 +154,8 @@ impl WorkspaceRepository {
                 lines_added         AS "lines_added: i32",
                 lines_removed       AS "lines_removed: i32",
                 created_at          AS "created_at!: DateTime<Utc>",
-                updated_at          AS "updated_at!: DateTime<Utc>"
+                updated_at          AS "updated_at!: DateTime<Utc>",
+                NULL::BIGINT        AS "current_pipeline_stage: i64"
             FROM workspaces
             WHERE id = $1
             "#,
@@ -182,7 +186,8 @@ impl WorkspaceRepository {
                 lines_added         AS "lines_added: i32",
                 lines_removed       AS "lines_removed: i32",
                 created_at          AS "created_at!: DateTime<Utc>",
-                updated_at          AS "updated_at!: DateTime<Utc>"
+                updated_at          AS "updated_at!: DateTime<Utc>",
+                NULL::BIGINT        AS "current_pipeline_stage: i64"
             FROM workspaces
             WHERE local_workspace_id = $1
             "#,
@@ -284,7 +289,8 @@ impl WorkspaceRepository {
                 lines_added         AS "lines_added: i32",
                 lines_removed       AS "lines_removed: i32",
                 created_at          AS "created_at!: DateTime<Utc>",
-                updated_at          AS "updated_at!: DateTime<Utc>"
+                updated_at          AS "updated_at!: DateTime<Utc>",
+                NULL::BIGINT        AS "current_pipeline_stage: i64"
             "#,
             update_name,
             name_value,
