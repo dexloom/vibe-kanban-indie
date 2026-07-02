@@ -36,7 +36,9 @@
         "telegram": "Telegram",
         "telegramDesc": "Agent escalations to Telegram",
         "pipeline": "파이프라인",
-        "pipelineDesc": "카드별 파이프라인 단계"
+        "pipelineDesc": "카드별 파이프라인 단계",
+        "recurrent": "루틴",
+        "recurrentDesc": "예약된 반복 에이전트 실행"
       }
     },
     "general": {

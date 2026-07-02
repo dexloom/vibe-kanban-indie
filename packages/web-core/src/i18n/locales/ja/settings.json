@@ -36,7 +36,9 @@
         "telegram": "Telegram",
         "telegramDesc": "Agent escalations to Telegram",
         "pipeline": "パイプライン",
-        "pipelineDesc": "カードごとのパイプラインステージ"
+        "pipelineDesc": "カードごとのパイプラインステージ",
+        "recurrent": "ルーティン",
+        "recurrentDesc": "定期実行されるエージェントのタスク"
       }
     },
     "general": {

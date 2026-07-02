@@ -802,7 +802,11 @@ agent: string | null,
  */
 executor_profile: string, max_runtime_secs: bigint, schedule: RoutineScheduleView, last_run: RoutineLastRun | null, };
 
-export type RoutineLastRun = { status: string, at: string, };
+export type RoutineLastRun = { status: string, at: string, 
+/**
+ * Workspace the run executed in, so the UI can jump straight to it.
+ */
+workspace_id: string, };
 
 export type RoutineScheduleView = { 
 /**

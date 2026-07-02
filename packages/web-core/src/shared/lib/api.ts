@@ -117,6 +117,9 @@ import {
   ConstitutionContent,
   SpecKitFeatureStatus,
   Pipeline,
+  Routine,
+  RecurrentTomlError,
+  RunRoutineResponse,
 } from 'shared/types';
 import type { Project as RemoteProject } from 'shared/remote-types';
 import type { WorkspaceWithSession } from '@/shared/types/attempt';
@@ -1274,6 +1277,49 @@ export const pipelinesApi = {
   remove: async (id: string): Promise<void> => {
     const response = await makeRequest(
       `/api/pipelines/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    );
+    return handleApiResponse<void>(response);
+  },
+};
+
+// File-based recurrent routines (`~/.vibe-kanban/recurrent/*.toml`).
+export const recurrentApi = {
+  list: async (): Promise<Routine[]> => {
+    const response = await makeRequest('/api/recurrent', { cache: 'no-store' });
+    return handleApiResponse<Routine[]>(response);
+  },
+  getRaw: async (id: string): Promise<string> => {
+    const response = await makeRequest(
+      `/api/recurrent/${encodeURIComponent(id)}/raw`,
+      { cache: 'no-store' }
+    );
+    return handleApiResponse<string>(response);
+  },
+  saveRaw: async (id: string, content: string): Promise<Routine> => {
+    const response = await makeRequest(
+      `/api/recurrent/${encodeURIComponent(id)}/raw`,
+      { method: 'PUT', body: JSON.stringify({ content }) }
+    );
+    return handleApiResponse<Routine, RecurrentTomlError>(response);
+  },
+  setEnabled: async (id: string, enabled: boolean): Promise<Routine> => {
+    const response = await makeRequest(
+      `/api/recurrent/${encodeURIComponent(id)}/${enabled ? 'enable' : 'disable'}`,
+      { method: 'POST' }
+    );
+    return handleApiResponse<Routine>(response);
+  },
+  run: async (id: string): Promise<RunRoutineResponse> => {
+    const response = await makeRequest(
+      `/api/recurrent/${encodeURIComponent(id)}/run`,
+      { method: 'POST' }
+    );
+    return handleApiResponse<RunRoutineResponse>(response);
+  },
+  remove: async (id: string): Promise<void> => {
+    const response = await makeRequest(
+      `/api/recurrent/${encodeURIComponent(id)}`,
       { method: 'DELETE' }
     );
     return handleApiResponse<void>(response);

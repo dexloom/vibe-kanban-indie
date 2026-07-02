@@ -89,6 +89,8 @@ impl Routine {
 pub struct RoutineLastRun {
     pub status: String,
     pub at: DateTime<Utc>,
+    /// Workspace the run executed in, so the UI can jump straight to it.
+    pub workspace_id: uuid::Uuid,
 }
 
 #[derive(Debug, Error)]

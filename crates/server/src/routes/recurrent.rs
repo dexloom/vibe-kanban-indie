@@ -102,6 +102,7 @@ async fn enrich_last_run(pool: &SqlitePool, routine: Routine) -> Routine {
         last_run: Some(RoutineLastRun {
             status: status_str(&process.status),
             at,
+            workspace_id: workspace.id,
         }),
         ..routine
     }

@@ -36,7 +36,9 @@
         "telegram": "Telegram",
         "telegramDesc": "Agent escalations to Telegram",
         "pipeline": "Pipeline",
-        "pipelineDesc": "Étapes de pipeline par carte"
+        "pipelineDesc": "Étapes de pipeline par carte",
+        "recurrent": "Routines",
+        "recurrentDesc": "Exécutions d'agents récurrentes planifiées"
       }
     },
     "general": {

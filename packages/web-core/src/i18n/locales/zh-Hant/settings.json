@@ -36,7 +36,9 @@
         "telegram": "Telegram",
         "telegramDesc": "Agent escalations to Telegram",
         "pipeline": "流水線",
-        "pipelineDesc": "各卡片的流水線階段"
+        "pipelineDesc": "各卡片的流水線階段",
+        "recurrent": "例行任務",
+        "recurrentDesc": "定時重複執行的代理任務"
       }
     },
     "general": {

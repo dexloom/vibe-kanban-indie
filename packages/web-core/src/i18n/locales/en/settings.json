@@ -21,6 +21,8 @@
         "generalDesc": "Theme, notifications, and preferences",
         "pipeline": "Pipeline",
         "pipelineDesc": "Per-card pipeline stages",
+        "recurrent": "Routines",
+        "recurrentDesc": "Scheduled recurring agent runs",
         "projects": "Projects",
         "projectsDesc": "Project repositories and configuration",
         "repos": "Repositories",
@@ -354,6 +356,34 @@
       "reset": "Reset to default",
       "saved": "✓ Saved",
       "saveError": "Failed to save pipeline"
+    },
+    "recurrent": {
+      "loading": "Loading routines…",
+      "loadError": "Failed to load routines",
+      "list": {
+        "title": "Routines",
+        "description": "Routines are TOML files in ~/.vibe-kanban/recurrent/. Toggle a routine on to let it run on schedule, or run it now. Edit a routine's raw TOML below."
+      },
+      "empty": "No routines found.",
+      "neverRun": "Never run",
+      "enabledLabel": "Enabled",
+      "runNow": "Run now",
+      "runSkipped": "A run is already active for this routine.",
+      "openRun": "Open run",
+      "rawPlaceholder": "Raw routine TOML…",
+      "saveButton": "Save",
+      "saved": "✓ Saved",
+      "saveError": "Failed to save routine",
+      "schedule": {
+        "cron": "cron: {{expr}}",
+        "every": "every {{expr}}"
+      },
+      "status": {
+        "running": "running",
+        "completed": "completed",
+        "failed": "failed",
+        "killed": "killed"
+      }
     },
     "agents": {
       "title": "Coding Agent Configurations",
