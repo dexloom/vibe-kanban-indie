@@ -568,8 +568,8 @@
     "agentHelper": "이 카드를 오케스트레이터가 어떤 코딩 에이전트로 실행할지 고정합니다. 기본값으로 두면 자동으로 선택합니다.",
     "addonLabel": "프롬프트 추가 항목 (편집 가능)",
     "addonPlaceholder": "위에서 단계를 선택해 파이프라인 블록을 구성하거나 직접 입력하세요.",
-    "resetToCheckboxes": "체크박스로 초기화",
-    "pipelineLabel": "Pipeline",
-    "pipelineNone": "None"
+    "resetToGenerated": "생성된 내용으로 초기화",
+    "pipelinesLabel": "파이프라인",
+    "pipelinesHelper": "하나 이상의 파이프라인을 선택하세요. 선택한 파이프라인의 단계가 하나의 순서 있는 목록으로 결합됩니다."
   }
 }

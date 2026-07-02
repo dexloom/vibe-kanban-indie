@@ -1,0 +1,64 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`transformDiffToFileDiffMetadata > snapshot: full output shape for regression detection 1`] = `
+{
+  "additionLines": [
+    "const a = 1;
+",
+    "const b = 3;
+",
+    "const c = 4;
+",
+  ],
+  "cacheKey": undefined,
+  "deletionLines": [
+    "const a = 1;
+",
+    "const b = 2;
+",
+  ],
+  "hunks": [
+    {
+      "additionCount": 3,
+      "additionLineIndex": 0,
+      "additionLines": 2,
+      "additionStart": 1,
+      "collapsedBefore": 0,
+      "deletionCount": 2,
+      "deletionLineIndex": 0,
+      "deletionLines": 1,
+      "deletionStart": 1,
+      "hunkContent": [
+        {
+          "additionLineIndex": 0,
+          "deletionLineIndex": 0,
+          "lines": 1,
+          "type": "context",
+        },
+        {
+          "additionLineIndex": 1,
+          "additions": 2,
+          "deletionLineIndex": 1,
+          "deletions": 1,
+          "type": "change",
+        },
+      ],
+      "hunkContext": undefined,
+      "hunkSpecs": "@@ -1,2 +1,3 @@
+",
+      "noEOFCRAdditions": false,
+      "noEOFCRDeletions": false,
+      "splitLineCount": 3,
+      "splitLineStart": 0,
+      "unifiedLineCount": 4,
+      "unifiedLineStart": 0,
+    },
+  ],
+  "isPartial": false,
+  "name": "src/hello.ts",
+  "prevName": undefined,
+  "splitLineCount": 3,
+  "type": "change",
+  "unifiedLineCount": 4,
+}
+`;
