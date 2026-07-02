@@ -28,8 +28,6 @@ struct TerminalPane: View {
     let attachTarget: String?
     let client: APIClient?
 
-    private enum Mode: Equatable { case shell, attach(execId: String) }
-
     @State private var showAgent = false
     /// Bumped to force the shell/attach terminal to re-create and reconnect.
     @State private var shellToken = 0
@@ -39,30 +37,42 @@ struct TerminalPane: View {
     @State private var opening = false
     @State private var note: String?
 
-    private var mode: Mode {
-        if let attachTarget, showAgent { return .attach(execId: attachTarget) }
-        return .shell
-    }
+    /// Whether the Agent (attach) terminal is the one currently on-screen —
+    /// only meaningful once an attach target exists.
+    private var isAttachVisible: Bool { attachTarget != nil && showAgent }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
+            // Both the shell and (when an attach target exists) the attach
+            // terminal are mounted **simultaneously** — the Shell/Agent
+            // picker only toggles which one is visible/hit-testable, so
+            // switching modes never dismantles the other's `WSTerminalView`
+            // (and therefore never closes its WS / kills its server-side
+            // PTY). Each keeps a stable `.id` across mode toggles; it only
+            // changes on an explicit reconnect (token bump) or when the
+            // attach target itself changes (a genuinely different process to
+            // attach to).
             ZStack {
-                switch mode {
-                case .shell:
-                    WSTerminalView(workspaceId: workspaceId, executionProcessId: nil, client: client) {
-                        shellEnded = true
-                    }
-                    .id("shell#\(workspaceId)#\(shellToken)")
-                    if shellEnded { detached(label: "workspace shell") }
-                case .attach(let execId):
-                    WSTerminalView(workspaceId: workspaceId, executionProcessId: execId, client: client) {
+                WSTerminalView(workspaceId: workspaceId, executionProcessId: nil, client: client) {
+                    shellEnded = true
+                }
+                .id("shell#\(workspaceId)#\(shellToken)")
+                .opacity(isAttachVisible ? 0 : 1)
+                .allowsHitTesting(!isAttachVisible)
+
+                if let attachTarget {
+                    WSTerminalView(workspaceId: workspaceId, executionProcessId: attachTarget, client: client) {
                         attachEnded = true
                     }
-                    .id("attach#\(execId)#\(attachToken)")
-                    if attachEnded { detached(label: "agent session") }
+                    .id("attach#\(attachTarget)#\(attachToken)")
+                    .opacity(isAttachVisible ? 1 : 0)
+                    .allowsHitTesting(isAttachVisible)
                 }
+
+                if shellEnded && !isAttachVisible { detached(label: "workspace shell") }
+                if attachEnded && isAttachVisible { detached(label: "agent session") }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -71,6 +81,19 @@ struct TerminalPane: View {
             if newValue == nil { showAgent = false }                  // no target ⇒ shell only, no picker
             attachEnded = false
             note = nil
+        }
+        .onChange(of: showAgent) { _, isAgent in
+            // A mode's "ended" flag can latch (retries exhausted / clean
+            // close) while it's hidden behind the other mode. Re-showing it
+            // shouldn't present a stale "Disconnected" overlay indefinitely —
+            // auto-reconnect by clearing the flag and bumping its token, the
+            // same as an explicit Reconnect click.
+            note = nil
+            if isAgent {
+                if attachEnded { attachEnded = false; attachToken += 1 }
+            } else {
+                if shellEnded { shellEnded = false; shellToken += 1 }
+            }
         }
     }
 
@@ -130,13 +153,12 @@ struct TerminalPane: View {
 
     private func reconnect() {
         note = nil
-        switch mode {
-        case .shell:
-            shellEnded = false
-            shellToken += 1
-        case .attach:
+        if isAttachVisible {
             attachEnded = false
             attachToken += 1
+        } else {
+            shellEnded = false
+            shellToken += 1
         }
     }
 

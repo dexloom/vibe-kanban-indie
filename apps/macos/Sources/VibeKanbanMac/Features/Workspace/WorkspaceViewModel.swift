@@ -30,6 +30,12 @@ final class WorkspaceViewModel {
     var pendingApprovals: [ApprovalInfo] = []
     var streamConnected = false
     var error: String?
+    /// In-flight guard for `sendLiveInput` — mirrors the web's
+    /// `isSendingLiveInput` (SPEC finding: two quick Cmd+Return sends must
+    /// not both inject keystrokes into the live tmux session). The composer
+    /// folds this into `ChatInputView.sendDisabled` alongside
+    /// `!headedLiveIdle`.
+    var isSendingLiveInput = false
 
     private var applier = ConversationPatchApplier()
     private var diffApplier = DiffStreamApplier()
@@ -81,7 +87,17 @@ final class WorkspaceViewModel {
     func load() async {
         workspace = try? await client.getWorkspace(id: workspaceId)
         startDiffStream()   // workspace-level; independent of the selected session
-        sessions = (try? await client.listSessions(workspaceId: workspaceId)) ?? []
+        do {
+            sessions = try await client.listSessions(workspaceId: workspaceId)
+        } catch {
+            // A transient fetch failure is not "zero sessions" — falling
+            // through into new-session mode here would fabricate a duplicate
+            // session on the next send. Surface the error and keep whatever
+            // `sessions` we already had; only a *successful* empty fetch
+            // means new-session mode.
+            self.error = error.localizedDescription
+            return
+        }
         if sessions.isEmpty {
             // Zero sessions ⇒ new-session mode (web treats this the same as an
             // explicit "New session" click).
@@ -108,7 +124,17 @@ final class WorkspaceViewModel {
         entries = []
         rawLog = ""
         applier = ConversationPatchApplier()
-        guard let sid = selectedSessionId else { return }
+        guard let sid = selectedSessionId else {
+            // New-session mode (or a workspace with no sessions): there is no
+            // execution to poll approvals for or attach the Terminal to
+            // anymore — tear the previous session's remaining state down
+            // rather than leaving its approval banner live/actionable and its
+            // executions attachable.
+            pollTask?.cancel(); pollTask = nil
+            executions = []
+            pendingApprovals = []
+            return
+        }
         executions = (try? await client.listExecutions(sessionId: sid)) ?? []
         startStreaming()
         startPollingApprovals()
@@ -258,11 +284,18 @@ final class WorkspaceViewModel {
     /// in new-session mode (or when nothing is selected — a zero-session
     /// workspace); to live headed input when a live, idle headed execution
     /// exists (SPEC "Optional headed live-input parity"); otherwise sends a
-    /// follow-up to the selected session.
+    /// follow-up to the selected session. Re-fetches `executions` first so
+    /// the routing decision reflects the execution's *current* status — a
+    /// headed agent that exited since `loadSession()` last ran must not
+    /// still be treated as live (that would route into `send-input` and hit
+    /// the backend's `InteractiveSessionGone`, losing the message).
     func send(_ prompt: String) async {
-        if isNewSessionMode || selectedSessionId == nil {
+        guard !isNewSessionMode, let sid = selectedSessionId else {
             await createSessionAndSend(prompt)
-        } else if let live = liveHeadedExecution, headedLiveIdle {
+            return
+        }
+        executions = (try? await client.listExecutions(sessionId: sid)) ?? executions
+        if let live = liveHeadedExecution, headedLiveIdle {
             await sendLiveInput(prompt, to: live)
         } else {
             await sendFollowUp(prompt)
@@ -274,14 +307,27 @@ final class WorkspaceViewModel {
     /// control-char input (`execution_processes.rs::send_input_process`), so
     /// newlines are flattened to spaces client-side rather than rejected
     /// outright — the composer is a free-form text box, not a single-line field.
+    ///
+    /// `isSendingLiveInput` guards against two quick sends both injecting
+    /// keystrokes into the same live tmux session: it's held for the
+    /// duration of the network call plus a short grace period so a second
+    /// Cmd+Return can't race the stream update that will flip
+    /// `headedLiveIdle` false once the agent's next `.loading` entry
+    /// streams in. On failure we deliberately do **not** retry as a
+    /// follow-up (risk of double-send) — we refresh `executions` and
+    /// surface the error so the *next* Send re-routes correctly.
     private func sendLiveInput(_ prompt: String, to execution: ExecutionProcess) async {
         let text = Self.sanitizeForLiveInput(prompt)
-        guard !text.isEmpty else { return }
+        guard !text.isEmpty, !isSendingLiveInput else { return }
+        isSendingLiveInput = true
         do {
             try await client.sendInput(executionId: execution.id, text: text)
+            try? await Task.sleep(nanoseconds: 700_000_000)
         } catch {
             self.error = error.localizedDescription
+            executions = (try? await client.listExecutions(sessionId: execution.sessionId)) ?? executions
         }
+        isSendingLiveInput = false
     }
 
     private static func sanitizeForLiveInput(_ text: String) -> String {
@@ -304,9 +350,15 @@ final class WorkspaceViewModel {
     }
 
     /// New-session mode's first send (mirrors web's `useCreateSession` +
-    /// `useSessionSend`): create an empty session, deliver the prompt as its
-    /// first follow-up, refresh the list, then select the new session (which
-    /// exits new-session mode via `selectedSessionId`'s `didSet`).
+    /// `useSessionSend`): create an empty session, select it **immediately**,
+    /// then deliver the prompt as its first follow-up.
+    ///
+    /// The session is inserted into `sessions` and selected right after
+    /// `createSession` succeeds — *before* the follow-up is attempted. If the
+    /// follow-up then fails (network hiccup, executor mismatch, etc.) the UI
+    /// is left pointed at the already-created (still-empty) session instead
+    /// of stuck in new-session mode; retrying `send` routes as a normal
+    /// follow-up to that session rather than creating a duplicate empty one.
     func createSessionAndSend(_ prompt: String) async {
         // A brand-new session has no executions of its own yet — fall back to
         // the most-recently-used session's executor, else the app default.
@@ -314,9 +366,11 @@ final class WorkspaceViewModel {
             ?? .defaultConfig
         do {
             let newSession = try await client.createSession(CreateSessionRequest(workspaceId: workspaceId))
+            sessions.insert(newSession, at: 0)
+            selectedSessionId = newSession.id   // triggers loadSession via didSet; clears isNewSessionMode
             try await client.followUp(sessionId: newSession.id, CreateFollowUpAttempt(prompt: prompt, executorConfig: config))
             sessions = (try? await client.listSessions(workspaceId: workspaceId)) ?? sessions
-            selectedSessionId = newSession.id   // triggers loadSession via didSet; clears isNewSessionMode
+            await loadSession()   // refresh executions/conversation now the follow-up execution exists
         } catch {
             self.error = error.localizedDescription
         }

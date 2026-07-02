@@ -77,6 +77,21 @@ final class TerminalProtocolTests: XCTestCase {
         XCTAssertNil(TerminalReconnectPolicy.delay(retry: 7))
     }
 
+    // MARK: - Clean-close decision
+
+    /// The receive-loop failure path and the `didCloseWith` delegate can race
+    /// to the main actor; both now derive `cleanClose` from the same pure
+    /// helper reading the task's close code, so a server code-1000 close is
+    /// never misclassified as a transient drop that would trigger a reconnect
+    /// loop onto a dead/rejected target.
+    func testCleanCloseOnlyForNormalClosure() {
+        XCTAssertTrue(TerminalSocket.isCleanClose(.normalClosure))
+        XCTAssertFalse(TerminalSocket.isCleanClose(nil))
+        XCTAssertFalse(TerminalSocket.isCleanClose(.abnormalClosure))
+        XCTAssertFalse(TerminalSocket.isCleanClose(.goingAway))
+        XCTAssertFalse(TerminalSocket.isCleanClose(.internalServerError))
+    }
+
     // MARK: - TerminalSocket URL construction
 
     @MainActor

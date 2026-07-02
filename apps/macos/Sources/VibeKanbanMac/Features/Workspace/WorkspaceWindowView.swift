@@ -24,6 +24,11 @@ struct WorkspaceWindowView: View {
     @Environment(AppState.self) private var app
     @State private var vm: WorkspaceViewModel?
     @State private var pane: WorkspacePane = .agent
+    /// Lazily latches `true` the first time the operator visits the Terminal
+    /// tab, then stays `true` for the window's lifetime so `TerminalPane`
+    /// keeps its identity (and therefore its PTYs) across further tab
+    /// switches — opening a workspace must not eagerly spawn a shell PTY.
+    @State private var terminalMounted = false
 
     var body: some View {
         Group {
@@ -69,16 +74,33 @@ struct WorkspaceWindowView: View {
                 .padding(.horizontal, 14).padding(.vertical, 9)
                 .background(FlightDeck.bgDeepest)
                 .overlay(alignment: .bottom) { Rectangle().fill(FlightDeck.hairline).frame(height: 1) }
-                switch pane {
-                case .agent:    agentPane(vm)
-                case .terminal: terminalPane(vm)
-                case .logs:     TerminalLogView(text: vm.rawLog)
-                case .changes:  DiffView(diffs: vm.diffs, showRepo: vm.diffsSpanRepos)
-                case .preview:  PreviewBrowser()
+                // `TerminalPane` is layered behind the switched content and
+                // hidden via opacity rather than being one branch of the
+                // `switch` — that would dismantle it (and kill its PTYs) on
+                // every switch away from the Terminal tab. It's only
+                // *mounted* once the operator first visits Terminal, so
+                // opening a workspace on another tab doesn't eagerly spawn a
+                // shell PTY.
+                ZStack {
+                    switch pane {
+                    case .agent:    agentPane(vm)
+                    case .terminal: Color.clear
+                    case .logs:     TerminalLogView(text: vm.rawLog)
+                    case .changes:  DiffView(diffs: vm.diffs, showRepo: vm.diffsSpanRepos)
+                    case .preview:  PreviewBrowser()
+                    }
+                    if terminalMounted {
+                        terminalPane(vm)
+                            .opacity(pane == .terminal ? 1 : 0)
+                            .allowsHitTesting(pane == .terminal)
+                    }
                 }
             }
             .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
             .background(FlightDeck.bg)
+        }
+        .onChange(of: pane) { _, newValue in
+            if newValue == .terminal { terminalMounted = true }
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -251,7 +273,11 @@ struct WorkspaceWindowView: View {
                 },
                 // A live headed agent mid-turn can't take a follow-up or a
                 // send-input line yet — grey out Send rather than queueing.
-                sendDisabled: vm.liveHeadedExecution != nil && !vm.headedLiveIdle
+                // Also disabled while a live-input send is in flight so a
+                // second quick Cmd+Return can't inject a stray line into the
+                // tmux session (mirrors the web's `isSendingLiveInput`).
+                sendDisabled: (vm.liveHeadedExecution != nil && !vm.headedLiveIdle)
+                    || vm.isSendingLiveInput
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

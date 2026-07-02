@@ -128,31 +128,54 @@ final class TerminalSocket: NSObject {
 
     // MARK: - Receive
 
+    /// Pure decision: does this close code represent a **clean** server
+    /// close (no reconnect)? The backend always pairs an `error` frame with
+    /// a code-1000 close for attach-validation failures and session-end
+    /// (`close_with_error`, terminal.rs), and a non-clean close for
+    /// transient/PTY-create failures (`send_error`). `nonisolated` so it can
+    /// be called from the receive loop's completion handler (which runs on
+    /// the `URLSession` delegate queue, not the main actor) and from tests
+    /// without an actor hop.
+    nonisolated static func isCleanClose(_ closeCode: URLSessionWebSocketTask.CloseCode?) -> Bool {
+        closeCode == .normalClosure
+    }
+
+    /// Decodes each frame **off the main actor** — `task.receive`'s
+    /// completion handler runs on the `URLSession` delegate queue, so the
+    /// JSON/base64 decode (`TerminalMessage.decode`, a pure, non-isolated
+    /// function) happens there too; only the already-decoded payload hops to
+    /// the main actor for `feed()`. Keeps heavy PTY output from allocating a
+    /// `Task` + running `JSONSerialization` on the UI thread per frame.
     private func receiveLoop(task: URLSessionWebSocketTask) {
         task.receive { [weak self] result in
-            Task { @MainActor [weak self] in
-                guard let self, self.task === task else { return }
-                switch result {
-                case .failure:
-                    // A receive failure not preceded by a clean
-                    // `didCloseWith` is a transient drop — reconnect.
-                    self.handleDisconnect(cleanClose: false)
-                case .success(let message):
-                    switch message {
-                    case .string(let text): self.handleIncoming(text)
-                    case .data(let data):
-                        if let text = String(data: data, encoding: .utf8) { self.handleIncoming(text) }
-                    @unknown default:
-                        break
-                    }
+            switch result {
+            case .failure:
+                // A receive failure not preceded by a clean `didCloseWith`
+                // may still *be* a clean close racing the failure — consult
+                // the task's close code rather than assuming transient.
+                let clean = Self.isCleanClose(task.closeCode)
+                Task { @MainActor [weak self] in
+                    guard let self, self.task === task else { return }
+                    self.handleDisconnect(cleanClose: clean)
+                }
+            case .success(let message):
+                let text: String?
+                switch message {
+                case .string(let s): text = s
+                case .data(let d): text = String(data: d, encoding: .utf8)
+                @unknown default: text = nil
+                }
+                let decoded = text.flatMap { TerminalMessage.decode(from: $0) }
+                Task { @MainActor [weak self] in
+                    guard let self, self.task === task else { return }
+                    if let decoded { self.handleDecoded(decoded) }
                     self.receiveLoop(task: task)
                 }
             }
         }
     }
 
-    private func handleIncoming(_ text: String) {
-        guard let msg = TerminalMessage.decode(from: text) else { return }
+    private func handleDecoded(_ msg: TerminalMessage) {
         switch msg {
         case .output(let data): onOutput(data)
         case .error(let message): onErrorMessage(message)
@@ -211,6 +234,6 @@ extension TerminalSocket: URLSessionWebSocketDelegate {
         didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
         reason: Data?
     ) {
-        Task { @MainActor in self.handleDisconnect(cleanClose: closeCode == .normalClosure) }
+        Task { @MainActor in self.handleDisconnect(cleanClose: Self.isCleanClose(closeCode)) }
     }
 }
