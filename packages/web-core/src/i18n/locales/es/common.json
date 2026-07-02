@@ -568,8 +568,8 @@
     "agentHelper": "Fija qué agente de programación usa el orquestador para esta tarjeta. Déjalo en predeterminado para que él elija.",
     "addonLabel": "Complemento del prompt (editable)",
     "addonPlaceholder": "Marca etapas arriba para componer el bloque del pipeline, o escribe el tuyo.",
-    "resetToCheckboxes": "Restablecer a casillas",
-    "pipelineLabel": "Pipeline",
-    "pipelineNone": "None"
+    "resetToGenerated": "Restablecer a lo generado",
+    "pipelinesLabel": "Pipelines",
+    "pipelinesHelper": "Selecciona uno o más pipelines; sus etapas se combinan en una única lista ordenada."
   }
 }

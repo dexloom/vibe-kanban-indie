@@ -153,7 +153,7 @@ export function orderedEnabledStages(
  * so that deselecting a stage or an entire pipeline still recognises its old
  * generated line and drops it, instead of stranding it as "manual".
  */
-function extractManualLines(
+export function extractManualLines(
   block: string,
   knownStageFragments: ReadonlySet<string>
 ): string[] {
