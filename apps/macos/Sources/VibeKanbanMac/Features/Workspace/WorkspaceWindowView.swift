@@ -263,18 +263,12 @@ struct WorkspaceWindowView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// The Terminal view: an embedded terminal attached to the headed agent's
-    /// tmux session, with an "Open in iTerm2" escape hatch.
-    @ViewBuilder
+    /// The Terminal view: a plain workspace shell (always available) plus a
+    /// headed-agent attach, both over the backend's terminal WS. The attach
+    /// affordance is gated on a **live, running, interactive** coding-agent
+    /// execution (see `WorkspaceViewModel.liveHeadedExecution`) — not merely
+    /// on `activeExecution` existing.
     private func terminalPane(_ vm: WorkspaceViewModel) -> some View {
-        if let exec = vm.activeExecution {
-            TerminalPane(execId: exec.id, client: app.client)
-        } else {
-            TopPlaceholder(
-                "No running execution",
-                systemImage: "terminal",
-                description: "Start a headed (interactive) agent to get a live terminal here."
-            )
-        }
+        TerminalPane(workspaceId: vm.workspaceId, attachTarget: vm.liveHeadedExecution?.id, client: app.client)
     }
 }

@@ -50,6 +50,15 @@ final class WorkspaceViewModel {
         executions.last { $0.runReason == .codingagent } ?? executions.last
     }
 
+    /// The latest running, interactive coding-agent execution — the gate for
+    /// the Terminal pane's headed-attach affordance. Distinct from
+    /// `activeExecution` (used for logs/approvals), which stays keyed off
+    /// "most recent coding-agent execution" regardless of liveness. Mirrors
+    /// the web's headed-live gate (`SessionChatBoxContainer.tsx:546-555`).
+    var liveHeadedExecution: ExecutionProcess? {
+        executions.last { $0.isLiveInteractiveCodingAgent }
+    }
+
     /// The currently selected session, or nil in new-session mode.
     var selectedSession: Session? {
         sessions.first { $0.id == selectedSessionId }
