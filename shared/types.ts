@@ -552,31 +552,6 @@ export type GenerateSpecResponse = { title: string, description: string,
  */
 intake_metadata: JsonValue, };
 
-export type CreateSpecKitFeatureRequest = { 
-/**
- * The kanban issue this feature belongs to. Its number + title derive the
- * feature slug and branch.
- */
-issue_id: string, 
-/**
- * Repos (with target branch) to mount in the feature workspace.
- */
-repos: Array<WorkspaceRepoInput>, 
-/**
- * Agent parameters used when running SpecKit stages for this feature.
- */
-executor_config: ExecutorConfig, };
-
-export type CreateSpecKitFeatureResponse = { workspace: Workspace, 
-/**
- * `NNN-feature-slug` (also the workspace branch).
- */
-feature_slug: string, 
-/**
- * `specs/NNN-feature-slug`, relative to the repo root.
- */
-feature_dir: string, };
-
 export type SpecKitStage = "constitution" | "specify" | "clarify" | "plan" | "tasks" | "analyze" | "implement";
 
 export type SpecKitStageState = "idle" | "running" | "done" | "needs_attention";
@@ -644,15 +619,6 @@ feature_dir: string, spec: SpecKitArtifact, plan: SpecKitArtifact, tasks: SpecKi
  */
 contracts: Array<SpecKitArtifact>, };
 
-export type RunStageRequest = { stage: SpecKitStage, 
-/**
- * Free-form input for the stage: the feature description for `specify`,
- * the clarification answers for `clarify`, etc.
- */
-input?: string, };
-
-export type RunStageResponse = { stage: SpecKitStage, execution_process_id: string, session_id: string, };
-
 export type UpdateArtifactRequest = { 
 /**
  * Path relative to the feature dir (e.g. "spec.md", "contracts/api.json").
@@ -663,7 +629,12 @@ export type ToggleTaskRequest = { task_id: string, done: boolean, };
 
 export type ConstitutionContent = { content: string, exists: boolean, };
 
-export type SpecKitFeatureStatus = { issue_id: string, enabled: boolean, workspace_id?: string, feature_slug?: string, feature_dir?: string, };
+export type SpecKitFeatureStatus = { issue_id: string, enabled: boolean, 
+/**
+ * Explains why `enabled` is false (no linked workspace vs. multi-repo),
+ * so the frontend can show accurate copy without re-deriving it.
+ */
+note?: string, workspace_id?: string, feature_slug?: string, feature_dir?: string, };
 
 export type AnalyzeFinding = { 
 /**

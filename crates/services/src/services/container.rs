@@ -61,7 +61,7 @@ use uuid::Uuid;
 use crate::services::config::Config;
 use worktree_manager::WorktreeError;
 
-use crate::services::{execution_process, notification::NotificationService};
+use crate::services::{execution_process, notification::NotificationService, speckit};
 pub type ContainerRef = String;
 
 #[derive(Debug, Error)]
@@ -1381,6 +1381,26 @@ pub trait ContainerService {
             .as_ref()
             .filter(|dir| !dir.is_empty())
             .cloned();
+
+        // SpecKit is single-repo only; `working_dir` (= the agent's effective
+        // cwd) is the shared anchor the scaffold, the agent, and the
+        // workbench viewer all agree on. Provisioning here — after worktrees
+        // are materialized, before the coding agent spawns — guarantees
+        // `.claude/commands/speckit.*.md` exist before any `/speckit.*`
+        // invocation, on the one chokepoint every start flow passes through.
+        if repos.len() == 1
+            && speckit::is_speckit_pipeline(Some(&prompt))
+            && let Some(container_ref) = workspace.container_ref.as_ref()
+        {
+            let base = Path::new(container_ref).join(working_dir.as_deref().unwrap_or(""));
+            if let Err(e) = speckit::ensure_scaffold(&base) {
+                tracing::warn!(
+                    ?e,
+                    workspace_id = %workspace.id,
+                    "Failed to provision SpecKit scaffold for pipeline card"
+                );
+            }
+        }
 
         // "Claude Code Headed" runs in a detached tmux terminal. This is an
         // initial run (new session), so use a fresh Claude session id; the

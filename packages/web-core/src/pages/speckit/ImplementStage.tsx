@@ -1,26 +1,17 @@
-import {
-  ArrowClockwiseIcon,
-  ArrowSquareOutIcon,
-  CircleNotchIcon,
-  PlayIcon,
-} from '@phosphor-icons/react';
-import type { SpecKitStage, SpecKitTasks } from 'shared/types';
+import { ArrowClockwiseIcon, ArrowSquareOutIcon } from '@phosphor-icons/react';
+import type { SpecKitTasks } from 'shared/types';
 
 interface ImplementStageProps {
   tasks: SpecKitTasks | null;
-  running: boolean;
-  /** Live agent-session URL — the existing workspace view streams the
-   * transcript + diffs for the run. */
+  /** Live agent-session URL — the workspace view streams the transcript +
+   * diffs for the pipeline's implement run. */
   liveHref: string | null;
-  onRun: (stage: SpecKitStage, input: string | null) => void;
   onRefresh: () => void;
 }
 
 export function ImplementStage({
   tasks,
-  running,
   liveHref,
-  onRun,
   onRefresh,
 }: ImplementStageProps) {
   const total = tasks?.total ?? 0;
@@ -41,19 +32,6 @@ export function ImplementStage({
 
       <section className="space-y-base rounded-sm border p-base">
         <div className="flex items-center gap-base">
-          <button
-            type="button"
-            disabled={running}
-            onClick={() => onRun('implement', null)}
-            className="inline-flex items-center gap-half rounded-sm bg-brand px-base py-half text-sm font-medium text-white disabled:opacity-50"
-          >
-            {running ? (
-              <CircleNotchIcon className="size-icon-sm animate-spin" />
-            ) : (
-              <PlayIcon className="size-icon-sm" weight="fill" />
-            )}
-            {running ? 'Implementing…' : 'Run implement'}
-          </button>
           <button
             type="button"
             onClick={onRefresh}

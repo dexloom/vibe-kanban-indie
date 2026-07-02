@@ -1,10 +1,6 @@
 import { useEffect, useState } from 'react';
-import {
-  ArrowClockwiseIcon,
-  CircleNotchIcon,
-  PlayIcon,
-} from '@phosphor-icons/react';
-import type { SpecKitArtifact, SpecKitStage } from 'shared/types';
+import { ArrowClockwiseIcon, ArrowSquareOutIcon } from '@phosphor-icons/react';
+import type { SpecKitArtifact } from 'shared/types';
 import { MarkdownPreview } from '@/shared/components/MarkdownPreview';
 import { useTheme, getResolvedTheme } from '@/shared/hooks/useTheme';
 import { specKitApi, ApiError } from '@/shared/lib/api';
@@ -13,14 +9,13 @@ import type { StageMeta } from './stages';
 interface ArtifactStageProps {
   issueId: string;
   meta: StageMeta;
-  /** The stage's main editable artifact, or null for run-only stages (analyze). */
+  /** The stage's main editable artifact, or null for stages with no single
+   * canonical file (e.g. analyze). */
   primary: SpecKitArtifact | null;
   /** Read-only supporting artifacts (research/data-model/contracts). */
   supporting: SpecKitArtifact[];
-  running: boolean;
-  /** Live agent-session URL for the most recent run, if any. */
+  /** Live agent-session URL for the workspace driving this feature, if any. */
   liveHref: string | null;
-  onRun: (stage: SpecKitStage, input: string | null) => void;
   onRefresh: () => void;
 }
 
@@ -29,14 +24,11 @@ export function ArtifactStage({
   meta,
   primary,
   supporting,
-  running,
   liveHref,
-  onRun,
   onRefresh,
 }: ArtifactStageProps) {
   const { theme } = useTheme();
   const resolvedTheme = getResolvedTheme(theme);
-  const [input, setInput] = useState('');
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
@@ -73,56 +65,27 @@ export function ArtifactStage({
         <p className="text-sm text-low">{meta.blurb}</p>
       </header>
 
-      {/* Run controls */}
-      <section className="space-y-half rounded-sm border p-base">
-        {meta.takesInput && (
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={running}
-            placeholder={
-              meta.stage === 'specify'
-                ? 'Describe the feature to specify…'
-                : meta.stage === 'clarify'
-                  ? 'Answers to open questions (optional)…'
-                  : 'Input for this stage (optional)…'
-            }
-            className="min-h-16 w-full rounded-sm border bg-panel/40 px-half py-half text-sm text-high disabled:opacity-50"
-          />
+      {/* Viewer controls */}
+      <section className="flex items-center gap-base rounded-sm border p-base">
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="inline-flex items-center gap-half rounded-sm border px-base py-half text-sm text-normal"
+        >
+          <ArrowClockwiseIcon className="size-icon-sm" />
+          Refresh
+        </button>
+        {liveHref && (
+          <a
+            href={liveHref}
+            className="inline-flex items-center gap-half text-sm text-brand underline"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <ArrowSquareOutIcon className="size-icon-sm" />
+            Open live workspace
+          </a>
         )}
-        <div className="flex items-center gap-base">
-          <button
-            type="button"
-            disabled={running}
-            onClick={() => onRun(meta.stage, input.trim() || null)}
-            className="inline-flex items-center gap-half rounded-sm bg-brand px-base py-half text-sm font-medium text-white disabled:opacity-50"
-          >
-            {running ? (
-              <CircleNotchIcon className="size-icon-sm animate-spin" />
-            ) : (
-              <PlayIcon className="size-icon-sm" weight="fill" />
-            )}
-            {running ? 'Running…' : `Run ${meta.label.toLowerCase()}`}
-          </button>
-          <button
-            type="button"
-            onClick={onRefresh}
-            className="inline-flex items-center gap-half rounded-sm border px-base py-half text-sm text-normal"
-          >
-            <ArrowClockwiseIcon className="size-icon-sm" />
-            Refresh
-          </button>
-          {running && liveHref && (
-            <a
-              href={liveHref}
-              className="text-sm text-brand underline"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open live agent session →
-            </a>
-          )}
-        </div>
       </section>
 
       {error && <p className="text-sm text-error">{error}</p>}
@@ -168,7 +131,8 @@ export function ArtifactStage({
           <div className="p-base">
             {!primary.exists ? (
               <p className="text-sm text-low">
-                Not generated yet — run this stage above.
+                Not generated yet — the pipeline agent writes this artifact from
+                the live workspace.
               </p>
             ) : editing ? (
               <textarea
@@ -186,8 +150,8 @@ export function ArtifactStage({
         </section>
       ) : (
         <p className="text-sm text-low">
-          This stage runs an agent and reports back in the live session — it
-          doesn’t produce a stored file.
+          This stage's agent reports back in the live workspace — it doesn’t
+          produce a stored file.
         </p>
       )}
 

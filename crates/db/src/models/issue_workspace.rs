@@ -113,6 +113,28 @@ impl IssueWorkspace {
         .await
     }
 
+    /// The most-recently-created workspace linked to an issue, if any. Ordered
+    /// by the **workspace's** creation time (not the link row's `created_at`,
+    /// which `link`'s `ON CONFLICT DO UPDATE` leaves stale after a relink) —
+    /// matches the ordering `list_linked_by_project` already uses.
+    pub async fn find_latest_by_issue(
+        pool: &SqlitePool,
+        issue_id: Uuid,
+    ) -> Result<Option<Uuid>, sqlx::Error> {
+        let row = sqlx::query!(
+            r#"SELECT iw.workspace_id as "workspace_id!: Uuid"
+               FROM issue_workspaces iw
+               JOIN workspaces w ON w.id = iw.workspace_id
+               WHERE iw.issue_id = $1
+               ORDER BY w.created_at DESC
+               LIMIT 1"#,
+            issue_id
+        )
+        .fetch_optional(pool)
+        .await?;
+        Ok(row.map(|r| r.workspace_id))
+    }
+
     /// All linked workspaces (for `user_workspaces`; local mode has one user).
     pub async fn list_linked_all(
         pool: &SqlitePool,
@@ -319,6 +341,43 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[tokio::test]
+    async fn find_latest_by_issue_returns_none_without_link() {
+        let pool = pool().await;
+        let (project_id, status_id) = seed_project_status(&pool).await;
+        let issue_id = seed_issue(&pool, project_id, status_id, 1).await;
+
+        assert!(
+            IssueWorkspace::find_latest_by_issue(&pool, issue_id)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn find_latest_by_issue_returns_newest_workspace() {
+        let pool = pool().await;
+        let (project_id, status_id) = seed_project_status(&pool).await;
+        let issue_id = seed_issue(&pool, project_id, status_id, 1).await;
+        let ws1 = seed_workspace(&pool).await;
+        // Ensure a distinct `created_at` ordering for the second workspace.
+        sqlx::query("UPDATE workspaces SET created_at = datetime('now', '-1 minute') WHERE id = ?")
+            .bind(ws1)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let ws2 = seed_workspace(&pool).await;
+
+        IssueWorkspace::link(&pool, issue_id, ws1).await.unwrap();
+        IssueWorkspace::link(&pool, issue_id, ws2).await.unwrap();
+
+        let latest = IssueWorkspace::find_latest_by_issue(&pool, issue_id)
+            .await
+            .unwrap();
+        assert_eq!(latest, Some(ws2));
     }
 
     #[tokio::test]

@@ -1,27 +1,27 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from '@tanstack/react-router';
 import { CircleNotchIcon } from '@phosphor-icons/react';
-import {
-  ExecutionProcessStatus,
-  type SpecKitArtifacts,
-  type SpecKitFeatureStatus,
-  type SpecKitStage,
-  type SpecKitTasks,
+import type {
+  SpecKitArtifacts,
+  SpecKitFeatureStatus,
+  SpecKitStage,
+  SpecKitTasks,
 } from 'shared/types';
-import { specKitApi, executionProcessesApi, ApiError } from '@/shared/lib/api';
+import { specKitApi, ApiError } from '@/shared/lib/api';
 import { STAGES, computeStageState } from './stages';
 import { StageRail } from './StageRail';
 import { ArtifactStage } from './ArtifactStage';
 import { ConstitutionStage } from './ConstitutionStage';
 import { TasksStage } from './TasksStage';
 import { ImplementStage } from './ImplementStage';
-import { SpecKitSetup } from './SpecKitSetup';
 
-interface ActiveRun {
-  stage: SpecKitStage;
-  executionProcessId: string;
-}
-
+/**
+ * SpecKit workbench: a read/edit viewer over the artifacts the pipeline's
+ * `/speckit.*` slash commands write into the card's own linked workspace.
+ * The card's execution agent is the only driver of stages — this page never
+ * starts a run; it renders whatever's on disk and lets the operator jump to
+ * the live workspace to drive the next stage.
+ */
 export function SpecKitWorkbench() {
   const { projectId, featureId } = useParams({ strict: false });
   const issueId = featureId;
@@ -30,11 +30,8 @@ export function SpecKitWorkbench() {
   const [artifacts, setArtifacts] = useState<SpecKitArtifacts | null>(null);
   const [tasks, setTasks] = useState<SpecKitTasks | null>(null);
   const [selected, setSelected] = useState<SpecKitStage>('specify');
-  const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const pollRef = useRef<number | null>(null);
 
   const workspaceId = feature?.workspace_id ?? null;
   const liveHref =
@@ -81,60 +78,6 @@ export function SpecKitWorkbench() {
     void loadFeature();
   }, [loadFeature]);
 
-  // Stop polling on unmount.
-  useEffect(() => {
-    return () => {
-      if (pollRef.current !== null) window.clearInterval(pollRef.current);
-    };
-  }, []);
-
-  const stopPolling = useCallback(() => {
-    if (pollRef.current !== null) {
-      window.clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  }, []);
-
-  const handleRun = useCallback(
-    async (stage: SpecKitStage, input: string | null) => {
-      if (!issueId) return;
-      setError(null);
-      try {
-        const res = await specKitApi.runStage(issueId, {
-          stage,
-          input: input ?? undefined,
-        });
-        setActiveRun({ stage, executionProcessId: res.execution_process_id });
-        stopPolling();
-        // Poll the run + refresh artifacts while it executes.
-        pollRef.current = window.setInterval(() => {
-          void (async () => {
-            await refreshArtifacts();
-            try {
-              const detail = await executionProcessesApi.getDetails(
-                res.execution_process_id
-              );
-              if (detail.status !== ExecutionProcessStatus.running) {
-                stopPolling();
-                setActiveRun(null);
-                await refreshArtifacts();
-              }
-            } catch {
-              // Keep polling; transient errors shouldn't kill the loop.
-            }
-          })();
-        }, 4000);
-      } catch (e) {
-        setError(
-          e instanceof ApiError ? e.message : 'Failed to start the run.'
-        );
-      }
-    },
-    [issueId, refreshArtifacts, stopPolling]
-  );
-
-  const runningStage = activeRun?.stage ?? null;
-
   if (!projectId || !issueId) {
     return (
       <div className="p-double text-sm text-error">
@@ -154,14 +97,13 @@ export function SpecKitWorkbench() {
 
   if (!feature?.enabled) {
     return (
-      <SpecKitSetup
-        projectId={projectId}
-        issueId={issueId}
-        onCreated={() => {
-          setSelected('specify');
-          void loadFeature();
-        }}
-      />
+      <div className="mx-auto flex max-w-xl flex-col gap-half p-double">
+        <h2 className="text-lg font-semibold text-high">SpecKit</h2>
+        <p className="text-sm text-low">
+          {feature?.note ??
+            'This card has no workspace yet — start it from the board (pick the SpecKit pipeline).'}
+        </p>
+      </div>
     );
   }
 
@@ -170,9 +112,7 @@ export function SpecKitWorkbench() {
       <StageRail
         selected={selected}
         onSelect={setSelected}
-        stateFor={(stage) =>
-          computeStageState(stage, artifacts, tasks, runningStage)
-        }
+        stateFor={(stage) => computeStageState(stage, artifacts, tasks, null)}
       />
       <div className="min-w-0 flex-1">
         {error && (
@@ -185,9 +125,7 @@ export function SpecKitWorkbench() {
           issueId={issueId}
           artifacts={artifacts}
           tasks={tasks}
-          runningStage={runningStage}
           liveHref={liveHref}
-          onRun={(s, i) => void handleRun(s, i)}
           onRefresh={() => void refreshArtifacts()}
           onTasksChanged={setTasks}
         />
@@ -201,9 +139,7 @@ interface StagePanelProps {
   issueId: string;
   artifacts: SpecKitArtifacts | null;
   tasks: SpecKitTasks | null;
-  runningStage: SpecKitStage | null;
   liveHref: string | null;
-  onRun: (stage: SpecKitStage, input: string | null) => void;
   onRefresh: () => void;
   onTasksChanged: (tasks: SpecKitTasks) => void;
 }
@@ -213,24 +149,14 @@ function StagePanel({
   issueId,
   artifacts,
   tasks,
-  runningStage,
   liveHref,
-  onRun,
   onRefresh,
   onTasksChanged,
 }: StagePanelProps) {
   const meta = STAGES.find((s) => s.stage === stage)!;
-  const running = runningStage === stage;
 
   if (stage === 'constitution') {
-    return (
-      <ConstitutionStage
-        issueId={issueId}
-        running={running}
-        liveHref={liveHref}
-        onRun={onRun}
-      />
-    );
+    return <ConstitutionStage issueId={issueId} liveHref={liveHref} />;
   }
 
   if (stage === 'tasks') {
@@ -238,9 +164,7 @@ function StagePanel({
       <TasksStage
         issueId={issueId}
         tasks={tasks}
-        running={running}
         liveHref={liveHref}
-        onRun={onRun}
         onRefresh={onRefresh}
         onTasksChanged={onTasksChanged}
       />
@@ -249,13 +173,7 @@ function StagePanel({
 
   if (stage === 'implement') {
     return (
-      <ImplementStage
-        tasks={tasks}
-        running={running}
-        liveHref={liveHref}
-        onRun={onRun}
-        onRefresh={onRefresh}
-      />
+      <ImplementStage tasks={tasks} liveHref={liveHref} onRefresh={onRefresh} />
     );
   }
 
@@ -277,9 +195,7 @@ function StagePanel({
       meta={meta}
       primary={primary}
       supporting={supporting}
-      running={running}
       liveHref={liveHref}
-      onRun={onRun}
       onRefresh={onRefresh}
     />
   );

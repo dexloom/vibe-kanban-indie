@@ -109,10 +109,6 @@ import {
   ProfileResponse,
   TelegramStatus,
   TelegramTestResponse,
-  CreateSpecKitFeatureRequest,
-  CreateSpecKitFeatureResponse,
-  RunStageRequest,
-  RunStageResponse,
   SpecKitArtifacts,
   SpecKitArtifact,
   SpecKitTasks,
@@ -449,42 +445,10 @@ export const specApi = {
   },
 };
 
-// SpecKit (Spec-Driven Development) workbench API. Stage runs are local-only
-// (they can exceed the remote relay's 30s timeout, like spec generation).
+// SpecKit (Spec-Driven Development) workbench API. The workbench is a
+// read/edit viewer over the pipeline's artifacts — the card's execution agent
+// is the only driver of SpecKit stages.
 export const specKitApi = {
-  /** Create a SpecKit feature: a persistent workspace for an issue, with the
-   * `.specify/` scaffold provisioned into the repo worktree. ~Long-running
-   * (worktree creation); uses an extended client timeout. */
-  createFeature: async (
-    data: CreateSpecKitFeatureRequest
-  ): Promise<CreateSpecKitFeatureResponse> => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 180_000);
-    try {
-      const response = await makeRequest(`/api/speckit/feature`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-        signal: controller.signal,
-      });
-      return handleApiResponse<CreateSpecKitFeatureResponse>(response);
-    } finally {
-      clearTimeout(timeout);
-    }
-  },
-
-  /** Kick off a stage's coding-agent run. Returns immediately with the
-   * execution/session ids so the caller can stream/observe the run. */
-  runStage: async (
-    issueId: string,
-    data: RunStageRequest
-  ): Promise<RunStageResponse> => {
-    const response = await makeRequest(
-      `/api/speckit/feature/${issueId}/stage`,
-      { method: 'POST', body: JSON.stringify(data) }
-    );
-    return handleApiResponse<RunStageResponse>(response);
-  },
-
   /** Whether the issue is a SpecKit feature, plus its workspace id + slug.
    * Returns `enabled: false` for issues that aren't features yet. */
   getFeature: async (issueId: string): Promise<SpecKitFeatureStatus> => {

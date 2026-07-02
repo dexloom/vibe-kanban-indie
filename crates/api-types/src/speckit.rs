@@ -119,27 +119,6 @@ pub struct SpecKitArtifacts {
     pub contracts: Vec<SpecKitArtifact>,
 }
 
-/// Request body to (re)run a SpecKit stage as a one-shot agent in the feature's
-/// workspace.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-pub struct RunStageRequest {
-    pub stage: SpecKitStage,
-    /// Free-form input for the stage: the feature description for `specify`,
-    /// the clarification answers for `clarify`, etc.
-    #[serde(default)]
-    #[ts(optional)]
-    pub input: Option<String>,
-}
-
-/// Identifiers for the agent run a stage kicked off, so the frontend can stream
-/// its transcript/diffs over the existing WebSocket channels.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-pub struct RunStageResponse {
-    pub stage: SpecKitStage,
-    pub execution_process_id: Uuid,
-    pub session_id: Uuid,
-}
-
 /// Write an edited artifact back to disk.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct UpdateArtifactRequest {
@@ -162,13 +141,19 @@ pub struct ConstitutionContent {
     pub exists: bool,
 }
 
-/// Whether an issue is a SpecKit feature, and (if so) its workspace + slug.
-/// Returned even for non-feature issues (`enabled: false`) so the workbench can
-/// render its "set up SpecKit" form.
+/// Whether the issue has a linked (single-repo) workspace whose SpecKit
+/// artifacts the workbench can view. `feature_slug` carries the workspace's
+/// git branch (the pure input to `feature_dir`). Returned even when there's
+/// nothing to view (`enabled: false`) so the workbench can render an empty
+/// state explaining why (see `note`).
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct SpecKitFeatureStatus {
     pub issue_id: Uuid,
     pub enabled: bool,
+    /// Explains why `enabled` is false (no linked workspace vs. multi-repo),
+    /// so the frontend can show accurate copy without re-deriving it.
+    #[ts(optional)]
+    pub note: Option<String>,
     #[ts(optional)]
     pub workspace_id: Option<Uuid>,
     #[ts(optional)]

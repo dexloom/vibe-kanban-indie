@@ -110,30 +110,6 @@ pub struct GenerateSpecResponse {
     pub intake_metadata: serde_json::Value,
 }
 
-/// Create a SpecKit feature: a persistent workspace whose branch is the feature
-/// slug (`NNN-feature-slug`) for an existing kanban issue, with the `.specify/`
-/// scaffold provisioned into each repo worktree.
-#[derive(Debug, Serialize, Deserialize, TS)]
-pub struct CreateSpecKitFeatureRequest {
-    /// The kanban issue this feature belongs to. Its number + title derive the
-    /// feature slug and branch.
-    pub issue_id: Uuid,
-    /// Repos (with target branch) to mount in the feature workspace.
-    pub repos: Vec<WorkspaceRepoInput>,
-    /// Agent parameters used when running SpecKit stages for this feature.
-    pub executor_config: ExecutorConfig,
-}
-
-/// Result of creating a SpecKit feature.
-#[derive(Debug, Serialize, Deserialize, TS)]
-pub struct CreateSpecKitFeatureResponse {
-    pub workspace: Workspace,
-    /// `NNN-feature-slug` (also the workspace branch).
-    pub feature_slug: String,
-    /// `specs/NNN-feature-slug`, relative to the repo root.
-    pub feature_dir: String,
-}
-
 #[derive(Debug, Serialize, Deserialize, TS)]
 pub struct UpdateWorkspace {
     pub archived: Option<bool>,

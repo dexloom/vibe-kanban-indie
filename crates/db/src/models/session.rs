@@ -172,7 +172,7 @@ impl Session {
         .await?)
     }
 
-    async fn resolve_agent_working_dir(
+    pub async fn resolve_agent_working_dir(
         pool: &SqlitePool,
         workspace_id: Uuid,
     ) -> Result<Option<String>, sqlx::Error> {

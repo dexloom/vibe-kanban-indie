@@ -1,14 +1,18 @@
 //! SpecKit (Spec-Driven Development) service logic.
 //!
+//! See `DESIGN.md` for the workbench↔pipeline convergence decision.
+//!
 //! This module owns the *pure* pieces of the SpecKit workbench:
-//! - mapping a [`SpecKitStage`] to its slash command, artifact, and agent prompt
-//! - deriving a feature slug / feature dir from an issue
+//! - mapping a [`SpecKitStage`] to its slash command
+//! - deriving the feature dir from a workspace's git branch
 //! - parsing `tasks.md` into structured tasks + parallel-execution layers
 //! - toggling a task's checkbox in `tasks.md`
 //! - provisioning the `.specify/` scaffold into a repo worktree
 //!
-//! Filesystem-touching helpers are kept thin; the route layer
-//! (`server::routes::speckit`) handles workspace resolution and agent runs.
+//! The pipeline's execution agent is the single driver of SpecKit stages (via
+//! `/speckit.*` slash commands); this module's route layer
+//! (`server::routes::speckit`) is a read/edit **viewer** over the pipeline's
+//! artifacts on disk.
 
 use std::{
     io,
@@ -16,7 +20,6 @@ use std::{
 };
 
 use api_types::speckit::{SpecKitStage, SpecKitTask, SpecKitTaskLayer, SpecKitTasks};
-use utils::text::git_branch_id;
 
 // ---------------------------------------------------------------------------
 // Stage metadata
@@ -35,56 +38,32 @@ pub fn slash_command(stage: SpecKitStage) -> &'static str {
     }
 }
 
-/// The primary artifact a stage produces, relative to the feature dir.
-///
-/// `None` for stages that don't write a single canonical feature file:
-/// `constitution` is repo-level, `analyze` produces findings, and `implement`
-/// edits source + the task checkboxes rather than one artifact.
-pub fn primary_artifact(stage: SpecKitStage) -> Option<&'static str> {
-    match stage {
-        SpecKitStage::Specify | SpecKitStage::Clarify => Some("spec.md"),
-        SpecKitStage::Plan => Some("plan.md"),
-        SpecKitStage::Tasks => Some("tasks.md"),
-        SpecKitStage::Constitution | SpecKitStage::Analyze | SpecKitStage::Implement => None,
-    }
-}
+// ---------------------------------------------------------------------------
+// Pipeline gating
+// ---------------------------------------------------------------------------
 
-/// Build the agent prompt for a stage run. SpecKit stages are Claude Code
-/// project commands; the prompt is the slash command plus any free-form input
-/// (the feature description for `specify`, clarification answers for `clarify`,
-/// etc.). The command files derive the feature dir from the current git branch,
-/// which is the feature slug.
-pub fn stage_prompt(stage: SpecKitStage, input: Option<&str>) -> String {
-    let cmd = slash_command(stage);
-    match input.map(str::trim).filter(|s| !s.is_empty()) {
-        Some(arg) => format!("{cmd} {arg}"),
-        None => cmd.to_string(),
-    }
+/// Whether an issue's description opts into the SpecKit pipeline.
+///
+/// The `speckit.toml` pipeline always names its slash commands (e.g.
+/// `` `/speckit.constitution` ``) in the `## Pipeline` block appended to the
+/// card description, so a simple substring check is enough to gate scaffold
+/// provisioning to SpecKit cards only.
+pub fn is_speckit_pipeline(issue_description: Option<&str>) -> bool {
+    issue_description.is_some_and(|d| d.contains("/speckit."))
 }
 
 // ---------------------------------------------------------------------------
-// Feature slug / dir
+// Feature dir
 // ---------------------------------------------------------------------------
 
-/// Derive the SpecKit feature slug (`NNN-slug`) from an issue.
+/// The feature dir relative to the workspace's agent-cwd base, e.g.
+/// `specs/001-webhook-retries`.
 ///
-/// The number is the issue's per-project number, zero-padded to 3 digits, and
-/// the slug is derived from the title. Assigning it from the issue (rather than
-/// scanning `specs/` per worktree) means concurrent features never collide. The
-/// workspace branch is set to the same slug, so SpecKit's branch-derived feature
-/// dir and the worktree branch line up.
-pub fn feature_slug(issue_number: i64, title: &str) -> String {
-    let slug = git_branch_id(title);
-    if slug.is_empty() {
-        format!("{issue_number:03}-feature")
-    } else {
-        format!("{issue_number:03}-{slug}")
-    }
-}
-
-/// The feature dir relative to the repo root, e.g. `specs/001-webhook-retries`.
-pub fn feature_dir(feature_slug: &str) -> String {
-    format!("specs/{feature_slug}")
+/// The argument is the workspace's git **branch** — `/speckit.*` derives
+/// `specs/<current git branch>/` itself, so this is a pure function of that
+/// same branch, kept in one place so the viewer and the scaffold agree.
+pub fn feature_dir(branch: &str) -> String {
+    format!("specs/{branch}")
 }
 
 // ---------------------------------------------------------------------------
@@ -584,25 +563,21 @@ mod tests {
     }
 
     #[test]
-    fn feature_slug_zero_pads_and_slugifies() {
-        assert_eq!(feature_slug(1, "Webhook retries!"), "001-webhook-retries");
-        assert_eq!(feature_slug(42, ""), "042-feature");
-        assert_eq!(
-            feature_dir("001-webhook-retries"),
-            "specs/001-webhook-retries"
-        );
+    fn is_speckit_pipeline_detects_slash_commands() {
+        let speckit_block =
+            "## Pipeline\n\n- SpecKit: run `/speckit.constitution` before specifying.";
+        assert!(is_speckit_pipeline(Some(speckit_block)));
+
+        let basic_block = "## Pipeline\n\n- Implement the feature.\n- Run a code review.";
+        assert!(!is_speckit_pipeline(Some(basic_block)));
+        assert!(!is_speckit_pipeline(None));
     }
 
     #[test]
-    fn stage_prompt_appends_input() {
+    fn feature_dir_is_specs_slash_branch() {
         assert_eq!(
-            stage_prompt(SpecKitStage::Specify, Some("  add retries  ")),
-            "/speckit.specify add retries"
-        );
-        assert_eq!(stage_prompt(SpecKitStage::Plan, None), "/speckit.plan");
-        assert_eq!(
-            stage_prompt(SpecKitStage::Tasks, Some("   ")),
-            "/speckit.tasks"
+            feature_dir("001-webhook-retries"),
+            "specs/001-webhook-retries"
         );
     }
 

@@ -1,27 +1,22 @@
 import { useEffect, useState } from 'react';
-import { CircleNotchIcon, PlayIcon } from '@phosphor-icons/react';
-import type { SpecKitStage } from 'shared/types';
+import { ArrowSquareOutIcon } from '@phosphor-icons/react';
 import { MarkdownPreview } from '@/shared/components/MarkdownPreview';
 import { useTheme, getResolvedTheme } from '@/shared/hooks/useTheme';
 import { specKitApi, ApiError } from '@/shared/lib/api';
 
 interface ConstitutionStageProps {
   issueId: string;
-  running: boolean;
   liveHref: string | null;
-  onRun: (stage: SpecKitStage, input: string | null) => void;
 }
 
 /**
- * Project-wide constitution editor. Scoped to the feature's primary repo
- * worktree (`.specify/memory/constitution.md`); commit it to the base branch so
- * every feature inherits it.
+ * Project-wide constitution editor. Scoped to the workspace's agent-cwd base
+ * (`.specify/memory/constitution.md`); commit it to the base branch so every
+ * feature inherits it.
  */
 export function ConstitutionStage({
   issueId,
-  running,
   liveHref,
-  onRun,
 }: ConstitutionStageProps) {
   const { theme } = useTheme();
   const resolvedTheme = getResolvedTheme(theme);
@@ -81,33 +76,19 @@ export function ConstitutionStage({
         </p>
       </header>
 
-      <section className="space-y-half rounded-sm border p-base">
-        <div className="flex items-center gap-base">
-          <button
-            type="button"
-            disabled={running}
-            onClick={() => onRun('constitution', null)}
-            className="inline-flex items-center gap-half rounded-sm bg-brand px-base py-half text-sm font-medium text-white disabled:opacity-50"
+      {liveHref && (
+        <section className="rounded-sm border p-base">
+          <a
+            href={liveHref}
+            className="inline-flex items-center gap-half text-sm text-brand underline"
+            target="_blank"
+            rel="noreferrer"
           >
-            {running ? (
-              <CircleNotchIcon className="size-icon-sm animate-spin" />
-            ) : (
-              <PlayIcon className="size-icon-sm" weight="fill" />
-            )}
-            {running ? 'Running…' : 'Draft with agent'}
-          </button>
-          {running && liveHref && (
-            <a
-              href={liveHref}
-              className="text-sm text-brand underline"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open live agent session →
-            </a>
-          )}
-        </div>
-      </section>
+            <ArrowSquareOutIcon className="size-icon-sm" />
+            Open live workspace
+          </a>
+        </section>
+      )}
 
       {error && <p className="text-sm text-error">{error}</p>}
 
@@ -162,7 +143,9 @@ export function ConstitutionStage({
             <MarkdownPreview content={content} theme={resolvedTheme} />
           ) : (
             <p className="text-sm text-low">
-              No constitution yet — draft one with the agent or edit directly.
+              No constitution yet — run{' '}
+              <span className="font-mono">/speckit.constitution</span> in the
+              live workspace, or edit directly.
             </p>
           )}
         </div>

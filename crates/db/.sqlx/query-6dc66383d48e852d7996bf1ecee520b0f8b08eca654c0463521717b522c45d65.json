@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT iw.workspace_id as \"workspace_id!: Uuid\"\n               FROM issue_workspaces iw\n               JOIN workspaces w ON w.id = iw.workspace_id\n               WHERE iw.issue_id = $1\n               ORDER BY w.created_at DESC\n               LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "workspace_id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6dc66383d48e852d7996bf1ecee520b0f8b08eca654c0463521717b522c45d65"
+}

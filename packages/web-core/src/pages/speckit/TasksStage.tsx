@@ -1,19 +1,13 @@
 import { useState } from 'react';
-import {
-  ArrowClockwiseIcon,
-  CircleNotchIcon,
-  PlayIcon,
-} from '@phosphor-icons/react';
-import type { SpecKitStage, SpecKitTask, SpecKitTasks } from 'shared/types';
+import { ArrowClockwiseIcon, ArrowSquareOutIcon } from '@phosphor-icons/react';
+import type { SpecKitTask, SpecKitTasks } from 'shared/types';
 import { specKitApi, ApiError } from '@/shared/lib/api';
 import { TaskDependencyGraph } from './TaskDependencyGraph';
 
 interface TasksStageProps {
   issueId: string;
   tasks: SpecKitTasks | null;
-  running: boolean;
   liveHref: string | null;
-  onRun: (stage: SpecKitStage, input: string | null) => void;
   onRefresh: () => void;
   onTasksChanged: (tasks: SpecKitTasks) => void;
 }
@@ -33,9 +27,7 @@ function groupByPhase(tasks: SpecKitTask[]): [string, SpecKitTask[]][] {
 export function TasksStage({
   issueId,
   tasks,
-  running,
   liveHref,
-  onRun,
   onRefresh,
   onTasksChanged,
 }: TasksStageProps) {
@@ -58,8 +50,6 @@ export function TasksStage({
     }
   };
 
-  const hasTasks = !!tasks && tasks.total > 0;
-
   return (
     <div className="flex h-full flex-col gap-base overflow-y-auto p-double">
       <header className="space-y-half">
@@ -71,51 +61,34 @@ export function TasksStage({
         </p>
       </header>
 
-      <section className="space-y-half rounded-sm border p-base">
-        <div className="flex items-center gap-base">
-          <button
-            type="button"
-            disabled={running}
-            onClick={() => onRun('tasks', null)}
-            className="inline-flex items-center gap-half rounded-sm bg-brand px-base py-half text-sm font-medium text-white disabled:opacity-50"
+      <section className="flex items-center gap-base rounded-sm border p-base">
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="inline-flex items-center gap-half rounded-sm border px-base py-half text-sm text-normal"
+        >
+          <ArrowClockwiseIcon className="size-icon-sm" />
+          Refresh
+        </button>
+        {liveHref && (
+          <a
+            href={liveHref}
+            className="inline-flex items-center gap-half text-sm text-brand underline"
+            target="_blank"
+            rel="noreferrer"
           >
-            {running ? (
-              <CircleNotchIcon className="size-icon-sm animate-spin" />
-            ) : (
-              <PlayIcon className="size-icon-sm" weight="fill" />
-            )}
-            {running
-              ? 'Running…'
-              : hasTasks
-                ? 'Regenerate tasks'
-                : 'Generate tasks'}
-          </button>
-          <button
-            type="button"
-            onClick={onRefresh}
-            className="inline-flex items-center gap-half rounded-sm border px-base py-half text-sm text-normal"
-          >
-            <ArrowClockwiseIcon className="size-icon-sm" />
-            Refresh
-          </button>
-          {running && liveHref && (
-            <a
-              href={liveHref}
-              className="text-sm text-brand underline"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open live agent session →
-            </a>
-          )}
-        </div>
+            <ArrowSquareOutIcon className="size-icon-sm" />
+            Open live workspace
+          </a>
+        )}
       </section>
 
       {error && <p className="text-sm text-error">{error}</p>}
 
       {!tasks || tasks.total === 0 ? (
         <p className="text-sm text-low">
-          No tasks yet — generate them from the plan above.
+          No tasks yet — run <span className="font-mono">/speckit.tasks</span>{' '}
+          in the live workspace.
         </p>
       ) : (
         <>
