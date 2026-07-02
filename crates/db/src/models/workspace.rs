@@ -497,7 +497,8 @@ impl Workspace {
                        name,
                        worktree_deleted  AS "worktree_deleted!: bool",
                        ephemeral         AS "ephemeral!: bool",
-                       kind              AS "kind: WorkspaceKind"
+                       kind              AS "kind: WorkspaceKind",
+                       current_pipeline_stage
                FROM    workspaces
                WHERE   kind = 'recurrent' AND name = $1 AND archived = FALSE
                ORDER BY created_at DESC
