@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT  id                AS \"id!: Uuid\",\n                       task_id           AS \"task_id: Uuid\",\n                       container_ref,\n                       branch,\n                       setup_completed_at AS \"setup_completed_at: DateTime<Utc>\",\n                       created_at        AS \"created_at!: DateTime<Utc>\",\n                       updated_at        AS \"updated_at!: DateTime<Utc>\",\n                       archived          AS \"archived!: bool\",\n                       pinned            AS \"pinned!: bool\",\n                       name,\n                       worktree_deleted  AS \"worktree_deleted!: bool\",\n                       ephemeral         AS \"ephemeral!: bool\",\n                       kind              AS \"kind: WorkspaceKind\"\n               FROM    workspaces\n               WHERE   kind = 'orchestrator' AND archived = FALSE\n               ORDER BY created_at DESC\n               LIMIT 1",
+  "query": "SELECT  id                AS \"id!: Uuid\",\n                       task_id           AS \"task_id: Uuid\",\n                       container_ref,\n                       branch,\n                       setup_completed_at AS \"setup_completed_at: DateTime<Utc>\",\n                       created_at        AS \"created_at!: DateTime<Utc>\",\n                       updated_at        AS \"updated_at!: DateTime<Utc>\",\n                       archived          AS \"archived!: bool\",\n                       pinned            AS \"pinned!: bool\",\n                       name,\n                       worktree_deleted  AS \"worktree_deleted!: bool\",\n                       ephemeral         AS \"ephemeral!: bool\",\n                       kind              AS \"kind: WorkspaceKind\",\n                       current_pipeline_stage\n               FROM    workspaces\n               WHERE   kind = 'orchestrator' AND archived = FALSE\n               ORDER BY created_at DESC\n               LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -67,6 +67,11 @@
         "name": "kind: WorkspaceKind",
         "ordinal": 12,
         "type_info": "Text"
+      },
+      {
+        "name": "current_pipeline_stage",
+        "ordinal": 13,
+        "type_info": "Integer"
       }
     ],
     "parameters": {
@@ -85,8 +90,9 @@
       true,
       false,
       false,
+      true,
       true
     ]
   },
-  "hash": "cf7dad4dde40a4db8f6afb19c2174fd5760ab259f322c6585c053864f92a97a1"
+  "hash": "760c8136e54b51c3133f904491fbc145b977ccc74e1f58290769daddb55eda3e"
 }

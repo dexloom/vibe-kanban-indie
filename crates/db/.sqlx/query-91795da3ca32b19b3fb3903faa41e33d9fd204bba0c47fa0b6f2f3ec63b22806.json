@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO workspaces (id, task_id, container_ref, branch, setup_completed_at, name, kind)\n               VALUES ($1, $2, $3, $4, $5, $6, $7)\n               RETURNING id as \"id!: Uuid\", task_id as \"task_id: Uuid\", container_ref, branch, setup_completed_at as \"setup_completed_at: DateTime<Utc>\", created_at as \"created_at!: DateTime<Utc>\", updated_at as \"updated_at!: DateTime<Utc>\", archived as \"archived!: bool\", pinned as \"pinned!: bool\", name, worktree_deleted as \"worktree_deleted!: bool\", ephemeral as \"ephemeral!: bool\", kind as \"kind: WorkspaceKind\"",
+  "query": "SELECT id AS \"id!: Uuid\",\n                          task_id AS \"task_id: Uuid\",\n                          container_ref,\n                          branch,\n                          setup_completed_at AS \"setup_completed_at: DateTime<Utc>\",\n                          created_at AS \"created_at!: DateTime<Utc>\",\n                          updated_at AS \"updated_at!: DateTime<Utc>\",\n                          archived AS \"archived!: bool\",\n                          pinned AS \"pinned!: bool\",\n                          name,\n                          worktree_deleted AS \"worktree_deleted!: bool\",\n                          ephemeral AS \"ephemeral!: bool\",\n                          kind AS \"kind: WorkspaceKind\",\n                          current_pipeline_stage\n                   FROM workspaces\n                   ORDER BY created_at DESC",
   "describe": {
     "columns": [
       {
@@ -67,10 +67,15 @@
         "name": "kind: WorkspaceKind",
         "ordinal": 12,
         "type_info": "Text"
+      },
+      {
+        "name": "current_pipeline_stage",
+        "ordinal": 13,
+        "type_info": "Integer"
       }
     ],
     "parameters": {
-      "Right": 7
+      "Right": 0
     },
     "nullable": [
       true,
@@ -85,8 +90,9 @@
       true,
       false,
       false,
+      true,
       true
     ]
   },
-  "hash": "834dd0b3574d9df5be63e6977147f97afcdb24c76b40378f6827a72f7a63f215"
+  "hash": "91795da3ca32b19b3fb3903faa41e33d9fd204bba0c47fa0b6f2f3ec63b22806"
 }
