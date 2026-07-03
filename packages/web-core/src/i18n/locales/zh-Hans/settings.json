@@ -695,6 +695,32 @@
       "errorAt": "line {{line}}, column {{column}}"
     },
     "recurrent": {
+      "loading": "正在加载例行任务…",
+      "loadError": "加载例行任务失败",
+      "list": {
+        "title": "例行任务",
+        "description": "例行任务是位于 ~/.vibe-kanban/recurrent/ 中的 TOML 文件。开启某个例行任务即可让它按计划运行，或立即运行。可在下方编辑例行任务的原始 TOML。"
+      },
+      "empty": "未找到例行任务。",
+      "neverRun": "从未运行",
+      "enabledLabel": "已启用",
+      "runNow": "立即运行",
+      "runSkipped": "该例行任务已有一个正在进行的运行。",
+      "openRun": "打开运行",
+      "rawPlaceholder": "例行任务原始 TOML…",
+      "saveButton": "保存",
+      "saved": "✓ 已保存",
+      "saveError": "保存例行任务失败",
+      "schedule": {
+        "cron": "cron: {{expr}}",
+        "every": "每 {{expr}}"
+      },
+      "status": {
+        "running": "运行中",
+        "completed": "已完成",
+        "failed": "失败",
+        "killed": "已终止"
+      },
       "page": {
         "title": "常用任务",
         "description": "按计划或按需运行的可重复使用任务提示。例行任务是 ~/.vibe-kanban/recurrent/ 中的 TOML 文件。"

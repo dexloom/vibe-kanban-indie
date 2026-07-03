@@ -695,6 +695,32 @@
       "errorAt": "line {{line}}, column {{column}}"
     },
     "recurrent": {
+      "loading": "루틴을 불러오는 중…",
+      "loadError": "루틴을 불러오지 못했습니다",
+      "list": {
+        "title": "루틴",
+        "description": "루틴은 ~/.vibe-kanban/recurrent/ 에 있는 TOML 파일입니다. 루틴을 켜면 예약에 따라 실행되며, 지금 바로 실행할 수도 있습니다. 아래에서 루틴의 원본 TOML을 편집하세요."
+      },
+      "empty": "루틴을 찾을 수 없습니다.",
+      "neverRun": "실행된 적 없음",
+      "enabledLabel": "사용",
+      "runNow": "지금 실행",
+      "runSkipped": "이 루틴은 이미 실행 중입니다.",
+      "openRun": "실행 열기",
+      "rawPlaceholder": "루틴 원본 TOML…",
+      "saveButton": "저장",
+      "saved": "✓ 저장됨",
+      "saveError": "루틴을 저장하지 못했습니다",
+      "schedule": {
+        "cron": "cron: {{expr}}",
+        "every": "{{expr}}마다"
+      },
+      "status": {
+        "running": "실행 중",
+        "completed": "완료됨",
+        "failed": "실패",
+        "killed": "종료됨"
+      },
       "page": {
         "title": "공통 작업",
         "description": "일정에 따라 또는 필요할 때 실행되는 재사용 가능한 작업 프롬프트입니다. 루틴은 ~/.vibe-kanban/recurrent/ 에 있는 TOML 파일입니다."

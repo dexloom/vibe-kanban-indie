@@ -695,6 +695,32 @@
       "errorAt": "line {{line}}, column {{column}}"
     },
     "recurrent": {
+      "loading": "Cargando rutinas…",
+      "loadError": "Error al cargar las rutinas",
+      "list": {
+        "title": "Rutinas",
+        "description": "Las rutinas son archivos TOML en ~/.vibe-kanban/recurrent/. Activa una rutina para que se ejecute según su programación, o ejecútala ahora. Edita el TOML sin formato de una rutina a continuación."
+      },
+      "empty": "No se encontraron rutinas.",
+      "neverRun": "Nunca ejecutada",
+      "enabledLabel": "Habilitada",
+      "runNow": "Ejecutar ahora",
+      "runSkipped": "Ya hay una ejecución activa para esta rutina.",
+      "openRun": "Abrir ejecución",
+      "rawPlaceholder": "TOML sin formato de la rutina…",
+      "saveButton": "Guardar",
+      "saved": "✓ Guardado",
+      "saveError": "Error al guardar la rutina",
+      "schedule": {
+        "cron": "cron: {{expr}}",
+        "every": "cada {{expr}}"
+      },
+      "status": {
+        "running": "en ejecución",
+        "completed": "completada",
+        "failed": "fallida",
+        "killed": "terminada"
+      },
       "page": {
         "title": "Tareas comunes",
         "description": "Instrucciones de tareas reutilizables que se ejecutan según una programación o bajo demanda. Las rutinas son archivos TOML en ~/.vibe-kanban/recurrent/."

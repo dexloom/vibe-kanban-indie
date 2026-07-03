@@ -695,6 +695,32 @@
       "errorAt": "line {{line}}, column {{column}}"
     },
     "recurrent": {
+      "loading": "Chargement des routines…",
+      "loadError": "Échec du chargement des routines",
+      "list": {
+        "title": "Routines",
+        "description": "Les routines sont des fichiers TOML dans ~/.vibe-kanban/recurrent/. Activez une routine pour qu'elle s'exécute selon sa planification, ou exécutez-la maintenant. Modifiez le TOML brut d'une routine ci-dessous."
+      },
+      "empty": "Aucune routine trouvée.",
+      "neverRun": "Jamais exécutée",
+      "enabledLabel": "Activée",
+      "runNow": "Exécuter maintenant",
+      "runSkipped": "Une exécution est déjà active pour cette routine.",
+      "openRun": "Ouvrir l'exécution",
+      "rawPlaceholder": "TOML brut de la routine…",
+      "saveButton": "Enregistrer",
+      "saved": "✓ Enregistré",
+      "saveError": "Échec de l'enregistrement de la routine",
+      "schedule": {
+        "cron": "cron: {{expr}}",
+        "every": "toutes les {{expr}}"
+      },
+      "status": {
+        "running": "en cours",
+        "completed": "terminée",
+        "failed": "échouée",
+        "killed": "arrêtée"
+      },
       "page": {
         "title": "Tâches courantes",
         "description": "Invites de tâches réutilisables qui s'exécutent selon un horaire ou à la demande. Les routines sont des fichiers TOML dans ~/.vibe-kanban/recurrent/."
