@@ -1,11 +1,16 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use axum::{Json, extract::State, response::Json as ResponseJson};
 use db::models::{
     execution_process::{ExecutionProcess, ExecutionProcessStatus},
+    issue::Issue,
+    issue_workspace::IssueWorkspace,
+    project_repo::ProjectRepo,
+    repo::Repo,
     requests::{
         CloseOrchestratorResponse, CreateAndStartWorkspaceRequest, CreateAndStartWorkspaceResponse,
         CreateWorkspaceApiRequest, SpawnOrchestratorRequest, SpawnOrchestratorResponse,
+        WorkspaceRepoInput,
     },
     workspace::{CreateWorkspace, Workspace, WorkspaceKind},
 };
@@ -14,6 +19,7 @@ use executors::{executors::BaseCodingAgent, profile::ExecutorConfig};
 use services::services::container::ContainerService;
 use utils::response::ApiResponse;
 use uuid::Uuid;
+use workspace_manager::WorkspaceError;
 
 use crate::{
     DeploymentImpl,
@@ -68,6 +74,28 @@ pub async fn create_workspace(
         .await;
 
     Ok(ResponseJson(ApiResponse::success(workspace)))
+}
+
+/// Project repos the caller did not supply, as `WorkspaceRepoInput`s on their
+/// `default_target_branch`. Dedup is by `repo_id` (caller entries always win
+/// and are never duplicated); repos with no default branch are skipped.
+fn sibling_repo_inputs(
+    caller_repos: &[WorkspaceRepoInput],
+    project_repos: &[Repo],
+) -> Vec<WorkspaceRepoInput> {
+    let supplied: HashSet<Uuid> = caller_repos.iter().map(|r| r.repo_id).collect();
+    project_repos
+        .iter()
+        .filter(|r| !supplied.contains(&r.id))
+        .filter_map(|r| {
+            r.default_target_branch
+                .clone()
+                .map(|target_branch| WorkspaceRepoInput {
+                    repo_id: r.id,
+                    target_branch,
+                })
+        })
+        .collect()
 }
 
 fn normalize_prompt(prompt: &str) -> Option<String> {
@@ -226,6 +254,7 @@ pub async fn create_and_start_workspace(
         prompt,
         attachment_ids,
         kind,
+        expand_project_repos,
     } = payload;
 
     let mut workspace_prompt = normalize_prompt(&prompt).ok_or_else(|| {
@@ -245,11 +274,59 @@ pub async fn create_and_start_workspace(
         .load_managed_workspace(create_workspace_record(&deployment, name, kind).await?)
         .await?;
 
+    let pool = &deployment.db().pool;
+
+    // Resolve the linked issue once (read-only). Feeds Fix 1 (link) and Fix 2 (repo union).
+    let linked_local_issue = match &linked_issue {
+        Some(li) => match Issue::find_by_id(pool, li.issue_id).await? {
+            Some(issue) => Some(issue),
+            None => {
+                tracing::warn!(
+                    "linked issue {} not found locally; skipping issue<->workspace link and project-repo expansion",
+                    li.issue_id
+                );
+                None
+            }
+        },
+        None => None,
+    };
+
+    // Fix 2 (opt-in): siblings the caller did not supply. Read-only; attached after caller repos.
+    let sibling_repos: Vec<WorkspaceRepoInput> = if expand_project_repos.unwrap_or(false) {
+        match &linked_local_issue {
+            Some(issue) => {
+                let ids = ProjectRepo::list_repo_ids(pool, issue.project_id).await?;
+                let project_repos = Repo::find_by_ids(pool, &ids).await?;
+                sibling_repo_inputs(&repos, &project_repos)
+            }
+            None => Vec::new(),
+        }
+    } else {
+        Vec::new()
+    };
+
     for repo in &repos {
         managed_workspace
             .add_repository(repo, deployment.git())
             .await
             .map_err(ApiError::from)?;
+    }
+
+    for repo in &sibling_repos {
+        match managed_workspace
+            .add_repository(repo, deployment.git())
+            .await
+        {
+            Ok(()) => {}
+            Err(WorkspaceError::BranchNotFound { repo_name, branch }) => {
+                tracing::warn!(
+                    "skipping project sibling repo {} (branch '{}' not found): expanding project scope best-effort",
+                    repo_name,
+                    branch
+                );
+            }
+            Err(e) => return Err(ApiError::from(e)),
+        }
     }
 
     if let Some(ids) = &attachment_ids {
@@ -300,6 +377,22 @@ pub async fn create_and_start_workspace(
 
     let workspace = managed_workspace.workspace.clone();
     tracing::info!("Created workspace {}", workspace.id);
+
+    // Fix 1: create the local issue<->workspace link before the terminal tab
+    // opens (inside `start_workspace`) so `interactive_tab_title` finds it and
+    // titles the tab from the card instead of falling back to the branch. All
+    // hard-fail work (caller repos, attachments) has already succeeded by this
+    // point, so a failed start never leaves a workspace linked.
+    if let Some(issue) = &linked_local_issue
+        && let Err(e) = IssueWorkspace::link(pool, issue.id, workspace.id).await
+    {
+        tracing::warn!(
+            "failed to link workspace {} to issue {} before start (tab title falls back to branch): {}",
+            workspace.id,
+            issue.id,
+            e
+        );
+    }
 
     let execution_process = deployment
         .container()
@@ -518,10 +611,90 @@ pub async fn close_orchestrator(
 #[cfg(test)]
 mod tests {
     use chrono::Utc;
-    use db::models::file::File;
+    use db::models::{file::File, repo::Repo, requests::WorkspaceRepoInput};
     use uuid::Uuid;
 
-    use super::{ImportedIssueAttachment, rewrite_imported_issue_attachments_markdown};
+    use super::{
+        ImportedIssueAttachment, rewrite_imported_issue_attachments_markdown, sibling_repo_inputs,
+    };
+
+    fn repo_fixture(id: Uuid, default_target_branch: Option<&str>) -> Repo {
+        Repo {
+            id,
+            path: std::path::PathBuf::from("/tmp/repo"),
+            name: "repo".to_string(),
+            display_name: "Repo".to_string(),
+            setup_script: None,
+            cleanup_script: None,
+            archive_script: None,
+            copy_files: None,
+            parallel_setup_script: false,
+            dev_server_script: None,
+            default_target_branch: default_target_branch.map(str::to_string),
+            default_working_dir: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn sibling_repo_inputs_includes_sibling_with_default_branch() {
+        let sibling_id = Uuid::new_v4();
+        let project_repos = vec![repo_fixture(sibling_id, Some("main"))];
+
+        let result = sibling_repo_inputs(&[], &project_repos);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].repo_id, sibling_id);
+        assert_eq!(result[0].target_branch, "main");
+    }
+
+    #[test]
+    fn sibling_repo_inputs_excludes_repo_already_supplied_by_caller() {
+        let repo_id = Uuid::new_v4();
+        let project_repos = vec![repo_fixture(repo_id, Some("main"))];
+        let caller_repos = vec![WorkspaceRepoInput {
+            repo_id,
+            target_branch: "feature".to_string(),
+        }];
+
+        let result = sibling_repo_inputs(&caller_repos, &project_repos);
+
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn sibling_repo_inputs_skips_repo_with_no_default_branch() {
+        let project_repos = vec![repo_fixture(Uuid::new_v4(), None)];
+
+        let result = sibling_repo_inputs(&[], &project_repos);
+
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn sibling_repo_inputs_empty_project_set_yields_empty() {
+        let result = sibling_repo_inputs(&[], &[]);
+
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn sibling_repo_inputs_caller_only_repo_not_in_project_set_is_unaffected() {
+        let sibling_id = Uuid::new_v4();
+        let project_repos = vec![repo_fixture(sibling_id, Some("main"))];
+        let caller_only_repo = Uuid::new_v4();
+        let caller_repos = vec![WorkspaceRepoInput {
+            repo_id: caller_only_repo,
+            target_branch: "feature".to_string(),
+        }];
+
+        let result = sibling_repo_inputs(&caller_repos, &project_repos);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].repo_id, sibling_id);
+        assert_eq!(result[0].target_branch, "main");
+    }
 
     fn imported_file(
         attachment_id: Uuid,

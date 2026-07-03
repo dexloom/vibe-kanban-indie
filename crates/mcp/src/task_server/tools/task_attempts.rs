@@ -199,6 +199,7 @@ impl McpServer {
             prompt: workspace_prompt,
             attachment_ids: None,
             kind: None,
+            expand_project_repos: Some(true),
         };
 
         let create_and_start_url = self.url("/api/workspaces/start");

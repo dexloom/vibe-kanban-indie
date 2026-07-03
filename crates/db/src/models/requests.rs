@@ -45,6 +45,12 @@ pub struct CreateAndStartWorkspaceRequest {
     #[serde(default)]
     #[ts(optional)]
     pub kind: Option<WorkspaceKind>,
+    /// Opt-in (MCP/orchestrator path): expand the worktree to include every
+    /// repo of the linked issue's project, not just the supplied `repos`.
+    /// Omitted by the web UI and TUI (they send the exact repo set they want).
+    #[serde(default)]
+    #[ts(optional)]
+    pub expand_project_repos: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]

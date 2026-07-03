@@ -495,7 +495,13 @@ export type CreateAndStartWorkspaceRequest = { name: string | null, repos: Array
  * Omitted by older clients and the MCP crate; defaults to a normal
  * workspace.
  */
-kind?: WorkspaceKind, };
+kind?: WorkspaceKind, 
+/**
+ * Opt-in (MCP/orchestrator path): expand the worktree to include every
+ * repo of the linked issue's project, not just the supplied `repos`.
+ * Omitted by the web UI and TUI (they send the exact repo set they want).
+ */
+expand_project_repos?: boolean, };
 
 export type CreateAndStartWorkspaceResponse = { workspace: Workspace, execution_process: ExecutionProcess, };
 
