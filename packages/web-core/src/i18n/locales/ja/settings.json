@@ -693,6 +693,34 @@
       "invalidBadge": "Invalid",
       "parseError": "Parse error",
       "errorAt": "line {{line}}, column {{column}}"
+    },
+    "recurrent": {
+      "loading": "ルーチンを読み込み中…",
+      "loadError": "ルーチンの読み込みに失敗しました",
+      "list": {
+        "title": "ルーチン",
+        "description": "ルーチンは ~/.vibe-kanban/recurrent/ にある TOML ファイルです。ルーチンをオンにするとスケジュールに従って実行されます。今すぐ実行することもできます。下でルーチンの生の TOML を編集できます。"
+      },
+      "empty": "ルーチンが見つかりません。",
+      "neverRun": "未実行",
+      "enabledLabel": "有効",
+      "runNow": "今すぐ実行",
+      "runSkipped": "このルーチンの実行はすでに進行中です。",
+      "openRun": "実行を開く",
+      "rawPlaceholder": "ルーチンの生の TOML…",
+      "saveButton": "保存",
+      "saved": "✓ 保存しました",
+      "saveError": "ルーチンの保存に失敗しました",
+      "schedule": {
+        "cron": "cron: {{expr}}",
+        "every": "{{expr}} ごと"
+      },
+      "status": {
+        "running": "実行中",
+        "completed": "完了",
+        "failed": "失敗",
+        "killed": "強制終了"
+      }
     }
   },
   "integrations": {

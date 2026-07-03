@@ -693,6 +693,34 @@
       "invalidBadge": "Invalid",
       "parseError": "Parse error",
       "errorAt": "line {{line}}, column {{column}}"
+    },
+    "recurrent": {
+      "loading": "正在載入例行任務…",
+      "loadError": "載入例行任務失敗",
+      "list": {
+        "title": "例行任務",
+        "description": "例行任務是位於 ~/.vibe-kanban/recurrent/ 中的 TOML 檔案。開啟某個例行任務即可讓它依排程執行，或立即執行。可在下方編輯例行任務的原始 TOML。"
+      },
+      "empty": "找不到例行任務。",
+      "neverRun": "從未執行",
+      "enabledLabel": "已啟用",
+      "runNow": "立即執行",
+      "runSkipped": "此例行任務已有一個正在進行的執行。",
+      "openRun": "開啟執行",
+      "rawPlaceholder": "例行任務原始 TOML…",
+      "saveButton": "儲存",
+      "saved": "✓ 已儲存",
+      "saveError": "儲存例行任務失敗",
+      "schedule": {
+        "cron": "cron: {{expr}}",
+        "every": "每 {{expr}}"
+      },
+      "status": {
+        "running": "執行中",
+        "completed": "已完成",
+        "failed": "失敗",
+        "killed": "已終止"
+      }
     }
   },
   "integrations": {
