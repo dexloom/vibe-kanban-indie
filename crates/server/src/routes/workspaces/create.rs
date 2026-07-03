@@ -5,13 +5,13 @@ use db::models::{
     execution_process::{ExecutionProcess, ExecutionProcessStatus},
     issue::Issue,
     issue_workspace::IssueWorkspace,
-    project_repo::ProjectRepo,
     repo::Repo,
     requests::{
         CloseOrchestratorResponse, CreateAndStartWorkspaceRequest, CreateAndStartWorkspaceResponse,
         CreateWorkspaceApiRequest, SpawnOrchestratorRequest, SpawnOrchestratorResponse,
         WorkspaceRepoInput,
     },
+    scratch::{DraftWorkspaceRepo, Scratch, ScratchPayload, ScratchType},
     workspace::{CreateWorkspace, Workspace, WorkspaceKind},
 };
 use deployment::Deployment;
@@ -76,24 +76,27 @@ pub async fn create_workspace(
     Ok(ResponseJson(ApiResponse::success(workspace)))
 }
 
-/// Project repos the caller did not supply, as `WorkspaceRepoInput`s on their
-/// `default_target_branch`. Dedup is by `repo_id` (caller entries always win
-/// and are never duplicated); repos with no default branch are skipped.
+/// Project default repos (from the `PROJECT_REPO_DEFAULTS` scratch — the same
+/// source the web UI's create flow reads) that the caller did not already
+/// supply and that still exist, as `WorkspaceRepoInput`s on their configured
+/// target branch. Dedup is by `repo_id` (caller entries always win, and each
+/// `repo_id` is emitted at most once even if the scratch lists it twice), so a
+/// repo is never attached twice; stale repo ids (no longer in
+/// `existing_repo_ids`) are skipped, mirroring the UI's
+/// `getValidProjectRepoDefaults` filter.
 fn sibling_repo_inputs(
     caller_repos: &[WorkspaceRepoInput],
-    project_repos: &[Repo],
+    project_defaults: &[DraftWorkspaceRepo],
+    existing_repo_ids: &HashSet<Uuid>,
 ) -> Vec<WorkspaceRepoInput> {
-    let supplied: HashSet<Uuid> = caller_repos.iter().map(|r| r.repo_id).collect();
-    project_repos
+    let mut seen: HashSet<Uuid> = caller_repos.iter().map(|r| r.repo_id).collect();
+    project_defaults
         .iter()
-        .filter(|r| !supplied.contains(&r.id))
-        .filter_map(|r| {
-            r.default_target_branch
-                .clone()
-                .map(|target_branch| WorkspaceRepoInput {
-                    repo_id: r.id,
-                    target_branch,
-                })
+        .filter(|d| existing_repo_ids.contains(&d.repo_id))
+        .filter(|d| seen.insert(d.repo_id))
+        .map(|d| WorkspaceRepoInput {
+            repo_id: d.repo_id,
+            target_branch: d.target_branch.clone(),
         })
         .collect()
 }
@@ -254,7 +257,6 @@ pub async fn create_and_start_workspace(
         prompt,
         attachment_ids,
         kind,
-        expand_project_repos,
     } = payload;
 
     let mut workspace_prompt = normalize_prompt(&prompt).ok_or_else(|| {
@@ -291,18 +293,42 @@ pub async fn create_and_start_workspace(
         None => None,
     };
 
-    // Fix 2 (opt-in): siblings the caller did not supply. Read-only; attached after caller repos.
-    let sibling_repos: Vec<WorkspaceRepoInput> = if expand_project_repos.unwrap_or(false) {
-        match &linked_local_issue {
-            Some(issue) => {
-                let ids = ProjectRepo::list_repo_ids(pool, issue.project_id).await?;
-                let project_repos = Repo::find_by_ids(pool, &ids).await?;
-                sibling_repo_inputs(&repos, &project_repos)
+    // Fix 2: expand an issue-linked workspace to the project's full default repo
+    // set so sibling path-dependency repos are mounted even when the caller
+    // supplied only one. The source is the `PROJECT_REPO_DEFAULTS` scratch — the
+    // same set the web UI's create flow reads — so MCP/orchestrator starts match
+    // UI starts. Applies to every linked-issue workspace; the union is deduped by
+    // `repo_id` (caller entries win), so it's a no-op when the caller already
+    // sent the full set. Scratch read/parse failures degrade to no expansion.
+    let sibling_repos: Vec<WorkspaceRepoInput> = match &linked_local_issue {
+        Some(issue) => {
+            match Scratch::find_by_id(pool, issue.project_id, &ScratchType::ProjectRepoDefaults)
+                .await
+            {
+                Ok(Some(Scratch {
+                    payload: ScratchPayload::ProjectRepoDefaults(defaults),
+                    ..
+                })) => {
+                    let default_ids: Vec<Uuid> = defaults.repos.iter().map(|r| r.repo_id).collect();
+                    let existing_repo_ids: HashSet<Uuid> = Repo::find_by_ids(pool, &default_ids)
+                        .await?
+                        .into_iter()
+                        .map(|r| r.id)
+                        .collect();
+                    sibling_repo_inputs(&repos, &defaults.repos, &existing_repo_ids)
+                }
+                Ok(_) => Vec::new(),
+                Err(e) => {
+                    tracing::warn!(
+                        "failed to read project repo defaults for project {} (skipping expansion): {}",
+                        issue.project_id,
+                        e
+                    );
+                    Vec::new()
+                }
             }
-            None => Vec::new(),
         }
-    } else {
-        Vec::new()
+        None => Vec::new(),
     };
 
     for repo in &repos {
@@ -610,39 +636,30 @@ pub async fn close_orchestrator(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use chrono::Utc;
-    use db::models::{file::File, repo::Repo, requests::WorkspaceRepoInput};
+    use db::models::{file::File, requests::WorkspaceRepoInput, scratch::DraftWorkspaceRepo};
     use uuid::Uuid;
 
     use super::{
         ImportedIssueAttachment, rewrite_imported_issue_attachments_markdown, sibling_repo_inputs,
     };
 
-    fn repo_fixture(id: Uuid, default_target_branch: Option<&str>) -> Repo {
-        Repo {
-            id,
-            path: std::path::PathBuf::from("/tmp/repo"),
-            name: "repo".to_string(),
-            display_name: "Repo".to_string(),
-            setup_script: None,
-            cleanup_script: None,
-            archive_script: None,
-            copy_files: None,
-            parallel_setup_script: false,
-            dev_server_script: None,
-            default_target_branch: default_target_branch.map(str::to_string),
-            default_working_dir: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+    fn default_repo(id: Uuid, target_branch: &str) -> DraftWorkspaceRepo {
+        DraftWorkspaceRepo {
+            repo_id: id,
+            target_branch: target_branch.to_string(),
         }
     }
 
     #[test]
-    fn sibling_repo_inputs_includes_sibling_with_default_branch() {
+    fn sibling_repo_inputs_includes_existing_default_not_supplied_by_caller() {
         let sibling_id = Uuid::new_v4();
-        let project_repos = vec![repo_fixture(sibling_id, Some("main"))];
+        let defaults = vec![default_repo(sibling_id, "main")];
+        let existing: HashSet<Uuid> = [sibling_id].into_iter().collect();
 
-        let result = sibling_repo_inputs(&[], &project_repos);
+        let result = sibling_repo_inputs(&[], &defaults, &existing);
 
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].repo_id, sibling_id);
@@ -652,44 +669,65 @@ mod tests {
     #[test]
     fn sibling_repo_inputs_excludes_repo_already_supplied_by_caller() {
         let repo_id = Uuid::new_v4();
-        let project_repos = vec![repo_fixture(repo_id, Some("main"))];
+        let defaults = vec![default_repo(repo_id, "main")];
+        let existing: HashSet<Uuid> = [repo_id].into_iter().collect();
         let caller_repos = vec![WorkspaceRepoInput {
             repo_id,
             target_branch: "feature".to_string(),
         }];
 
-        let result = sibling_repo_inputs(&caller_repos, &project_repos);
+        let result = sibling_repo_inputs(&caller_repos, &defaults, &existing);
 
         assert!(result.is_empty());
     }
 
     #[test]
-    fn sibling_repo_inputs_skips_repo_with_no_default_branch() {
-        let project_repos = vec![repo_fixture(Uuid::new_v4(), None)];
+    fn sibling_repo_inputs_skips_stale_default_not_in_existing_repos() {
+        let stale_id = Uuid::new_v4();
+        let defaults = vec![default_repo(stale_id, "main")];
+        let existing: HashSet<Uuid> = HashSet::new();
 
-        let result = sibling_repo_inputs(&[], &project_repos);
-
-        assert!(result.is_empty());
-    }
-
-    #[test]
-    fn sibling_repo_inputs_empty_project_set_yields_empty() {
-        let result = sibling_repo_inputs(&[], &[]);
+        let result = sibling_repo_inputs(&[], &defaults, &existing);
 
         assert!(result.is_empty());
     }
 
     #[test]
-    fn sibling_repo_inputs_caller_only_repo_not_in_project_set_is_unaffected() {
+    fn sibling_repo_inputs_empty_defaults_yields_empty() {
+        let result = sibling_repo_inputs(&[], &[], &HashSet::new());
+
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn sibling_repo_inputs_dedups_duplicate_default_entries() {
         let sibling_id = Uuid::new_v4();
-        let project_repos = vec![repo_fixture(sibling_id, Some("main"))];
+        let defaults = vec![
+            default_repo(sibling_id, "main"),
+            default_repo(sibling_id, "other"),
+        ];
+        let existing: HashSet<Uuid> = [sibling_id].into_iter().collect();
+
+        let result = sibling_repo_inputs(&[], &defaults, &existing);
+
+        // Emitted exactly once (first occurrence wins), so it is never attached twice.
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].repo_id, sibling_id);
+        assert_eq!(result[0].target_branch, "main");
+    }
+
+    #[test]
+    fn sibling_repo_inputs_caller_only_repo_not_in_defaults_is_unaffected() {
+        let sibling_id = Uuid::new_v4();
+        let defaults = vec![default_repo(sibling_id, "main")];
+        let existing: HashSet<Uuid> = [sibling_id].into_iter().collect();
         let caller_only_repo = Uuid::new_v4();
         let caller_repos = vec![WorkspaceRepoInput {
             repo_id: caller_only_repo,
             target_branch: "feature".to_string(),
         }];
 
-        let result = sibling_repo_inputs(&caller_repos, &project_repos);
+        let result = sibling_repo_inputs(&caller_repos, &defaults, &existing);
 
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].repo_id, sibling_id);
