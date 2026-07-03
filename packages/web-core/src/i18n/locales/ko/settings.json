@@ -693,6 +693,31 @@
       "invalidBadge": "Invalid",
       "parseError": "Parse error",
       "errorAt": "line {{line}}, column {{column}}"
+    },
+    "recurrent": {
+      "page": {
+        "title": "공통 작업",
+        "description": "일정에 따라 또는 필요할 때 실행되는 재사용 가능한 작업 프롬프트입니다. 루틴은 ~/.vibe-kanban/recurrent/ 에 있는 TOML 파일입니다."
+      },
+      "reload": "새로고침",
+      "create": {
+        "button": "새 루틴",
+        "nameLabel": "이름",
+        "namePlaceholder": "내 루틴",
+        "slugLabel": "슬러그",
+        "slugHelp": "파일 이름으로 사용됩니다. 영문자, 숫자, -, _ 만 사용할 수 있습니다.",
+        "invalidSlug": "슬러그는 영문자, 숫자, -, _ 만 포함할 수 있습니다.",
+        "duplicateSlug": "이 슬러그를 가진 루틴이 이미 존재합니다.",
+        "submit": "생성",
+        "cancel": "취소"
+      },
+      "delete": {
+        "button": "삭제",
+        "confirmTitle": "루틴 삭제",
+        "confirmMessage": "\"{{name}}\"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+        "confirmConfirm": "삭제",
+        "confirmCancel": "취소"
+      }
     }
   },
   "integrations": {

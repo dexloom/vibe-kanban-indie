@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 import {
   LayoutIcon,
   DownloadSimpleIcon,
+  ClockClockwiseIcon,
   LinkIcon,
   PlusIcon,
   KanbanIcon,
@@ -50,6 +51,7 @@ interface AppBarProps {
   activeHostId?: string | null;
   onCreateProject: () => void;
   onExportClick?: () => void;
+  onCommonTasksClick?: () => void;
   onWorkspacesClick: () => void;
   onHostClick?: (hostId: string, status: AppBarHostStatus) => void;
   showWorkspacesButton?: boolean;
@@ -58,6 +60,7 @@ interface AppBarProps {
   isSavingProjectOrder?: boolean;
   isWorkspacesActive: boolean;
   isExportActive?: boolean;
+  isCommonTasksActive?: boolean;
   activeProjectId: string | null;
   isSignedIn?: boolean;
   isLoadingProjects?: boolean;
@@ -111,7 +114,7 @@ const appBarItemBaseClassName =
   'flex items-center justify-center w-10 h-10 rounded-lg text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand';
 
 type AppBarSection = {
-  key: 'local' | 'remote' | 'projects' | 'export';
+  key: 'local' | 'remote' | 'projects' | 'export' | 'common-tasks';
   label: string;
   items: AppBarSectionItem[];
 };
@@ -200,6 +203,7 @@ export function AppBar({
   activeHostId = null,
   onCreateProject,
   onExportClick,
+  onCommonTasksClick,
   onWorkspacesClick,
   onHostClick,
   showWorkspacesButton = true,
@@ -208,6 +212,7 @@ export function AppBar({
   isSavingProjectOrder,
   isWorkspacesActive,
   isExportActive = false,
+  isCommonTasksActive = false,
   activeProjectId,
   isSignedIn,
   isLoadingProjects,
@@ -237,6 +242,23 @@ export function AppBar({
           icon: LayoutIcon,
           isActive: isWorkspacesActive,
           onClick: onWorkspacesClick,
+        },
+      ],
+    });
+  }
+
+  if (onCommonTasksClick) {
+    sections.push({
+      key: 'common-tasks',
+      label: 'Tasks',
+      items: [
+        {
+          key: 'common-tasks',
+          kind: 'icon-button',
+          label: 'Common Tasks',
+          icon: ClockClockwiseIcon,
+          isActive: isCommonTasksActive,
+          onClick: onCommonTasksClick,
         },
       ],
     });

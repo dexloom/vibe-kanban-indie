@@ -8,6 +8,7 @@ import {
   LayoutIcon,
   KanbanIcon,
   DownloadSimpleIcon,
+  ClockClockwiseIcon,
 } from '@phosphor-icons/react';
 import { SyncErrorProvider } from '@/shared/providers/SyncErrorProvider';
 import { useIsMobile } from '@/shared/hooks/useIsMobile';
@@ -170,6 +171,7 @@ export function SharedAppLayout() {
   );
   const isWorkspacesActive = isLocalWorkspacesDestination(currentDestination);
   const isExportActive = currentDestination?.kind === 'export';
+  const isCommonTasksActive = currentDestination?.kind === 'common-tasks';
   const isWorkspaceSidebarPreviewEnabled =
     !isMobile && isWorkspacesActive && !isLeftSidebarVisible;
   const activeProjectId = projectDestination?.projectId ?? null;
@@ -196,6 +198,10 @@ export function SharedAppLayout() {
 
   const handleExportClick = useCallback(() => {
     appNavigation.goToExport();
+  }, [appNavigation]);
+
+  const handleCommonTasksClick = useCallback(() => {
+    appNavigation.goToCommonTasks();
   }, [appNavigation]);
 
   const handleProjectClick = useCallback(
@@ -321,6 +327,7 @@ export function SharedAppLayout() {
               activeHostId={activeHostId}
               onCreateProject={handleCreateProject}
               onExportClick={handleExportClick}
+              onCommonTasksClick={handleCommonTasksClick}
               onWorkspacesClick={handleWorkspacesClick}
               onHostClick={handleHostClick}
               onPairHostClick={handlePairHostClick}
@@ -329,6 +336,7 @@ export function SharedAppLayout() {
               isSavingProjectOrder={isSavingProjectOrder}
               isWorkspacesActive={isWorkspacesActive}
               isExportActive={isExportActive}
+              isCommonTasksActive={isCommonTasksActive}
               activeProjectId={activeProjectId}
               isSignedIn={isSignedIn}
               isLoadingProjects={isLoading}
@@ -431,6 +439,19 @@ export function SharedAppLayout() {
             >
               <LayoutIcon className="h-4 w-4" />
               Workspaces
+            </button>
+
+            {/* Common Tasks link */}
+            <button
+              type="button"
+              onClick={() => {
+                handleCommonTasksClick();
+                setIsDrawerOpen(false);
+              }}
+              className="flex items-center gap-2 px-4 py-3 text-sm text-normal hover:bg-secondary cursor-pointer"
+            >
+              <ClockClockwiseIcon className="h-4 w-4" />
+              Common Tasks
             </button>
 
             {/* Divider */}

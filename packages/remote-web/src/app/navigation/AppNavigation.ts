@@ -167,6 +167,8 @@ function destinationToRemoteTarget(
       return { to: "/" } as const;
     case "export":
       return { to: "/export" } as const;
+    case "common-tasks":
+      return { to: "/" } as const;
     case "project":
       return {
         to: "/projects/$projectId",
@@ -243,6 +245,8 @@ export function createRemoteHostAppNavigation(hostId: string): AppNavigation {
     goToWorkspaceVsCode: (workspaceId, transition) =>
       navigateTo({ kind: "workspace-vscode", hostId, workspaceId }, transition),
     goToExport: (transition) => navigateTo({ kind: "export" }, transition),
+    goToCommonTasks: (transition) =>
+      navigateTo({ kind: "common-tasks" }, transition),
     goToProject: (projectId, transition) =>
       navigateTo({ kind: "project", projectId }, transition),
     goToProjectIssue: (projectId, issueId, transition) =>
@@ -315,6 +319,8 @@ function createRemoteFallbackAppNavigation(): AppNavigation {
     goToWorkspaceVsCode: (workspaceId, transition) =>
       navigateTo({ kind: "workspace-vscode", workspaceId }, transition),
     goToExport: (transition) => navigateTo({ kind: "export" }, transition),
+    goToCommonTasks: (transition) =>
+      navigateTo({ kind: "common-tasks" }, transition),
     goToProject: (projectId, transition) =>
       navigateTo({ kind: "project", projectId }, transition),
     goToProjectIssue: (projectId, issueId, transition) =>

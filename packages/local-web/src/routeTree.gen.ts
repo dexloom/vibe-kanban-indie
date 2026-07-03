@@ -16,6 +16,7 @@ import { Route as OnboardingSignInRouteImport } from './routes/onboarding_.sign-
 import { Route as AppWorkspacesRouteImport } from './routes/_app.workspaces'
 import { Route as AppNotificationsRouteImport } from './routes/_app.notifications'
 import { Route as AppExportRouteImport } from './routes/_app.export'
+import { Route as AppCommonTasksRouteImport } from './routes/_app.common-tasks'
 import { Route as WorkspacesWorkspaceIdVscodeRouteImport } from './routes/workspaces.$workspaceId.vscode'
 import { Route as AppWorkspacesElectricTestRouteImport } from './routes/_app.workspaces_.electric-test'
 import { Route as AppWorkspacesCreateRouteImport } from './routes/_app.workspaces_.create'
@@ -66,6 +67,11 @@ const AppNotificationsRoute = AppNotificationsRouteImport.update({
 const AppExportRoute = AppExportRouteImport.update({
   id: '/export',
   path: '/export',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCommonTasksRoute = AppCommonTasksRouteImport.update({
+  id: '/common-tasks',
+  path: '/common-tasks',
   getParentRoute: () => AppRoute,
 } as any)
 const WorkspacesWorkspaceIdVscodeRoute =
@@ -176,6 +182,7 @@ const AppProjectsProjectIdIssuesIssueIdHostsHostIdWorkspacesCreateDraftIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/onboarding': typeof OnboardingRoute
+  '/common-tasks': typeof AppCommonTasksRoute
   '/export': typeof AppExportRoute
   '/notifications': typeof AppNotificationsRoute
   '/workspaces': typeof AppWorkspacesRoute
@@ -201,6 +208,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/onboarding': typeof OnboardingRoute
+  '/common-tasks': typeof AppCommonTasksRoute
   '/export': typeof AppExportRoute
   '/notifications': typeof AppNotificationsRoute
   '/workspaces': typeof AppWorkspacesRoute
@@ -228,6 +236,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/onboarding': typeof OnboardingRoute
+  '/_app/common-tasks': typeof AppCommonTasksRoute
   '/_app/export': typeof AppExportRoute
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/workspaces': typeof AppWorkspacesRoute
@@ -255,6 +264,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/onboarding'
+    | '/common-tasks'
     | '/export'
     | '/notifications'
     | '/workspaces'
@@ -280,6 +290,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/onboarding'
+    | '/common-tasks'
     | '/export'
     | '/notifications'
     | '/workspaces'
@@ -306,6 +317,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_app'
     | '/onboarding'
+    | '/_app/common-tasks'
     | '/_app/export'
     | '/_app/notifications'
     | '/_app/workspaces'
@@ -387,6 +399,13 @@ declare module '@tanstack/react-router' {
       path: '/export'
       fullPath: '/export'
       preLoaderRoute: typeof AppExportRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/common-tasks': {
+      id: '/_app/common-tasks'
+      path: '/common-tasks'
+      fullPath: '/common-tasks'
+      preLoaderRoute: typeof AppCommonTasksRouteImport
       parentRoute: typeof AppRoute
     }
     '/workspaces/$workspaceId/vscode': {
@@ -512,6 +531,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppCommonTasksRoute: typeof AppCommonTasksRoute
   AppExportRoute: typeof AppExportRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppWorkspacesRoute: typeof AppWorkspacesRoute
@@ -533,6 +553,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppCommonTasksRoute: AppCommonTasksRoute,
   AppExportRoute: AppExportRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppWorkspacesRoute: AppWorkspacesRoute,

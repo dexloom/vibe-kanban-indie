@@ -386,6 +386,29 @@
         "completed": "completed",
         "failed": "failed",
         "killed": "killed"
+      },
+      "page": {
+        "title": "Common Tasks",
+        "description": "Reusable task prompts that run on a schedule or on demand. Routines are TOML files in ~/.vibe-kanban/recurrent/."
+      },
+      "reload": "Reload",
+      "create": {
+        "button": "New routine",
+        "nameLabel": "Name",
+        "namePlaceholder": "My routine",
+        "slugLabel": "Slug",
+        "slugHelp": "Used as the file name. Letters, numbers, - and _ only.",
+        "invalidSlug": "Slug must contain only letters, numbers, - and _.",
+        "duplicateSlug": "A routine with this slug already exists.",
+        "submit": "Create",
+        "cancel": "Cancel"
+      },
+      "delete": {
+        "button": "Delete",
+        "confirmTitle": "Delete routine",
+        "confirmMessage": "Are you sure you want to delete \"{{name}}\"? This cannot be undone.",
+        "confirmConfirm": "Delete",
+        "confirmCancel": "Cancel"
       }
     },
     "agents": {

@@ -693,6 +693,31 @@
       "invalidBadge": "Invalid",
       "parseError": "Parse error",
       "errorAt": "line {{line}}, column {{column}}"
+    },
+    "recurrent": {
+      "page": {
+        "title": "常用任务",
+        "description": "按计划或按需运行的可重复使用任务提示。例行任务是 ~/.vibe-kanban/recurrent/ 中的 TOML 文件。"
+      },
+      "reload": "刷新",
+      "create": {
+        "button": "新建例行任务",
+        "nameLabel": "名称",
+        "namePlaceholder": "我的例行任务",
+        "slugLabel": "标识符",
+        "slugHelp": "用作文件名。仅限字母、数字、- 和 _。",
+        "invalidSlug": "标识符只能包含字母、数字、- 和 _。",
+        "duplicateSlug": "已存在使用此标识符的例行任务。",
+        "submit": "创建",
+        "cancel": "取消"
+      },
+      "delete": {
+        "button": "删除",
+        "confirmTitle": "删除例行任务",
+        "confirmMessage": "确定要删除“{{name}}”吗？此操作无法撤销。",
+        "confirmConfirm": "删除",
+        "confirmCancel": "取消"
+      }
     }
   },
   "integrations": {

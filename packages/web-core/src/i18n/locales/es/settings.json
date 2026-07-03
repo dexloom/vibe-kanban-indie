@@ -693,6 +693,31 @@
       "invalidBadge": "Invalid",
       "parseError": "Parse error",
       "errorAt": "line {{line}}, column {{column}}"
+    },
+    "recurrent": {
+      "page": {
+        "title": "Tareas comunes",
+        "description": "Instrucciones de tareas reutilizables que se ejecutan según una programación o bajo demanda. Las rutinas son archivos TOML en ~/.vibe-kanban/recurrent/."
+      },
+      "reload": "Recargar",
+      "create": {
+        "button": "Nueva rutina",
+        "nameLabel": "Nombre",
+        "namePlaceholder": "Mi rutina",
+        "slugLabel": "Slug",
+        "slugHelp": "Se usa como nombre de archivo. Solo letras, números, - y _.",
+        "invalidSlug": "El slug solo puede contener letras, números, - y _.",
+        "duplicateSlug": "Ya existe una rutina con este slug.",
+        "submit": "Crear",
+        "cancel": "Cancelar"
+      },
+      "delete": {
+        "button": "Eliminar",
+        "confirmTitle": "Eliminar rutina",
+        "confirmMessage": "¿Seguro que deseas eliminar \"{{name}}\"? Esta acción no se puede deshacer.",
+        "confirmConfirm": "Eliminar",
+        "confirmCancel": "Cancelar"
+      }
     }
   },
   "integrations": {

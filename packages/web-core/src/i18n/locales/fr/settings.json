@@ -693,6 +693,31 @@
       "invalidBadge": "Invalid",
       "parseError": "Parse error",
       "errorAt": "line {{line}}, column {{column}}"
+    },
+    "recurrent": {
+      "page": {
+        "title": "Tâches courantes",
+        "description": "Invites de tâches réutilisables qui s'exécutent selon un horaire ou à la demande. Les routines sont des fichiers TOML dans ~/.vibe-kanban/recurrent/."
+      },
+      "reload": "Actualiser",
+      "create": {
+        "button": "Nouvelle routine",
+        "nameLabel": "Nom",
+        "namePlaceholder": "Ma routine",
+        "slugLabel": "Slug",
+        "slugHelp": "Utilisé comme nom de fichier. Lettres, chiffres, - et _ uniquement.",
+        "invalidSlug": "Le slug ne doit contenir que des lettres, des chiffres, - et _.",
+        "duplicateSlug": "Une routine avec ce slug existe déjà.",
+        "submit": "Créer",
+        "cancel": "Annuler"
+      },
+      "delete": {
+        "button": "Supprimer",
+        "confirmTitle": "Supprimer la routine",
+        "confirmMessage": "Êtes-vous sûr de vouloir supprimer « {{name}} » ? Cette action est irréversible.",
+        "confirmConfirm": "Supprimer",
+        "confirmCancel": "Annuler"
+      }
     }
   },
   "integrations": {

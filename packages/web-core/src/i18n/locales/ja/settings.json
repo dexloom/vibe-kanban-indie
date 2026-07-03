@@ -693,6 +693,31 @@
       "invalidBadge": "Invalid",
       "parseError": "Parse error",
       "errorAt": "line {{line}}, column {{column}}"
+    },
+    "recurrent": {
+      "page": {
+        "title": "共通タスク",
+        "description": "スケジュールまたはオンデマンドで実行される再利用可能なタスクプロンプトです。ルーティンは ~/.vibe-kanban/recurrent/ 内の TOML ファイルです。"
+      },
+      "reload": "再読み込み",
+      "create": {
+        "button": "新しいルーティン",
+        "nameLabel": "名前",
+        "namePlaceholder": "マイルーティン",
+        "slugLabel": "スラッグ",
+        "slugHelp": "ファイル名として使用されます。英数字、-、_ のみ使用できます。",
+        "invalidSlug": "スラッグには英数字、-、_ のみ使用できます。",
+        "duplicateSlug": "このスラッグのルーティンは既に存在します。",
+        "submit": "作成",
+        "cancel": "キャンセル"
+      },
+      "delete": {
+        "button": "削除",
+        "confirmTitle": "ルーティンを削除",
+        "confirmMessage": "「{{name}}」を削除してもよろしいですか？この操作は元に戻せません。",
+        "confirmConfirm": "削除",
+        "confirmCancel": "キャンセル"
+      }
     }
   },
   "integrations": {
