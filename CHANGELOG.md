@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **CI: release npm publish and clippy failures.** The `publish-npm` job now
+  runs on Node 24 (`npm@latest` moved to npm 12, which requires Node ≥ 22 — the
+  v0.2.14 npm publish failed on this, so v0.2.14 shipped as a GitHub release
+  only). Removed redundant struct-field wildcard patterns in
+  `crates/executors/src/executors/codex/normalize_logs.rs` that the newer
+  stable clippy on CI runners rejects.
+
 ## [0.2.14] - 2026-07-10
 
 ### Changed

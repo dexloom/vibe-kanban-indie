@@ -218,7 +218,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # npm@latest (12.x) requires node >= 22; keep this in step with it.
+          node-version: 24
           registry-url: "https://registry.npmjs.org"
 
       # Trusted publishing (OIDC) needs npm >= 11.5.1, newer than setup-node ships.

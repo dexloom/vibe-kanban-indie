@@ -1641,8 +1641,6 @@ pub fn normalize_logs(
                     command,
                     cwd: _,
                     reason,
-                    parsed_cmd: _,
-                    proposed_execpolicy_amendment: _,
                     ..
                 }) => {
                     state.assistant = None;
@@ -1821,7 +1819,6 @@ pub fn normalize_logs(
                     exit_code,
                     duration: _,
                     formatted_output,
-                    process_id: _,
                     ..
                 }) => {
                     if let Some(mut command_state) = state.commands.remove(&call_id) {
