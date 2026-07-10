@@ -25,7 +25,7 @@ The built-in stages are:
 | Create spec | Turn the brief into a development-ready spec (`SPEC.md`) |
 | Create plan | Turn the spec into a concrete implementation plan (`IMPLEMENTATION_PLAN.md`) |
 | Review plan | Review the plan before any code is written (delegated to Codex) |
-| Codex plan review | Independently review the implementation plan with Codex before any code is written (Async pipeline, on by default) |
+| Codex plan review | Independently review the implementation plan with Codex before any code is written (Async Sonnet / Async Fable, on by default) |
 | Wait for approval | Pause and wait for your decision before continuing |
 | Review via Codex | Independently review the change's diff with Codex once code is written |
 | Update documentation | Update the docs the change affects |
@@ -35,36 +35,61 @@ The built-in stages are:
 <Note>
 The stage catalogue is config-driven. The default order puts **Orchestrate
 (auto-drive)** first; `Wait for approval` follows `Review plan`, and `Update
-documentation` follows `Review via Codex`. In the **Async** pipeline, the
-ordering is `Create plan` → **Codex plan review** → coder stage → **Review via
-Codex** (the shared code-review stage): the plan is independently reviewed
-before any code is written, and the diff review runs only after the coder
-stage. The optional heavy `Review via Fable` stage also runs after the coder
-stage when you tick it.
+documentation` follows `Review via Codex`. In the **Async Sonnet** and **Async
+Fable** pipelines, the ordering is spec → plan → **Codex plan review** →
+coder stage → **Review via Codex** (the shared code-review stage): the plan
+is independently reviewed before any code is written, and the diff review
+runs only after the coder stage. Both pipelines review with Codex only —
+there is no Fable diff-review stage.
+</Note>
+
+## Async Sonnet and Async Fable
+
+Both Async pipelines fan work out to subagents instead of doing it in the main
+loop: an Opus main loop coordinates, verifies, and reviews, while separate
+subagents write the spec, the plan, and the code. They differ in which model
+does that subagent work, trading cost for thoroughness:
+
+| Stage | Async Sonnet | Async Fable |
+|---|---|---|
+| Spec | Sonnet subagent (`vibe-kanban-indie:product`) | Fable subagent (`vibe-kanban-indie:product`) — **heavy**, on by default |
+| Plan | Sonnet subagent (`vibe-kanban-indie:planner`) | Fable subagent (`vibe-kanban-indie:planner`) — **heavy**, on by default |
+| Codex plan review | On by default | On by default |
+| Code | Sonnet subagent (`vibe-kanban-indie:coder`) | Opus subagent (`vibe-kanban-indie:coder`) |
+| Review via Codex | On by default | On by default |
+
+Both pipelines are Codex-only for review — neither has a Fable diff-review
+stage. Run either one with a Claude Code (Opus) execution agent, so the main
+loop has the model budget to coordinate the fan-out and verify each
+subagent's work.
+
+<Note>
+Async Fable's spec and plan stages are marked `heavy = true` **and** default
+to ticked — a deliberate exception to the usual "heavy starts unticked"
+convention (see below). Choosing Async Fable at all is the opt-in to the
+extra cost; the heavy badge stays on to keep that cost visible, not to gate
+it a second time.
 </Note>
 
 <Note>
-If your `~/.vibe-kanban/pipelines/async.toml` already existed before this
-stage was added, it will not gain **Codex plan review** automatically —
-bundled pipelines are only seeded into an empty pipelines directory. Reset the
-Async pipeline to its bundled default from **Settings** to pick up the new
-stage.
-</Note>
-
-<Note>
-Basic's code review and Async's Codex review are the same canonical
-`code-review` stage. A card that combines Basic and Async dedupes them to a
-single **Review via Codex** stage instead of running the diff review twice.
-If your `~/.vibe-kanban/pipelines/async.toml` predates this change, it still
-has the old, separate `review-codex` stage until you reset the Async pipeline
-to its bundled default from **Settings**.
+Bundled pipeline files are seeded once per filename and tracked in a
+`.seed-manifest.json` file inside `~/.vibe-kanban/pipelines/` (invisible to
+the Settings pipeline list). When a bundled pipeline gains a new stage, or a
+new pipeline ships, an existing pipelines directory picks up exactly the new
+file or stage automatically on the next backend start — you no longer need to
+reset a pipeline by hand to pick up changes shipped after your install. Edits
+and deletions stay sticky either way: once a filename has been seeded, it is
+never silently overwritten or resurrected. The retired `async.toml` (replaced
+by Async Sonnet and Async Fable) is removed automatically the same way, but
+only when its contents still match a shipped version byte-for-byte; an edited
+copy of it is left alone as your own custom pipeline.
 </Note>
 
 A stage can also be marked `heavy = true` in its pipeline TOML — a
 resource-intensive stage that the New Issue dialog shows with a small "heavy"
-badge and, by convention, starts unticked. The bundled **Async** pipeline's
-"Review via Fable subagent" stage is marked heavy and is off by default; tick
-it explicitly when you want the extra Fable review pass.
+badge. By convention a heavy stage starts unticked, so you opt into the extra
+cost explicitly; Async Fable's spec and plan stages are the one bundled
+exception, since picking that pipeline is itself the opt-in.
 
 ## The agent crew
 
@@ -96,6 +121,15 @@ The crew is delivered as the `vibe-kanban-indie` Claude Code plugin, which links
 the `sombrax-codex` plugin for the review stages and the `sombrax-telegram` plugin
 for fan-out. See [Claude Code plugins & skills](/integrations/claude-code-plugins).
 </Note>
+
+The Product agent can also attach a pipeline when it files a card — say "create
+a card and put it through Async Fable" and it reads the pipelines directly from
+`~/.vibe-kanban/pipelines/*.toml` and composes the same `## Pipeline` block into
+the card description that the New Issue dialog would, defaulting to each
+pipeline's `default_enabled` stages unless you name specific ones. It only adds
+the Orchestrate stage when you explicitly ask for the card to be executed or
+auto-driven — Product itself never starts a workspace. See the
+`product-manager` skill's "Attaching a pipeline" section for the exact format.
 
 ## Spec and plan artifacts
 

@@ -159,15 +159,17 @@ const basicWikillmEnabledUnion = [
   ]),
 ];
 
-// Fixture mirroring the real, post-VIBE-4 `async.toml` pipeline file: same
-// stage ids/order/default-enabled flags, including the `plan-review-codex`
-// stage inserted between `plan` and `code-subagent`, and the renamed
-// `review-codex` -> `code-review` stage (now the same canonical id the
-// `basicPipeline`/`wikillmPipeline` fixtures use, so it dedupes against
-// theirs in a merge) — this fixture fully mirrors the real file.
+// Fixture mirroring the real `async-sonnet.toml` pipeline file (the split of
+// the former `async.toml` into Async Sonnet / Async Fable): same stage
+// ids/order/default-enabled flags, including the `plan-review-codex` stage
+// between `plan` and `code-subagent`, and the canonical `code-review` id
+// (the same one the `basicPipeline`/`wikillmPipeline` fixtures use, so it
+// dedupes against theirs in a merge). There is no `review-fable` stage here —
+// that stage was removed entirely when Async split into Sonnet/Fable
+// variants (code review is Codex-only in both).
 const asyncPipeline: Pipeline = {
-  id: 'async',
-  name: 'Async',
+  id: 'async-sonnet',
+  name: 'Async Sonnet',
   description: 'Subagent fan-out flow.',
   stages: [
     {
@@ -178,13 +180,13 @@ const asyncPipeline: Pipeline = {
     },
     {
       id: 'spec',
-      label: 'Create spec',
+      label: 'Spec via Sonnet subagent',
       prompt_fragment: 'Write a spec.',
       default_enabled: true,
     },
     {
       id: 'plan',
-      label: 'Create plan',
+      label: 'Plan via Sonnet subagent',
       prompt_fragment: 'Write a plan.',
       default_enabled: true,
     },
@@ -199,12 +201,6 @@ const asyncPipeline: Pipeline = {
       label: 'Code via Sonnet subagent',
       prompt_fragment: 'Code via a Sonnet subagent.',
       default_enabled: true,
-    },
-    {
-      id: 'review-fable',
-      label: 'Review via Fable subagent',
-      prompt_fragment: 'Review via Fable.',
-      default_enabled: false,
     },
     {
       id: 'code-review',
@@ -325,7 +321,7 @@ describe('composePipelineBlock', () => {
     ]);
   });
 
-  it('LOCKED: Async default-enabled order places the Codex plan review between plan and the coder stage', () => {
+  it('LOCKED: Async Sonnet default-enabled order places the Codex plan review between plan and the coder stage', () => {
     const asyncEnabledIds = asyncPipeline.stages
       .filter((s) => s.default_enabled)
       .map((s) => s.id);
@@ -335,17 +331,18 @@ describe('composePipelineBlock', () => {
       '',
       null
     );
-    expect(block).toContain('## Pipeline: Async');
+    expect(block).toContain('## Pipeline: Async Sonnet');
 
     const stageLines = block
       .split('\n')
       .filter((l) => /^\d+\.\s/.test(l))
       .map((l) => l.replace(/^\d+\.\s+/, ''));
 
-    // spec -> plan -> plan-review-codex -> code-subagent -> code-review
-    // (review-fable is default-off): the Codex plan review sits immediately
-    // after `plan` and immediately before the coder stage, and the Codex
-    // code review is the final default-enabled stage, per spec.
+    // spec -> plan -> plan-review-codex -> code-subagent -> code-review: the
+    // Codex plan review sits immediately after `plan` and immediately before
+    // the coder stage, and the Codex code review is the final
+    // default-enabled stage, per spec. (There is no `review-fable` stage in
+    // Async Sonnet — code review is Codex-only.)
     expect(stageLines).toEqual([
       'Write a spec.',
       'Write a plan.',
@@ -355,25 +352,24 @@ describe('composePipelineBlock', () => {
     ]);
   });
 
-  it("dedupes Basic's and Async's shared code-review stage: one Codex review, after the coder stage", () => {
+  it("dedupes Basic's and Async Sonnet's shared code-review stage: one Codex review, after the coder stage", () => {
     const block = composePipelineBlock(
       [basicPipeline, asyncPipeline],
       basicAsyncEnabledUnion,
       '',
       null
     );
-    expect(block).toContain('## Pipeline: Basic + Async');
+    expect(block).toContain('## Pipeline: Basic + Async Sonnet');
 
     const stageLines = block
       .split('\n')
       .filter((l) => /^\d+\.\s/.test(l))
       .map((l) => l.replace(/^\d+\.\s+/, ''));
 
-    // VIBE-4: unifying the id gave `code-review` an incoming
-    // `review-fable -> code-review` edge from async, so it now sorts after
-    // `code-subagent` instead of before it (the pre-existing quirk this test
-    // used to document). The full merged order is LOCKED here for
-    // visibility: the Codex code review appears exactly once, last.
+    // Unifying the id gives `code-review` an incoming edge from the async
+    // pipeline's `plan-review-codex -> code-subagent -> code-review` chain,
+    // so it sorts after `code-subagent`. The full merged order is LOCKED
+    // here for visibility: the Codex code review appears exactly once, last.
     expect(stageLines).toEqual([
       'Write a spec.',
       'Write a plan.',

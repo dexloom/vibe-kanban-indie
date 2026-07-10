@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Async pipeline split into Async Sonnet and Async Fable.** The bundled
+  `async.toml` is retired and replaced by `async-sonnet.toml` (Sonnet subagents
+  spec, plan, and code) and `async-fable.toml` (Fable subagents spec and plan —
+  marked `heavy` — and an Opus subagent codes). In both pipelines the plan
+  review and code review are Codex-only; the separate "Review via Fable
+  subagent" stage is removed.
+- **Bundled pipelines now reach existing installs.** Seeding tracks bundled
+  files in `~/.vibe-kanban/pipelines/.seed-manifest.json`: newly bundled
+  pipelines are seeded exactly once into existing installs, user edits and
+  deletions stay sticky, and a retired bundled file (e.g. the old `async.toml`)
+  is auto-removed only when it byte-matches a previously shipped version.
+  Fixes stale local pipelines never receiving updates (e.g. the missing
+  `heavy` badge from VIBE-3).
+
 ## [0.2.13] - 2026-07-03
 
 ## [0.2.12] - 2026-07-03

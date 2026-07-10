@@ -45,10 +45,125 @@ const BUNDLED: &[(&str, &str)] = &[
         include_str!("../../../../../assets/pipelines/speckit.toml"),
     ),
     (
-        "async.toml",
-        include_str!("../../../../../assets/pipelines/async.toml"),
+        "async-sonnet.toml",
+        include_str!("../../../../../assets/pipelines/async-sonnet.toml"),
+    ),
+    (
+        "async-fable.toml",
+        include_str!("../../../../../assets/pipelines/async-fable.toml"),
     ),
 ];
+
+/// The bundled set that existed before the seed manifest shipped. Frozen
+/// forever: used only to backfill `.seed-manifest.json` for installs that
+/// predate it (see `ensure_seeded_with`). Never add to this list — new
+/// bundled files are tracked by `BUNDLED` and seed once on first sight.
+const LEGACY_BASELINE: &[&str] = &["basic.toml", "wikillm.toml", "speckit.toml", "async.toml"];
+
+/// Retired bundled filenames, paired with **every historical shipped content
+/// version** of that file. `ensure_seeded_with` removes a retired file from a
+/// user's pipelines dir only when its on-disk bytes exactly match one of
+/// these versions (pristine, never user-edited); an edited copy is treated as
+/// user content and left alone.
+///
+/// `async.toml` was split into `async-sonnet.toml` + `async-fable.toml`; its
+/// four shipped versions (original, VIBE-2, VIBE-3, VIBE-4) are preserved
+/// verbatim under `assets/pipelines/retired/` so installs seeded at any point
+/// in its history can be safe-deleted.
+const RETIRED: &[(&str, &[&str])] = &[(
+    "async.toml",
+    &[
+        include_str!("../../../../../assets/pipelines/retired/async.toml.v1"),
+        include_str!("../../../../../assets/pipelines/retired/async.toml.v2"),
+        include_str!("../../../../../assets/pipelines/retired/async.toml.v3"),
+        include_str!("../../../../../assets/pipelines/retired/async.toml.v4"),
+    ],
+)];
+
+/// On-disk seed manifest (`.seed-manifest.json`): the set of bundled
+/// filenames seeding has handled at least once. Dotted/non-`.toml` so it is
+/// invisible to `load_pipelines`, `load_pipeline_statuses`, and the Settings
+/// UI (all iterate `*.toml` only).
+const MANIFEST_FILE: &str = ".seed-manifest.json";
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SeedManifest {
+    version: u32,
+    seeded: Vec<String>,
+}
+
+fn manifest_path(dir: &Path) -> std::path::PathBuf {
+    dir.join(MANIFEST_FILE)
+}
+
+/// Outcome of reading the seed manifest off disk.
+enum ManifestRead {
+    /// Parsed successfully; the recorded `seeded` set.
+    Ok(HashSet<String>),
+    /// Present but failed to parse. Treated conservatively: never resurrect a
+    /// deleted bundled file just because the manifest is unreadable.
+    Corrupt,
+    /// No manifest file (pre-manifest install).
+    Absent,
+}
+
+fn read_manifest(dir: &Path) -> ManifestRead {
+    let path = manifest_path(dir);
+    match std::fs::read_to_string(&path) {
+        Ok(raw) => match serde_json::from_str::<SeedManifest>(&raw) {
+            Ok(m) => ManifestRead::Ok(m.seeded.into_iter().collect()),
+            Err(e) => {
+                tracing::warn!(
+                    "corrupt pipeline seed manifest {}: {} — treating as untouched, not resurrecting deletions",
+                    path.display(),
+                    e
+                );
+                ManifestRead::Corrupt
+            }
+        },
+        Err(_) => ManifestRead::Absent,
+    }
+}
+
+/// Write the seed manifest atomically (tmp file + rename) so a crash mid-write
+/// never leaves a half-written manifest behind. Names are sorted for stable
+/// diffs.
+fn write_manifest_atomic(dir: &Path, seeded: &HashSet<String>) -> Result<(), PipelineError> {
+    let mut names: Vec<String> = seeded.iter().cloned().collect();
+    names.sort();
+    let manifest = SeedManifest {
+        version: 1,
+        seeded: names,
+    };
+    let json = serde_json::to_string_pretty(&manifest)
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
+    let tmp_path = dir.join(format!("{MANIFEST_FILE}.tmp"));
+    std::fs::write(&tmp_path, json)?;
+    std::fs::rename(&tmp_path, manifest_path(dir))?;
+    Ok(())
+}
+
+/// Ensure `names` are present in the seed manifest, preserving whatever is
+/// already recorded. Called after `reset_one`/`reset_all` write bundled
+/// content directly, so the manifest stays a superset of everything
+/// seeding/reset has ever written verbatim (deletions of a reset file remain
+/// sticky, same as first-seed deletions).
+fn mark_seeded(dir: &Path, names: &[&str]) -> Result<(), PipelineError> {
+    std::fs::create_dir_all(dir)?;
+    let (mut seeded, mut dirty) = match read_manifest(dir) {
+        ManifestRead::Ok(s) => (s, false),
+        ManifestRead::Corrupt | ManifestRead::Absent => (HashSet::new(), true),
+    };
+    for n in names {
+        if seeded.insert((*n).to_string()) {
+            dirty = true;
+        }
+    }
+    if dirty {
+        write_manifest_atomic(dir, &seeded)?;
+    }
+    Ok(())
+}
 
 /// A selectable card pipeline loaded from a `*.toml` file.
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
@@ -352,21 +467,99 @@ fn has_toml(dir: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Seed bundled defaults, but **only when the dir is absent or contains no
-/// `*.toml`**. This means deleting one bundled file does not resurrect it on the
-/// next load (as long as at least one pipeline file remains). If the operator
-/// deletes *every* file, the defaults are re-seeded (documented edge case).
+/// Seed bundled defaults into `dir`, tracked by `.seed-manifest.json` so
+/// updates to already-seeded installs are picked up exactly once per file
+/// while user edits/deletions stay sticky. See `ensure_seeded_with` for the
+/// full algorithm; this wraps it with the real bundled/retired/baseline
+/// consts.
 pub fn ensure_seeded(dir: &Path) -> Result<(), PipelineError> {
-    if dir.exists() && has_toml(dir) {
+    ensure_seeded_with(dir, BUNDLED, RETIRED, LEGACY_BASELINE)
+}
+
+/// Testable seam behind `ensure_seeded`: takes the bundled set, the retired
+/// set, and the legacy baseline as parameters so tests can exercise the
+/// seeding/backfill/retirement rules with small fixtures instead of the real
+/// (large) bundled pipeline files.
+///
+/// Algorithm:
+/// - **Fresh dir** (absent or no `*.toml` at all — includes the "operator
+///   wiped everything" edge case): write every bundled file, record all
+///   bundled names as seeded, done. This preserves the pre-manifest behavior
+///   for brand-new installs and full wipes.
+/// - **Otherwise**, read the manifest:
+///   - `Ok` → use its recorded `seeded` set.
+///   - `Corrupt` → **never resurrect on corruption**: treat everything in
+///     `baseline` and `bundled` as already seeded, then rewrite a valid
+///     manifest.
+///   - `Absent` (pre-manifest install: has TOMLs, no manifest yet) →
+///     **backfill**: seed the set to `baseline` exactly (not disk contents,
+///     not current `bundled`). Baseline names never re-seed even if the user
+///     deleted them before the manifest existed; genuinely new bundled files
+///     not in `baseline` still seed exactly once below.
+/// - For each bundled `(name, content)` not already in `seeded`: write it iff
+///   no file of that name exists yet (an existing same-named file is treated
+///   as pre-existing user content and left untouched), then mark it seeded
+///   either way.
+/// - Sweep `retired`: remove a retired file only when its on-disk bytes match
+///   one of its historical shipped versions exactly (pristine); an edited
+///   copy is user content and is left alone.
+/// - Write the manifest back (atomically: tmp file + rename) iff the seeded
+///   set changed.
+fn ensure_seeded_with(
+    dir: &Path,
+    bundled: &[(&str, &str)],
+    retired: &[(&str, &[&str])],
+    baseline: &[&str],
+) -> Result<(), PipelineError> {
+    std::fs::create_dir_all(dir)?;
+
+    if !has_toml(dir) {
+        for (name, content) in bundled {
+            let path = dir.join(name);
+            if !path.exists() {
+                std::fs::write(&path, content)?;
+            }
+        }
+        let seeded: HashSet<String> = bundled.iter().map(|(n, _)| n.to_string()).collect();
+        write_manifest_atomic(dir, &seeded)?;
         return Ok(());
     }
-    std::fs::create_dir_all(dir)?;
-    for (name, content) in BUNDLED {
+
+    let (mut seeded, mut dirty) = match read_manifest(dir) {
+        ManifestRead::Ok(s) => (s, false),
+        ManifestRead::Corrupt => {
+            let mut s: HashSet<String> = baseline.iter().map(|n| n.to_string()).collect();
+            s.extend(bundled.iter().map(|(n, _)| n.to_string()));
+            (s, true)
+        }
+        ManifestRead::Absent => (baseline.iter().map(|n| n.to_string()).collect(), true),
+    };
+
+    for (name, content) in bundled {
+        if seeded.contains(*name) {
+            continue;
+        }
         let path = dir.join(name);
         if !path.exists() {
             std::fs::write(&path, content)?;
         }
+        seeded.insert((*name).to_string());
+        dirty = true;
     }
+
+    for (name, versions) in retired {
+        let path = dir.join(name);
+        if let Ok(existing) = std::fs::read_to_string(&path)
+            && versions.iter().any(|v| *v == existing)
+        {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+
+    if dirty {
+        write_manifest_atomic(dir, &seeded)?;
+    }
+
     Ok(())
 }
 
@@ -433,11 +626,12 @@ pub fn write_raw(dir: &Path, id: &str, content: &str) -> Result<Pipeline, Pipeli
 pub fn reset_one(dir: &Path, id: &str) -> Result<Pipeline, PipelineError> {
     validate_id(id)?;
     let file = format!("{id}.toml");
-    let Some((_, content)) = BUNDLED.iter().find(|(n, _)| *n == file) else {
+    let Some((name, content)) = BUNDLED.iter().find(|(n, _)| *n == file) else {
         return Err(PipelineError::NotFound);
     };
     std::fs::create_dir_all(dir)?;
     std::fs::write(dir.join(&file), content)?;
+    mark_seeded(dir, &[name])?;
     parse_pipeline(id, content)
 }
 
@@ -448,6 +642,7 @@ pub fn reset_all(dir: &Path) -> Result<Vec<Pipeline>, PipelineError> {
     for (name, content) in BUNDLED {
         std::fs::write(dir.join(name), content)?;
     }
+    mark_seeded(dir, &BUNDLED.iter().map(|(n, _)| *n).collect::<Vec<_>>())?;
     Ok(load_pipelines(dir))
 }
 
@@ -564,7 +759,11 @@ mod tests {
         let d = TmpDir::new();
         let pipelines = load_pipelines(d.path());
         let ids: Vec<_> = pipelines.iter().map(|p| p.id.as_str()).collect();
-        assert_eq!(ids, vec!["basic", "wikillm", "speckit", "async"]);
+        assert_eq!(
+            ids,
+            vec!["basic", "wikillm", "speckit", "async-sonnet", "async-fable"]
+        );
+        assert!(d.path().join(".seed-manifest.json").exists());
     }
 
     #[test]
@@ -679,5 +878,214 @@ mod tests {
             spec.prompt_fragment,
             "Write a technical spec for this card and save it to `SPEC.md` at the repo root before implementing."
         );
+    }
+
+    // --- Seed-manifest tests (via the private `ensure_seeded_with` seam) ---
+
+    fn manifest_seeded(dir: &Path) -> HashSet<String> {
+        match read_manifest(dir) {
+            ManifestRead::Ok(s) => s,
+            ManifestRead::Corrupt => panic!("manifest is corrupt"),
+            ManifestRead::Absent => panic!("manifest is absent"),
+        }
+    }
+
+    #[test]
+    fn backfill_seeds_only_new_files_into_legacy_dir() {
+        let d = TmpDir::new();
+        // Legacy install: four pre-manifest baseline files, user-edited (content
+        // differs from what `bundled` would ship), no manifest yet.
+        std::fs::write(d.path().join("a.toml"), "A-OLD").unwrap();
+        std::fs::write(d.path().join("b.toml"), "B-OLD").unwrap();
+        std::fs::write(d.path().join("c.toml"), "C-OLD").unwrap();
+        std::fs::write(d.path().join("d.toml"), "D-OLD").unwrap();
+
+        let baseline: &[&str] = &["a.toml", "b.toml", "c.toml", "d.toml"];
+        let bundled: &[(&str, &str)] = &[
+            ("a.toml", "A-NEW"),
+            ("b.toml", "B-NEW"),
+            ("c.toml", "C-NEW"),
+            ("d.toml", "D-NEW"),
+            ("e.toml", "E-NEW"),
+            ("f.toml", "F-NEW"),
+        ];
+        ensure_seeded_with(d.path(), bundled, &[], baseline).unwrap();
+
+        // New bundled files get written.
+        assert_eq!(
+            std::fs::read_to_string(d.path().join("e.toml")).unwrap(),
+            "E-NEW"
+        );
+        assert_eq!(
+            std::fs::read_to_string(d.path().join("f.toml")).unwrap(),
+            "F-NEW"
+        );
+        // Baseline files are byte-untouched (their user edits survive).
+        assert_eq!(
+            std::fs::read_to_string(d.path().join("a.toml")).unwrap(),
+            "A-OLD"
+        );
+        assert_eq!(
+            std::fs::read_to_string(d.path().join("b.toml")).unwrap(),
+            "B-OLD"
+        );
+        assert_eq!(
+            std::fs::read_to_string(d.path().join("c.toml")).unwrap(),
+            "C-OLD"
+        );
+        assert_eq!(
+            std::fs::read_to_string(d.path().join("d.toml")).unwrap(),
+            "D-OLD"
+        );
+
+        let mut seeded: Vec<String> = manifest_seeded(d.path()).into_iter().collect();
+        seeded.sort();
+        assert_eq!(
+            seeded,
+            vec!["a.toml", "b.toml", "c.toml", "d.toml", "e.toml", "f.toml"]
+        );
+    }
+
+    #[test]
+    fn pre_manifest_deleted_baseline_file_stays_deleted() {
+        let d = TmpDir::new();
+        // Legacy dir missing `d.toml` (deleted before the manifest existed).
+        std::fs::write(d.path().join("a.toml"), "A-OLD").unwrap();
+        std::fs::write(d.path().join("b.toml"), "B-OLD").unwrap();
+        std::fs::write(d.path().join("c.toml"), "C-OLD").unwrap();
+
+        let baseline: &[&str] = &["a.toml", "b.toml", "c.toml", "d.toml"];
+        let bundled: &[(&str, &str)] = &[
+            ("a.toml", "A-NEW"),
+            ("b.toml", "B-NEW"),
+            ("c.toml", "C-NEW"),
+            ("d.toml", "D-NEW"),
+            ("e.toml", "E-NEW"),
+        ];
+        ensure_seeded_with(d.path(), bundled, &[], baseline).unwrap();
+
+        assert!(!d.path().join("d.toml").exists());
+        assert!(d.path().join("e.toml").exists());
+    }
+
+    #[test]
+    fn newly_bundled_file_deleted_after_seed_stays_deleted() {
+        let d = TmpDir::new();
+        let bundled_v1: &[(&str, &str)] = &[("a.toml", "A")];
+        ensure_seeded_with(d.path(), bundled_v1, &[], &[]).unwrap();
+
+        let bundled_v2: &[(&str, &str)] = &[("a.toml", "A"), ("b.toml", "B")];
+        ensure_seeded_with(d.path(), bundled_v2, &[], &[]).unwrap();
+        assert!(d.path().join("b.toml").exists());
+
+        std::fs::remove_file(d.path().join("b.toml")).unwrap();
+        ensure_seeded_with(d.path(), bundled_v2, &[], &[]).unwrap();
+        assert!(!d.path().join("b.toml").exists());
+        assert!(d.path().join("a.toml").exists());
+    }
+
+    #[test]
+    fn existing_user_file_with_bundled_name_not_overwritten() {
+        let d = TmpDir::new();
+        // `a.toml` makes the dir non-empty; `b.toml` predates `b` being bundled
+        // (no manifest yet, `b.toml` not in baseline either).
+        std::fs::write(d.path().join("a.toml"), "A-EXISTING").unwrap();
+        std::fs::write(d.path().join("b.toml"), "USER-CONTENT").unwrap();
+
+        let bundled: &[(&str, &str)] = &[("a.toml", "A-BUNDLED"), ("b.toml", "B-BUNDLED")];
+        ensure_seeded_with(d.path(), bundled, &[], &[]).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(d.path().join("b.toml")).unwrap(),
+            "USER-CONTENT"
+        );
+        assert!(manifest_seeded(d.path()).contains("b.toml"));
+    }
+
+    #[test]
+    fn retired_pristine_file_is_removed() {
+        let d = TmpDir::new();
+        // Matches the *older* (non-latest) historical version, proving the
+        // sweep checks every version, not just the last one.
+        std::fs::write(d.path().join("old.toml"), "V2-CONTENT").unwrap();
+
+        let retired: &[(&str, &[&str])] =
+            &[("old.toml", &["V1-CONTENT", "V2-CONTENT", "V3-CONTENT"])];
+        ensure_seeded_with(d.path(), &[], retired, &[]).unwrap();
+
+        assert!(!d.path().join("old.toml").exists());
+    }
+
+    #[test]
+    fn retired_edited_file_is_preserved() {
+        let d = TmpDir::new();
+        std::fs::write(d.path().join("old.toml"), "USER-EDITED-CONTENT").unwrap();
+
+        let retired: &[(&str, &[&str])] =
+            &[("old.toml", &["V1-CONTENT", "V2-CONTENT", "V3-CONTENT"])];
+        ensure_seeded_with(d.path(), &[], retired, &[]).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(d.path().join("old.toml")).unwrap(),
+            "USER-EDITED-CONTENT"
+        );
+    }
+
+    #[test]
+    fn wiping_all_tomls_reseeds_despite_manifest() {
+        let d = TmpDir::new();
+        let bundled: &[(&str, &str)] = &[("a.toml", "A"), ("b.toml", "B")];
+        ensure_seeded_with(d.path(), bundled, &[], &[]).unwrap();
+
+        std::fs::remove_file(d.path().join("a.toml")).unwrap();
+        std::fs::remove_file(d.path().join("b.toml")).unwrap();
+        // The manifest itself (a `.json` file, not `.toml`) survives the wipe.
+        assert!(d.path().join(".seed-manifest.json").exists());
+
+        ensure_seeded_with(d.path(), bundled, &[], &[]).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(d.path().join("a.toml")).unwrap(),
+            "A"
+        );
+        assert_eq!(
+            std::fs::read_to_string(d.path().join("b.toml")).unwrap(),
+            "B"
+        );
+    }
+
+    #[test]
+    fn corrupt_manifest_never_resurrects() {
+        let d = TmpDir::new();
+        std::fs::write(d.path().join("a.toml"), "A").unwrap();
+        // `b.toml` is missing (deleted), and the manifest is garbage.
+        std::fs::write(d.path().join(".seed-manifest.json"), "{ not valid json").unwrap();
+
+        let baseline: &[&str] = &["a.toml", "b.toml"];
+        let bundled: &[(&str, &str)] = &[("a.toml", "A"), ("b.toml", "B")];
+        ensure_seeded_with(d.path(), bundled, &[], baseline).unwrap();
+
+        assert!(!d.path().join("b.toml").exists());
+        // The manifest was rewritten into a valid state.
+        let seeded = manifest_seeded(d.path());
+        assert!(seeded.contains("a.toml"));
+        assert!(seeded.contains("b.toml"));
+    }
+
+    #[test]
+    fn manifest_not_listed_by_statuses_or_pipelines() {
+        let d = TmpDir::new();
+        let pipelines = load_pipelines(d.path());
+        assert!(d.path().join(".seed-manifest.json").exists());
+        assert!(!pipelines.iter().any(|p| p.id.contains("seed-manifest")));
+
+        let statuses = load_pipeline_statuses(d.path());
+        assert!(!statuses.iter().any(|s| s.id.contains("seed-manifest")));
+    }
+
+    #[test]
+    fn reset_one_marks_manifest() {
+        let d = TmpDir::new();
+        reset_one(d.path(), "basic").unwrap();
+        assert!(manifest_seeded(d.path()).contains("basic.toml"));
     }
 }

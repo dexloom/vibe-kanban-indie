@@ -1,0 +1,50 @@
+name = "Async Sonnet"
+description = "Subagent fan-out flow on an Opus main loop: Sonnet subagents write the spec, plan, and code; Codex reviews the plan and the diff. Run this pipeline with a Claude Code (Opus) execution agent."
+
+[[stage]]
+id = "orchestrate"
+label = "Orchestrate (auto-drive)"
+default_enabled = false
+prompt = "Have the orchestrator agent pick this card up and drive it to done autonomously, running the card's pipeline stages in order — regardless of which board column the card is in (it may be started even from Todo)."
+
+[[stage]]
+id = "spec"
+label = "Spec via Sonnet subagent"
+default_enabled = true
+prompt = "Do NOT write the spec yourself. Spawn the `vibe-kanban-indie:product` subagent on the Sonnet model (Agent tool with model: 'sonnet'; fall back to a generic Agent with model: 'sonnet' if the plugin agent is unavailable) to write the technical spec for this card to `SPEC.md` at the workspace root — pass the workspace-root path plus the card description in the subagent prompt. When it returns, verify `SPEC.md` exists and covers the card's outcome, scope, and acceptance criteria; if it is missing or thin, re-spawn the subagent with the concrete gaps rather than writing the spec in the main loop."
+
+[[stage]]
+id = "plan"
+label = "Plan via Sonnet subagent"
+default_enabled = true
+prompt = "Do NOT write the plan yourself. Spawn the `vibe-kanban-indie:planner` subagent on the Sonnet model (Agent tool with model: 'sonnet'; fall back to a generic Agent with model: 'sonnet' if the plugin agent is unavailable) to turn `SPEC.md` into a step-by-step `IMPLEMENTATION_PLAN.md` at the workspace root — pass the workspace-root path plus the card description in the subagent prompt. When it returns, verify the plan's steps are grounded in real repo files; if not, re-spawn the subagent with the concrete gaps rather than writing the plan in the main loop."
+
+[[stage]]
+id = "plan-review-codex"
+label = "Codex plan review"
+default_enabled = true
+prompt = "Before any code is written, have Codex independently review `IMPLEMENTATION_PLAN.md`. Run Codex as the reviewer (`codex exec --sandbox read-only` over the plan, or the `codex-review-plan` skill if available) — do NOT review the plan yourself. Iterate until Codex reports no significant findings. Resolve confirmed findings by revising the plan (re-run the planner subagent, or edit `IMPLEMENTATION_PLAN.md` directly) before proceeding to the coding stage. This is a read-only plan review: do not modify code here."
+
+[[stage]]
+id = "code-subagent"
+label = "Code via Sonnet subagent"
+default_enabled = true
+prompt = "Do NOT write the implementation yourself. Spawn the `vibe-kanban-indie:coder` subagent (Sonnet model; fall back to a generic Agent with model: 'sonnet' if the plugin agent is unavailable) to implement the card strictly from `SPEC.md` and `IMPLEMENTATION_PLAN.md` — pass the workspace-root path plus the card description in the subagent prompt, and instruct it to follow the plan step by step and report what it changed. When it returns, verify the result compiles and passes checks (`pnpm run check` / `cargo test` as applicable); if the subagent's work is incomplete or broken, spawn a follow-up coder subagent with the concrete gaps rather than fixing the code in the main loop."
+
+[[stage]]
+id = "code-review"
+label = "Review via Codex"
+default_enabled = true
+prompt = "After implementing, run an independent Codex review of the card's diff (the `codex-review` skill / Codex CLI), iterating until it reports no significant findings. Address confirmed findings and re-verify before marking the card ready."
+
+[[stage]]
+id = "merge"
+label = "Merge to base"
+default_enabled = false
+prompt = "When the work is implemented and reviewed, merge this card's branch into the base branch."
+
+[[stage]]
+id = "pr"
+label = "Open pull request"
+default_enabled = false
+prompt = "When the work is implemented and reviewed, open a pull request for this card against the base branch."
