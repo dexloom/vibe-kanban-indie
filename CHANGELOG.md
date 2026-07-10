@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.15-beta.2] - 2026-07-10
+
 ### Fixed
 
 - **CI: pin npm to the 11.x line for publishing.** npm@12.0.0 crashes during
