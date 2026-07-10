@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **CI: pin npm to the 11.x line for publishing.** npm@12.0.0 crashes during
+  `npm publish` (`MODULE_NOT_FOUND: sigstore` in its bundled `libnpmpublish`
+  when OIDC trusted publishing attaches provenance), which killed the
+  v0.2.15-beta.1 npm publish after everything else in the release succeeded.
+
 ## [0.2.15-beta.1] - 2026-07-10
 
 ### Fixed

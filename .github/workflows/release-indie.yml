@@ -223,8 +223,11 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       # Trusted publishing (OIDC) needs npm >= 11.5.1, newer than setup-node ships.
+      # Pinned to the 11.x line: npm@12.0.0 crashes on publish (its bundled
+      # libnpmpublish is missing the `sigstore` module the OIDC provenance
+      # attestation requires — MODULE_NOT_FOUND, seen on the v0.2.15-beta.1 run).
       - name: Update npm for trusted publishing
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
 
       - name: Guard — version matches tag and no bundled dist
         run: |
