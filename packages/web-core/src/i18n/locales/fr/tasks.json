@@ -561,6 +561,10 @@
       "telegram-fanout": {
         "label": "Diffusion Telegram",
         "description": "Décrit l'état et converse avec chaque agent sur son sujet Telegram dédié à l'espace de travail. Nécessite l'écouteur sombrax-telegram."
+      },
+      "nudge-stuck": {
+        "label": "Relancer les agents bloqués",
+        "description": "Lorsqu'un agent géré ne montre aucune progression pendant deux intervalles consécutifs de l'orchestrateur, lui envoie « Pourquoi es-tu bloqué ? » — l'intervention la moins coûteuse pour le débloquer ou obtenir un message de diagnostic. S'applique uniquement aux cartes gérées par l'orchestrateur."
       }
     }
   }

@@ -561,6 +561,10 @@
       "telegram-fanout": {
         "label": "Telegram 分流",
         "description": "透過各工作區的 Telegram 主題，敘述狀態並與各代理對話。需要 sombrax-telegram 監聽器。"
+      },
+      "nudge-stuck": {
+        "label": "提醒卡住的代理",
+        "description": "當受管理的代理連續兩個編排器週期沒有進展時，向其發送「你為什麼卡住了」——這是讓它恢復或給出診斷訊息的最低成本干預。僅適用於編排器管理的卡片。"
       }
     }
   }

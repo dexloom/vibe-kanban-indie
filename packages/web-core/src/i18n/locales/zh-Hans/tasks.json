@@ -561,6 +561,10 @@
       "telegram-fanout": {
         "label": "Telegram 扇出",
         "description": "通过每个工作区的 Telegram 话题叙述状态并与各代理对话。需要 sombrax-telegram 监听器。"
+      },
+      "nudge-stuck": {
+        "label": "提醒卡住的代理",
+        "description": "当受管理的代理连续两个编排器周期没有进展时，向其发送「你为什么卡住了」——这是让它恢复或给出诊断信息的最低成本干预。仅适用于编排器管理的卡片。"
       }
     }
   }

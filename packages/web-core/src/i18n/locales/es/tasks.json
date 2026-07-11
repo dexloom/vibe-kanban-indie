@@ -561,6 +561,10 @@
       "telegram-fanout": {
         "label": "Difusión por Telegram",
         "description": "Narra el estado y conversa con cada agente a través de su tema de Telegram por espacio de trabajo. Requiere el escucha sombrax-telegram."
+      },
+      "nudge-stuck": {
+        "label": "Impulsar agentes atascados",
+        "description": "Cuando un agente gestionado no muestra progreso durante dos intervalos consecutivos del orquestador, le envía «¿Por qué estás atascado?» — la intervención más económica para desatascarlo u obtener un mensaje de diagnóstico. Solo se aplica a tarjetas gestionadas por el orquestador."
       }
     }
   }

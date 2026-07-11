@@ -46,6 +46,12 @@ export const ORCHESTRATOR_DIRECTIVES: OrchestratorDirective[] = [
     descriptionKey: 'spawnOrchestrator.options.telegram-fanout.description',
     defaultEnabled: false,
   },
+  {
+    id: 'nudge-stuck',
+    labelKey: 'spawnOrchestrator.options.nudge-stuck.label',
+    descriptionKey: 'spawnOrchestrator.options.nudge-stuck.description',
+    defaultEnabled: false,
+  },
 ];
 
 /** How often the orchestrator re-runs its sweep. */

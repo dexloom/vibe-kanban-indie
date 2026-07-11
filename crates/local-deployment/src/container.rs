@@ -1296,6 +1296,43 @@ fn failure_exit_status() -> std::process::ExitStatus {
     }
 }
 
+/// One poll iteration's decision for [`LocalContainerService::auto_confirm_headed_startup`],
+/// derived purely from the current pane text + progress so far (no I/O), so it is
+/// directly unit-testable without a real tmux session.
+#[derive(Debug, PartialEq, Eq)]
+enum AutoConfirmAction {
+    /// Nothing to confirm this iteration; keep polling.
+    Continue,
+    /// Confirm the folder-trust prompt. `stop_after` is true when no channel
+    /// prompt is also expected (Telegram off) — the caller returns right after
+    /// sending Enter instead of polling out the rest of the timeout.
+    ConfirmTrust { stop_after: bool },
+    /// Confirm the dev-channel-warning prompt; always the final action.
+    ConfirmChannel,
+}
+
+/// Decide what [`LocalContainerService::auto_confirm_headed_startup`] should do
+/// this poll iteration, given the captured pane text, whether the trust prompt
+/// has already been confirmed, and which prompts can appear for this launch.
+fn next_auto_confirm_action(
+    pane: &str,
+    trust_done: bool,
+    expect_trust_prompt: bool,
+    expect_channel_prompt: bool,
+) -> AutoConfirmAction {
+    const TRUST_PROMPT: &str = "Is this a project you";
+    const CHANNEL_PROMPT: &str = "Loading development channels";
+    if expect_trust_prompt && !trust_done && pane.contains(TRUST_PROMPT) {
+        return AutoConfirmAction::ConfirmTrust {
+            stop_after: !expect_channel_prompt,
+        };
+    }
+    if expect_channel_prompt && pane.contains(CHANNEL_PROMPT) {
+        return AutoConfirmAction::ConfirmChannel;
+    }
+    AutoConfirmAction::Continue
+}
+
 impl LocalContainerService {
     /// Start an interactive (detached tmux) coding-agent execution: create the
     /// tmux session running Claude's TUI in `current_dir`, attach the chosen
@@ -1472,10 +1509,10 @@ impl LocalContainerService {
             if has_overrides {
                 agent.apply_overrides(&executor_config);
             }
-            let (claude, telegram_channel, open_terminal) = match agent {
+            let (claude, telegram_channel, open_terminal, is_headed) = match agent {
                 // A bare (non-headed) Claude reaching this interactive path keeps
                 // the historical behavior of opening a terminal.
-                CodingAgent::ClaudeCode(cc) => (cc, false, true),
+                CodingAgent::ClaudeCode(cc) => (cc, false, true, false),
                 CodingAgent::ClaudeCodeHeaded(cch) => {
                     let telegram_channel = cch.telegram_channel_enabled();
                     let use_local_binary = cch.local_binary_enabled();
@@ -1494,7 +1531,7 @@ impl LocalContainerService {
                         inner.cmd.base_command_override =
                             Some(executors::executors::claude::LOCAL_CLAUDE_BINARY.to_string());
                     }
-                    (inner, telegram_channel, open_terminal)
+                    (inner, telegram_channel, open_terminal, true)
                 }
                 other => {
                     return Err(ContainerError::Other(anyhow!(
@@ -1637,14 +1674,25 @@ impl LocalContainerService {
                 );
             }
 
-            // With the Telegram channel enabled, the headed session opens behind
-            // up to two confirmation prompts (folder-trust, then the dev-channel
-            // warning). Auto-confirm them in the background so the agent reaches
-            // the prompt without the operator needing to press Enter manually.
-            if telegram_channel {
+            // A headed session can open behind up to two confirmation prompts.
+            // The folder-trust prompt appears only on a FRESH launch in an
+            // untrusted folder (an initial request, `!resume`); the dev-channel
+            // warning appears on any headed launch that loads the Telegram
+            // channel (incl. a resumed follow-up). Auto-confirm whichever
+            // prompt(s) can actually appear so the agent reaches its prompt
+            // without the operator pressing Enter; spawn nothing when neither
+            // can (a bare agent, or a resumed session with Telegram off).
+            let expect_trust_prompt = is_headed && !resume;
+            let expect_channel_prompt = is_headed && telegram_channel;
+            if expect_trust_prompt || expect_channel_prompt {
                 let session = tmux_session.clone();
                 tokio::spawn(async move {
-                    Self::auto_confirm_headed_startup(session).await;
+                    Self::auto_confirm_headed_startup(
+                        session,
+                        expect_trust_prompt,
+                        expect_channel_prompt,
+                    )
+                    .await;
                 });
             }
 
@@ -1656,16 +1704,6 @@ impl LocalContainerService {
         }
     }
 
-    /// Auto-confirm the headed Claude startup prompts by pressing Enter when each
-    /// is detected on screen. Two prompts may appear in sequence:
-    ///
-    /// 1. the workspace folder-trust check, then
-    /// 2. the `--dangerously-load-development-channels` warning.
-    ///
-    /// We poll the pane and press Enter once per prompt (the safe option is the
-    /// highlighted default). Matching is by signature text and pinned to the
-    /// Claude version we ship; if the text changes we simply stop confirming
-    /// (the operator can still press Enter), never sending a wrong keystroke.
     /// Human-readable title for an interactive terminal tab: the kanban card id
     /// (issue `simple_id`) followed by the card title, e.g. `VIBE-3 iTerm tab
     /// name`. Falls back to the workspace branch when no card is linked, or to
@@ -1706,9 +1744,31 @@ impl LocalContainerService {
         }
     }
 
-    async fn auto_confirm_headed_startup(tmux_session: String) {
-        const TRUST_PROMPT: &str = "Is this a project you";
-        const CHANNEL_PROMPT: &str = "Loading development channels";
+    /// Auto-confirm the headed Claude startup prompts by pressing Enter when each
+    /// is detected on screen. Up to two prompts may appear in sequence:
+    ///
+    /// 1. the workspace folder-trust check (only on a fresh launch in an
+    ///    untrusted folder), then
+    /// 2. the `--dangerously-load-development-channels` warning (only when the
+    ///    Telegram channel is loaded).
+    ///
+    /// `expect_trust_prompt` / `expect_channel_prompt` say which of those can
+    /// actually appear for this launch, so the task confirms only the real
+    /// prompts and, when only the trust prompt is expected, returns as soon as
+    /// it is confirmed rather than polling out the rest of the timeout. A
+    /// timeout with no channel prompt expected is the benign already-trusted
+    /// case (logged at debug); a timeout while a channel prompt was expected may
+    /// mean the operator still needs to press Enter (logged at warn).
+    ///
+    /// We poll the pane and press Enter once per prompt (the safe option is the
+    /// highlighted default). Matching is by signature text and pinned to the
+    /// Claude version we ship; if the text changes we simply stop confirming
+    /// (the operator can still press Enter), never sending a wrong keystroke.
+    async fn auto_confirm_headed_startup(
+        tmux_session: String,
+        expect_trust_prompt: bool,
+        expect_channel_prompt: bool,
+    ) {
         const INITIAL_DELAY: Duration = Duration::from_secs(5);
         const POLL_INTERVAL: Duration = Duration::from_millis(500);
         const TIMEOUT: Duration = Duration::from_secs(40);
@@ -1727,27 +1787,50 @@ impl LocalContainerService {
                 Err(_) => return,
             };
 
-            if !trust_done && pane.contains(TRUST_PROMPT) {
-                if terminal::tmux_send_enter(&tmux_session).await.is_err() {
+            match next_auto_confirm_action(
+                &pane,
+                trust_done,
+                expect_trust_prompt,
+                expect_channel_prompt,
+            ) {
+                AutoConfirmAction::Continue => {}
+                AutoConfirmAction::ConfirmTrust { stop_after } => {
+                    if terminal::tmux_send_enter(&tmux_session).await.is_err() {
+                        return;
+                    }
+                    trust_done = true;
+                    if stop_after {
+                        return;
+                    }
+                    // Let the next screen render before re-inspecting.
+                    tokio::time::sleep(Duration::from_millis(800)).await;
+                }
+                AutoConfirmAction::ConfirmChannel => {
+                    // The channel warning is the last prompt in the sequence;
+                    // confirm it and we are done.
+                    let _ = terminal::tmux_send_enter(&tmux_session).await;
                     return;
                 }
-                trust_done = true;
-                // Let the next screen render before re-inspecting.
-                tokio::time::sleep(Duration::from_millis(800)).await;
-                continue;
-            }
-
-            if pane.contains(CHANNEL_PROMPT) {
-                // The channel warning is the last prompt in the sequence; confirm
-                // it and we are done.
-                let _ = terminal::tmux_send_enter(&tmux_session).await;
-                return;
             }
         }
-        tracing::warn!(
-            "auto-confirm timed out for headed session {tmux_session}; \
-             operator may need to press Enter to continue"
-        );
+
+        // Timeout. When a channel prompt was expected (Telegram on) but never
+        // confirmed, the session may genuinely be stuck waiting on the operator
+        // — warn. When only the trust prompt was expected (Telegram off) and it
+        // never appeared, the folder was simply already trusted: the benign,
+        // common outcome, so log at debug and stay quiet (no new warning-log
+        // noise for an already-trusted folder).
+        if expect_channel_prompt {
+            tracing::warn!(
+                "auto-confirm timed out for headed session {tmux_session}; \
+                 operator may need to press Enter to continue"
+            );
+        } else {
+            tracing::debug!(
+                "auto-confirm found no trust prompt for headed session \
+                 {tmux_session} within {TIMEOUT:?} (folder likely already trusted)"
+            );
+        }
     }
 
     /// Re-establish the live pipeline for a detached execution: load already
@@ -2977,5 +3060,76 @@ fn success_exit_status() -> std::process::ExitStatus {
     {
         use std::os::windows::process::ExitStatusExt;
         ExitStatusExt::from_raw(0)
+    }
+}
+
+#[cfg(test)]
+mod auto_confirm_tests {
+    use super::*;
+
+    // Telegram OFF, fresh launch: trust prompt present, no channel expected
+    // → confirm trust and stop immediately (do not poll out the timeout).
+    #[test]
+    fn telegram_off_stops_after_trust_prompt() {
+        let action = next_auto_confirm_action(
+            "... Is this a project you trust? ...",
+            false, // trust_done
+            true,  // expect_trust_prompt
+            false, // expect_channel_prompt
+        );
+        assert_eq!(action, AutoConfirmAction::ConfirmTrust { stop_after: true });
+    }
+
+    // Telegram ON, fresh launch: trust prompt present, channel also expected
+    // → confirm trust but keep polling (stop_after == false).
+    #[test]
+    fn telegram_on_confirms_trust_then_continues() {
+        let action =
+            next_auto_confirm_action("... Is this a project you trust? ...", false, true, true);
+        assert_eq!(
+            action,
+            AutoConfirmAction::ConfirmTrust { stop_after: false }
+        );
+    }
+
+    // Telegram ON, trust already done: channel prompt on screen → confirm it.
+    #[test]
+    fn telegram_on_confirms_channel_prompt() {
+        let action =
+            next_auto_confirm_action("... Loading development channels ...", true, true, true);
+        assert_eq!(action, AutoConfirmAction::ConfirmChannel);
+    }
+
+    // Resumed / bare session: neither prompt expected → never act, even if
+    // matching text somehow appears on screen.
+    #[test]
+    fn nothing_expected_never_acts() {
+        assert_eq!(
+            next_auto_confirm_action("... Is this a project you trust? ...", false, false, false),
+            AutoConfirmAction::Continue
+        );
+        assert_eq!(
+            next_auto_confirm_action("... Loading development channels ...", false, false, false),
+            AutoConfirmAction::Continue
+        );
+    }
+
+    // Defensive: channel text present but not expected → do not confirm it.
+    #[test]
+    fn channel_text_ignored_when_not_expected() {
+        let action = next_auto_confirm_action(
+            "... Loading development channels ...",
+            true,  // trust already done
+            true,  // expect_trust_prompt
+            false, // expect_channel_prompt
+        );
+        assert_eq!(action, AutoConfirmAction::Continue);
+    }
+
+    // No matching text yet → keep polling.
+    #[test]
+    fn no_match_continues() {
+        let action = next_auto_confirm_action("$ some other shell output", false, true, true);
+        assert_eq!(action, AutoConfirmAction::Continue);
     }
 }

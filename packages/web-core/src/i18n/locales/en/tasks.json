@@ -536,6 +536,10 @@
       "telegram-fanout": {
         "label": "Telegram fan-out",
         "description": "Narrate status and converse with each agent over its per-workspace Telegram topic. Requires the sombrax-telegram listener."
+      },
+      "nudge-stuck": {
+        "label": "Nudge stuck agents",
+        "description": "When a managed agent shows no progress for two consecutive orchestrator ticks, send it \"Why are you stuck\" — the cheapest way to unstick it or surface a diagnostic message. Applies to orchestrator-managed cards only."
       }
     }
   },
