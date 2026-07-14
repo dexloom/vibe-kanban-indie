@@ -427,7 +427,10 @@ impl McpServer {
 
         let is_finished = execution_process.status != ExecutionProcessStatus::Running;
 
-        let execution_process_value = match Self::serialize_execution_process(&execution_process) {
+        // Slim: head-truncate long `prompt` strings so this poll-heavy tool
+        // stops echoing the full coding-agent prompt on every call. See
+        // `slim_execution_process` / `redact_prompts`.
+        let execution_process_value = match Self::slim_execution_process(&execution_process) {
             Ok(value) => value,
             Err(error_result) => return Ok(Self::tool_error(error_result)),
         };
@@ -474,6 +477,55 @@ impl McpServer {
     }
 }
 
+/// Longest a `"prompt"` string is allowed to be in a [`slim_execution_process`]
+/// result before it is head-truncated. See `redact_prompts`.
+const MAX_PROMPT_HEAD_CHARS: usize = 200;
+
+/// Recursively walk `value`, replacing every long `"prompt"` string (at any
+/// object key named `prompt`, at any depth — including inside the recursive
+/// `next_action` chain and inside arrays) with a truncated head. Every other
+/// key, including `updated_at` and the rest of the `ExecutionProcess`
+/// scalars, is left completely untouched by construction: this function only
+/// ever rewrites values it explicitly matches.
+///
+/// Pure and DB-free: no I/O, no dependency on the typed `ExecutorAction`
+/// shape, so it also handles `ExecutorActionField::Other` (untagged legacy
+/// JSON) and any future prompt-bearing variant uniformly.
+fn redact_prompts(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (key, val) in map.iter_mut() {
+                if key == "prompt"
+                    && let serde_json::Value::String(s) = val
+                    && s.chars().count() > MAX_PROMPT_HEAD_CHARS
+                {
+                    *s = truncate_prompt(s);
+                } else {
+                    redact_prompts(val);
+                }
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items.iter_mut() {
+                redact_prompts(item);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Char-boundary-safe head truncation. Prompts routinely contain multi-byte
+/// characters (CJK, emoji), so this takes `chars()`, never a byte slice —
+/// `&s[..MAX_PROMPT_HEAD_CHARS]` would panic on a non-char-boundary index.
+/// The caller (`redact_prompts`) only invokes this once it has already
+/// confirmed the string is over the char threshold, so the result always
+/// carries the truncation marker.
+fn truncate_prompt(s: &str) -> String {
+    let total_chars = s.chars().count();
+    let head: String = s.chars().take(MAX_PROMPT_HEAD_CHARS).collect();
+    format!("{head}… [truncated: {total_chars} chars total]")
+}
+
 impl McpServer {
     fn executor_config_payload_for_session(
         session: &Session,
@@ -510,5 +562,408 @@ impl McpServer {
                 Some(error.to_string()),
             )
         })
+    }
+
+    /// Like `serialize_execution_process`, but head-truncates every long
+    /// `"prompt"` string in the result (at any depth of the `next_action`
+    /// chain) so `get_execution` stops echoing the full coding-agent prompt on
+    /// every status poll. Used by `get_execution` only — `run_session_prompt`
+    /// keeps calling the full `serialize_execution_process`.
+    fn slim_execution_process(
+        execution_process: &ExecutionProcess,
+    ) -> Result<serde_json::Value, super::ToolError> {
+        let mut value = Self::serialize_execution_process(execution_process)?;
+        redact_prompts(&mut value);
+        Ok(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::iter;
+
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use super::*;
+
+    /// Builds a fixture prompt: `head_len` copies of `head_char` followed by
+    /// `tail_len` copies of `tail_char`. Using two distinct characters (rather
+    /// than one repeated character) lets a test assert both "the truncated
+    /// head survives" and "no part of the tail survives" without the two
+    /// checks being indistinguishable from each other.
+    fn fixture_prompt(
+        head_char: char,
+        head_len: usize,
+        tail_char: char,
+        tail_len: usize,
+    ) -> String {
+        iter::repeat_n(head_char, head_len)
+            .chain(iter::repeat_n(tail_char, tail_len))
+            .collect()
+    }
+
+    /// The expected truncated head for a prompt built from `fixture_prompt`
+    /// with `head_char` as its first `MAX_PROMPT_HEAD_CHARS` characters.
+    fn head_run(head_char: char) -> String {
+        iter::repeat_n(head_char, MAX_PROMPT_HEAD_CHARS).collect()
+    }
+
+    /// Builds a real `ExecutionProcess` by deserializing a JSON fixture (the
+    /// cheap path recommended by the plan): `sqlx::types::Json<T>` is
+    /// transparent and `ExecutorActionField` is `#[serde(untagged)]`, so a
+    /// plain `ExecutorAction`-shaped JSON object deserializes straight
+    /// through.
+    fn execution_process_fixture(prompt: &str) -> ExecutionProcess {
+        serde_json::from_value(json!({
+            "id": Uuid::new_v4(),
+            "session_id": Uuid::new_v4(),
+            "run_reason": "codingagent",
+            "executor_action": {
+                "typ": {
+                    "type": "CodingAgentInitialRequest",
+                    "prompt": prompt,
+                    "executor_config": {"executor": "CLAUDE_CODE"},
+                },
+                "next_action": null
+            },
+            "status": "running",
+            "exit_code": null,
+            "dropped": false,
+            "started_at": "2026-01-01T00:00:00Z",
+            "completed_at": null,
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-02T03:04:05Z"
+        }))
+        .expect("fixture JSON should deserialize into ExecutionProcess")
+    }
+
+    // --- Step 3: pure `Value -> Value` redactor tests ---
+
+    #[test]
+    fn top_level_prompt_is_truncated() {
+        let prompt = fixture_prompt('A', MAX_PROMPT_HEAD_CHARS, 'B', 2800); // 3000 chars total
+        let mut value = json!({
+            "typ": {
+                "type": "CodingAgentInitialRequest",
+                "prompt": prompt,
+                "executor_config": {"executor": "CLAUDE_CODE"},
+            },
+            "next_action": null
+        });
+
+        redact_prompts(&mut value);
+
+        let result = value["typ"]["prompt"].as_str().unwrap();
+        assert!(result.starts_with(&head_run('A')));
+        assert!(result.len() < prompt.len());
+        assert!(result.contains("truncated"));
+        assert!(result.contains("3000"));
+        // The tail must not survive anywhere in the result.
+        assert!(!result.contains(&"B".repeat(50)));
+    }
+
+    #[test]
+    fn nested_next_action_prompts_are_truncated() {
+        // The load-bearing test: a depth-0-only fix compiles and passes a
+        // naive test, but leaves `next_action`'s nested prompts untouched.
+        let p0 = fixture_prompt('A', MAX_PROMPT_HEAD_CHARS, 'X', 2800);
+        let p1 = fixture_prompt('B', MAX_PROMPT_HEAD_CHARS, 'Y', 2800);
+        let p2 = fixture_prompt('C', MAX_PROMPT_HEAD_CHARS, 'Z', 2800);
+
+        let mut value = json!({
+            "typ": {"type": "CodingAgentInitialRequest", "prompt": p0},
+            "next_action": {
+                "typ": {"type": "CodingAgentFollowUpRequest", "prompt": p1},
+                "next_action": {
+                    "typ": {"type": "CodingAgentFollowUpRequest", "prompt": p2},
+                    "next_action": null
+                }
+            }
+        });
+
+        redact_prompts(&mut value);
+
+        let r0 = value["typ"]["prompt"].as_str().unwrap();
+        let r1 = value["next_action"]["typ"]["prompt"].as_str().unwrap();
+        let r2 = value["next_action"]["next_action"]["typ"]["prompt"]
+            .as_str()
+            .unwrap();
+
+        assert!(r0.starts_with(&head_run('A')) && r0.contains("truncated"));
+        assert!(r1.starts_with(&head_run('B')) && r1.contains("truncated"));
+        assert!(r2.starts_with(&head_run('C')) && r2.contains("truncated"));
+
+        assert!(!r0.contains(&"X".repeat(50)));
+        assert!(!r1.contains(&"Y".repeat(50)));
+        assert!(!r2.contains(&"Z".repeat(50)));
+
+        // Distinguishable results, so a mis-assert (e.g. comparing r0 against
+        // r0 twice by accident) can't pass silently.
+        assert_ne!(r0, r1);
+        assert_ne!(r1, r2);
+        assert_ne!(r0, r2);
+    }
+
+    #[test]
+    fn no_prompt_body_survives_anywhere() {
+        let needle: String = "Q".repeat(2500);
+        let prompt = format!("{}{needle}", "P".repeat(MAX_PROMPT_HEAD_CHARS));
+        let mut value = json!({
+            "typ": {"type": "CodingAgentInitialRequest", "prompt": prompt},
+            "next_action": null
+        });
+
+        redact_prompts(&mut value);
+
+        let serialized = serde_json::to_string(&value).unwrap();
+        assert_eq!(serialized.matches(&needle).count(), 0);
+    }
+
+    #[test]
+    fn non_prompt_keys_are_untouched() {
+        let prompt = fixture_prompt('A', MAX_PROMPT_HEAD_CHARS, 'B', 2800);
+        let mut value = json!({
+            "typ": {
+                "type": "CodingAgentInitialRequest",
+                "prompt": prompt,
+                "executor_config": {"executor": "CLAUDE_CODE", "variant": null},
+                "working_dir": "sub/dir",
+                "session_id": "11111111-1111-1111-1111-111111111111",
+                "interactive": {
+                    "session_uuid": "22222222-2222-2222-2222-222222222222",
+                    "terminal": "NONE",
+                },
+            },
+            "next_action": null
+        });
+        let original = value.clone();
+
+        redact_prompts(&mut value);
+
+        assert_eq!(
+            value["typ"]["executor_config"],
+            original["typ"]["executor_config"]
+        );
+        assert_eq!(value["typ"]["working_dir"], original["typ"]["working_dir"]);
+        assert_eq!(value["typ"]["session_id"], original["typ"]["session_id"]);
+        assert_eq!(value["typ"]["interactive"], original["typ"]["interactive"]);
+    }
+
+    #[test]
+    fn short_prompt_is_byte_identical() {
+        let prompt = "a".repeat(50);
+        let mut value = json!({
+            "typ": {"type": "CodingAgentInitialRequest", "prompt": prompt},
+        });
+
+        redact_prompts(&mut value);
+
+        let result = value["typ"]["prompt"].as_str().unwrap();
+        assert_eq!(result, prompt);
+        assert!(!result.contains("truncated"));
+    }
+
+    #[test]
+    fn multibyte_prompt_does_not_panic() {
+        // CJK: 3-byte-per-char in UTF-8. `&s[..200]` would panic here because
+        // byte offset 200 does not land on a char boundary.
+        let cjk_prompt: String = "日".repeat(3000);
+        let mut cjk_value = json!({
+            "typ": {"type": "CodingAgentInitialRequest", "prompt": cjk_prompt.clone()},
+        });
+        redact_prompts(&mut cjk_value); // must not panic
+        let cjk_result = cjk_value["typ"]["prompt"].as_str().unwrap();
+        let cjk_head: String = cjk_result.chars().take(MAX_PROMPT_HEAD_CHARS).collect();
+        assert_eq!(cjk_head.chars().count(), MAX_PROMPT_HEAD_CHARS);
+        assert_eq!(
+            cjk_head,
+            cjk_prompt
+                .chars()
+                .take(MAX_PROMPT_HEAD_CHARS)
+                .collect::<String>()
+        );
+
+        // Emoji: 4-byte-per-char in UTF-8 — a different failure offset than
+        // CJK, so it exercises a distinct byte-slicing bug class.
+        let emoji_prompt: String = "🚀".repeat(3000);
+        let mut emoji_value = json!({
+            "typ": {"type": "CodingAgentInitialRequest", "prompt": emoji_prompt.clone()},
+        });
+        redact_prompts(&mut emoji_value); // must not panic
+        let emoji_result = emoji_value["typ"]["prompt"].as_str().unwrap();
+        let emoji_head: String = emoji_result.chars().take(MAX_PROMPT_HEAD_CHARS).collect();
+        assert_eq!(emoji_head.chars().count(), MAX_PROMPT_HEAD_CHARS);
+        assert_eq!(
+            emoji_head,
+            emoji_prompt
+                .chars()
+                .take(MAX_PROMPT_HEAD_CHARS)
+                .collect::<String>()
+        );
+    }
+
+    #[test]
+    fn legacy_other_json_with_array_nested_prompt_is_truncated() {
+        // `ExecutorActionField::Other` arm: arbitrary JSON, not a valid
+        // `ExecutorAction`, with a prompt nested inside an array element.
+        let prompt = fixture_prompt('A', MAX_PROMPT_HEAD_CHARS, 'B', 2800);
+        let mut value = json!({
+            "legacy": true,
+            "steps": [
+                {"prompt": prompt},
+                {"note": "keep"}
+            ]
+        });
+
+        redact_prompts(&mut value);
+
+        let result = value["steps"][0]["prompt"].as_str().unwrap();
+        assert!(result.starts_with(&head_run('A')));
+        assert!(result.contains("truncated"));
+        assert_eq!(value["legacy"], json!(true));
+        assert_eq!(value["steps"][1]["note"], json!("keep"));
+    }
+
+    // --- Step 4: `ExecutionProcess` / response-level tests ---
+
+    #[test]
+    fn slim_execution_process_preserves_scalars() {
+        let prompt = fixture_prompt('A', MAX_PROMPT_HEAD_CHARS, 'B', 2300); // ~2.5KB
+        let process = execution_process_fixture(&prompt);
+
+        let full = McpServer::serialize_execution_process(&process).unwrap();
+        let slim = McpServer::slim_execution_process(&process).unwrap();
+
+        for key in [
+            "id",
+            "session_id",
+            "run_reason",
+            "status",
+            "exit_code",
+            "dropped",
+            "started_at",
+            "completed_at",
+            "created_at",
+            "updated_at",
+        ] {
+            assert_eq!(
+                full[key], slim[key],
+                "field `{key}` changed between full and slim"
+            );
+        }
+        // `updated_at` matters most (nudge-stuck's progress fingerprint) —
+        // assert it explicitly by name so a regression names itself.
+        assert_eq!(full["updated_at"], slim["updated_at"]);
+    }
+
+    #[test]
+    fn slim_execution_process_is_substantially_smaller() {
+        let prompt = fixture_prompt('A', MAX_PROMPT_HEAD_CHARS, 'B', 2300); // ~2.5KB
+        let process = execution_process_fixture(&prompt);
+
+        let full = McpServer::serialize_execution_process(&process).unwrap();
+        let slim = McpServer::slim_execution_process(&process).unwrap();
+
+        let full_len = serde_json::to_string(&full).unwrap().len();
+        let slim_len = serde_json::to_string(&slim).unwrap().len();
+
+        assert!(
+            full_len.saturating_sub(slim_len) >= 2_000,
+            "expected slim to be at least 2000 bytes smaller: full={full_len} slim={slim_len}"
+        );
+    }
+
+    #[test]
+    fn run_session_prompt_serializer_keeps_full_prompt() {
+        // Pins the scope boundary: `run_session_prompt` keeps calling the
+        // full serializer, so its payload is unaffected by this card.
+        let needle: String = "Q".repeat(2500);
+        let prompt = format!("{}{needle}", "P".repeat(MAX_PROMPT_HEAD_CHARS));
+        let process = execution_process_fixture(&prompt);
+
+        let full = McpServer::serialize_execution_process(&process).unwrap();
+        let serialized = serde_json::to_string(&full).unwrap();
+
+        assert!(serialized.contains(&needle));
+    }
+
+    #[test]
+    fn get_execution_response_shape_is_intact() {
+        let pending_approval = PendingApproval {
+            approval_id: "approval-1".to_string(),
+            tool_name: "AskUserQuestion".to_string(),
+            kind: "question".to_string(),
+            is_question: true,
+            tool_use_id: Some("tool-use-1".to_string()),
+            questions: Some(vec![PendingApprovalQuestion {
+                question: "Proceed?".to_string(),
+                header: None,
+                options: vec![PendingApprovalOption {
+                    label: "Yes".to_string(),
+                    description: None,
+                }],
+                multi_select: false,
+            }]),
+            plan_content: None,
+            timeout_at: "2026-01-01T00:05:00Z".to_string(),
+        };
+
+        let headed = GetExecutionResponse {
+            execution_id: "exec-1".to_string(),
+            session_id: "session-1".to_string(),
+            status: "running".to_string(),
+            is_finished: false,
+            execution: json!({"id": "exec-1"}),
+            final_message: Some("hello".to_string()),
+            claude_session_id: Some("claude-session".to_string()),
+            tmux_session_name: Some("vk-exec-1".to_string()),
+            claude_transcript_path: Some("/tmp/transcript.jsonl".to_string()),
+            pending_approvals: vec![pending_approval],
+        };
+
+        let value = serde_json::to_value(&headed).unwrap();
+        let obj = value.as_object().unwrap();
+        for key in [
+            "execution_id",
+            "session_id",
+            "status",
+            "is_finished",
+            "execution",
+            "final_message",
+            "pending_approvals",
+            "claude_session_id",
+            "tmux_session_name",
+            "claude_transcript_path",
+        ] {
+            assert!(obj.contains_key(key), "missing key `{key}`");
+        }
+
+        // Headed handles are `skip_serializing_if = "Option::is_none"` — pin
+        // that gating stays in place when they are absent.
+        let unheaded = GetExecutionResponse {
+            execution_id: "exec-1".to_string(),
+            session_id: "session-1".to_string(),
+            status: "running".to_string(),
+            is_finished: false,
+            execution: json!({"id": "exec-1"}),
+            final_message: None,
+            claude_session_id: None,
+            tmux_session_name: None,
+            claude_transcript_path: None,
+            pending_approvals: vec![],
+        };
+        let value = serde_json::to_value(&unheaded).unwrap();
+        let obj = value.as_object().unwrap();
+        for key in [
+            "claude_session_id",
+            "tmux_session_name",
+            "claude_transcript_path",
+        ] {
+            assert!(
+                !obj.contains_key(key),
+                "key `{key}` should be absent when None"
+            );
+        }
     }
 }
