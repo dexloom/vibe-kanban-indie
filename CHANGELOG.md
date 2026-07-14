@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.17] - 2026-07-14
+
 ### Added
 
 - **Async Opus bundled pipeline.** A third Async pipeline: Opus subagents write
@@ -23,6 +25,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   branch into its base itself — the stage being listed is the authorisation, so
   it does not wait for a go-ahead. Add a **Wait for approval** stage when you
   want the pipeline to pause for you.
+- **`get_execution` MCP response slimmed.** Prompt strings in the execution
+  payload (including nested `next_action` chains and legacy untagged JSON) are
+  now head-truncated, so status polls stop re-sending the full coding-agent
+  prompt (measured 73% smaller on a real execution). `run_session_prompt` is
+  unaffected and still returns the full payload.
+- **`update_issue` MCP response minimised.** The tool now returns a flat ack
+  (id, simple_id, status, status_id, updated_at, changed fields) instead of
+  echoing the full card back — a changed description reports only its
+  character count. Callers needing the body call `get_issue`. Also drops the
+  post-PATCH detail fan-out, cutting a status-only update from ~8 HTTP
+  requests to 3.
+- **Bundled pipeline seeds synced with the live pipelines.** The Basic,
+  SpecKit, WikiLLM, and Async trio seeds in `assets/pipelines/` now carry the
+  same spec/plan-prompt and squash-merge-stage fixes as the operator-local
+  copies, so a Settings Reset or fresh install no longer hands out stale
+  prompts.
+- **Basic pipeline's merge stage is now a CAS-safe squash auto-merge**,
+  enabled by default. It squash-merges the card's branch into its base with a
+  compare-and-swap `update-ref`, verifies with monotonic ancestry
+  (`git merge-base --is-ancestor`) rather than tip equality, and resolves
+  rebase conflicts via `git add` + `git rebase --continue`.
 
 ### Removed
 
@@ -32,6 +55,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer removed for you on start-up — delete it from the Settings pipeline
   list if you still have one. The retirement mechanism itself is unchanged and
   stays available for future bundled-pipeline retirements.
+
+### Fixed
+
+- **MCP `update_issue` with `parent_issue_id: null` now un-nests the issue.**
+  A JSON `null` previously collapsed to the same "not provided" state as an
+  omitted field, so sending it silently no-op'd instead of clearing the
+  parent. Clients that were sending `null` as a lazy "leave it alone" should
+  now omit the field instead.
 
 ## [0.2.16] - 2026-07-11
 
