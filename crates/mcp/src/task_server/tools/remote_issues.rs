@@ -4,7 +4,7 @@ use api_types::{
     CreateIssueRequest, Issue, IssuePriority, IssueRelationshipType, IssueSortField,
     ListIssueRelationshipsResponse, ListIssueTagsResponse, ListIssuesResponse,
     ListPullRequestsResponse, ListTagsResponse, MutationResponse, PullRequestStatus,
-    SearchIssuesRequest, SortDirection, UpdateIssueRequest,
+    SearchIssuesRequest, SortDirection, UpdateIssueRequest, some_if_present,
 };
 use rmcp::{
     ErrorData, handler::server::wrapper::Parameters, model::CallToolResult, schemars, tool,
@@ -212,8 +212,9 @@ struct McpUpdateIssueRequest {
         description = "New priority for the issue. Allowed values: 'urgent', 'high', 'medium', 'low'."
     )]
     priority: Option<String>,
+    #[serde(default, deserialize_with = "some_if_present")]
     #[schemars(
-        description = "Parent issue ID to set this as a subissue: pass a UUID to re-parent. KNOWN LIMITATION - passing null does NOT currently un-nest the issue; it is treated the same as omitting the field, and the parent is left unchanged."
+        description = "Parent issue ID to set this as a subissue. Pass null to un-nest from parent."
     )]
     parent_issue_id: Option<Option<Uuid>>,
 }
@@ -600,6 +601,8 @@ impl McpServer {
             target_date: None,
             completed_at: None,
             sort_order: None,
+            // tri-state, passed through verbatim: do NOT lift to `Some(Some(..))` like
+            // `description`/`priority` above; that would silently re-break un-nest (VIBE-16).
             parent_issue_id,
             parent_issue_sort_order: None,
             extension_metadata: None,
@@ -989,9 +992,8 @@ impl McpServer {
 /// `Option<Option<_>>`. These flags mean "the caller asked for this field", not "this field's
 /// value actually moved" — an ack confirms a write, it is not a diff.
 ///
-/// NOTE on `parent_issue_id`: the MCP request type cannot currently turn a JSON `null` into
-/// `Some(None)` (see SPEC §2.1 / §7.9), so an un-nest attempt leaves this flag `false` and the
-/// ack reports "nothing changed". That is correct: nothing WAS changed. Do not compensate here.
+/// NOTE on `parent_issue_id`: a supplied `parent_issue_id` — including `Some(None)` from a JSON
+/// `null` — sets this flag, and is reported in `changed[]` (VIBE-16).
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 struct ChangedFields {
     title: bool,
@@ -1322,16 +1324,12 @@ mod tests {
 
     // --- AC5: the un-nest case is unambiguous AT THE ACK LAYER ---
     //
-    // ⚠️ SCOPE (SPEC §2.1 / §7.9): this is a test of the PURE FUNCTION. The
-    // `ChangedFields { parent_issue_id: true }` + `issue.parent_issue_id == None` input is
-    // CURRENTLY UNREACHABLE through the real MCP tool, because the request type collapses a JSON
-    // `null` to "field omitted". MCP un-nesting is broken on `main`; this card does not fix it
-    // (that is a separate card) — it only stops advertising it (D2/D4).
-    //
-    // The test is still worth its keep: it pins `build_update_ack`'s gating logic, and it pins
-    // that serde really emits `null` (not `{}`) for `Some(None)`. It becomes an end-to-end
-    // guarantee the day the request side is fixed — with no change to this code. Do NOT read it
-    // as proof that un-nesting works today. It does not.
+    // This is a test of the PURE FUNCTION `build_update_ack`, and the un-nest path it pins is now
+    // reachable end-to-end (VIBE-16): the request field deserialises `null` -> `Some(None)`,
+    // `changed` picks it up (`:540`), the PATCH body carries `null` (pinned by
+    // `update_issue_wire_test`), the server persists NULL
+    // (`crates/server/src/routes/local_kanban.rs:534-537`), and this test pins the ack layer of
+    // that chain.
     #[test]
     fn un_nest_serializes_null_parent_while_an_untouched_parent_is_omitted() {
         // Un-nested: persisted parent is None AND the caller supplied the field.
@@ -1369,9 +1367,7 @@ mod tests {
         );
 
         // Untouched parent: the key is ABSENT even though the issue HAS a parent. This is what
-        // makes the `null` above mean "un-nested" rather than "not touched" — and it is also
-        // exactly what a caller sees TODAY when they send `parent_issue_id: null`, because the
-        // request-side bug turns that into "not touched". The ack is telling the truth.
+        // makes the `null` above mean "un-nested" rather than "not touched".
         let ack = build_update_ack(
             &issue,
             "Todo".to_string(),
@@ -1486,5 +1482,274 @@ mod tests {
             McpServer::resolve_tag_filters(Some(tag_id), Some(vec![other_tag_id, tag_id])),
             (Some(tag_id), None, false)
         );
+    }
+
+    // --- VIBE-16 AC1-AC3: `McpUpdateIssueRequest.parent_issue_id` deserialization ---
+    //
+    // AC2 (`null` -> `Some(None)`) is the bug: under plain serde, `Option<Option<T>>` collapses a
+    // JSON `null` into the outer `None` — byte-identical to the field being omitted. This is fixed
+    // by `#[serde(default, deserialize_with = "some_if_present")]` on the field.
+
+    #[test]
+    fn omitted_parent_issue_id_deserializes_to_none() {
+        let req: McpUpdateIssueRequest = serde_json::from_value(serde_json::json!({
+            "issue_id": Uuid::new_v4().to_string(),
+        }))
+        .expect("an omitted parent_issue_id must not error - this is what a missing `default` would break");
+
+        assert_eq!(req.parent_issue_id, None);
+    }
+
+    #[test]
+    fn null_parent_issue_id_deserializes_to_some_none() {
+        let req: McpUpdateIssueRequest = serde_json::from_value(serde_json::json!({
+            "issue_id": Uuid::new_v4().to_string(),
+            "parent_issue_id": null,
+        }))
+        .expect("an explicit null parent_issue_id must deserialize");
+
+        assert_eq!(req.parent_issue_id, Some(None));
+    }
+
+    #[test]
+    fn uuid_parent_issue_id_deserializes_to_some_some() {
+        let parent = Uuid::new_v4();
+        let req: McpUpdateIssueRequest = serde_json::from_value(serde_json::json!({
+            "issue_id": Uuid::new_v4().to_string(),
+            "parent_issue_id": parent.to_string(),
+        }))
+        .expect("a uuid parent_issue_id must deserialize");
+
+        assert_eq!(req.parent_issue_id, Some(Some(parent)));
+    }
+
+    // --- VIBE-16 AC4: the handler's outbound PATCH body really carries `"parent_issue_id": null`
+    //     (not merely the DTO in isolation) ---
+    //
+    // Naming honesty: this proves the handler's outbound WIRE CONTRACT against a loopback HTTP
+    // stub, not persistence through the real server/DB (persistence is covered by code-reading —
+    // `crates/server/src/routes/local_kanban.rs:534-537`). A bare
+    // `serde_json::to_string(&UpdateIssueRequest { .. })` assertion would pass even if a future
+    // edit re-lifted `parent_issue_id` to `Some(Some(..))` above the `UpdateIssueRequest` literal
+    // (`:603`) — that lift would happen before construction, not inside it. Driving the real
+    // `update_issue` method end-to-end over HTTP is what actually guards the `:603`
+    // pass-through seam.
+    mod update_issue_wire_test {
+        use std::sync::{Arc, Mutex};
+
+        use rmcp::handler::server::tool::ToolRouter;
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::{TcpListener, TcpStream},
+        };
+
+        use super::*;
+        use crate::task_server::McpMode;
+
+        /// Every response `send_json` (`tools/mod.rs:118-149`) accepts must be wrapped in
+        /// `ApiResponseEnvelope<T>` — a bare body fails to deserialize at the first GET.
+        fn envelope(data: serde_json::Value) -> serde_json::Value {
+            serde_json::json!({ "success": true, "data": data, "message": null })
+        }
+
+        /// Read one HTTP/1.1 request off `stream` (headers through `\r\n\r\n`, then exactly
+        /// `Content-Length` body bytes), route it by `(method, path)`, respond, and close the
+        /// connection. `Connection: close` is mandatory: reqwest reuses a keep-alive socket for
+        /// the next request, and a stub that `accept()`s once per request would otherwise hang on
+        /// the second `accept()` while reqwest writes request 2 into the first socket.
+        ///
+        /// Routes (see `tools/mod.rs:290,507,608`):
+        /// - `GET /api/issues/{id}`             -> the issue, enveloped
+        /// - `GET /api/project-statuses?...`    -> an empty status list, enveloped and wrapped in
+        ///   `ListProjectStatusesResponse`'s `project_statuses` key
+        /// - `PATCH /api/issues/{id}`           -> `MutationResponse<Issue>` (`{data, txid}`),
+        ///   itself enveloped — genuinely double-nested under `data`. The request body is
+        ///   captured into `patch_capture`.
+        async fn serve_one(
+            mut stream: TcpStream,
+            issue_json: &serde_json::Value,
+            patch_capture: &Arc<Mutex<Option<String>>>,
+        ) {
+            let mut buf = Vec::new();
+            let mut chunk = [0u8; 4096];
+            let header_end = loop {
+                let n = stream.read(&mut chunk).await.expect("read request bytes");
+                assert!(n > 0, "connection closed before headers were complete");
+                buf.extend_from_slice(&chunk[..n]);
+                if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                    break pos;
+                }
+            };
+
+            let header_text = std::str::from_utf8(&buf[..header_end]).expect("headers are utf8");
+            let mut lines = header_text.split("\r\n");
+            let request_line = lines.next().expect("request line present");
+            let mut parts = request_line.split_whitespace();
+            let method = parts.next().expect("method present").to_string();
+            let target = parts.next().expect("target present").to_string();
+            let path = target.split('?').next().unwrap_or(&target).to_string();
+
+            let content_length: usize = lines
+                .filter_map(|line| line.split_once(':'))
+                .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
+                .and_then(|(_, value)| value.trim().parse().ok())
+                .unwrap_or(0);
+
+            let mut request_body = buf[header_end + 4..].to_vec();
+            while request_body.len() < content_length {
+                let n = stream
+                    .read(&mut chunk)
+                    .await
+                    .expect("read request body bytes");
+                assert!(
+                    n > 0,
+                    "connection closed before the request body was complete"
+                );
+                request_body.extend_from_slice(&chunk[..n]);
+            }
+
+            let response_body = match (method.as_str(), path.as_str()) {
+                ("GET", p) if p.starts_with("/api/issues/") => envelope(issue_json.clone()),
+                ("GET", "/api/project-statuses") => {
+                    envelope(serde_json::json!({ "project_statuses": [] }))
+                }
+                ("PATCH", p) if p.starts_with("/api/issues/") => {
+                    let body_text = String::from_utf8(request_body).expect("PATCH body is utf8");
+                    *patch_capture.lock().unwrap() = Some(body_text);
+                    envelope(serde_json::json!({ "data": issue_json, "txid": 1 }))
+                }
+                _ => panic!("stub received an unrouted request: {method} {target}"),
+            };
+
+            let payload = serde_json::to_vec(&response_body).expect("stub response serializes");
+            let head = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                payload.len()
+            );
+            stream
+                .write_all(head.as_bytes())
+                .await
+                .expect("write response head");
+            stream
+                .write_all(&payload)
+                .await
+                .expect("write response body");
+            stream.shutdown().await.ok();
+        }
+
+        /// Accept and serve exactly `n` requests, one loopback connection each.
+        async fn run_stub(
+            listener: TcpListener,
+            n: usize,
+            issue_json: serde_json::Value,
+            patch_capture: Arc<Mutex<Option<String>>>,
+        ) {
+            for _ in 0..n {
+                let (stream, _) = listener.accept().await.expect("accept stub connection");
+                serve_one(stream, &issue_json, &patch_capture).await;
+            }
+        }
+
+        /// Drives the REAL `update_issue` handler, from a raw JSON `parent_issue_id: null`
+        /// payload (exactly what an MCP client sends — `Parameters<McpUpdateIssueRequest>` is
+        /// built by deserializing that JSON, never by constructing the struct directly), through
+        /// to the outbound PATCH body against the loopback stub. This exercises the WHOLE chain:
+        /// step 2's `deserialize_with` turning `null` into `Some(None)`, and the `:603`
+        /// pass-through not rewrapping it. Asserts the PATCH body carries the key
+        /// present-and-`null` — absent vs `null` is the entire bug this card fixes.
+        #[tokio::test]
+        async fn update_issue_sends_null_parent_in_patch_body() {
+            let parent = Uuid::new_v4();
+            let issue = issue_fixture(None, Some(parent));
+            let issue_json = serde_json::to_value(&issue).expect("issue serializes");
+
+            let listener = TcpListener::bind("127.0.0.1:0")
+                .await
+                .expect("bind loopback listener");
+            let port = listener
+                .local_addr()
+                .expect("listener has a local addr")
+                .port();
+
+            let patch_capture: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+            let stub = tokio::spawn(run_stub(
+                listener,
+                3,
+                issue_json.clone(),
+                patch_capture.clone(),
+            ));
+
+            let server = McpServer {
+                client: reqwest::Client::new(),
+                base_url: format!("http://127.0.0.1:{port}"),
+                tool_router: ToolRouter::default(),
+                context: None,
+                mode: McpMode::Global,
+                headed_local_control: false,
+            };
+
+            let request: McpUpdateIssueRequest = serde_json::from_value(serde_json::json!({
+                "issue_id": issue.id.to_string(),
+                "parent_issue_id": null,
+            }))
+            .expect("the JSON payload a real MCP client sends must deserialize");
+
+            let result = server
+                .update_issue(Parameters(request))
+                .await
+                .expect("update_issue must not return a transport-level error");
+            assert_ne!(
+                result.is_error,
+                Some(true),
+                "update_issue reported a tool error: {result:?}"
+            );
+
+            stub.await.expect("stub server task must not panic");
+
+            let patch_body = patch_capture
+                .lock()
+                .unwrap()
+                .clone()
+                .expect("the PATCH request must have been captured by the stub");
+            let patch_value: serde_json::Value =
+                serde_json::from_str(&patch_body).expect("PATCH body is valid JSON");
+            let patch_obj = patch_value
+                .as_object()
+                .expect("PATCH body is a JSON object");
+
+            assert!(
+                patch_obj.contains_key("parent_issue_id"),
+                "PATCH body must carry the parent_issue_id key present-and-null: {patch_value}"
+            );
+            assert_eq!(
+                patch_obj["parent_issue_id"],
+                serde_json::Value::Null,
+                "parent_issue_id must be JSON null, not a UUID or omitted: {patch_value}"
+            );
+
+            // Sub-assertion, in the SAME test: an outer `None` omits the key entirely - that is
+            // what gives the `null` above its meaning. `UpdateIssueRequest` does not derive
+            // `Default` (`api-types/src/issue.rs:79`), so all 11 fields are constructed here,
+            // copying the handler's own payload literal (`remote_issues.rs:594-606`).
+            let untouched = UpdateIssueRequest {
+                status_id: None,
+                title: None,
+                description: None,
+                priority: None,
+                start_date: None,
+                target_date: None,
+                completed_at: None,
+                sort_order: None,
+                parent_issue_id: None,
+                parent_issue_sort_order: None,
+                extension_metadata: None,
+            };
+            let untouched_json =
+                serde_json::to_string(&untouched).expect("untouched payload serializes");
+            assert!(
+                !untouched_json.contains("parent_issue_id"),
+                "an outer None must omit the parent_issue_id key entirely: {untouched_json}"
+            );
+        }
     }
 }

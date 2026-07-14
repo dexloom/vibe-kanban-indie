@@ -91,7 +91,7 @@ Many tools accept an optional `project_id` or `organization_id` parameter. When 
 | `list_issue_priorities` | List allowed priority values | None | None | List of priorities: urgent, high, medium, low |
 
 <Tip>
-For `update_issue`, `parent_issue_id` is designed as a three-state field: omit it to leave the parent unchanged, pass a UUID to set a new parent, or pass `null` to un-nest the issue. **Known limitation:** the `null` (un-nest) case is not currently applied - it behaves the same as omitting the field, and the parent is left unchanged. Passing a UUID works as documented. The response is a minimal acknowledgement rather than the full issue: its `changed[]` list names the fields you supplied, so an applied un-nest appears as `"parent_issue_id": null` with `"parent_issue_id"` in `changed[]`, while an untouched parent omits the key entirely. Call `get_issue` when you need the issue body back.
+For `update_issue`, the `parent_issue_id` field supports three states: omit it entirely to leave the parent unchanged, pass `null` to un-nest the issue from its parent, or pass a UUID to set a new parent. The response is a minimal acknowledgement rather than the full issue: its `changed[]` list names the fields you supplied, so an applied un-nest appears as `"parent_issue_id": null` with `"parent_issue_id"` in `changed[]`, while an untouched parent omits the key entirely. Call `get_issue` when you need the issue body back.
 </Tip>
 
 ### Issue Assignees
