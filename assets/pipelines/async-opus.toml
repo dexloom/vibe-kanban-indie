@@ -1,5 +1,5 @@
-name = "Async Sonnet"
-description = "Subagent fan-out flow on an Opus main loop: Sonnet subagents write the spec, plan, and code; Codex reviews the plan and the diff. Run this pipeline with a Claude Code (Opus) execution agent."
+name = "Async Opus"
+description = "Subagent fan-out flow on an Opus main loop: Opus subagents write the spec and plan; a Sonnet subagent writes the code; Codex reviews the plan and the diff. Run this pipeline with a Claude Code (Opus) execution agent."
 
 [[stage]]
 id = "orchestrate"
@@ -9,15 +9,15 @@ prompt = "Have the orchestrator agent pick this card up and drive it to done aut
 
 [[stage]]
 id = "spec"
-label = "Spec via Sonnet subagent"
+label = "Spec via Opus subagent"
 default_enabled = true
-prompt = "Do NOT write the spec yourself. Spawn the `vibe-kanban-indie:product` subagent on the Sonnet model (Agent tool with model: 'sonnet'; fall back to a generic Agent with model: 'sonnet' if the plugin agent is unavailable) to write the technical spec for this card to `SPEC.md` at the workspace root — pass the workspace-root path plus the card description in the subagent prompt. When it returns, verify `SPEC.md` exists and covers the card's outcome, scope, and acceptance criteria; if it is missing or thin, re-spawn the subagent with the concrete gaps rather than writing the spec in the main loop."
+prompt = "Do NOT write the spec yourself. Spawn the `vibe-kanban-indie:product` subagent on the Opus model (Agent tool with model: 'opus'; fall back to a generic Agent with model: 'opus' if the plugin agent is unavailable) to write the technical spec for this card to `SPEC.md` at the workspace root — pass the workspace-root path plus the card description in the subagent prompt. When it returns, verify `SPEC.md` exists and covers the card's outcome, scope, and acceptance criteria; if it is missing or thin, re-spawn the subagent with the concrete gaps rather than writing the spec in the main loop."
 
 [[stage]]
 id = "plan"
-label = "Plan via Sonnet subagent"
+label = "Plan via Opus subagent"
 default_enabled = true
-prompt = "Do NOT write the plan yourself. Spawn the `vibe-kanban-indie:planner` subagent on the Sonnet model (Agent tool with model: 'sonnet'; fall back to a generic Agent with model: 'sonnet' if the plugin agent is unavailable) to turn `SPEC.md` into a step-by-step `IMPLEMENTATION_PLAN.md` at the workspace root — pass the workspace-root path plus the card description in the subagent prompt. When it returns, verify the plan's steps are grounded in real repo files; if not, re-spawn the subagent with the concrete gaps rather than writing the plan in the main loop."
+prompt = "Do NOT write the plan yourself. Spawn the `vibe-kanban-indie:planner` subagent on the Opus model (Agent tool with model: 'opus'; fall back to a generic Agent with model: 'opus' if the plugin agent is unavailable) to turn `SPEC.md` into a step-by-step `IMPLEMENTATION_PLAN.md` at the workspace root — pass the workspace-root path plus the card description in the subagent prompt. When it returns, verify the plan's steps are grounded in real repo files; if not, re-spawn the subagent with the concrete gaps rather than writing the plan in the main loop."
 
 [[stage]]
 id = "plan-review-codex"

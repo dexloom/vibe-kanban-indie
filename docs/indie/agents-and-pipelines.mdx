@@ -6,8 +6,9 @@ description: "How the orchestrator, the agent crew, per-card pipelines, and spec
 Indie can take a card from a rough brief to a merged change with very little
 hands-on dispatch. It does this with three building blocks: **per-card pipelines**
 that declare what should happen, an **agent crew** that performs each stage, and an
-**orchestrator** that schedules the work. You stay in control — every risky step
-waits for you, and you can override from the [TUI](/cockpit/tui) or Telegram at any
+**orchestrator** that schedules the work. You stay in control — you choose which
+stages a card runs, **Wait for approval** is the stage that pauses a pipeline for
+your decision, and you can override from the [TUI](/cockpit/tui) or Telegram at any
 time.
 
 ## Per-card pipelines
@@ -25,43 +26,48 @@ The built-in stages are:
 | Create spec | Turn the brief into a development-ready spec (`SPEC.md`) |
 | Create plan | Turn the spec into a concrete implementation plan (`IMPLEMENTATION_PLAN.md`) |
 | Review plan | Review the plan before any code is written (delegated to Codex) |
-| Codex plan review | Independently review the implementation plan with Codex before any code is written (Async Sonnet / Async Fable, on by default) |
+| Codex plan review | Independently review the implementation plan with Codex before any code is written (Async Opus / Async Sonnet / Async Fable, on by default) |
 | Wait for approval | Pause and wait for your decision before continuing |
 | Review via Codex | Independently review the change's diff with Codex once code is written |
 | Update documentation | Update the docs the change affects |
-| Merge to base | Merge the workspace branch into its base |
+| Merge to base | Squash-merge the workspace branch into its base — the agent does this itself; listing the stage is the authorisation |
 | Open pull request | Open a GitHub pull request |
 
 <Note>
 The stage catalogue is config-driven. The default order puts **Orchestrate
 (auto-drive)** first; `Wait for approval` follows `Review plan`, and `Update
-documentation` follows `Review via Codex`. In the **Async Sonnet** and **Async
-Fable** pipelines, the ordering is spec → plan → **Codex plan review** →
-coder stage → **Review via Codex** (the shared code-review stage): the plan
-is independently reviewed before any code is written, and the diff review
-runs only after the coder stage. Both pipelines review with Codex only —
-there is no Fable diff-review stage.
+documentation` follows `Review via Codex`. In the **Async Opus**, **Async
+Sonnet**, and **Async Fable** pipelines, the ordering is spec → plan →
+**Codex plan review** → coder stage → **Review via Codex** (the shared
+code-review stage): the plan is independently reviewed before any code is
+written, and the diff review runs only after the coder stage. All three
+pipelines review with Codex only — there is no Fable diff-review stage.
 </Note>
 
-## Async Sonnet and Async Fable
+## The Async pipelines
 
-Both Async pipelines fan work out to subagents instead of doing it in the main
-loop: an Opus main loop coordinates, verifies, and reviews, while separate
-subagents write the spec, the plan, and the code. They differ in which model
-does that subagent work, trading cost for thoroughness:
+All three Async pipelines fan work out to subagents instead of doing it in the
+main loop: an Opus main loop coordinates, verifies, and reviews, while separate
+subagents write the spec, the plan, and the code. They differ in which model does
+that subagent work, trading cost for thoroughness:
 
-| Stage | Async Sonnet | Async Fable |
-|---|---|---|
-| Spec | Sonnet subagent (`vibe-kanban-indie:product`) | Fable subagent (`vibe-kanban-indie:product`) — **heavy**, on by default |
-| Plan | Sonnet subagent (`vibe-kanban-indie:planner`) | Fable subagent (`vibe-kanban-indie:planner`) — **heavy**, on by default |
-| Codex plan review | On by default | On by default |
-| Code | Sonnet subagent (`vibe-kanban-indie:coder`) | Opus subagent (`vibe-kanban-indie:coder`) |
-| Review via Codex | On by default | On by default |
+| Stage | Async Opus | Async Sonnet | Async Fable |
+|---|---|---|---|
+| Spec | Opus subagent (`vibe-kanban-indie:product`) | Sonnet subagent (`vibe-kanban-indie:product`) | Fable subagent (`vibe-kanban-indie:product`) — **heavy**, on by default |
+| Plan | Opus subagent (`vibe-kanban-indie:planner`) | Sonnet subagent (`vibe-kanban-indie:planner`) | Fable subagent (`vibe-kanban-indie:planner`) — **heavy**, on by default |
+| Codex plan review | On by default | On by default | On by default |
+| Code | Sonnet subagent (`vibe-kanban-indie:coder`) | Sonnet subagent (`vibe-kanban-indie:coder`) | Opus subagent (`vibe-kanban-indie:coder`) |
+| Review via Codex | Off by default | Off by default | Off by default |
+| Merge to base | On by default | On by default | On by default |
 
-Both pipelines are Codex-only for review — neither has a Fable diff-review
-stage. Run either one with a Claude Code (Opus) execution agent, so the main
-loop has the model budget to coordinate the fan-out and verify each
-subagent's work.
+All three pipelines are Codex-only for review — none has a Fable diff-review
+stage. The plan is always reviewed; the **diff** review is off by default, so tick
+**Review via Codex** on a card when you want one. **Merge to base** is on by
+default: once the stage is listed, the agent squash-merges the card's branch into
+its base itself, without waiting for a go-ahead. Add a **Wait for approval** stage
+when you want to gate that. Run any of them with a Claude Code (Opus) execution
+agent, so the main loop has the model budget to coordinate the fan-out and verify
+each subagent's work.
 
 <Note>
 Async Fable's spec and plan stages are marked `heavy = true` **and** default

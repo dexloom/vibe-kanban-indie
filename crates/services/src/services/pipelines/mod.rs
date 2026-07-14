@@ -45,6 +45,10 @@ const BUNDLED: &[(&str, &str)] = &[
         include_str!("../../../../../assets/pipelines/speckit.toml"),
     ),
     (
+        "async-opus.toml",
+        include_str!("../../../../../assets/pipelines/async-opus.toml"),
+    ),
+    (
         "async-sonnet.toml",
         include_str!("../../../../../assets/pipelines/async-sonnet.toml"),
     ),
@@ -761,7 +765,14 @@ mod tests {
         let ids: Vec<_> = pipelines.iter().map(|p| p.id.as_str()).collect();
         assert_eq!(
             ids,
-            vec!["basic", "wikillm", "speckit", "async-sonnet", "async-fable"]
+            vec![
+                "basic",
+                "wikillm",
+                "speckit",
+                "async-opus",
+                "async-sonnet",
+                "async-fable"
+            ]
         );
         assert!(d.path().join(".seed-manifest.json").exists());
     }

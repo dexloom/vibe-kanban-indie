@@ -36,14 +36,14 @@ prompt = "Do NOT write the implementation yourself. Spawn the `vibe-kanban-indie
 [[stage]]
 id = "code-review"
 label = "Review via Codex"
-default_enabled = true
+default_enabled = false
 prompt = "After implementing, run an independent Codex review of the card's diff (the `codex-review` skill / Codex CLI), iterating until it reports no significant findings. Address confirmed findings and re-verify before marking the card ready."
 
 [[stage]]
 id = "merge"
 label = "Merge to base"
-default_enabled = false
-prompt = "When the work is implemented and reviewed, merge this card's branch into the base branch."
+default_enabled = true
+prompt = "When the work is implemented and reviewed, squash-merge this card's branch into the base branch yourself — this stage being listed is your authorization, so do not wait for a go-ahead; gating, when wanted, is the Wait-for-approval stage's job."
 
 [[stage]]
 id = "pr"

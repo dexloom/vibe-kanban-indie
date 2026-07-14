@@ -160,13 +160,21 @@ const basicWikillmEnabledUnion = [
 ];
 
 // Fixture mirroring the real `async-sonnet.toml` pipeline file (the split of
-// the former `async.toml` into Async Sonnet / Async Fable): same stage
-// ids/order/default-enabled flags, including the `plan-review-codex` stage
-// between `plan` and `code-subagent`, and the canonical `code-review` id
-// (the same one the `basicPipeline`/`wikillmPipeline` fixtures use, so it
-// dedupes against theirs in a merge). There is no `review-fable` stage here —
-// that stage was removed entirely when Async split into Sonnet/Fable
-// variants (code review is Codex-only in both).
+// the former `async.toml` into Async Sonnet / Async Fable): same stage ids and
+// order, including the `plan-review-codex` stage between `plan` and
+// `code-subagent`, and the canonical `code-review` id (the same one the
+// `basicPipeline`/`wikillmPipeline` fixtures use, so it dedupes against theirs
+// in a merge). There is no `review-fable` stage here — that stage was removed
+// entirely when Async split into Sonnet/Fable variants (code review is
+// Codex-only in both).
+//
+// The `default_enabled` flags below are pinned by this fixture on purpose and
+// are deliberately NOT kept in sync with the shipped TOML (where `code-review`
+// is now off and `merge` is now on by default). They exist to exercise the
+// code-review dedupe and ordering path in `composePipelineBlock`; the LOCKED
+// tests below assert that composition logic, not bundled pipeline content. Do
+// not "fix" them to match the TOML — that would force a rewrite of the LOCKED
+// assertions.
 const asyncPipeline: Pipeline = {
   id: 'async-sonnet',
   name: 'Async Sonnet',

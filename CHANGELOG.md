@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Async Opus bundled pipeline.** A third Async pipeline: Opus subagents write
+  the spec and the plan, a Sonnet subagent writes the code, and Codex reviews
+  both the plan and the diff. It seeds automatically into existing installs and
+  lists between SpecKit and Async Sonnet.
+
+### Changed
+
+- **The three Async pipelines now default to Merge to base on and Review via
+  Codex off.** Their merge stage tells the agent to squash-merge the card's
+  branch into its base itself — the stage being listed is the authorisation, so
+  it does not wait for a go-ahead. Add a **Wait for approval** stage when you
+  want the pipeline to pause for you.
+
 ## [0.2.16] - 2026-07-11
 
 ## [0.2.15] - 2026-07-10
