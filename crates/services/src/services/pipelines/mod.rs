@@ -875,15 +875,18 @@ mod tests {
     }
 
     #[test]
-    fn bundled_basic_spec_prompt_is_verbatim() {
+    fn bundled_basic_spec_prompt_targets_workspace_root() {
         let d = TmpDir::new();
         let pipelines = load_pipelines(d.path());
         let basic = pipelines.iter().find(|p| p.id == "basic").unwrap();
         let spec = basic.stages.iter().find(|s| s.id == "spec").unwrap();
-        assert_eq!(
-            spec.prompt_fragment,
-            "Write a technical spec for this card and save it to `SPEC.md` at the repo root before implementing."
-        );
+        // VIBE-15: this test used to assert the bundled prompt verbatim, which pinned the
+        // pre-fix "repo root" wording — i.e. it asserted the very bug this card fixes.
+        // The durable invariant is that the spec prompt targets the workspace root, never
+        // the repo root; assert that instead of re-pasting a ~2000-char prompt literal
+        // (brittle: any future prompt tweak breaks it, and it invites escaping bugs).
+        assert!(!spec.prompt_fragment.contains("repo root"));
+        assert!(spec.prompt_fragment.contains("workspace root"));
     }
 
     // --- Seed-manifest tests (via the private `ensure_seeded_with` seam) ---

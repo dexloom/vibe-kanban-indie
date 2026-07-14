@@ -11,7 +11,7 @@ prompt = "Have the orchestrator agent pick this card up and drive it to done aut
 id = "spec"
 label = "Create spec"
 default_enabled = true
-prompt = "Write a technical spec for this card and save it to `SPEC.md` at the repo root before implementing."
+prompt = "FIRST, check the card description: if it already contains the full spec — meaning `### Outcome`, `### Scope`, and `### Testing & acceptance criteria` EACH occur at the START of a line (prefix match, so `### Outcome — what's different when this is done` counts), and NOT inside a fenced code block or a block quote; ALL THREE are required and if any one is missing take the OTHERWISE path — then copy it through instead of writing one from scratch: write `SPEC.md` at the workspace root as exactly the line `## Task: <the card's title, verbatim>`, then a blank line, then the card description verbatim (the description does NOT carry the title — it begins at the `**In one sentence:**` line — so reconstruct that first line from the card's title field). Strip the `## Pipeline` block from the body, anchored to STANDALONE marker lines: take the LAST line whose entire content is exactly `<!-- vk:pipeline:start -->`, and the first line after it whose entire content is exactly `<!-- vk:pipeline:end -->`, and delete everything between them including both marker lines. A marker mentioned inside a prose line is not a delimiter — leave that line alone, since a spec may legitimately quote the markers while describing them. Then collapse the blank run the strip leaves behind so the file ends with a single trailing newline. Also sweep out any stray executor-pin bullet (a line matching `- Run this card with the ... execution agent: pass ...`) left outside the block — it normally sits inside the block and goes with it, so this is just a safety net. Do not edit, re-author, or re-verify the copied text: adopt the card's decisions as settled. Then report \"spec adopted from card description\". (The card description is already in your task context; if you were given only the card title/id, `get_issue` the card to fetch it.) OTHERWISE: Write a technical spec for this card and save it to `SPEC.md` at the workspace root (one level above the repo, next to `CLAUDE.md` — never inside the repo) before implementing."
 
 [[stage]]
 id = "recall-knowledge"
@@ -23,7 +23,7 @@ prompt = "Before planning, recall what this project already knows: search the pr
 id = "plan"
 label = "Create plan"
 default_enabled = true
-prompt = "Write a step-by-step implementation plan and save it to `IMPLEMENTATION_PLAN.md` at the repo root."
+prompt = "Write a step-by-step implementation plan and save it to `IMPLEMENTATION_PLAN.md` at the workspace root (one level above the repo, next to `CLAUDE.md` — never inside the repo)."
 
 [[stage]]
 id = "plan-review"
@@ -59,7 +59,7 @@ prompt = "Once the change is implemented (and reviewed/documented, if those stag
 id = "merge"
 label = "Merge to base"
 default_enabled = false
-prompt = "When the work is implemented and reviewed, merge this card's branch into the base branch."
+prompt = "When the work is implemented and reviewed, squash-merge this card's branch into the base branch yourself — this stage being listed is your authorization, so do not wait for a go-ahead; gating, when wanted, is the Wait-for-approval stage's job."
 
 [[stage]]
 id = "pr"

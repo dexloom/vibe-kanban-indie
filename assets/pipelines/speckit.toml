@@ -59,4 +59,4 @@ prompt = "After implementing, run an independent Codex review of the card's diff
 id = "merge"
 label = "Merge to base"
 default_enabled = false
-prompt = "When the work is implemented and reviewed, merge this card's branch into the base branch."
+prompt = "When the work is implemented and reviewed, squash-merge this card's branch into the base branch yourself — this stage being listed is your authorization, so do not wait for a go-ahead; gating, when wanted, is the Wait-for-approval stage's job."
