@@ -292,13 +292,14 @@ impl McpServer {
         Ok(response.project_statuses)
     }
 
-    // Resolves a status name to status_id.
-    async fn resolve_status_id(
-        &self,
-        project_id: Uuid,
+    /// Pure: resolve a status NAME to its id against an already-fetched status list.
+    ///
+    /// Case-insensitive. The error message is read VERBATIM by the orchestrator prompt
+    /// ("use one of those exact names"), so its wording must not drift. See VIBE-2 / SPEC §4.2.
+    fn status_id_from_name(
+        statuses: &[ProjectStatus],
         status_name: &str,
     ) -> Result<Uuid, ToolError> {
-        let statuses = self.fetch_project_statuses(project_id).await?;
         statuses
             .iter()
             .find(|s| s.name.eq_ignore_ascii_case(status_name))
@@ -310,6 +311,17 @@ impl McpServer {
                     status_name, available
                 ))
             })
+    }
+
+    /// Pure: resolve a status id to its display name against an already-fetched status list.
+    /// Falls back to the UUID string when the id is not in the list — the same fallback this
+    /// crate has always had.
+    fn status_name_from_id(statuses: &[ProjectStatus], status_id: Uuid) -> String {
+        statuses
+            .iter()
+            .find(|s| s.id == status_id)
+            .map(|s| s.name.clone())
+            .unwrap_or_else(|| status_id.to_string())
     }
 
     // Gets the default status_id for a project (first non-hidden status by sort_order).
@@ -326,11 +338,7 @@ impl McpServer {
     // Resolves a status_id to its display name. Falls back to UUID string if lookup fails.
     async fn resolve_status_name(&self, project_id: Uuid, status_id: Uuid) -> String {
         match self.fetch_project_statuses(project_id).await {
-            Ok(statuses) => statuses
-                .iter()
-                .find(|s| s.id == status_id)
-                .map(|s| s.name.clone())
-                .unwrap_or_else(|| status_id.to_string()),
+            Ok(statuses) => Self::status_name_from_id(&statuses, status_id),
             Err(_) => status_id.to_string(),
         }
     }
@@ -392,6 +400,7 @@ mod tests {
     use uuid::Uuid;
 
     use super::McpServer;
+    use super::ProjectStatus;
     use crate::task_server::{McpContext, McpMode, McpRepoContext};
 
     static RUSTLS_PROVIDER: Once = Once::new();
@@ -509,5 +518,60 @@ mod tests {
         let serialized = serde_json::to_value(&context).expect("context should serialize");
 
         assert!(serialized.get("orchestrator_session_id").is_none());
+    }
+
+    fn status_fixture(id: Uuid, name: &str) -> ProjectStatus {
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "project_id": "11111111-1111-1111-1111-111111111111",
+            "name": name,
+            "color": "#000000",
+            "sort_order": 0,
+            "hidden": false,
+            "created_at": "2026-01-01T00:00:00Z"
+        }))
+        .expect("fixture JSON should deserialize into ProjectStatus")
+    }
+
+    #[test]
+    fn status_id_from_name_matches_case_insensitively() {
+        let in_progress = Uuid::new_v4();
+        let statuses = [
+            status_fixture(Uuid::new_v4(), "Todo"),
+            status_fixture(in_progress, "In Progress"),
+        ];
+
+        assert_eq!(
+            McpServer::status_id_from_name(&statuses, "in progress").unwrap(),
+            in_progress
+        );
+        // Round-trips to the board's CANONICAL casing — this is why `update_issue` reports the
+        // resolved name rather than echoing what the caller typed.
+        assert_eq!(
+            McpServer::status_name_from_id(&statuses, in_progress),
+            "In Progress"
+        );
+    }
+
+    #[test]
+    fn status_id_from_name_error_text_is_unchanged() {
+        // The orchestrator prompt reads this string VERBATIM. Byte-for-byte pin.
+        let statuses = [
+            status_fixture(Uuid::new_v4(), "Todo"),
+            status_fixture(Uuid::new_v4(), "In Progress"),
+        ];
+
+        let err = McpServer::status_id_from_name(&statuses, "Shipped").unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unknown status 'Shipped'. Available statuses: [\"Todo\", \"In Progress\"]"
+        );
+
+        // An unknown id falls back to the UUID string rather than erroring.
+        let missing = Uuid::new_v4();
+        assert_eq!(
+            McpServer::status_name_from_id(&statuses, missing),
+            missing.to_string()
+        );
     }
 }

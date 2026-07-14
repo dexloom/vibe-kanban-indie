@@ -86,12 +86,12 @@ Many tools accept an optional `project_id` or `organization_id` parameter. When 
 | `list_issues` | List issues in a project | None | `project_id`<br/>`status`<br/>`priority`<br/>`search`<br/>`simple_id`<br/>`parent_issue_id`<br/>`assignee_user_id`<br/>`tag_id`<br/>`tag_name`<br/>`limit`<br/>`offset` | Paginated list of issues with PR info |
 | `create_issue` | Create a new issue | `title` | `project_id`<br/>`description`<br/>`priority`<br/>`parent_issue_id` | Created issue ID |
 | `get_issue` | Get detailed issue information | `issue_id` | None | Full issue details with tags, relationships, sub-issues, and PRs |
-| `update_issue` | Update an existing issue | `issue_id` | `title`<br/>`description`<br/>`status`<br/>`priority`<br/>`parent_issue_id` | Updated issue details |
+| `update_issue` | Update an existing issue | `issue_id` | `title`<br/>`description`<br/>`status`<br/>`priority`<br/>`parent_issue_id` | Minimal ack: `id`, `simple_id`, `status`, `status_id`, `updated_at`, `changed[]`, plus echoes of the changed fields. Never the description body (only `description_chars`) - use `get_issue` for the card body. |
 | `delete_issue` | Delete an issue | `issue_id` | None | Deletion confirmation |
 | `list_issue_priorities` | List allowed priority values | None | None | List of priorities: urgent, high, medium, low |
 
 <Tip>
-For `update_issue`, the `parent_issue_id` field supports three states: omit it entirely to leave the parent unchanged, pass `null` to un-nest the issue from its parent, or pass a UUID to set a new parent.
+For `update_issue`, `parent_issue_id` is designed as a three-state field: omit it to leave the parent unchanged, pass a UUID to set a new parent, or pass `null` to un-nest the issue. **Known limitation:** the `null` (un-nest) case is not currently applied - it behaves the same as omitting the field, and the parent is left unchanged. Passing a UUID works as documented. The response is a minimal acknowledgement rather than the full issue: its `changed[]` list names the fields you supplied, so an applied un-nest appears as `"parent_issue_id": null` with `"parent_issue_id"` in `changed[]`, while an untouched parent omits the key entirely. Call `get_issue` when you need the issue body back.
 </Tip>
 
 ### Issue Assignees
