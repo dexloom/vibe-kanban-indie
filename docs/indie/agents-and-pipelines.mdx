@@ -85,10 +85,7 @@ new pipeline ships, an existing pipelines directory picks up exactly the new
 file or stage automatically on the next backend start — you no longer need to
 reset a pipeline by hand to pick up changes shipped after your install. Edits
 and deletions stay sticky either way: once a filename has been seeded, it is
-never silently overwritten or resurrected. The retired `async.toml` (replaced
-by Async Sonnet and Async Fable) is removed automatically the same way, but
-only when its contents still match a shipped version byte-for-byte; an edited
-copy of it is left alone as your own custom pipeline.
+never silently overwritten or resurrected.
 </Note>
 
 A stage can also be marked `heavy = true` in its pipeline TOML — a

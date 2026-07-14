@@ -24,6 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it does not wait for a go-ahead. Add a **Wait for approval** stage when you
   want the pipeline to pause for you.
 
+### Removed
+
+- **Retired-`async.toml` auto-removal.** The preserved copies of the old bundled
+  `async.toml` (retired in 0.2.14 in favour of Async Sonnet and Async Fable) have
+  been dropped, so a pristine `async.toml` left in `~/.vibe-kanban/pipelines/` is
+  no longer removed for you on start-up — delete it from the Settings pipeline
+  list if you still have one. The retirement mechanism itself is unchanged and
+  stays available for future bundled-pipeline retirements.
+
 ## [0.2.16] - 2026-07-11
 
 ## [0.2.15] - 2026-07-10

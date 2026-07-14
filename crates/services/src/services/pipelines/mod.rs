@@ -68,21 +68,16 @@ const LEGACY_BASELINE: &[&str] = &["basic.toml", "wikillm.toml", "speckit.toml",
 /// version** of that file. `ensure_seeded_with` removes a retired file from a
 /// user's pipelines dir only when its on-disk bytes exactly match one of
 /// these versions (pristine, never user-edited); an edited copy is treated as
-/// user content and left alone.
+/// user content and left alone. To retire a bundled file, add it here with
+/// every version of its contents this project has ever shipped.
 ///
-/// `async.toml` was split into `async-sonnet.toml` + `async-fable.toml`; its
-/// four shipped versions (original, VIBE-2, VIBE-3, VIBE-4) are preserved
-/// verbatim under `assets/pipelines/retired/` so installs seeded at any point
-/// in its history can be safe-deleted.
-const RETIRED: &[(&str, &[&str])] = &[(
-    "async.toml",
-    &[
-        include_str!("../../../../../assets/pipelines/retired/async.toml.v1"),
-        include_str!("../../../../../assets/pipelines/retired/async.toml.v2"),
-        include_str!("../../../../../assets/pipelines/retired/async.toml.v3"),
-        include_str!("../../../../../assets/pipelines/retired/async.toml.v4"),
-    ],
-)];
+/// Empty by design, not by oversight. The sole entry was `async.toml` (split
+/// into `async-sonnet.toml` + `async-fable.toml` in 0.2.14); its retirement
+/// cycle has run, so the entry and its four preserved version files are gone.
+/// Nothing is swept while this list is empty: an install still holding a
+/// pristine `async.toml` keeps it, and deletes it by hand from the Settings
+/// pipeline list. Accepted — this is a single-developer fork.
+const RETIRED: &[(&str, &[&str])] = &[];
 
 /// On-disk seed manifest (`.seed-manifest.json`): the set of bundled
 /// filenames seeding has handled at least once. Dotted/non-`.toml` so it is
