@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,system-ui,"Segoe UI",sans-serif; background:#191b20; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+  a { color:#9aa6ff; text-decoration:none; }
+  a:hover { color:#c3caff; }
+  @keyframes vkpulse { 0%,100%{opacity:1;} 50%{opacity:.35;} }
+  @keyframes vkring { 0%{box-shadow:0 0 0 0 rgba(53,201,142,.45);} 100%{box-shadow:0 0 0 7px rgba(53,201,142,0);} }
+  @keyframes vkcaret { 0%,100%{opacity:1;} 50%{opacity:0;} }
+</style>
+</helmet>
+
+<div style="position:fixed;inset:16px;border-radius:13px;overflow:hidden;box-shadow:0 30px 80px -24px rgba(0,0,0,.6),0 0 0 1px rgba(0,0,0,.45);background:#0f1116;display:flex;flex-direction:column">
+
+  <!-- ============ TITLEBAR ============ -->
+  <div style="display:flex;height:46px;flex-shrink:0;background:#0b0c10;border-bottom:1px solid rgba(255,255,255,.06)">
+    <div style="width:240px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 16px;border-right:1px solid rgba(255,255,255,.05)">
+      <div style="display:flex;gap:8px"><span style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></span><span style="width:12px;height:12px;border-radius:50%;background:#febc2e"></span><span style="width:12px;height:12px;border-radius:50%;background:#28c840"></span></div>
+      <div style="flex:1"></div>
+      <div style="display:flex;gap:15px;color:#6b7080">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg>
+      </div>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;padding:0 18px;gap:10px">
+      <span style="font:500 12.5px 'Geist Mono',monospace;color:#6b7080">vibe-kanban</span>
+      <span style="color:#3a3e49">/</span>
+      <span style="font:600 13px system-ui;color:#cfd2da">{{ crumb }}</span>
+      <sc-if value="{{ crumbBranch }}" hint-placeholder-val="{{ false }}">
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);font:500 11.5px 'Geist Mono',monospace;color:#9aa0ad"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5e636f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>{{ crumbBranch }}</span>
+      </sc-if>
+      <div style="flex:1"></div>
+      <div style="color:#6b7080"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></div>
+      <div style="color:#5e636f"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg></div>
+    </div>
+  </div>
+
+  <!-- ============ BODY ============ -->
+  <div style="flex:1;display:flex;min-height:0">
+
+    <!-- ===== SIDEBAR (persistent switcher) ===== -->
+    <aside data-screen-label="Sidebar" style="width:240px;flex-shrink:0;background:linear-gradient(180deg,#0b0c10,#090a0d);border-right:1px solid rgba(255,255,255,.05);display:flex;flex-direction:column;padding:14px 12px">
+      <sc-if value="{{ navWsActive }}" hint-placeholder-val="{{ true }}">
+        <div onClick="{{ openWorkspaces }}" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;background:rgba(97,114,243,.16);border:1px solid rgba(97,114,243,.3);cursor:pointer">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9aa6ff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg>
+          <span style="font:600 14px system-ui;color:#eceef3">Workspaces</span>
+        </div>
+      </sc-if>
+      <sc-if value="{{ navWsInactive }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ openWorkspaces }}" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;border:1px solid transparent;cursor:pointer" style-hover="background:rgba(255,255,255,.04)">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#7a7f8b" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg>
+          <span style="font:600 14px system-ui;color:#b9bcc6">Workspaces</span>
+        </div>
+      </sc-if>
+
+      <div style="font:600 11px system-ui;letter-spacing:.13em;text-transform:uppercase;color:#5a5f6b;margin:20px 10px 8px">Projects</div>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <sc-for list="{{ projects }}" as="p" hint-placeholder-count="5">
+          <sc-if value="{{ p.active }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ p.open }}" style="display:flex;align-items:center;gap:11px;padding:8px 11px;border-radius:9px;background:rgba(97,114,243,.16);border:1px solid rgba(97,114,243,.3);cursor:pointer">
+              <span style="width:9px;height:9px;border-radius:50%;background:{{ p.color }};flex-shrink:0"></span>
+              <span style="flex:1;font:600 13.5px system-ui;color:#eceef3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span>
+              <sc-if value="{{ p.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:5px;padding:1px 7px;border-radius:20px;background:rgba(53,201,142,.16);font:600 10.5px 'Geist Mono',monospace;color:#3ad99b"><span style="width:5px;height:5px;border-radius:50%;background:#35c98e;animation:vkpulse 1.4s infinite"></span>{{ p.badge }}</span></sc-if>
+            </div>
+          </sc-if>
+          <sc-if value="{{ p.inactive }}" hint-placeholder-val="{{ true }}">
+            <div onClick="{{ p.open }}" style="display:flex;align-items:center;gap:11px;padding:8px 11px;border-radius:9px;border:1px solid transparent;cursor:pointer" style-hover="background:rgba(255,255,255,.04)">
+              <span style="width:9px;height:9px;border-radius:50%;background:{{ p.color }};flex-shrink:0"></span>
+              <span style="flex:1;font:500 13.5px system-ui;color:#b9bcc6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span>
+              <sc-if value="{{ p.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:5px;padding:1px 7px;border-radius:20px;background:rgba(53,201,142,.16);font:600 10.5px 'Geist Mono',monospace;color:#3ad99b"><span style="width:5px;height:5px;border-radius:50%;background:#35c98e;animation:vkpulse 1.4s infinite"></span>{{ p.badge }}</span></sc-if>
+            </div>
+          </sc-if>
+        </sc-for>
+      </div>
+
+      <div style="flex:1"></div>
+      <div style="display:flex;align-items:center;gap:9px;padding:9px 11px;border-top:1px solid rgba(255,255,255,.05)"><span style="width:8px;height:8px;border-radius:50%;background:#35c98e;box-shadow:0 0 8px #35c98e"></span><span style="font:500 12.5px system-ui;color:#7a7f8b">Connected</span><div style="flex:1"></div><span style="font:500 11px 'Geist Mono',monospace;color:#4a4f5a">localhost:5173</span></div>
+    </aside>
+
+    <!-- ===== VIEW · WORKSPACES ===== -->
+    <sc-if value="{{ isWorkspaces }}" hint-placeholder-val="{{ true }}">
+      <main data-screen-label="Workspaces" style="flex:1;display:flex;flex-direction:column;min-width:0">
+        <div style="padding:22px 26px 16px;display:flex;align-items:flex-start;gap:16px">
+          <div>
+            <div style="font:700 27px system-ui;letter-spacing:-.02em;color:#f1f2f6">Workspaces</div>
+            <div style="font:400 13px system-ui;color:#7a7f8b;margin-top:4px">{{ wsSubtitle }}</div>
+          </div>
+          <div style="flex:1;min-width:12px"></div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:120px;max-width:220px;padding:7px 11px;border-radius:9px;background:#15171e;border:1px solid rgba(255,255,255,.07)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5e636f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <span style="font:400 13px system-ui;color:#5e636f">Search workspaces…</span>
+            </div>
+            <div style="display:flex;background:#15171e;border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:3px">
+              <sc-for list="{{ filters }}" as="f" hint-placeholder-count="3">
+                <sc-if value="{{ f.active }}" hint-placeholder-val="{{ false }}"><span onClick="{{ f.set }}" style="padding:5px 12px;border-radius:6px;background:#262b36;color:#e6e8ee;font:600 12.5px system-ui;cursor:pointer">{{ f.name }}</span></sc-if>
+                <sc-if value="{{ f.inactive }}" hint-placeholder-val="{{ true }}"><span onClick="{{ f.set }}" style="padding:5px 12px;color:#8b8f9c;font:600 12.5px system-ui;cursor:pointer" style-hover="color:#cfd2da">{{ f.name }}</span></sc-if>
+              </sc-for>
+            </div>
+            <button style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border:0;border-radius:9px;background:#6172f3;color:#fff;font:600 13px system-ui;cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New</button>
+          </div>
+        </div>
+
+        <!-- live agent strip -->
+        <div style="padding:0 26px 10px">
+          <div onClick="{{ openOrchestrator }}" style="position:relative;overflow:hidden;display:flex;align-items:center;gap:18px;padding:14px 18px;border-radius:13px;background:linear-gradient(100deg,rgba(97,114,243,.16),rgba(97,114,243,.04) 60%,transparent);border:1px solid rgba(97,114,243,.28);cursor:pointer">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:#6172f3"></div>
+            <div style="display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:11px;background:rgba(53,201,142,.14);flex-shrink:0"><span style="width:11px;height:11px;border-radius:50%;background:#35c98e;animation:vkring 1.6s infinite,vkpulse 1.6s infinite"></span></div>
+            <div style="min-width:0">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="font:600 15px system-ui;color:#f1f2f6">Orchestrator</span>
+                <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);font:500 11.5px 'Geist Mono',monospace;color:#9aa0ad"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>orchestrator</span>
+              </div>
+              <div style="font:500 12.5px 'Geist Mono',monospace;color:#7d8290;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">› list_projects · discovering MCP tool names<span style="display:inline-block;width:7px;height:13px;background:#6172f3;margin-left:4px;vertical-align:middle;animation:vkcaret 1s steps(1) infinite"></span></div>
+            </div>
+            <div style="flex:1"></div>
+            <div style="display:flex;align-items:center;gap:14px;flex-shrink:0">
+              <div style="text-align:right"><div style="font:600 12px system-ui;color:#8b8f9c">Model</div><div style="font:600 13px 'Geist Mono',monospace;color:#cfd2da">opus 4.8</div></div>
+              <div style="text-align:right"><div style="font:600 12px system-ui;color:#8b8f9c">Elapsed</div><div style="font:600 13px 'Geist Mono',monospace;color:#cfd2da">02:12</div></div>
+              <button style="padding:8px 14px;border:1px solid rgba(240,97,109,.4);border-radius:9px;background:rgba(240,97,109,.1);color:#f0838c;font:600 12.5px system-ui;cursor:pointer">Stop</button>
+              <button onClick="{{ openOrchestrator }}" style="padding:8px 16px;border:0;border-radius:9px;background:#fff;color:#14161d;font:600 12.5px system-ui;cursor:pointer">Open</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- table -->
+        <div style="display:flex;align-items:center;height:38px;padding:0 26px;margin-top:6px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0">
+          <div style="width:34px;flex-shrink:0"></div>
+          <div style="flex:2;min-width:140px;padding-right:12px;font:600 11px system-ui;letter-spacing:.08em;text-transform:uppercase;color:#5e636f">Name</div>
+          <div style="flex:1.4;min-width:110px;font:600 11px system-ui;letter-spacing:.08em;text-transform:uppercase;color:#5e636f">Branch</div>
+          <div style="width:110px;flex-shrink:0;font:600 11px system-ui;letter-spacing:.08em;text-transform:uppercase;color:#5e636f">State</div>
+          <div style="width:100px;flex-shrink:0;font:600 11px system-ui;letter-spacing:.08em;text-transform:uppercase;color:#5e636f">Diff</div>
+          <div style="width:80px;flex-shrink:0;font:600 11px system-ui;letter-spacing:.08em;text-transform:uppercase;color:#5e636f">Updated</div>
+          <div style="width:30px;flex-shrink:0"></div>
+        </div>
+        <div style="flex:1;overflow-y:auto;overflow-x:hidden;padding:6px 18px 14px">
+          <sc-for list="{{ wsRows }}" as="row" hint-placeholder-count="10">
+            <div onClick="{{ row.open }}" style="position:relative;display:flex;align-items:center;height:50px;padding:0 8px;border-radius:9px;cursor:pointer" style-hover="background:rgba(255,255,255,.035)">
+              <sc-if value="{{ row.isRunning }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;border-radius:9px;background:rgba(97,114,243,.07);border-left:2px solid #6172f3"></div></sc-if>
+              <div style="position:relative;width:34px;flex-shrink:0;display:flex;align-items:center;justify-content:center">
+                <sc-if value="{{ row.isRunning }}" hint-placeholder-val="{{ false }}"><span style="width:9px;height:9px;border-radius:50%;background:#35c98e;animation:vkring 1.6s infinite,vkpulse 1.6s infinite"></span></sc-if>
+                <sc-if value="{{ row.isIdle }}" hint-placeholder-val="{{ false }}"><span style="width:8px;height:8px;border-radius:50%;background:#6b7080"></span></sc-if>
+                <sc-if value="{{ row.isArchived }}" hint-placeholder-val="{{ true }}"><span style="width:8px;height:8px;border-radius:50%;border:1.5px solid #383c46"></span></sc-if>
+              </div>
+              <div style="position:relative;flex:2;min-width:140px;font:600 14px system-ui;color:#dfe1e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:12px">{{ row.name }}</div>
+              <div style="position:relative;flex:1.4;min-width:110px;overflow:hidden;padding-right:10px">
+                <span style="display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:3px 9px;border-radius:6px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);font:500 12px 'Geist Mono',monospace;color:#9aa0ad;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5e636f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>{{ row.branch }}
+                </span>
+              </div>
+              <div style="position:relative;width:110px;flex-shrink:0">
+                <sc-if value="{{ row.isRunning }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:6px;background:rgba(53,201,142,.14);color:#3ad99b;font:600 11.5px system-ui"><span style="width:6px;height:6px;border-radius:50%;background:#35c98e;animation:vkpulse 1.4s infinite"></span>Running</span></sc-if>
+                <sc-if value="{{ row.isIdle }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:6px;background:rgba(255,255,255,.05);color:#9aa0ad;font:600 11.5px system-ui"><span style="width:6px;height:6px;border-radius:50%;background:#6b7080"></span>Idle</span></sc-if>
+                <sc-if value="{{ row.isArchived }}" hint-placeholder-val="{{ true }}"><span style="font:600 11.5px system-ui;color:#5e636f">Archived</span></sc-if>
+              </div>
+              <div style="position:relative;width:100px;flex-shrink:0;display:flex;gap:9px;font:500 12.5px 'Geist Mono',monospace"><span style="color:#3ad99b">+{{ row.add }}</span><span style="color:#e06a72">−{{ row.del }}</span></div>
+              <div style="position:relative;width:80px;flex-shrink:0;font:400 13px system-ui;color:#7a7f8b">{{ row.updated }}</div>
+              <div style="position:relative;width:30px;flex-shrink:0;display:flex;justify-content:flex-end;color:#4a4f5a"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+          </sc-for>
+        </div>
+      </main>
+    </sc-if>
+
+    <!-- ===== VIEW · KANBAN ===== -->
+    <sc-if value="{{ isKanban }}" hint-placeholder-val="{{ false }}">
+      <main data-screen-label="Kanban board" style="flex:1;display:flex;flex-direction:column;min-width:0">
+        <div style="padding:20px 24px 14px;display:flex;align-items:center;gap:14px">
+          <div style="font:700 25px system-ui;letter-spacing:-.02em;color:#f1f2f6">{{ projectName }}</div>
+          <div style="flex:1"></div>
+          <div style="display:flex;align-items:center;gap:8px;width:220px;padding:7px 11px;border-radius:9px;background:#15171e;border:1px solid rgba(255,255,255,.07)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5e636f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span style="font:400 13px system-ui;color:#5e636f">Search issues…</span></div>
+          <div style="display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:9px;background:#15171e;border:1px solid rgba(255,255,255,.07);font:600 12.5px system-ui;color:#9aa0ad"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>Priority</div>
+          <div style="display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:9px;background:#15171e;border:1px solid rgba(255,255,255,.07);font:600 12.5px system-ui;color:#9aa0ad">Sort: Manual</div>
+        </div>
+        <div style="flex:1;display:flex;gap:14px;padding:6px 24px 20px;overflow:hidden">
+          <sc-for list="{{ columns }}" as="col" hint-placeholder-count="4">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);border-radius:13px;padding:13px 11px">
+              <div style="display:flex;align-items:center;gap:9px;padding:2px 4px 13px">
+                <span style="width:9px;height:9px;border-radius:50%;background:{{ col.color }}"></span>
+                <span style="font:600 13.5px system-ui;color:#cfd2da">{{ col.name }}</span>
+                <span style="font:600 12px 'Geist Mono',monospace;color:#5e636f">{{ col.count }}</span>
+                <div style="flex:1"></div>
+                <span style="color:#5e636f"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px;overflow-y:auto;overflow-x:hidden">
+                <sc-for list="{{ col.cards }}" as="card" hint-placeholder-count="0">
+                  <div onClick="{{ card.open }}" style="position:relative;background:#15171e;border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:13px 13px;display:flex;flex-direction:column;gap:9px;cursor:pointer" style-hover="border-color:rgba(255,255,255,.14)">
+                    <sc-if value="{{ card.isRunning }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;border:1.5px solid rgba(97,114,243,.55);border-radius:11px;box-shadow:0 0 26px -8px rgba(97,114,243,.5);pointer-events:none"></div></sc-if>
+                    <div style="position:relative;display:flex;align-items:center">
+                      <span style="font:600 11px 'Geist Mono',monospace;letter-spacing:.04em;color:#7a7f8b">{{ card.id }}</span>
+                      <div style="flex:1"></div>
+                      <sc-if value="{{ card.prioHigh }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:5px;font:600 10.5px system-ui;color:#e88a4a"><span style="width:6px;height:6px;border-radius:50%;background:#e88a4a"></span>High</span></sc-if>
+                      <sc-if value="{{ card.prioMed }}" hint-placeholder-val="{{ true }}"><span style="display:inline-flex;align-items:center;gap:5px;font:600 10.5px system-ui;color:#9aa0ad"><span style="width:6px;height:6px;border-radius:50%;background:#7a7f8b"></span>Med</span></sc-if>
+                    </div>
+                    <div style="position:relative;font:600 14px system-ui;line-height:1.35;color:#e6e8ee">{{ card.title }}</div>
+                    <div style="position:relative;font:400 12.5px system-ui;line-height:1.5;color:#868b97;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ card.desc }}</div>
+                    <sc-if value="{{ card.hasProgress }}" hint-placeholder-val="{{ false }}">
+                      <div style="position:relative;display:flex;flex-direction:column;gap:6px;margin-top:2px">
+                        <div style="display:flex;align-items:center;gap:8px">
+                          <span style="font:600 11px 'Geist Mono',monospace;color:#aeb6ff">{{ card.stepLabel }}</span>
+                          <span style="font:400 11px system-ui;color:#6b7080;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1">{{ card.stepNow }}</span>
+                          <span style="font:600 11px 'Geist Mono',monospace;color:#8b8f9c;flex-shrink:0">{{ card.progressPct }}</span>
+                        </div>
+                        <div style="height:4px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden">
+                          <div style="height:100%;width:{{ card.progressW }};border-radius:3px;background:linear-gradient(90deg,#6172f3,#9aa6ff);box-shadow:0 0 10px rgba(97,114,243,.6)"></div>
+                        </div>
+                      </div>
+                    </sc-if>
+                    <div style="position:relative;display:flex;align-items:center;gap:8px;margin-top:1px;flex-wrap:wrap;min-width:0">
+                      <sc-if value="{{ card.isRunning }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:6px;padding:3px 8px 3px 4px;border-radius:7px;background:rgba(97,114,243,.16);border:1px solid rgba(97,114,243,.3)"><span style="width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,#6172f3,#9aa6ff);display:flex;align-items:center;justify-content:center;font:700 9px system-ui;color:#fff">◆</span><span style="font:600 11px 'Geist Mono',monospace;color:#aeb6ff">opus</span><span style="width:5px;height:5px;border-radius:50%;background:#35c98e;animation:vkpulse 1.3s infinite"></span></span></sc-if>
+                      <sc-if value="{{ card.isDone }}" hint-placeholder-val="{{ true }}"><span style="display:inline-flex;align-items:center;gap:5px;font:600 11px system-ui;color:#3ad99b"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Merged</span></sc-if>
+                      <div style="flex:1"></div>
+                      <span style="font:500 11.5px 'Geist Mono',monospace;color:#3ad99b">+{{ card.add }}</span>
+                      <span style="font:500 11.5px 'Geist Mono',monospace;color:#e06a72">−{{ card.del }}</span>
+                    </div>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ col.empty }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top:4px;height:88px;border:1.5px dashed rgba(255,255,255,.07);border-radius:11px;display:flex;align-items:center;justify-content:center;font:500 12px system-ui;color:#4a4f5a">Drop or + to add</div>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </main>
+    </sc-if>
+
+    <!-- ===== VIEW · WORKSPACE SESSION ===== -->
+    <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+      <main data-screen-label="Workspace session" style="flex:1;display:flex;flex-direction:column;min-width:0;background:#0d0e13">
+        <!-- session header -->
+        <div style="display:flex;align-items:center;gap:12px;padding:14px 20px 0;flex-shrink:0">
+          <button onClick="{{ openWorkspaces }}" style="display:inline-flex;align-items:center;gap:6px;padding:6px 11px 6px 7px;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:rgba(255,255,255,.03);color:#9aa0ad;font:600 12.5px system-ui;cursor:pointer" style-hover="background:rgba(255,255,255,.07)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Back</button>
+          <span style="font:700 19px system-ui;letter-spacing:-.01em;color:#f1f2f6">{{ wsName }}</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);font:500 11.5px 'Geist Mono',monospace;color:#9aa0ad"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5e636f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>{{ wsBranch }}</span>
+          <sc-if value="{{ wsRunning }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:6px;background:rgba(53,201,142,.14);color:#3ad99b;font:600 11.5px system-ui"><span style="width:6px;height:6px;border-radius:50%;background:#35c98e;animation:vkpulse 1.4s infinite"></span>Running</span></sc-if>
+          <sc-if value="{{ wsCompleted }}" hint-placeholder-val="{{ true }}"><span style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:6px;background:rgba(53,201,142,.13);color:#3ad99b;font:600 11.5px system-ui"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Completed</span></sc-if>
+          <div style="flex:1"></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 11px;border-radius:8px;background:#15171e;border:1px solid rgba(255,255,255,.08)"><span style="font:500 12px system-ui;color:#7a7f8b">Session</span><span style="font:600 12.5px 'Geist Mono',monospace;color:#dfe1e8">7d5043</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+        </div>
+        <!-- meta row -->
+        <div style="display:flex;align-items:center;gap:18px;padding:10px 20px 0;flex-shrink:0">
+          <span style="font:500 12px system-ui;color:#6b7080">Model <b style="font:600 12px 'Geist Mono',monospace;color:#cfd2da">opus 4.8</b></span>
+          <span style="font:500 12px system-ui;color:#6b7080">Started <b style="font:600 12px 'Geist Mono',monospace;color:#cfd2da">04:11:02</b></span>
+          <span style="font:500 12px system-ui;color:#6b7080">Duration <b style="font:600 12px 'Geist Mono',monospace;color:#cfd2da">3m 20s</b></span>
+          <span style="font:500 12px system-ui;color:#6b7080">Turns <b style="font:600 12px 'Geist Mono',monospace;color:#cfd2da">11</b></span>
+          <div style="flex:1"></div>
+          <span style="padding:3px 9px;border-radius:6px;background:rgba(97,114,243,.13);border:1px solid rgba(97,114,243,.26);font:600 11px 'Geist Mono',monospace;color:#aeb6ff">auto-unblock</span>
+          <span style="padding:3px 9px;border-radius:6px;background:rgba(97,114,243,.13);border:1px solid rgba(97,114,243,.26);font:600 11px 'Geist Mono',monospace;color:#aeb6ff">auto-answer</span>
+        </div>
+        <!-- tabs -->
+        <div style="padding:14px 20px 0;flex-shrink:0">
+          <div style="display:inline-flex;align-items:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:3px">
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+              <sc-if value="{{ t.active }}" hint-placeholder-val="{{ false }}"><span onClick="{{ t.set }}" style="padding:5px 14px;border-radius:6px;background:#6172f3;color:#fff;font:600 12.5px system-ui;cursor:pointer">{{ t.name }}</span></sc-if>
+              <sc-if value="{{ t.inactive }}" hint-placeholder-val="{{ true }}"><span onClick="{{ t.set }}" style="padding:5px 14px;color:#9aa0ad;font:600 12.5px system-ui;cursor:pointer" style-hover="color:#dfe1e8">{{ t.name }}</span></sc-if>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- TAB · AGENT -->
+        <sc-if value="{{ tabAgent }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1;overflow:auto;padding:18px 24px;display:flex;flex-direction:column;gap:14px">
+            <sc-for list="{{ timeline }}" as="ev" hint-placeholder-count="9">
+              <sc-if value="{{ ev.isRun }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:12px;background:linear-gradient(100deg,rgba(97,114,243,.13),rgba(97,114,243,.03));border:1px solid rgba(97,114,243,.26)">
+                  <span style="display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:8px;background:#6172f3;color:#fff;font:600 13px 'Geist Mono',monospace;flex-shrink:0">/{{ ev.cmd }}</span>
+                  <div style="min-width:0;flex:1"><div style="font:500 13px system-ui;color:#cfd2da;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ev.args }}</div></div>
+                  <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);font:600 12px 'Geist Mono',monospace;color:#aeb6ff;flex-shrink:0"><span style="width:13px;height:13px;border-radius:50%;background:linear-gradient(135deg,#6172f3,#9aa6ff);display:flex;align-items:center;justify-content:center;font:700 8px system-ui;color:#fff">◆</span>{{ ev.model }}</span>
+                </div>
+              </sc-if>
+              <sc-if value="{{ ev.isSystem }}" hint-placeholder-val="{{ false }}">
+                <div style="display:inline-flex;align-self:flex-start;align-items:center;gap:8px;padding:6px 12px;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);font:500 12px system-ui;color:#6b7080;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>{{ ev.count }} system messages hidden</div>
+              </sc-if>
+              <sc-if value="{{ ev.isThinking }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;gap:12px;padding-left:2px">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="#6172f3" style="flex-shrink:0;margin-top:1px;opacity:.85"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/></svg>
+                  <div style="font:italic 400 14px/1.6 system-ui;color:#9aa0ad;max-width:760px">{{ ev.text }}</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ ev.isTool }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:10px;background:#15171e;border:1px solid rgba(255,255,255,.05)">
+                  <sc-if value="{{ ev.ok }}" hint-placeholder-val="{{ true }}"><span style="display:flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:6px;background:rgba(53,201,142,.16);color:#3ad99b;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></sc-if>
+                  <sc-if value="{{ ev.fail }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:6px;background:rgba(240,97,109,.16);color:#f0838c;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></sc-if>
+                  <span style="font:600 12.5px 'Geist Mono',monospace;color:#dfe1e8;flex-shrink:0">{{ ev.name }}</span>
+                  <sc-if value="{{ ev.mcp }}" hint-placeholder-val="{{ false }}"><span style="padding:2px 7px;border-radius:5px;background:rgba(176,124,240,.14);font:600 10px 'Geist Mono',monospace;color:#c79cf5;flex-shrink:0">MCP</span></sc-if>
+                  <span style="flex:1;min-width:0;font:400 12px 'Geist Mono',monospace;color:#6b7080;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ev.detail }}</span>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4a4f5a" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
+              </sc-if>
+            </sc-for>
+          </div>
+          <div style="padding:14px 20px 18px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0">
+            <div style="display:flex;align-items:center;gap:11px;background:#15171e;border:1px solid rgba(255,255,255,.09);border-radius:13px;padding:11px 13px">
+              <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:7px;background:rgba(97,114,243,.13);border:1px solid rgba(97,114,243,.26);font:600 11.5px 'Geist Mono',monospace;color:#aeb6ff;flex-shrink:0"><span style="width:12px;height:12px;border-radius:50%;background:linear-gradient(135deg,#6172f3,#9aa6ff);display:flex;align-items:center;justify-content:center;font:700 8px system-ui;color:#fff">◆</span>opus 4.8</span>
+              <span style="flex:1;font:400 13.5px system-ui;color:#5e636f">Message the agent…</span>
+              <span style="color:#6b7080"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="22"/></svg></span>
+              <button style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border:0;border-radius:9px;background:#6172f3;color:#fff;cursor:pointer;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- TAB · TERMINAL -->
+        <sc-if value="{{ tabTerminal }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;overflow:auto;margin:16px 20px 20px;border-radius:11px;background:#0a0b0e;border:1px solid rgba(255,255,255,.06);padding:16px 18px;display:flex;flex-direction:column;gap:4px">
+            <sc-for list="{{ termLines }}" as="ln" hint-placeholder-count="10">
+              <sc-if value="{{ ln.isCmd }}" hint-placeholder-val="{{ false }}"><div style="font:500 12.5px/1.7 'Geist Mono',monospace;color:#dfe1e8"><span style="color:#3ad99b">❯</span> {{ ln.text }}</div></sc-if>
+              <sc-if value="{{ ln.isOut }}" hint-placeholder-val="{{ true }}"><div style="font:400 12.5px/1.7 'Geist Mono',monospace;color:#7a7f8b;white-space:pre-wrap">{{ ln.text }}</div></sc-if>
+            </sc-for>
+            <div style="font:500 12.5px/1.7 'Geist Mono',monospace;color:#dfe1e8"><span style="color:#3ad99b">❯</span> <span style="display:inline-block;width:8px;height:14px;background:#6172f3;vertical-align:middle;animation:vkcaret 1s steps(1) infinite"></span></div>
+          </div>
+        </sc-if>
+
+        <!-- TAB · LOGS -->
+        <sc-if value="{{ tabLogs }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;overflow:auto;margin:16px 20px 20px;border-radius:11px;background:#0a0b0e;border:1px solid rgba(255,255,255,.06);padding:16px 18px;display:flex;flex-direction:column;gap:7px">
+            <sc-for list="{{ logLines }}" as="lg" hint-placeholder-count="9">
+              <div style="display:flex;gap:12px;align-items:baseline">
+                <span style="font:400 11px 'Geist Mono',monospace;color:#4a4f5a;flex-shrink:0">{{ lg.ts }}</span>
+                <span style="font:400 12px/1.6 'Geist Mono',monospace;color:#8b8f9c;word-break:break-all">{{ lg.text }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <!-- TAB · CHANGES -->
+        <sc-if value="{{ tabChanges }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;overflow:auto;padding:16px 20px 20px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:12px;padding:2px 4px">
+              <span style="font:600 13px system-ui;color:#cfd2da">6 files changed</span>
+              <span style="font:500 12.5px 'Geist Mono',monospace;color:#3ad99b">+1,204</span>
+              <span style="font:500 12.5px 'Geist Mono',monospace;color:#e06a72">−340</span>
+              <div style="flex:1"></div>
+              <button style="padding:6px 13px;border:1px solid rgba(255,255,255,.09);border-radius:8px;background:rgba(255,255,255,.04);color:#cfd2da;font:600 12px system-ui;cursor:pointer">Open in editor</button>
+              <button style="padding:6px 13px;border:0;border-radius:8px;background:#6172f3;color:#fff;font:600 12px system-ui;cursor:pointer">Create PR</button>
+            </div>
+            <sc-for list="{{ changes }}" as="ch" hint-placeholder-count="6">
+              <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;background:#15171e;border:1px solid rgba(255,255,255,.05);cursor:pointer" style-hover="border-color:rgba(255,255,255,.12)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7080" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span style="flex:1;min-width:0;font:500 12.5px 'Geist Mono',monospace;color:#dfe1e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ch.file }}</span>
+                <div style="display:flex;gap:2px;flex-shrink:0">
+                  <span style="width:8px;height:8px;border-radius:2px;background:{{ ch.b1 }}"></span><span style="width:8px;height:8px;border-radius:2px;background:{{ ch.b2 }}"></span><span style="width:8px;height:8px;border-radius:2px;background:{{ ch.b3 }}"></span><span style="width:8px;height:8px;border-radius:2px;background:{{ ch.b4 }}"></span><span style="width:8px;height:8px;border-radius:2px;background:{{ ch.b5 }}"></span>
+                </div>
+                <span style="width:56px;text-align:right;font:500 12px 'Geist Mono',monospace;color:#3ad99b;flex-shrink:0">+{{ ch.add }}</span>
+                <span style="width:48px;text-align:right;font:500 12px 'Geist Mono',monospace;color:#e06a72;flex-shrink:0">−{{ ch.del }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <!-- TAB · PREVIEW -->
+        <sc-if value="{{ tabPreview }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;display:flex;flex-direction:column;margin:16px 20px 20px;border-radius:11px;background:#0a0b0e;border:1px solid rgba(255,255,255,.06);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;background:#101218;border-bottom:1px solid rgba(255,255,255,.06)">
+              <div style="display:flex;gap:14px;color:#5e636f">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              </div>
+              <div style="flex:1;display:flex;align-items:center;gap:8px;padding:5px 12px;border-radius:7px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5e636f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span style="font:500 12px 'Geist Mono',monospace;color:#8b8f9c">localhost:5173</span>
+              </div>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px">
+              <div style="display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:16px;background:rgba(97,114,243,.1);border:1px solid rgba(97,114,243,.2)"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#9aa6ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+              <div style="font:600 15px system-ui;color:#cfd2da">Preview isn't running</div>
+              <div style="font:400 13px system-ui;color:#7a7f8b">Start the dev server for this workspace to see it here.</div>
+              <button style="margin-top:4px;padding:8px 18px;border:0;border-radius:9px;background:#6172f3;color:#fff;font:600 13px system-ui;cursor:pointer">Start dev server</button>
+            </div>
+          </div>
+        </sc-if>
+      </main>
+    </sc-if>
+  </div>
+</div>
+
+<template id="__bundler_thumbnail">
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#0f1116"/><rect x="22" y="30" width="18" height="40" rx="3" fill="#6172f3"/><rect x="44" y="30" width="14" height="40" rx="3" fill="#35c98e"/><rect x="62" y="30" width="14" height="40" rx="3" fill="#2a2f3a"/></svg>
+</template>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;startView&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;workspaces&quot;, &quot;kanban&quot;, &quot;session&quot;], &quot;default&quot;: &quot;workspaces&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Behavior&quot; },
+  &quot;showArchived&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Behavior&quot; }
+}">
+class Component extends DCLogic {
+  state = { view: null, project: 'Loom Pro', tab: 'Agent', filter: 'All', ws: null };
+
+  renderVals() {
+    const set = (patch) => () => this.setState(patch);
+    const startView = this.props.startView ?? 'workspaces';
+    const rawView = this.state.view ?? (startView === 'session' ? 'detail' : startView);
+    const showArchived = this.props.showArchived ?? true;
+    const filter = this.state.filter;
+
+    // ---------- projects ----------
+    const projectDefs = [
+      { name: 'SAC', color: '#5b9bf0' },
+      { name: 'Loom Pro', color: '#6172f3', badge: '1' },
+      { name: 'iClean', color: '#35c98e' },
+      { name: 'Voicy', color: '#e6a44a' },
+      { name: 'Aquarius', color: '#e066a8' },
+    ];
+    const projects = projectDefs.map(p => ({
+      name: p.name, color: p.color,
+      badge: p.badge || null, hasBadge: !!p.badge,
+      active: rawView === 'kanban' && this.state.project === p.name,
+      inactive: !(rawView === 'kanban' && this.state.project === p.name),
+      open: set({ view: 'kanban', project: p.name }),
+    }));
+
+    // ---------- workspaces ----------
+    const mkWs = (name, branch, state, add, del, updated) => {
+      const s = state.toLowerCase();
+      return { name, branch, add, del, updated, state,
+        isRunning: s === 'running', isIdle: s === 'idle', isArchived: s === 'archived',
+        open: set({ view: 'detail', ws: { name, branch, state }, tab: 'Agent' }) };
+    };
+    const all = [
+      mkWs('Orchestrator', 'orchestrator', 'Running', '1.2k', 340, 'now'),
+      mkWs('Frontend', 'vk/e3a8-frontend', 'Idle', '210', 18, '28 Jun'),
+      mkWs('SAC updated', 'vk/2b4d-sac-updated', 'Archived', '88', 64, '27 Jun'),
+      mkWs('LOOM-13 · Hardening', 'vk/c37d-loom-13', 'Archived', '430', 120, '19 Jun'),
+      mkWs('LOOM-12 · Live venues', 'vk/ca64-loom-12', 'Archived', '612', 90, '19 Jun'),
+      mkWs('AQUA-8', 'vk/ebc3-aqua-8', 'Archived', '77', 12, '18 Jun'),
+      mkWs('LOOM-11 · Execution', 'vk/1f45-loom-11', 'Archived', '1.1k', 260, '18 Jun'),
+      mkWs('LOOM-10 · Latency', 'vk/3f75-loom-10', 'Archived', '305', 45, '18 Jun'),
+      mkWs('LOOM-9 · client-sdk', 'vk/9f57-loom-9', 'Archived', '520', 88, '18 Jun'),
+      mkWs('AQUA-6', 'vk/5b38-aqua-6', 'Archived', '63', 9, '18 Jun'),
+      mkWs('VOIC-14', 'vk/ec70-voic-14', 'Archived', '140', 30, '17 Jun'),
+    ];
+    let wsRows = all;
+    if (filter === 'Active') wsRows = all.filter(w => !w.isArchived);
+    else if (filter === 'Archived') wsRows = all.filter(w => w.isArchived);
+    else if (!showArchived) wsRows = all.filter(w => !w.isArchived);
+    const nActive = all.filter(w => !w.isArchived).length;
+    const nArchived = all.filter(w => w.isArchived).length;
+
+    const filters = ['All', 'Active', 'Archived'].map(f => ({
+      name: f, active: filter === f, inactive: filter !== f,
+      set: set({ filter: f }),
+    }));
+
+    // ---------- kanban ----------
+    const openOrch = set({ view: 'detail', ws: { name: 'Orchestrator', branch: 'orchestrator', state: 'Running' }, tab: 'Agent' });
+    const mkCard = (id, title, desc, prio, opts) => {
+      opts = opts || {};
+      const p = prio.toLowerCase();
+      return { id, title, desc,
+        prioHigh: p === 'high', prioMed: p === 'med',
+        add: opts.add || null, del: opts.del || null,
+        isRunning: !!opts.running, isDone: !!opts.done,
+        hasProgress: opts.progress != null,
+        progressPct: opts.progress != null ? opts.progress + '%' : null,
+        progressW: opts.progress != null ? opts.progress + '%' : '0%',
+        stepLabel: opts.steps || null,
+        stepNow: opts.stepNow || null,
+        open: opts.ws ? set({ view: 'detail', ws: opts.ws, tab: 'Agent' }) : null };
+    };
+    const loomColumns = [
+      { name: 'Todo', color: '#8b8f9c', count: 0, empty: true, cards: [] },
+      { name: 'In Progress', color: '#6172f3', count: 1, empty: false, cards: [
+        mkCard('LOOM-14', 'Frontend', 'Design the plan for frontend implementation — datafeeds only, port the sproot UI.', 'High',
+          { running: true, add: '180', del: 12, progress: 43, steps: '3/7', stepNow: 'Porting sproot chart panel', ws: { name: 'Frontend', branch: 'vk/e3a8-frontend', state: 'Running' } }),
+      ] },
+      { name: 'In Review', color: '#b07cf0', count: 0, empty: true, cards: [] },
+      { name: 'Done', color: '#35c98e', count: 13, empty: false, cards: [
+        mkCard('LOOM-9', 'Phase 6 — client-sdk + remote sproot', 'A reusable client SDK that connects to the dataserver and a ported sproot UI.', 'Med', { done: true, add: '520', del: 88, ws: { name: 'LOOM-9 · client-sdk', branch: 'vk/9f57-loom-9', state: 'Archived' } }),
+        mkCard('LOOM-10', 'Phase 7 — Latency observability', 'End-to-end latency instrumentation — ingress / enqueue / client-recv per topic.', 'Med', { done: true, add: '305', del: 45, ws: { name: 'LOOM-10 · Latency', branch: 'vk/3f75-loom-10', state: 'Archived' } }),
+        mkCard('LOOM-11', 'Phase 8 — Paper gateway + order store', 'A paper-trading execution layer with idempotent, crash-safe order handling.', 'High', { done: true, add: '1.1k', del: 260, ws: { name: 'LOOM-11 · Execution', branch: 'vk/1f45-loom-11', state: 'Archived' } }),
+        mkCard('LOOM-12', 'Phase 9 — Reference live venues', 'Two reference live-execution venues — Hyperliquid testnet and an EVM path.', 'High', { done: true, add: '612', del: 90, ws: { name: 'LOOM-12 · Live venues', branch: 'vk/ca64-loom-12', state: 'Archived' } }),
+        mkCard('LOOM-13', 'Phase 10 — Hardening / scale-out', 'Production hardening — a pools.{chain} state-delta topic, binary codec, soak test.', 'Med', { done: true, add: '430', del: 120, ws: { name: 'LOOM-13 · Hardening', branch: 'vk/c37d-loom-13', state: 'Archived' } }),
+      ] },
+    ];
+    const emptyColumns = [
+      { name: 'Todo', color: '#8b8f9c', count: 0, empty: true, cards: [] },
+      { name: 'In Progress', color: '#6172f3', count: 0, empty: true, cards: [] },
+      { name: 'In Review', color: '#b07cf0', count: 0, empty: true, cards: [] },
+      { name: 'Done', color: '#35c98e', count: 0, empty: true, cards: [] },
+    ];
+    const columns = this.state.project === 'Loom Pro' ? loomColumns : emptyColumns;
+
+    // ---------- workspace session ----------
+    const ws = this.state.ws || { name: 'Orchestrator', branch: 'orchestrator', state: 'Running' };
+    const tab = this.state.tab;
+    const tabs = ['Agent', 'Terminal', 'Logs', 'Changes', 'Preview'].map(t => ({
+      name: t, active: tab === t, inactive: tab !== t, set: set({ tab: t }),
+    }));
+
+    const mkEv = (type, o) => {
+      o = o || {};
+      return Object.assign({}, o, {
+        isRun: type === 'run', isSystem: type === 'system',
+        isThinking: type === 'thinking', isTool: type === 'tool',
+        ok: type === 'tool' && !!o.ok, fail: type === 'tool' && !o.ok,
+        mcp: !!o.mcp });
+    };
+    const timeline = [
+      mkEv('run', { cmd: 'loop', args: '5m · run exactly one orchestrator sweep, then idle until the next tick', model: 'opus 4.8' }),
+      mkEv('system', { count: 2 }),
+      mkEv('thinking', { text: "I'll arm the loop first, then run one sweep. Let me schedule the recurring task and read the per-tick brief in parallel." }),
+      mkEv('tool', { ok: true, name: 'CronCreate', detail: 'schedule every 5 minutes  ·  */5 * * * *' }),
+      mkEv('tool', { ok: true, name: 'Bash', detail: 'cat …/scripts/orchestrator.prompt.md 2>/dev/null || find … -name orchestrator.prompt.md' }),
+      mkEv('thinking', { text: 'Loop armed — job 8d720036, every 5 minutes. Now running one sweep: reachability, inventory and backend resolution in parallel.' }),
+      mkEv('tool', { ok: false, name: 'Bash', detail: 'echo "VIBE_BACKEND_URL=${VIBE_BACKEND_URL:-unset}"; for p in …/vibe-kanban.port; do …' }),
+      mkEv('tool', { ok: false, mcp: true, name: 'list_workspaces', detail: 'vibe-kanban-indie · tool not registered' }),
+      mkEv('tool', { ok: false, mcp: true, name: 'list_repos', detail: 'vibe-kanban-indie · tool not registered' }),
+      mkEv('tool', { ok: false, mcp: true, name: 'list_projects', detail: 'vibe-kanban-indie · tool not registered' }),
+      mkEv('thinking', { text: "The MCP tools aren't registered under that name. Let me discover the actual tool names and locate the backend." }),
+    ];
+
+    const cmd = (text) => ({ isCmd: true, isOut: false, text });
+    const out = (text) => ({ isCmd: false, isOut: true, text });
+    const termLines = [
+      cmd('vk session tail 7d5043'),
+      out('[04:11:02] session started  model=claude-opus-4-8  cwd=~/.vibe-kanban/orchestrator'),
+      out('[04:11:04] cron armed  job=8d720036  every="*/5 * * * *"'),
+      out('[04:11:09] tool CronCreate  ok  (120ms)'),
+      out('[04:11:11] tool Bash  ok  (340ms)'),
+      out('[04:12:20] tool Bash  exit=1  VIBE_BACKEND_URL=unset'),
+      out('[04:12:24] mcp list_workspaces → tool not registered'),
+      out('[04:12:24] mcp list_repos → tool not registered'),
+      out('[04:12:25] mcp list_projects → tool not registered'),
+      out('[04:12:31] discovery: scanning registered MCP tools…'),
+      cmd('git -C ~/dev/loom-pro status -sb'),
+      out('## orchestrator...origin/orchestrator [ahead 3]'),
+      out(' M crates/execution/src/gateway.rs'),
+      out(' M frontend/src/panels/chart.tsx'),
+    ];
+
+    const logLines = [
+      { ts: '04:11:02', text: '{"type":"agent-setting","agentSetting":"vibe-kanban-indie:orchestrator","sessionId":"c29e7197-1705-4e45-88e7-735348cd4b19"}' },
+      { ts: '04:11:02', text: '<command-message>loop</command-message>' },
+      { ts: '04:11:02', text: '<command-name>/loop</command-name>' },
+      { ts: '04:11:02', text: '<command-args>5m Run exactly one orchestrator sweep now, following your agent definition and the per-tick brief; then stop until the next tick.</command-args>' },
+      { ts: '04:11:03', text: 'System initialized with model: claude-opus-4-8' },
+      { ts: '04:11:04', text: '{"type":"cron","job":"8d720036","expr":"*/5 * * * *","status":"armed"}' },
+      { ts: '04:12:20', text: '{"type":"tool_result","tool":"Bash","exit":1,"stderr":"VIBE_BACKEND_URL=unset"}' },
+      { ts: '04:12:24', text: '{"type":"mcp_error","tool":"list_workspaces","error":"tool not registered"}' },
+      { ts: '04:12:31', text: '{"type":"agent-setting","agentSetting":"vibe-kanban-indie:orchestrator","sessionId":"c29e7197-1705-4e45-88e7-735348cd4b19"}' },
+    ];
+
+    const bar = (n) => {
+      const g = '#35c98e', r = '#e06a72', d = '#2a2f3a';
+      const map = { 5: [g,g,g,g,g], 4: [g,g,g,g,r], 3: [g,g,g,r,d], 2: [g,g,r,d,d], 1: [g,r,d,d,d] };
+      const c = map[n] || map[3];
+      return { b1: c[0], b2: c[1], b3: c[2], b4: c[3], b5: c[4] };
+    };
+    const changes = [
+      Object.assign({ file: 'crates/execution/src/gateway.rs', add: '412', del: '88' }, bar(4)),
+      Object.assign({ file: 'crates/execution/src/order_store.rs', add: '286', del: '40' }, bar(4)),
+      Object.assign({ file: 'frontend/src/panels/chart.tsx', add: '231', del: '96' }, bar(3)),
+      Object.assign({ file: 'frontend/src/lib/datafeed.ts', add: '164', del: '52' }, bar(3)),
+      Object.assign({ file: 'crates/codec/src/binary.rs', add: '84', del: '31' }, bar(2)),
+      Object.assign({ file: 'scripts/orchestrator.prompt.md', add: '27', del: '33' }, bar(1)),
+    ];
+
+    const isRunningWs = (ws.state || '').toLowerCase() === 'running';
+
+    return {
+      // nav
+      openWorkspaces: set({ view: 'workspaces' }),
+      openOrchestrator: openOrch,
+      navWsActive: rawView !== 'kanban',
+      navWsInactive: rawView === 'kanban',
+      projects,
+      // crumb
+      crumb: rawView === 'workspaces' ? 'Workspaces' : rawView === 'kanban' ? this.state.project : ws.name,
+      crumbBranch: rawView === 'detail' ? ws.branch : null,
+      // views
+      isWorkspaces: rawView === 'workspaces',
+      isKanban: rawView === 'kanban',
+      isDetail: rawView === 'detail',
+      // workspaces view
+      wsSubtitle: nActive + ' active · ' + nArchived + ' archived · across 5 projects',
+      filters, wsRows,
+      // kanban view
+      projectName: this.state.project,
+      columns,
+      // detail view
+      wsName: ws.name, wsBranch: ws.branch,
+      wsRunning: isRunningWs, wsCompleted: !isRunningWs,
+      tabs,
+      tabAgent: tab === 'Agent', tabTerminal: tab === 'Terminal', tabLogs: tab === 'Logs',
+      tabChanges: tab === 'Changes', tabPreview: tab === 'Preview',
+      timeline, termLines, logLines, changes,
+    };
+  }
+}
+</script>
+</body>
+</html>

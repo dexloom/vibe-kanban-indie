@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,system-ui,"Segoe UI",sans-serif; -webkit-font-smoothing:antialiased; }
+  a { color:#4956d4; text-decoration:none; }
+  a:hover { color:#2e3aa8; }
+  @keyframes vkpulse { 0%,100%{opacity:1;} 50%{opacity:.35;} }
+  @keyframes vkcaret { 0%,100%{opacity:1;} 50%{opacity:0;} }
+</style>
+</helmet>
+
+<section style="padding:70px 80px 40px">
+  <div style="max-width:1000px">
+    <div style="font:700 12px system-ui;letter-spacing:.18em;text-transform:uppercase;color:#4c5ae0">Turn 3 · Two more directions</div>
+    <div style="font:700 30px/1.1 system-ui;letter-spacing:-.02em;color:#14161d;margin-top:10px">Overview and side-by-side</div>
+    <div style="font:400 15px/1.6 system-ui;color:#3c4150;margin-top:12px;max-width:760px"><a href="#3a">3a</a> zooms out to every session at once, like Exposé for agents; <a href="#3b">3b</a> pins one live session beside the board so you work two-up. Sidebar switcher untouched in both.</div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:70px;margin-top:56px;align-items:flex-start">
+
+    <!-- ================= 3a · MISSION CONTROL ================= -->
+    <div id="3a" style="width:1150px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <a href="#3a" style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:24px;border-radius:7px;background:#6172f3;color:#fff;font:700 12.5px 'Geist Mono',monospace">3a</a>
+        <span style="font:700 17px system-ui;color:#14161d">Mission Control</span>
+        <span style="padding:2px 9px;border-radius:20px;background:rgba(138,95,208,.16);color:#6a3fc4;font:600 11px system-ui">bold</span>
+      </div>
+      <div style="border-radius:12px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.45);background:#0f1116">
+        <div style="display:flex;align-items:center;height:40px;background:#0b0c10;border-bottom:1px solid rgba(255,255,255,.06);padding:0 14px;gap:10px">
+          <div style="display:flex;gap:7px"><span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span></div>
+          <span style="font:500 12px 'Geist Mono',monospace;color:#6b7080;margin-left:8px">vibe-kanban</span><span style="color:#3a3e49">/</span><span style="font:600 12.5px system-ui;color:#cfd2da">Mission Control</span>
+          <div style="flex:1"></div>
+          <span style="padding:2px 8px;border-radius:5px;background:rgba(255,255,255,.06);font:600 10px 'Geist Mono',monospace;color:#8b8f9c">F3</span>
+        </div>
+        <div style="display:flex;height:520px">
+          <aside style="width:190px;flex-shrink:0;background:#0b0c10;border-right:1px solid rgba(255,255,255,.05);padding:12px 10px;display:flex;flex-direction:column;gap:2px">
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7a7f8b" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg><span style="font:600 13px system-ui;color:#b9bcc6">Workspaces</span></div>
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;background:rgba(97,114,243,.16);border:1px solid rgba(97,114,243,.3)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa6ff" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
+              <span style="flex:1;font:600 13px system-ui;color:#eceef3">Mission Control</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;font:600 10px 'Geist Mono',monospace;color:#3ad99b"><span style="width:5px;height:5px;border-radius:50%;background:#35c98e;animation:vkpulse 1.4s infinite"></span>3</span>
+            </div>
+            <div style="font:600 10.5px system-ui;letter-spacing:.13em;text-transform:uppercase;color:#5a5f6b;margin:16px 9px 6px">Projects</div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#5b9bf0"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">SAC</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#6172f3"></span><span style="flex:1;font:500 12.5px system-ui;color:#b9bcc6">Loom Pro</span><span style="padding:1px 6px;border-radius:20px;background:rgba(53,201,142,.16);font:600 10px 'Geist Mono',monospace;color:#3ad99b">2</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#35c98e"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">iClean</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#e6a44a"></span><span style="flex:1;font:500 12.5px system-ui;color:#b9bcc6">Voicy</span><span style="padding:1px 6px;border-radius:20px;background:rgba(230,164,74,.2);font:600 10px 'Geist Mono',monospace;color:#e6b45c">1</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#e066a8"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">Aquarius</span></div>
+          </aside>
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column;padding:18px 22px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="font:700 21px system-ui;letter-spacing:-.02em;color:#f1f2f6">Mission Control</div>
+              <span style="font:500 12.5px system-ui;color:#7a7f8b">3 live · 1 waiting · 2 recent</span>
+              <div style="flex:1"></div>
+              <span style="font:500 12px system-ui;color:#5e636f">Sorted by activity</span>
+            </div>
+            <div style="flex:1;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:12px;margin-top:16px;min-height:0">
+              <!-- tile: orchestrator -->
+              <div style="display:flex;flex-direction:column;border-radius:11px;background:#12141b;border:1.5px solid rgba(97,114,243,.5);box-shadow:0 0 26px -10px rgba(97,114,243,.5);overflow:hidden">
+                <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid rgba(255,255,255,.06)"><span style="width:7px;height:7px;border-radius:50%;background:#35c98e;animation:vkpulse 1.4s infinite"></span><span style="font:600 12px system-ui;color:#eceef3">Orchestrator</span><div style="flex:1"></div><span style="font:600 10px 'Geist Mono',monospace;color:#8b8f9c">02:12</span></div>
+                <div style="flex:1;padding:9px 11px;display:flex;flex-direction:column;gap:5px;overflow:hidden">
+                  <div style="font:400 9.5px 'Geist Mono',monospace;color:#6b7080;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">✓ CronCreate · */5 * * * *</div>
+                  <div style="font:400 9.5px 'Geist Mono',monospace;color:#f0838c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">✕ list_projects · not registered</div>
+                  <div style="font:400 9.5px 'Geist Mono',monospace;color:#9aa0ad;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">› discovering MCP tool names<span style="display:inline-block;width:5px;height:9px;background:#6172f3;margin-left:3px;vertical-align:middle;animation:vkcaret 1s steps(1) infinite"></span></div>
+                </div>
+                <div style="padding:0 11px 9px"><div style="height:3px;border-radius:3px;background:rgba(255,255,255,.07)"><div style="height:100%;width:61%;border-radius:3px;background:linear-gradient(90deg,#6172f3,#9aa6ff)"></div></div></div>
+              </div>
+              <!-- tile: frontend -->
+              <div style="display:flex;flex-direction:column;border-radius:11px;background:#12141b;border:1.5px solid rgba(97,114,243,.5);box-shadow:0 0 26px -10px rgba(97,114,243,.5);overflow:hidden">
+                <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid rgba(255,255,255,.06)"><span style="width:7px;height:7px;border-radius:50%;background:#35c98e;animation:vkpulse 1.4s infinite"></span><span style="font:600 12px system-ui;color:#eceef3">Frontend</span><span style="font:600 9.5px 'Geist Mono',monospace;color:#7a7f8b">LOOM-14</span><div style="flex:1"></div><span style="font:600 10px 'Geist Mono',monospace;color:#8b8f9c">43%</span></div>
+                <div style="flex:1;padding:9px 11px;display:flex;flex-direction:column;gap:5px;overflow:hidden">
+                  <div style="font:400 9.5px 'Geist Mono',monospace;color:#6b7080;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">✓ Edit · panels/chart.tsx +231 −96</div>
+                  <div style="font:400 9.5px 'Geist Mono',monospace;color:#6b7080;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">✓ Bash · vitest 34 passed</div>
+                  <div style="font:400 9.5px 'Geist Mono',monospace;color:#9aa0ad;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">› binding datafeed to panel<span style="display:inline-block;width:5px;height:9px;background:#6172f3;margin-left:3px;vertical-align:middle;animation:vkcaret 1s steps(1) infinite"></span></div>
+                </div>
+                <div style="padding:0 11px 9px"><div style="height:3px;border-radius:3px;background:rgba(255,255,255,.07)"><div style="height:100%;width:43%;border-radius:3px;background:linear-gradient(90deg,#6172f3,#9aa6ff)"></div></div></div>
+              </div>
+              <!-- tile: voic-15 waiting -->
+              <div style="display:flex;flex-direction:column;border-radius:11px;background:#12141b;border:1.5px solid rgba(230,164,74,.45);overflow:hidden">
+                <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid rgba(255,255,255,.06)"><span style="width:7px;height:7px;border-radius:50%;background:#e6a44a"></span><span style="font:600 12px system-ui;color:#eceef3">VOIC-15</span><div style="flex:1"></div><span style="padding:1px 6px;border-radius:4px;background:rgba(230,164,74,.15);font:600 9px system-ui;color:#e6b45c">waiting</span></div>
+                <div style="flex:1;padding:9px 11px;display:flex;flex-direction:column;gap:5px">
+                  <div style="font:400 9.5px 'Geist Mono',monospace;color:#6b7080">plan proposed · 4 steps</div>
+                  <div style="font:400 9.5px 'Geist Mono',monospace;color:#e6b45c">needs your approval · 4m</div>
+                </div>
+                <div style="padding:0 11px 9px"><button style="width:100%;padding:6px 0;border:0;border-radius:7px;background:#6172f3;color:#fff;font:600 10.5px system-ui">Review plan</button></div>
+              </div>
+              <!-- tile: recent done -->
+              <div style="display:flex;flex-direction:column;border-radius:11px;background:#101218;border:1px solid rgba(255,255,255,.06);overflow:hidden;opacity:.8">
+                <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid rgba(255,255,255,.05)"><span style="display:flex;color:#3ad99b"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span style="font:600 12px system-ui;color:#c6c9d2">LOOM-13 · Hardening</span><div style="flex:1"></div><span style="font:600 10px 'Geist Mono',monospace;color:#5e636f">19 Jun</span></div>
+                <div style="flex:1;padding:9px 11px"><div style="font:400 9.5px 'Geist Mono',monospace;color:#6b7080">merged · +430 −120 · 9 turns</div></div>
+              </div>
+              <div style="display:flex;flex-direction:column;border-radius:11px;background:#101218;border:1px solid rgba(255,255,255,.06);overflow:hidden;opacity:.8">
+                <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid rgba(255,255,255,.05)"><span style="display:flex;color:#3ad99b"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span style="font:600 12px system-ui;color:#c6c9d2">LOOM-12 · Live venues</span><div style="flex:1"></div><span style="font:600 10px 'Geist Mono',monospace;color:#5e636f">19 Jun</span></div>
+                <div style="flex:1;padding:9px 11px"><div style="font:400 9.5px 'Geist Mono',monospace;color:#6b7080">merged · +612 −90 · 12 turns</div></div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:center;border-radius:11px;border:1.5px dashed rgba(255,255,255,.08)">
+                <span style="display:inline-flex;align-items:center;gap:7px;font:600 11.5px system-ui;color:#5e636f"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Spawn agent</span>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+      <div style="font:400 13px/1.55 system-ui;color:#3c4150;margin-top:12px;max-width:640px">Exposé for agents: a sidebar destination (or F3) that zooms out to <i>every</i> session as a live tile — last tool lines streaming, progress, waiting-on-you flags, recent completions dimmed. Click a tile to zoom into that session; click "Review plan" without leaving the grid.</div>
+    </div>
+
+    <!-- ================= 3b · SPLIT FOCUS ================= -->
+    <div id="3b" style="width:1150px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <a href="#3b" style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:24px;border-radius:7px;background:#6172f3;color:#fff;font:700 12.5px 'Geist Mono',monospace">3b</a>
+        <span style="font:700 17px system-ui;color:#14161d">Split Focus</span>
+        <span style="padding:2px 9px;border-radius:20px;background:rgba(53,158,107,.15);color:#1f7a4e;font:600 11px system-ui">subtle</span>
+      </div>
+      <div style="border-radius:12px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.45);background:#0f1116">
+        <div style="display:flex;align-items:center;height:40px;background:#0b0c10;border-bottom:1px solid rgba(255,255,255,.06);padding:0 14px;gap:10px">
+          <div style="display:flex;gap:7px"><span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span></div>
+          <span style="font:500 12px 'Geist Mono',monospace;color:#6b7080;margin-left:8px">vibe-kanban</span><span style="color:#3a3e49">/</span><span style="font:600 12.5px system-ui;color:#cfd2da">Loom Pro</span><span style="color:#3a3e49">+</span><span style="font:600 12.5px system-ui;color:#9aa6ff">Frontend</span>
+        </div>
+        <div style="display:flex;height:520px">
+          <aside style="width:190px;flex-shrink:0;background:#0b0c10;border-right:1px solid rgba(255,255,255,.05);padding:12px 10px;display:flex;flex-direction:column;gap:2px">
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7a7f8b" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg><span style="font:600 13px system-ui;color:#b9bcc6">Workspaces</span></div>
+            <div style="font:600 10.5px system-ui;letter-spacing:.13em;text-transform:uppercase;color:#5a5f6b;margin:16px 9px 6px">Projects</div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#5b9bf0"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">SAC</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(97,114,243,.16);border:1px solid rgba(97,114,243,.3)"><span style="width:8px;height:8px;border-radius:50%;background:#6172f3"></span><span style="flex:1;font:600 12.5px system-ui;color:#eceef3">Loom Pro</span><span style="padding:1px 6px;border-radius:20px;background:rgba(53,201,142,.16);font:600 10px 'Geist Mono',monospace;color:#3ad99b">1</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#35c98e"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">iClean</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#e6a44a"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">Voicy</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#e066a8"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">Aquarius</span></div>
+          </aside>
+          <!-- board half -->
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column;padding:16px 16px 16px 20px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="font:700 19px system-ui;letter-spacing:-.02em;color:#f1f2f6">Loom Pro</div><div style="flex:1"></div><span style="font:500 11.5px system-ui;color:#5e636f">Search · Sort</span></div>
+            <div style="flex:1;display:flex;gap:10px;margin-top:13px;min-height:0">
+              <div style="flex:1;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:9px 8px">
+                <div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#6172f3;flex-shrink:0"></span><span style="font:600 11.5px system-ui;color:#cfd2da;white-space:nowrap">In Progress</span><span style="font:600 10.5px 'Geist Mono',monospace;color:#5e636f">1</span></div>
+                <div style="margin-top:9px;background:#15171e;border:1.5px solid rgba(97,114,243,.55);border-radius:9px;padding:9px 10px">
+                  <div style="display:flex;align-items:center"><span style="font:600 9.5px 'Geist Mono',monospace;color:#7a7f8b">LOOM-14</span><div style="flex:1"></div><span style="display:flex;color:#9aa6ff"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1a1 1 0 0 0 0-2H7a1 1 0 0 0 0 2h1v8l-2 2v2h5v6l1 1 1-1v-6h5v-2z"/></svg></span></div>
+                  <div style="font:600 12px system-ui;color:#e6e8ee;margin-top:3px">Frontend</div>
+                  <div style="margin-top:7px;height:3.5px;border-radius:3px;background:rgba(255,255,255,.06)"><div style="height:100%;width:43%;border-radius:3px;background:linear-gradient(90deg,#6172f3,#9aa6ff)"></div></div>
+                  <div style="display:flex;margin-top:5px"><span style="font:600 9.5px 'Geist Mono',monospace;color:#aeb6ff">3/7</span><div style="flex:1"></div><span style="font:600 9.5px 'Geist Mono',monospace;color:#8b8f9c">43%</span></div>
+                </div>
+              </div>
+              <div style="flex:1;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:9px 8px">
+                <div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#b07cf0;flex-shrink:0"></span><span style="font:600 11.5px system-ui;color:#cfd2da;white-space:nowrap">In Review</span><span style="font:600 10.5px 'Geist Mono',monospace;color:#5e636f">0</span></div>
+                <div style="margin-top:9px;height:54px;border:1.5px dashed rgba(255,255,255,.07);border-radius:8px"></div>
+              </div>
+              <div style="flex:1;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:9px 8px;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#35c98e;flex-shrink:0"></span><span style="font:600 11.5px system-ui;color:#cfd2da">Done</span><span style="font:600 10.5px 'Geist Mono',monospace;color:#5e636f">13</span></div>
+                <div style="margin-top:9px;background:#15171e;border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:8px 9px"><div style="font:600 9.5px 'Geist Mono',monospace;color:#7a7f8b">LOOM-9</div><div style="font:600 11px system-ui;color:#c6c9d2;margin-top:2px">Phase 6 — client-sdk</div></div>
+                <div style="margin-top:7px;background:#15171e;border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:8px 9px"><div style="font:600 9.5px 'Geist Mono',monospace;color:#7a7f8b">LOOM-10</div><div style="font:600 11px system-ui;color:#c6c9d2;margin-top:2px">Phase 7 — Latency</div></div>
+              </div>
+            </div>
+          </main>
+          <!-- divider -->
+          <div style="width:5px;flex-shrink:0;background:#0b0c10;border-left:1px solid rgba(97,114,243,.3);border-right:1px solid rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center"><span style="width:3px;height:34px;border-radius:3px;background:rgba(255,255,255,.14)"></span></div>
+          <!-- pinned session half -->
+          <section style="width:400px;flex-shrink:0;display:flex;flex-direction:column;background:#0d0e13">
+            <div style="display:flex;align-items:center;gap:8px;padding:11px 13px;border-bottom:1px solid rgba(255,255,255,.06)">
+              <span style="display:flex;color:#9aa6ff"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1a1 1 0 0 0 0-2H7a1 1 0 0 0 0 2h1v8l-2 2v2h5v6l1 1 1-1v-6h5v-2z"/></svg></span>
+              <span style="font:600 13px system-ui;color:#eceef3">Frontend</span>
+              <span style="font:500 10.5px 'Geist Mono',monospace;color:#7a7f8b">vk/e3a8-frontend</span>
+              <div style="flex:1"></div>
+              <span style="display:inline-flex;align-items:center;gap:5px;font:600 10.5px system-ui;color:#3ad99b"><span style="width:5px;height:5px;border-radius:50%;background:#35c98e;animation:vkpulse 1.4s infinite"></span>Running</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </div>
+            <div style="display:flex;gap:2px;padding:9px 13px 0">
+              <span style="padding:4px 10px;border-radius:6px;background:#6172f3;color:#fff;font:600 11px system-ui">Agent</span>
+              <span style="padding:4px 10px;color:#9aa0ad;font:600 11px system-ui">Terminal</span>
+              <span style="padding:4px 10px;color:#9aa0ad;font:600 11px system-ui">Changes</span>
+            </div>
+            <div style="flex:1;overflow:hidden;padding:11px 13px;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;gap:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="#6172f3" style="flex-shrink:0;margin-top:2px;opacity:.85"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/></svg><span style="font:italic 400 11.5px/1.55 system-ui;color:#9aa0ad">Chart panel compiles clean. Binding the live datafeed next, then the volume overlay.</span></div>
+              <div style="display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;background:#15171e;border:1px solid rgba(255,255,255,.05)"><span style="display:flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:rgba(53,201,142,.16);color:#3ad99b;flex-shrink:0"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span style="font:600 10.5px 'Geist Mono',monospace;color:#dfe1e8">Edit</span><span style="flex:1;font:400 10px 'Geist Mono',monospace;color:#6b7080;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">panels/chart.tsx +231 −96</span></div>
+              <div style="display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;background:#15171e;border:1px solid rgba(255,255,255,.05)"><span style="display:flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;background:rgba(53,201,142,.16);color:#3ad99b;flex-shrink:0"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span style="font:600 10.5px 'Geist Mono',monospace;color:#dfe1e8">Bash</span><span style="flex:1;font:400 10px 'Geist Mono',monospace;color:#6b7080;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">pnpm vitest run panels/chart · 34 passed</span></div>
+              <div style="display:flex;gap:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="#6172f3" style="flex-shrink:0;margin-top:2px;opacity:.85"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/></svg><span style="font:italic 400 11.5px/1.55 system-ui;color:#9aa0ad">Datafeed contract is stable — wiring the panel props now.<span style="display:inline-block;width:6px;height:11px;background:#6172f3;margin-left:4px;vertical-align:middle;animation:vkcaret 1s steps(1) infinite"></span></span></div>
+            </div>
+            <div style="padding:10px 13px 13px;border-top:1px solid rgba(255,255,255,.06)">
+              <div style="display:flex;align-items:center;gap:8px;background:#15171e;border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:8px 10px">
+                <span style="flex:1;font:400 12px system-ui;color:#5e636f">Message the agent…</span>
+                <span style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;background:#6172f3;color:#fff"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+      <div style="font:400 13px/1.55 system-ui;color:#3c4150;margin-top:12px;max-width:640px">Pin any session to the right edge — the pin icon on a card or workspace row splits the window. Board (or list) keeps working on the left; the live session streams on the right with its own tabs and composer. The pinned pane persists as you switch projects and views; drag the divider to resize, ✕ to unpin.</div>
+    </div>
+
+  </div>
+</section>
+
+<section style="padding:40px 80px 40px;border-top:1px dashed rgba(40,44,60,.2)">
+  <div style="max-width:1000px">
+    <div style="font:700 12px system-ui;letter-spacing:.18em;text-transform:uppercase;color:#4c5ae0">Turn 2 · Two more directions</div>
+    <div style="font:700 30px/1.1 system-ui;letter-spacing:-.02em;color:#14161d;margin-top:10px">Time and triage</div>
+    <div style="font:400 15px/1.6 system-ui;color:#3c4150;margin-top:12px;max-width:760px"><a href="#2a">2a</a> treats agent work as a recording you can scrub; <a href="#2b">2b</a> treats it as an inbox you triage. Both keep the sidebar-switcher layout untouched.</div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:70px;margin-top:56px;align-items:flex-start">
+
+    <!-- ================= 2a · FLIGHT RECORDER ================= -->
+    <div id="2a" style="width:1150px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <a href="#2a" style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:24px;border-radius:7px;background:#6172f3;color:#fff;font:700 12.5px 'Geist Mono',monospace">2a</a>
+        <span style="font:700 17px system-ui;color:#14161d">Flight Recorder</span>
+        <span style="padding:2px 9px;border-radius:20px;background:rgba(138,95,208,.16);color:#6a3fc4;font:600 11px system-ui">bold</span>
+      </div>
+      <div style="border-radius:12px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.45);background:#0f1116">
+        <div style="display:flex;align-items:center;height:40px;background:#0b0c10;border-bottom:1px solid rgba(255,255,255,.06);padding:0 14px;gap:10px">
+          <div style="display:flex;gap:7px"><span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span></div>
+          <span style="font:500 12px 'Geist Mono',monospace;color:#6b7080;margin-left:8px">vibe-kanban</span><span style="color:#3a3e49">/</span><span style="font:600 12.5px system-ui;color:#cfd2da">Workspaces</span>
+        </div>
+        <div style="display:flex;height:330px">
+          <aside style="width:190px;flex-shrink:0;background:#0b0c10;border-right:1px solid rgba(255,255,255,.05);padding:12px 10px;display:flex;flex-direction:column;gap:2px">
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;background:rgba(97,114,243,.16);border:1px solid rgba(97,114,243,.3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa6ff" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg><span style="font:600 13px system-ui;color:#eceef3">Workspaces</span></div>
+            <div style="font:600 10.5px system-ui;letter-spacing:.13em;text-transform:uppercase;color:#5a5f6b;margin:16px 9px 6px">Projects</div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#5b9bf0"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">SAC</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#6172f3"></span><span style="flex:1;font:500 12.5px system-ui;color:#b9bcc6">Loom Pro</span><span style="padding:1px 6px;border-radius:20px;background:rgba(53,201,142,.16);font:600 10px 'Geist Mono',monospace;color:#3ad99b">2</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#35c98e"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">iClean</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#e6a44a"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">Voicy</span></div>
+          </aside>
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column;padding:18px 22px 10px">
+            <div style="display:flex;align-items:center"><div style="font:700 21px system-ui;letter-spacing:-.02em;color:#f1f2f6">Workspaces</div><div style="flex:1"></div><button style="padding:7px 13px;border:0;border-radius:8px;background:#6172f3;color:#fff;font:600 12px system-ui">+ New</button></div>
+            <div style="display:flex;align-items:center;height:44px;border-radius:8px;background:rgba(97,114,243,.07);padding:0 8px;margin-top:16px"><span style="width:8px;height:8px;border-radius:50%;background:#35c98e;animation:vkpulse 1.5s infinite;margin-right:12px"></span><div style="flex:1.6;font:600 13px system-ui;color:#dfe1e8">Orchestrator</div><div style="flex:1.2;font:500 11.5px 'Geist Mono',monospace;color:#9aa0ad">orchestrator</div><span style="padding:2px 8px;border-radius:6px;background:rgba(53,201,142,.14);color:#3ad99b;font:600 10.5px system-ui">Running</span></div>
+            <div style="display:flex;align-items:center;height:44px;border-radius:8px;background:rgba(97,114,243,.07);padding:0 8px;margin-top:4px"><span style="width:8px;height:8px;border-radius:50%;background:#35c98e;animation:vkpulse 1.5s infinite;margin-right:12px"></span><div style="flex:1.6;font:600 13px system-ui;color:#dfe1e8">Frontend</div><div style="flex:1.2;font:500 11.5px 'Geist Mono',monospace;color:#9aa0ad">vk/e3a8-frontend</div><span style="padding:2px 8px;border-radius:6px;background:rgba(53,201,142,.14);color:#3ad99b;font:600 10.5px system-ui">Running</span></div>
+            <div style="display:flex;align-items:center;height:44px;padding:0 8px;margin-top:4px"><span style="width:7px;height:7px;border-radius:50%;border:1.5px solid #383c46;margin-right:12px"></span><div style="flex:1.6;font:600 13px system-ui;color:#8b8f9c">SAC updated</div><div style="flex:1.2;font:500 11.5px 'Geist Mono',monospace;color:#6b7080">vk/2b4d-sac-updated</div><span style="font:600 11px system-ui;color:#5e636f">Archived</span></div>
+          </main>
+        </div>
+        <!-- RECORDER -->
+        <div style="background:#0a0b0f;border-top:1px solid rgba(97,114,243,.25);padding:12px 16px 14px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font:600 9.5px system-ui;letter-spacing:.16em;color:#5e636f">FLIGHT RECORDER</span>
+            <span style="display:inline-flex;align-items:center;gap:5px;font:600 10.5px 'Geist Mono',monospace;color:#3ad99b"><span style="width:5px;height:5px;border-radius:50%;background:#35c98e;animation:vkpulse 1.4s infinite"></span>recording</span>
+            <div style="flex:1"></div>
+            <span style="display:flex;gap:10px;color:#6b7080">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+            </span>
+            <span style="font:600 11px 'Geist Mono',monospace;color:#cfd2da">04:12:24</span>
+            <span style="padding:2px 8px;border-radius:5px;background:rgba(255,255,255,.06);font:600 10px 'Geist Mono',monospace;color:#8b8f9c">1×</span>
+          </div>
+          <!-- axis -->
+          <div style="position:relative;margin-top:10px">
+            <div style="display:flex;justify-content:space-between;font:500 9.5px 'Geist Mono',monospace;color:#4a4f5a;padding:0 2px"><span>04:00</span><span>04:05</span><span>04:10</span><span>04:15</span><span>now</span></div>
+            <!-- lanes -->
+            <div style="display:flex;flex-direction:column;gap:6px;margin-top:7px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="width:86px;flex-shrink:0;font:600 10.5px system-ui;color:#9aa0ad;text-align:right">Orchestrator</span>
+                <div style="position:relative;flex:1;height:16px;border-radius:4px;background:rgba(255,255,255,.03)">
+                  <span style="position:absolute;left:4%;width:9%;top:3px;bottom:3px;border-radius:3px;background:rgba(97,114,243,.55)"></span>
+                  <span style="position:absolute;left:15%;width:6%;top:3px;bottom:3px;border-radius:3px;background:rgba(53,201,142,.6)"></span>
+                  <span style="position:absolute;left:23%;width:4%;top:3px;bottom:3px;border-radius:3px;background:rgba(240,97,109,.65)"></span>
+                  <span style="position:absolute;left:30%;width:12%;top:3px;bottom:3px;border-radius:3px;background:rgba(53,201,142,.6)"></span>
+                  <span style="position:absolute;left:45%;width:8%;top:3px;bottom:3px;border-radius:3px;background:rgba(97,114,243,.55)"></span>
+                  <span style="position:absolute;left:56%;width:5%;top:3px;bottom:3px;border-radius:3px;background:rgba(240,97,109,.65)"></span>
+                  <span style="position:absolute;left:64%;width:14%;top:3px;bottom:3px;border-radius:3px;background:rgba(53,201,142,.6)"></span>
+                  <span style="position:absolute;left:80%;width:6%;top:3px;bottom:3px;border-radius:3px;background:rgba(97,114,243,.55)"></span>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="width:86px;flex-shrink:0;font:600 10.5px system-ui;color:#9aa0ad;text-align:right">Frontend</span>
+                <div style="position:relative;flex:1;height:16px;border-radius:4px;background:rgba(255,255,255,.03)">
+                  <span style="position:absolute;left:36%;width:10%;top:3px;bottom:3px;border-radius:3px;background:rgba(97,114,243,.55)"></span>
+                  <span style="position:absolute;left:48%;width:16%;top:3px;bottom:3px;border-radius:3px;background:rgba(53,201,142,.6)"></span>
+                  <span style="position:absolute;left:66%;width:9%;top:3px;bottom:3px;border-radius:3px;background:rgba(97,114,243,.55)"></span>
+                  <span style="position:absolute;left:77%;width:12%;top:3px;bottom:3px;border-radius:3px;background:rgba(53,201,142,.6)"></span>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="width:86px;flex-shrink:0;font:600 10.5px system-ui;color:#9aa0ad;text-align:right">VOIC-15</span>
+                <div style="position:relative;flex:1;height:16px;border-radius:4px;background:rgba(255,255,255,.03)">
+                  <span style="position:absolute;left:10%;width:22%;top:3px;bottom:3px;border-radius:3px;background:rgba(53,201,142,.6)"></span>
+                  <span style="position:absolute;left:34%;width:8%;top:3px;bottom:3px;border-radius:3px;background:rgba(230,164,74,.7)"></span>
+                </div>
+              </div>
+            </div>
+            <!-- playhead -->
+            <div style="position:absolute;left:calc(86px + (100% - 96px) * .61);top:12px;bottom:-2px;width:1.5px;background:#fff;box-shadow:0 0 8px rgba(255,255,255,.5)">
+              <div style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);padding:2px 8px;border-radius:5px;background:#fff;color:#14161d;font:700 10px 'Geist Mono',monospace;white-space:nowrap">04:12:24</div>
+            </div>
+          </div>
+          <!-- event under playhead -->
+          <div style="display:flex;align-items:center;gap:10px;margin-top:12px;padding:8px 11px;border-radius:9px;background:#12141b;border:1px solid rgba(255,255,255,.07)">
+            <span style="display:flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:5px;background:rgba(240,97,109,.16);color:#f0838c;flex-shrink:0"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+            <span style="font:600 11.5px 'Geist Mono',monospace;color:#dfe1e8">list_workspaces</span>
+            <span style="padding:1px 6px;border-radius:4px;background:rgba(176,124,240,.14);font:600 9.5px 'Geist Mono',monospace;color:#c79cf5">MCP</span>
+            <span style="flex:1;font:400 11px 'Geist Mono',monospace;color:#6b7080;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">vibe-kanban-indie · tool not registered · Orchestrator</span>
+            <span style="font:600 10.5px system-ui;color:#9aa6ff">Jump to session →</span>
+          </div>
+        </div>
+      </div>
+      <div style="font:400 13px/1.55 system-ui;color:#3c4150;margin-top:12px;max-width:640px">Agent work as a recording. Every session is a lane; tool calls, thinking and failures are colored segments on a shared time axis. Drag the playhead to any moment — the event under it shows below, and "jump to session" opens the timeline scrolled to exactly that point. Answers "what happened while I was away?" in one glance.</div>
+    </div>
+
+    <!-- ================= 2b · ACTIVITY INBOX ================= -->
+    <div id="2b" style="width:1150px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <a href="#2b" style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:24px;border-radius:7px;background:#6172f3;color:#fff;font:700 12.5px 'Geist Mono',monospace">2b</a>
+        <span style="font:700 17px system-ui;color:#14161d">Activity Inbox</span>
+        <span style="padding:2px 9px;border-radius:20px;background:rgba(53,158,107,.15);color:#1f7a4e;font:600 11px system-ui">subtle</span>
+      </div>
+      <div style="border-radius:12px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.45);background:#0f1116">
+        <div style="display:flex;align-items:center;height:40px;background:#0b0c10;border-bottom:1px solid rgba(255,255,255,.06);padding:0 14px;gap:10px">
+          <div style="display:flex;gap:7px"><span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span></div>
+          <span style="font:500 12px 'Geist Mono',monospace;color:#6b7080;margin-left:8px">vibe-kanban</span><span style="color:#3a3e49">/</span><span style="font:600 12.5px system-ui;color:#cfd2da">Inbox</span>
+        </div>
+        <div style="display:flex;height:520px">
+          <aside style="width:190px;flex-shrink:0;background:#0b0c10;border-right:1px solid rgba(255,255,255,.05);padding:12px 10px;display:flex;flex-direction:column;gap:2px">
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;background:rgba(97,114,243,.16);border:1px solid rgba(97,114,243,.3)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa6ff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+              <span style="flex:1;font:600 13px system-ui;color:#eceef3">Inbox</span>
+              <span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:20px;background:#e6a44a;font:700 10.5px 'Geist Mono',monospace;color:#14161d">3</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7a7f8b" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg><span style="font:600 13px system-ui;color:#b9bcc6">Workspaces</span></div>
+            <div style="font:600 10.5px system-ui;letter-spacing:.13em;text-transform:uppercase;color:#5a5f6b;margin:16px 9px 6px">Projects</div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#5b9bf0"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">SAC</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#6172f3"></span><span style="flex:1;font:500 12.5px system-ui;color:#b9bcc6">Loom Pro</span><span style="padding:1px 6px;border-radius:20px;background:rgba(53,201,142,.16);font:600 10px 'Geist Mono',monospace;color:#3ad99b">1</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#35c98e"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">iClean</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#e6a44a"></span><span style="flex:1;font:500 12.5px system-ui;color:#b9bcc6">Voicy</span><span style="padding:1px 6px;border-radius:20px;background:rgba(230,164,74,.2);font:600 10px 'Geist Mono',monospace;color:#e6b45c">1</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#e066a8"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">Aquarius</span></div>
+          </aside>
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column;padding:18px 22px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="font:700 21px system-ui;letter-spacing:-.02em;color:#f1f2f6">Inbox</div>
+              <div style="flex:1"></div>
+              <div style="display:flex;background:#15171e;border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:3px">
+                <span style="padding:4px 11px;border-radius:6px;background:#262b36;color:#e6e8ee;font:600 12px system-ui">Needs you · 3</span>
+                <span style="padding:4px 11px;color:#8b8f9c;font:600 12px system-ui">All activity</span>
+              </div>
+              <span style="font:600 12px system-ui;color:#8b8f9c">Mark all read</span>
+            </div>
+
+            <div style="font:600 10.5px system-ui;letter-spacing:.13em;text-transform:uppercase;color:#e6b45c;margin:18px 2px 8px">Needs you</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;background:#15171e;border:1px solid rgba(230,164,74,.3)">
+                <span style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;background:rgba(230,164,74,.14);color:#e6b45c;flex-shrink:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+                <div style="min-width:0;flex:1">
+                  <div style="display:flex;align-items:center;gap:8px"><span style="font:600 13.5px system-ui;color:#eceef3">Plan approval — VOIC-15</span><span style="width:6px;height:6px;border-radius:50%;background:#e6a44a"></span><span style="font:500 11.5px 'Geist Mono',monospace;color:#8b8f9c">Voicy</span></div>
+                  <div style="font:400 12px system-ui;color:#868b97;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Agent proposes 4-step plan: migrate recorder to worklets, add VAD gate, backfill tests…</div>
+                </div>
+                <span style="font:500 11px 'Geist Mono',monospace;color:#6b7080;flex-shrink:0">4m</span>
+                <button style="padding:6px 13px;border:0;border-radius:8px;background:#6172f3;color:#fff;font:600 12px system-ui;flex-shrink:0">Review plan</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;background:#15171e;border:1px solid rgba(240,97,109,.3)">
+                <span style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;background:rgba(240,97,109,.14);color:#f0838c;flex-shrink:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+                <div style="min-width:0;flex:1">
+                  <div style="display:flex;align-items:center;gap:8px"><span style="font:600 13.5px system-ui;color:#eceef3">MCP tools not registered — Orchestrator</span><span style="width:6px;height:6px;border-radius:50%;background:#6172f3"></span><span style="font:500 11.5px 'Geist Mono',monospace;color:#8b8f9c">Loom Pro</span></div>
+                  <div style="font:400 12px system-ui;color:#868b97;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">list_workspaces / list_repos / list_projects failed · vibe-kanban-indie · 3 retries</div>
+                </div>
+                <span style="font:500 11px 'Geist Mono',monospace;color:#6b7080;flex-shrink:0">11m</span>
+                <button style="padding:6px 13px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:rgba(255,255,255,.04);color:#cfd2da;font:600 12px system-ui;flex-shrink:0">Open session</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;background:#15171e;border:1px solid rgba(176,124,240,.3)">
+                <span style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;background:rgba(176,124,240,.14);color:#c79cf5;flex-shrink:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></span>
+                <div style="min-width:0;flex:1">
+                  <div style="display:flex;align-items:center;gap:8px"><span style="font:600 13.5px system-ui;color:#eceef3">Diff ready for review — LOOM-14 · Frontend</span><span style="width:6px;height:6px;border-radius:50%;background:#6172f3"></span><span style="font:500 11.5px 'Geist Mono',monospace;color:#8b8f9c">Loom Pro</span></div>
+                  <div style="display:flex;align-items:center;gap:9px;margin-top:3px"><span style="font:500 11.5px 'Geist Mono',monospace;color:#3ad99b">+231</span><span style="font:500 11.5px 'Geist Mono',monospace;color:#e06a72">−96</span><span style="font:400 12px system-ui;color:#868b97">chart panel ported · 34 tests passing</span></div>
+                </div>
+                <span style="font:500 11px 'Geist Mono',monospace;color:#6b7080;flex-shrink:0">18m</span>
+                <button style="padding:6px 13px;border:0;border-radius:8px;background:#6172f3;color:#fff;font:600 12px system-ui;flex-shrink:0">Open diff</button>
+              </div>
+            </div>
+
+            <div style="font:600 10.5px system-ui;letter-spacing:.13em;text-transform:uppercase;color:#5a5f6b;margin:18px 2px 8px">Earlier</div>
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <div style="display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:9px">
+                <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:7px;background:rgba(53,201,142,.14);color:#3ad99b;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                <span style="font:500 12.5px system-ui;color:#b9bcc6">Sweep completed — Orchestrator · 11 turns, 3m 20s</span>
+                <div style="flex:1"></div><span style="font:500 11px 'Geist Mono',monospace;color:#5e636f">04:14</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:9px">
+                <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:7px;background:rgba(53,201,142,.14);color:#3ad99b;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                <span style="font:500 12.5px system-ui;color:#b9bcc6">LOOM-13 merged to main — Hardening / scale-out</span>
+                <div style="flex:1"></div><span style="font:500 11px 'Geist Mono',monospace;color:#5e636f">19 Jun</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:9px">
+                <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:7px;background:rgba(97,114,243,.14);color:#9aa6ff;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+                <span style="font:500 12.5px system-ui;color:#b9bcc6">Agent spawned on LOOM-14 — opus 4.8</span>
+                <div style="flex:1"></div><span style="font:500 11px 'Geist Mono',monospace;color:#5e636f">03:52</span>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+      <div style="font:400 13px/1.55 system-ui;color:#3c4150;margin-top:12px;max-width:640px">A third sidebar destination: <b>Inbox</b>. Everything agents need from you — plan approvals, failures, diffs ready for review — lands here as triage cards with inline actions; quiet history below. Projects that need attention get an amber badge in the sidebar. The kanban and workspace views stay exactly as they are.</div>
+    </div>
+
+  </div>
+</section>
+
+<section style="padding:40px 80px 120px;border-top:1px dashed rgba(40,44,60,.2)">
+  <div style="max-width:1000px">
+    <div style="font:700 12px system-ui;letter-spacing:.18em;text-transform:uppercase;color:#4c5ae0">Turn 1 · Explorations</div>
+    <div style="font:700 36px/1.1 system-ui;letter-spacing:-.02em;color:#14161d;margin-top:10px">Something new on the one-window layout</div>
+    <div style="font:400 15px/1.6 system-ui;color:#3c4150;margin-top:12px;max-width:760px">Four directions, each keeping the sidebar-switcher layout you have now and adding one distinctive surface. <a href="#1a">1a</a> and <a href="#1c">1c</a> are subtle; <a href="#1b">1b</a> and <a href="#1d">1d</a> reshape how you move around. Pick one (or a combo) and I'll wire it into the working prototype.</div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:70px;margin-top:56px;align-items:flex-start">
+
+    <!-- ================= 1a · AGENT DOCK ================= -->
+    <div id="1a" style="width:1150px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <a href="#1a" style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:24px;border-radius:7px;background:#6172f3;color:#fff;font:700 12.5px 'Geist Mono',monospace">1a</a>
+        <span style="font:700 17px system-ui;color:#14161d">Agent Dock</span>
+        <span style="padding:2px 9px;border-radius:20px;background:rgba(53,158,107,.15);color:#1f7a4e;font:600 11px system-ui">subtle</span>
+      </div>
+      <div style="border-radius:12px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.45);background:#0f1116">
+        <div style="display:flex;align-items:center;height:40px;background:#0b0c10;border-bottom:1px solid rgba(255,255,255,.06);padding:0 14px;gap:10px">
+          <div style="display:flex;gap:7px"><span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span></div>
+          <span style="font:500 12px 'Geist Mono',monospace;color:#6b7080;margin-left:8px">vibe-kanban</span><span style="color:#3a3e49">/</span><span style="font:600 12.5px system-ui;color:#cfd2da">Workspaces</span>
+        </div>
+        <div style="display:flex;height:430px">
+          <aside style="width:190px;flex-shrink:0;background:#0b0c10;border-right:1px solid rgba(255,255,255,.05);padding:12px 10px;display:flex;flex-direction:column;gap:2px">
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;background:rgba(97,114,243,.16);border:1px solid rgba(97,114,243,.3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa6ff" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg><span style="font:600 13px system-ui;color:#eceef3">Workspaces</span></div>
+            <div style="font:600 10.5px system-ui;letter-spacing:.13em;text-transform:uppercase;color:#5a5f6b;margin:16px 9px 6px">Projects</div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#5b9bf0"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">SAC</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#6172f3"></span><span style="flex:1;font:500 12.5px system-ui;color:#b9bcc6">Loom Pro</span><span style="padding:1px 6px;border-radius:20px;background:rgba(53,201,142,.16);font:600 10px 'Geist Mono',monospace;color:#3ad99b">2</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#35c98e"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">iClean</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#e6a44a"></span><span style="flex:1;font:500 12.5px system-ui;color:#b9bcc6">Voicy</span><span style="padding:1px 6px;border-radius:20px;background:rgba(53,201,142,.16);font:600 10px 'Geist Mono',monospace;color:#3ad99b">1</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#e066a8"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">Aquarius</span></div>
+          </aside>
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column;padding:18px 22px 10px">
+            <div style="display:flex;align-items:center"><div style="font:700 21px system-ui;letter-spacing:-.02em;color:#f1f2f6">Workspaces</div><div style="flex:1"></div><button style="padding:7px 13px;border:0;border-radius:8px;background:#6172f3;color:#fff;font:600 12px system-ui">+ New</button></div>
+            <div style="display:flex;align-items:center;height:32px;margin-top:14px;border-bottom:1px solid rgba(255,255,255,.06);font:600 10.5px system-ui;letter-spacing:.08em;text-transform:uppercase;color:#5e636f"><div style="width:26px"></div><div style="flex:1.6">Name</div><div style="flex:1.2">Branch</div><div style="width:92px">State</div><div style="width:70px">Updated</div></div>
+            <div style="display:flex;align-items:center;height:44px;border-radius:8px;background:rgba(97,114,243,.07);padding:0 4px;margin-top:4px"><div style="width:26px;display:flex;justify-content:center"><span style="width:8px;height:8px;border-radius:50%;background:#35c98e;animation:vkpulse 1.5s infinite"></span></div><div style="flex:1.6;font:600 13px system-ui;color:#dfe1e8">Orchestrator</div><div style="flex:1.2;font:500 11.5px 'Geist Mono',monospace;color:#9aa0ad">orchestrator</div><div style="width:92px"><span style="padding:2px 8px;border-radius:6px;background:rgba(53,201,142,.14);color:#3ad99b;font:600 10.5px system-ui">Running</span></div><div style="width:70px;font:400 12px system-ui;color:#7a7f8b">now</div></div>
+            <div style="display:flex;align-items:center;height:44px;border-radius:8px;background:rgba(97,114,243,.07);padding:0 4px"><div style="width:26px;display:flex;justify-content:center"><span style="width:8px;height:8px;border-radius:50%;background:#35c98e;animation:vkpulse 1.5s infinite"></span></div><div style="flex:1.6;font:600 13px system-ui;color:#dfe1e8">Frontend</div><div style="flex:1.2;font:500 11.5px 'Geist Mono',monospace;color:#9aa0ad">vk/e3a8-frontend</div><div style="width:92px"><span style="padding:2px 8px;border-radius:6px;background:rgba(53,201,142,.14);color:#3ad99b;font:600 10.5px system-ui">Running</span></div><div style="width:70px;font:400 12px system-ui;color:#7a7f8b">now</div></div>
+            <div style="display:flex;align-items:center;height:44px;padding:0 4px"><div style="width:26px;display:flex;justify-content:center"><span style="width:7px;height:7px;border-radius:50%;border:1.5px solid #383c46"></span></div><div style="flex:1.6;font:600 13px system-ui;color:#8b8f9c">SAC updated</div><div style="flex:1.2;font:500 11.5px 'Geist Mono',monospace;color:#6b7080">vk/2b4d-sac-updated</div><div style="width:92px;font:600 11px system-ui;color:#5e636f">Archived</div><div style="width:70px;font:400 12px system-ui;color:#7a7f8b">27 Jun</div></div>
+            <div style="display:flex;align-items:center;height:44px;padding:0 4px"><div style="width:26px;display:flex;justify-content:center"><span style="width:7px;height:7px;border-radius:50%;border:1.5px solid #383c46"></span></div><div style="flex:1.6;font:600 13px system-ui;color:#8b8f9c">LOOM-13 · Hardening</div><div style="flex:1.2;font:500 11.5px 'Geist Mono',monospace;color:#6b7080">vk/c37d-loom-13</div><div style="width:92px;font:600 11px system-ui;color:#5e636f">Archived</div><div style="width:70px;font:400 12px system-ui;color:#7a7f8b">19 Jun</div></div>
+            <div style="display:flex;align-items:center;height:44px;padding:0 4px"><div style="width:26px;display:flex;justify-content:center"><span style="width:7px;height:7px;border-radius:50%;border:1.5px solid #383c46"></span></div><div style="flex:1.6;font:600 13px system-ui;color:#8b8f9c">LOOM-12 · Live venues</div><div style="flex:1.2;font:500 11.5px 'Geist Mono',monospace;color:#6b7080">vk/ca64-loom-12</div><div style="width:92px;font:600 11px system-ui;color:#5e636f">Archived</div><div style="width:70px;font:400 12px system-ui;color:#7a7f8b">19 Jun</div></div>
+          </main>
+        </div>
+        <!-- THE DOCK -->
+        <div style="display:flex;align-items:stretch;gap:10px;padding:10px 14px;background:#0a0b0f;border-top:1px solid rgba(97,114,243,.25);box-shadow:0 -12px 30px -18px rgba(97,114,243,.35)">
+          <div style="display:flex;flex-direction:column;justify-content:center;gap:3px;padding:0 6px;flex-shrink:0">
+            <span style="font:600 9.5px system-ui;letter-spacing:.14em;color:#5e636f">AGENTS</span>
+            <span style="display:inline-flex;align-items:center;gap:5px;font:600 11px 'Geist Mono',monospace;color:#3ad99b"><span style="width:6px;height:6px;border-radius:50%;background:#35c98e;animation:vkpulse 1.4s infinite"></span>3 live</span>
+          </div>
+          <div style="flex:1.4;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:8px 12px;border-radius:10px;background:rgba(97,114,243,.13);border:1px solid rgba(97,114,243,.32)">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font:600 12.5px system-ui;color:#f1f2f6">Orchestrator</span><span style="font:600 10.5px 'Geist Mono',monospace;color:#aeb6ff">opus 4.8</span><div style="flex:1"></div><span style="font:600 11px 'Geist Mono',monospace;color:#cfd2da">02:12</span></div>
+            <div style="font:400 11px 'Geist Mono',monospace;color:#7d8290;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">› list_projects · discovering MCP tool names<span style="display:inline-block;width:6px;height:11px;background:#6172f3;margin-left:3px;vertical-align:middle;animation:vkcaret 1s steps(1) infinite"></span></div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:8px 12px;border-radius:10px;background:#12141b;border:1px solid rgba(255,255,255,.07)">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font:600 12.5px system-ui;color:#dfe1e8">Frontend</span><span style="font:600 10.5px 'Geist Mono',monospace;color:#8b8f9c">LOOM-14</span><div style="flex:1"></div><span style="font:600 11px 'Geist Mono',monospace;color:#8b8f9c">43%</span></div>
+            <div style="height:3px;border-radius:3px;background:rgba(255,255,255,.07)"><div style="height:100%;width:43%;border-radius:3px;background:linear-gradient(90deg,#6172f3,#9aa6ff)"></div></div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:8px 12px;border-radius:10px;background:#12141b;border:1px solid rgba(230,164,74,.3)">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font:600 12.5px system-ui;color:#dfe1e8">VOIC-15</span><span style="padding:1px 7px;border-radius:5px;background:rgba(230,164,74,.15);font:600 10px system-ui;color:#e6b45c">needs review</span><div style="flex:1"></div><span style="font:600 11px 'Geist Mono',monospace;color:#8b8f9c">idle 4m</span></div>
+            <div style="height:3px;border-radius:3px;background:rgba(255,255,255,.07)"><div style="height:100%;width:100%;border-radius:3px;background:#e6a44a"></div></div>
+          </div>
+        </div>
+      </div>
+      <div style="font:400 13px/1.55 system-ui;color:#3c4150;margin-top:12px;max-width:640px">A persistent dock along the bottom — every running agent as a live process: progress, elapsed, current tool line, review flags. Visible from <i>every</i> view (list, kanban, session); click a tile to jump straight into that session. The live-strip disappears from the table since the dock replaces it.</div>
+    </div>
+
+    <!-- ================= 1b · CARD PEEK ================= -->
+    <div id="1b" style="width:1150px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <a href="#1b" style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:24px;border-radius:7px;background:#6172f3;color:#fff;font:700 12.5px 'Geist Mono',monospace">1b</a>
+        <span style="font:700 17px system-ui;color:#14161d">Card Peek</span>
+        <span style="padding:2px 9px;border-radius:20px;background:rgba(138,95,208,.16);color:#6a3fc4;font:600 11px system-ui">bold</span>
+      </div>
+      <div style="border-radius:12px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.45);background:#0f1116">
+        <div style="display:flex;align-items:center;height:40px;background:#0b0c10;border-bottom:1px solid rgba(255,255,255,.06);padding:0 14px;gap:10px">
+          <div style="display:flex;gap:7px"><span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span></div>
+          <span style="font:500 12px 'Geist Mono',monospace;color:#6b7080;margin-left:8px">vibe-kanban</span><span style="color:#3a3e49">/</span><span style="font:600 12.5px system-ui;color:#cfd2da">Loom Pro</span>
+        </div>
+        <div style="display:flex;height:520px">
+          <aside style="width:190px;flex-shrink:0;background:#0b0c10;border-right:1px solid rgba(255,255,255,.05);padding:12px 10px;display:flex;flex-direction:column;gap:2px">
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7a7f8b" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg><span style="font:600 13px system-ui;color:#b9bcc6">Workspaces</span></div>
+            <div style="font:600 10.5px system-ui;letter-spacing:.13em;text-transform:uppercase;color:#5a5f6b;margin:16px 9px 6px">Projects</div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#5b9bf0"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">SAC</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(97,114,243,.16);border:1px solid rgba(97,114,243,.3)"><span style="width:8px;height:8px;border-radius:50%;background:#6172f3"></span><span style="flex:1;font:600 12.5px system-ui;color:#eceef3">Loom Pro</span><span style="padding:1px 6px;border-radius:20px;background:rgba(53,201,142,.16);font:600 10px 'Geist Mono',monospace;color:#3ad99b">1</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#35c98e"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">iClean</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#e6a44a"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">Voicy</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#e066a8"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">Aquarius</span></div>
+          </aside>
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column;padding:16px 20px">
+            <div style="display:flex;align-items:center;gap:12px"><div style="font:700 20px system-ui;letter-spacing:-.02em;color:#f1f2f6">Loom Pro</div><div style="flex:1"></div><span style="font:500 12px system-ui;color:#5e636f">Search · Priority · Sort</span></div>
+            <div style="flex:1;display:flex;gap:12px;margin-top:14px;min-height:0">
+              <div style="width:120px;flex-shrink:0;display:flex;flex-direction:column;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);border-radius:11px;padding:10px 9px;opacity:.55">
+                <div style="display:flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:#8b8f9c"></span><span style="font:600 12px system-ui;color:#cfd2da">Todo</span><span style="font:600 11px 'Geist Mono',monospace;color:#5e636f">0</span></div>
+                <div style="margin-top:10px;height:64px;border:1.5px dashed rgba(255,255,255,.07);border-radius:9px"></div>
+              </div>
+              <!-- EXPANDED CARD -->
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);border-radius:11px;padding:10px 9px">
+                <div style="display:flex;align-items:center;gap:7px;padding:0 2px 9px"><span style="width:8px;height:8px;border-radius:50%;background:#6172f3"></span><span style="font:600 12px system-ui;color:#cfd2da">In Progress</span><span style="font:600 11px 'Geist Mono',monospace;color:#5e636f">1</span></div>
+                <div style="flex:1;display:flex;flex-direction:column;background:#15171e;border:1.5px solid rgba(97,114,243,.55);border-radius:11px;box-shadow:0 0 34px -10px rgba(97,114,243,.55);padding:13px 14px;gap:10px;min-height:0">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <span style="font:600 11px 'Geist Mono',monospace;color:#7a7f8b">LOOM-14</span>
+                    <span style="font:600 14px system-ui;color:#e6e8ee">Frontend</span>
+                    <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border-radius:6px;background:rgba(97,114,243,.16);border:1px solid rgba(97,114,243,.3);font:600 10.5px 'Geist Mono',monospace;color:#aeb6ff">◆ opus<span style="width:5px;height:5px;border-radius:50%;background:#35c98e;animation:vkpulse 1.3s infinite"></span></span>
+                    <div style="flex:1"></div>
+                    <span style="font:600 11px 'Geist Mono',monospace;color:#8b8f9c">3/7 · 43%</span>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </div>
+                  <div style="height:4px;border-radius:3px;background:rgba(255,255,255,.06)"><div style="height:100%;width:43%;border-radius:3px;background:linear-gradient(90deg,#6172f3,#9aa6ff)"></div></div>
+                  <div style="display:inline-flex;align-self:flex-start;align-items:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:2px">
+                    <span style="padding:4px 11px;border-radius:6px;background:#6172f3;color:#fff;font:600 11px system-ui">Agent</span>
+                    <span style="padding:4px 11px;color:#9aa0ad;font:600 11px system-ui">Terminal</span>
+                    <span style="padding:4px 11px;color:#9aa0ad;font:600 11px system-ui">Changes</span>
+                    <span style="padding:4px 11px;color:#9aa0ad;font:600 11px system-ui">Preview</span>
+                  </div>
+                  <div style="flex:1;display:flex;flex-direction:column;gap:8px;overflow:hidden;min-height:0">
+                    <div style="display:flex;gap:9px"><svg width="14" height="14" viewBox="0 0 24 24" fill="#6172f3" style="flex-shrink:0;margin-top:2px;opacity:.85"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/></svg><span style="font:italic 400 12px/1.55 system-ui;color:#9aa0ad">Porting the sproot chart panel next — datafeed contract is stable, so the panel can bind straight to it.</span></div>
+                    <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;background:#101218;border:1px solid rgba(255,255,255,.05)"><span style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:5px;background:rgba(53,201,142,.16);color:#3ad99b"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span style="font:600 11px 'Geist Mono',monospace;color:#dfe1e8">Edit</span><span style="flex:1;font:400 10.5px 'Geist Mono',monospace;color:#6b7080;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">frontend/src/panels/chart.tsx · +231 −96</span></div>
+                    <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;background:#101218;border:1px solid rgba(255,255,255,.05)"><span style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:5px;background:rgba(53,201,142,.16);color:#3ad99b"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span style="font:600 11px 'Geist Mono',monospace;color:#dfe1e8">Bash</span><span style="flex:1;font:400 10.5px 'Geist Mono',monospace;color:#6b7080;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">pnpm vitest run panels/chart · 34 passed</span></div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:9px;background:#101218;border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:8px 10px">
+                    <span style="flex:1;font:400 12px system-ui;color:#5e636f">Message the agent…</span>
+                    <span style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;background:#6172f3;color:#fff"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></span>
+                  </div>
+                </div>
+              </div>
+              <div style="width:120px;flex-shrink:0;display:flex;flex-direction:column;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);border-radius:11px;padding:10px 9px;opacity:.55">
+                <div style="display:flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:#b07cf0"></span><span style="font:600 12px system-ui;color:#cfd2da">Review</span><span style="font:600 11px 'Geist Mono',monospace;color:#5e636f">0</span></div>
+                <div style="margin-top:10px;height:64px;border:1.5px dashed rgba(255,255,255,.07);border-radius:9px"></div>
+              </div>
+              <div style="width:190px;flex-shrink:0;display:flex;flex-direction:column;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);border-radius:11px;padding:10px 9px;opacity:.55;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:7px;padding-bottom:9px"><span style="width:8px;height:8px;border-radius:50%;background:#35c98e"></span><span style="font:600 12px system-ui;color:#cfd2da">Done</span><span style="font:600 11px 'Geist Mono',monospace;color:#5e636f">13</span></div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <div style="background:#15171e;border:1px solid rgba(255,255,255,.06);border-radius:9px;padding:9px 10px"><div style="font:600 10px 'Geist Mono',monospace;color:#7a7f8b">LOOM-9</div><div style="font:600 11.5px system-ui;color:#c6c9d2;margin-top:3px">Phase 6 — client-sdk</div></div>
+                  <div style="background:#15171e;border:1px solid rgba(255,255,255,.06);border-radius:9px;padding:9px 10px"><div style="font:600 10px 'Geist Mono',monospace;color:#7a7f8b">LOOM-10</div><div style="font:600 11.5px system-ui;color:#c6c9d2;margin-top:3px">Phase 7 — Latency</div></div>
+                  <div style="background:#15171e;border:1px solid rgba(255,255,255,.06);border-radius:9px;padding:9px 10px"><div style="font:600 10px 'Geist Mono',monospace;color:#7a7f8b">LOOM-11</div><div style="font:600 11.5px system-ui;color:#c6c9d2;margin-top:3px">Phase 8 — Paper gateway</div></div>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+      <div style="font:400 13px/1.55 system-ui;color:#3c4150;margin-top:12px;max-width:640px">Clicking a running card expands it <i>in place</i> into the live session — timeline, tabs and composer inside the board. Other columns compress and dim; you never leave the kanban. Esc or ✕ collapses it back to a card.</div>
+    </div>
+
+    <!-- ================= 1c · COMMAND PALETTE ================= -->
+    <div id="1c" style="width:1150px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <a href="#1c" style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:24px;border-radius:7px;background:#6172f3;color:#fff;font:700 12.5px 'Geist Mono',monospace">1c</a>
+        <span style="font:700 17px system-ui;color:#14161d">⌘K Command Palette</span>
+        <span style="padding:2px 9px;border-radius:20px;background:rgba(53,158,107,.15);color:#1f7a4e;font:600 11px system-ui">subtle</span>
+      </div>
+      <div style="position:relative;border-radius:12px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.45);background:#0f1116;height:560px">
+        <div style="display:flex;align-items:center;height:40px;background:#0b0c10;border-bottom:1px solid rgba(255,255,255,.06);padding:0 14px;gap:10px;filter:blur(1px);opacity:.6">
+          <div style="display:flex;gap:7px"><span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span></div>
+          <span style="font:500 12px 'Geist Mono',monospace;color:#6b7080;margin-left:8px">vibe-kanban</span><span style="color:#3a3e49">/</span><span style="font:600 12.5px system-ui;color:#cfd2da">Workspaces</span>
+        </div>
+        <div style="display:flex;height:520px;filter:blur(1px);opacity:.6">
+          <aside style="width:190px;flex-shrink:0;background:#0b0c10;border-right:1px solid rgba(255,255,255,.05);padding:12px 10px">
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;background:rgba(97,114,243,.16)"><span style="font:600 13px system-ui;color:#eceef3">Workspaces</span></div>
+            <div style="font:600 10.5px system-ui;letter-spacing:.13em;text-transform:uppercase;color:#5a5f6b;margin:16px 9px 6px">Projects</div>
+            <div style="padding:7px 10px;font:500 12.5px system-ui;color:#b9bcc6">SAC</div>
+            <div style="padding:7px 10px;font:500 12.5px system-ui;color:#b9bcc6">Loom Pro</div>
+            <div style="padding:7px 10px;font:500 12.5px system-ui;color:#b9bcc6">iClean</div>
+            <div style="padding:7px 10px;font:500 12.5px system-ui;color:#b9bcc6">Voicy</div>
+          </aside>
+          <main style="flex:1;padding:18px 22px">
+            <div style="font:700 21px system-ui;color:#f1f2f6">Workspaces</div>
+            <div style="margin-top:16px;height:44px;border-radius:8px;background:rgba(97,114,243,.07)"></div>
+            <div style="margin-top:6px;height:44px;border-radius:8px;background:rgba(255,255,255,.02)"></div>
+            <div style="margin-top:6px;height:44px;border-radius:8px;background:rgba(255,255,255,.02)"></div>
+            <div style="margin-top:6px;height:44px;border-radius:8px;background:rgba(255,255,255,.02)"></div>
+          </main>
+        </div>
+        <!-- overlay -->
+        <div style="position:absolute;inset:0;background:rgba(5,6,10,.55);display:flex;justify-content:center;padding-top:70px">
+          <div style="width:560px;height:fit-content;border-radius:14px;background:#12141b;border:1px solid rgba(255,255,255,.1);box-shadow:0 40px 90px -20px rgba(0,0,0,.8)">
+            <div style="display:flex;align-items:center;gap:11px;padding:15px 17px;border-bottom:1px solid rgba(255,255,255,.07)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7080" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <span style="font:400 14.5px system-ui;color:#eceef3">loom</span><span style="display:inline-block;width:7px;height:15px;background:#6172f3;animation:vkcaret 1s steps(1) infinite"></span>
+              <div style="flex:1"></div>
+              <span style="padding:2px 7px;border-radius:5px;background:rgba(255,255,255,.06);font:600 10.5px 'Geist Mono',monospace;color:#8b8f9c">esc</span>
+            </div>
+            <div style="padding:9px 8px">
+              <div style="font:600 10px system-ui;letter-spacing:.14em;text-transform:uppercase;color:#5a5f6b;padding:6px 10px">Actions</div>
+              <div style="display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;background:rgba(97,114,243,.16);border:1px solid rgba(97,114,243,.3)">
+                <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:rgba(97,114,243,.2);color:#9aa6ff"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+                <span style="font:500 13px system-ui;color:#eceef3">Spawn agent on <b>LOOM-14 · Frontend</b></span>
+                <div style="flex:1"></div>
+                <span style="padding:2px 7px;border-radius:5px;background:rgba(255,255,255,.06);font:600 10.5px 'Geist Mono',monospace;color:#8b8f9c">↵</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px">
+                <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:rgba(176,124,240,.14);color:#c79cf5"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+                <span style="font:500 13px system-ui;color:#c6c9d2">Move <b>LOOM-14</b> → In Review</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px">
+                <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:rgba(53,201,142,.14);color:#3ad99b"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
+                <span style="font:500 13px system-ui;color:#c6c9d2">Start preview server · <span style="font:500 12px 'Geist Mono',monospace;color:#8b8f9c">Loom Pro</span></span>
+              </div>
+              <div style="font:600 10px system-ui;letter-spacing:.14em;text-transform:uppercase;color:#5a5f6b;padding:10px 10px 6px">Jump to</div>
+              <div style="display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px">
+                <span style="width:8px;height:8px;border-radius:50%;background:#35c98e;animation:vkpulse 1.4s infinite;margin:0 8px"></span>
+                <span style="font:500 13px system-ui;color:#c6c9d2">LOOM-14 · Frontend</span><span style="font:500 11.5px 'Geist Mono',monospace;color:#6b7080">vk/e3a8-frontend</span>
+                <div style="flex:1"></div><span style="font:600 10.5px system-ui;color:#3ad99b">Running · 43%</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px">
+                <span style="width:7px;height:7px;border-radius:50%;border:1.5px solid #383c46;margin:0 8px"></span>
+                <span style="font:500 13px system-ui;color:#c6c9d2">LOOM-13 · Hardening</span><span style="font:500 11.5px 'Geist Mono',monospace;color:#6b7080">vk/c37d-loom-13</span>
+                <div style="flex:1"></div><span style="font:600 10.5px system-ui;color:#5e636f">Archived</span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;padding:10px 17px;border-top:1px solid rgba(255,255,255,.07)">
+              <span style="font:500 11px system-ui;color:#5e636f"><b style="color:#8b8f9c">↑↓</b> navigate</span>
+              <span style="font:500 11px system-ui;color:#5e636f"><b style="color:#8b8f9c">↵</b> run</span>
+              <span style="font:500 11px system-ui;color:#5e636f"><b style="color:#8b8f9c">⌘↵</b> run + open session</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font:400 13px/1.55 system-ui;color:#3c4150;margin-top:12px;max-width:640px">One keystroke from anywhere: spawn agents on tickets, move cards, jump into any workspace or session. The layout doesn't change at all — the palette carries the "agents are processes" idea as verbs.</div>
+    </div>
+
+    <!-- ================= 1d · TELEMETRY RAIL ================= -->
+    <div id="1d" style="width:1150px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <a href="#1d" style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:24px;border-radius:7px;background:#6172f3;color:#fff;font:700 12.5px 'Geist Mono',monospace">1d</a>
+        <span style="font:700 17px system-ui;color:#14161d">Telemetry Rail</span>
+        <span style="padding:2px 9px;border-radius:20px;background:rgba(138,95,208,.16);color:#6a3fc4;font:600 11px system-ui">bold</span>
+      </div>
+      <div style="border-radius:12px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.45);background:#0f1116">
+        <div style="display:flex;align-items:center;height:40px;background:#0b0c10;border-bottom:1px solid rgba(255,255,255,.06);padding:0 14px;gap:10px">
+          <div style="display:flex;gap:7px"><span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span></div>
+          <span style="font:500 12px 'Geist Mono',monospace;color:#6b7080;margin-left:8px">vibe-kanban</span><span style="color:#3a3e49">/</span><span style="font:600 12.5px system-ui;color:#cfd2da">Loom Pro</span>
+        </div>
+        <div style="display:flex;height:500px">
+          <aside style="width:190px;flex-shrink:0;background:#0b0c10;border-right:1px solid rgba(255,255,255,.05);padding:12px 10px;display:flex;flex-direction:column;gap:2px">
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7a7f8b" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg><span style="font:600 13px system-ui;color:#b9bcc6">Workspaces</span></div>
+            <div style="font:600 10.5px system-ui;letter-spacing:.13em;text-transform:uppercase;color:#5a5f6b;margin:16px 9px 6px">Projects</div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#5b9bf0"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">SAC</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(97,114,243,.16);border:1px solid rgba(97,114,243,.3)"><span style="width:8px;height:8px;border-radius:50%;background:#6172f3"></span><span style="flex:1;font:600 12.5px system-ui;color:#eceef3">Loom Pro</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#35c98e"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">iClean</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px"><span style="width:8px;height:8px;border-radius:50%;background:#e6a44a"></span><span style="font:500 12.5px system-ui;color:#b9bcc6">Voicy</span></div>
+          </aside>
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column;padding:16px 18px">
+            <div style="font:700 20px system-ui;letter-spacing:-.02em;color:#f1f2f6">Loom Pro</div>
+            <div style="flex:1;display:flex;gap:11px;margin-top:14px;min-height:0">
+              <div style="flex:1;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);border-radius:11px;padding:10px 9px">
+                <div style="display:flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:#6172f3;flex-shrink:0"></span><span style="font:600 12px system-ui;color:#cfd2da;white-space:nowrap">In Progress</span></div>
+                <div style="margin-top:10px;background:#15171e;border:1.5px solid rgba(97,114,243,.5);border-radius:10px;padding:10px 11px">
+                  <div style="font:600 10px 'Geist Mono',monospace;color:#7a7f8b">LOOM-14</div>
+                  <div style="font:600 12.5px system-ui;color:#e6e8ee;margin-top:4px">Frontend</div>
+                  <div style="margin-top:8px;height:4px;border-radius:3px;background:rgba(255,255,255,.06)"><div style="height:100%;width:43%;border-radius:3px;background:linear-gradient(90deg,#6172f3,#9aa6ff)"></div></div>
+                  <div style="display:flex;margin-top:6px"><span style="font:600 10px 'Geist Mono',monospace;color:#aeb6ff">3/7</span><div style="flex:1"></div><span style="font:600 10px 'Geist Mono',monospace;color:#8b8f9c">43%</span></div>
+                </div>
+              </div>
+              <div style="flex:1;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);border-radius:11px;padding:10px 9px"><div style="display:flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:#b07cf0;flex-shrink:0"></span><span style="font:600 12px system-ui;color:#cfd2da;white-space:nowrap">In Review</span></div><div style="margin-top:10px;height:60px;border:1.5px dashed rgba(255,255,255,.07);border-radius:9px"></div></div>
+              <div style="flex:1;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);border-radius:11px;padding:10px 9px;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:#35c98e"></span><span style="font:600 12px system-ui;color:#cfd2da">Done</span><span style="font:600 11px 'Geist Mono',monospace;color:#5e636f">13</span></div>
+                <div style="margin-top:10px;background:#15171e;border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:10px 11px"><div style="font:600 10px 'Geist Mono',monospace;color:#7a7f8b">LOOM-9</div><div style="font:600 12px system-ui;color:#c6c9d2;margin-top:3px">Phase 6 — client-sdk</div></div>
+                <div style="margin-top:8px;background:#15171e;border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:10px 11px"><div style="font:600 10px 'Geist Mono',monospace;color:#7a7f8b">LOOM-10</div><div style="font:600 12px system-ui;color:#c6c9d2;margin-top:3px">Phase 7 — Latency</div></div>
+              </div>
+            </div>
+          </main>
+          <!-- TELEMETRY RAIL -->
+          <aside style="width:230px;flex-shrink:0;background:#0a0b0f;border-left:1px solid rgba(97,114,243,.22);padding:14px 13px;display:flex;flex-direction:column;gap:11px">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font:600 10px system-ui;letter-spacing:.16em;color:#5e636f">TELEMETRY</span><div style="flex:1"></div><span style="display:inline-flex;align-items:center;gap:5px;font:600 10.5px 'Geist Mono',monospace;color:#3ad99b"><span style="width:5px;height:5px;border-radius:50%;background:#35c98e;animation:vkpulse 1.4s infinite"></span>live</span></div>
+            <div style="border-radius:10px;background:rgba(97,114,243,.1);border:1px solid rgba(97,114,243,.28);padding:10px 11px">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font:600 12px system-ui;color:#eceef3">Frontend</span><div style="flex:1"></div><span style="font:600 10px 'Geist Mono',monospace;color:#aeb6ff">43%</span></div>
+              <svg width="100%" height="26" viewBox="0 0 180 26" preserveAspectRatio="none" style="margin-top:7px"><polyline points="0,22 15,20 30,21 45,14 60,17 75,9 90,13 105,6 120,10 135,4 150,8 165,3 180,5" fill="none" stroke="#6172f3" stroke-width="1.6"/></svg>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:6px"><span style="font:500 10px 'Geist Mono',monospace;color:#3ad99b">+231</span><span style="font:500 10px 'Geist Mono',monospace;color:#e06a72">−96</span><div style="flex:1"></div><span style="font:500 10px 'Geist Mono',monospace;color:#6b7080">tok/s 41</span></div>
+            </div>
+            <div style="border-radius:10px;background:#101218;border:1px solid rgba(255,255,255,.06);padding:10px 11px">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font:600 12px system-ui;color:#dfe1e8">Orchestrator</span><div style="flex:1"></div><span style="font:600 10px 'Geist Mono',monospace;color:#8b8f9c">02:12</span></div>
+              <svg width="100%" height="26" viewBox="0 0 180 26" preserveAspectRatio="none" style="margin-top:7px"><polyline points="0,18 15,16 30,19 45,15 60,18 75,14 90,17 105,12 120,16 135,11 150,15 165,10 180,13" fill="none" stroke="#35c98e" stroke-width="1.6"/></svg>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:6px"><span style="font:500 10px 'Geist Mono',monospace;color:#6b7080">sweep 3 · MCP discovery</span></div>
+            </div>
+            <div style="border-radius:10px;background:#101218;border:1px solid rgba(230,164,74,.25);padding:10px 11px">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font:600 12px system-ui;color:#dfe1e8">VOIC-15</span><div style="flex:1"></div><span style="padding:1px 6px;border-radius:5px;background:rgba(230,164,74,.15);font:600 9.5px system-ui;color:#e6b45c">review</span></div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:7px"><span style="font:500 10px 'Geist Mono',monospace;color:#6b7080">waiting on you · 4m</span></div>
+            </div>
+            <div style="flex:1"></div>
+            <div>
+              <div style="font:600 10px system-ui;letter-spacing:.14em;color:#5e636f;margin-bottom:7px">DIFF HEAT · 24H</div>
+              <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:3px">
+                <span style="height:10px;border-radius:2px;background:#1d212b"></span><span style="height:10px;border-radius:2px;background:#242c44"></span><span style="height:10px;border-radius:2px;background:#1d212b"></span><span style="height:10px;border-radius:2px;background:#33406e"></span><span style="height:10px;border-radius:2px;background:#42539a"></span><span style="height:10px;border-radius:2px;background:#33406e"></span><span style="height:10px;border-radius:2px;background:#242c44"></span><span style="height:10px;border-radius:2px;background:#5265c4"></span><span style="height:10px;border-radius:2px;background:#6172f3"></span><span style="height:10px;border-radius:2px;background:#42539a"></span><span style="height:10px;border-radius:2px;background:#5265c4"></span><span style="height:10px;border-radius:2px;background:#6172f3"></span>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <div style="font:400 13px/1.55 system-ui;color:#3c4150;margin-top:12px;max-width:640px">A live right rail across all views — every active agent as a telemetry card: activity sparkline, diff velocity, tokens/s, review flags, plus a 24h diff-heat strip. The window becomes a flight deck: board in the middle, instruments on the edge. Click a card to jump in.</div>
+    </div>
+
+  </div>
+</section>
+
+<template id="__bundler_thumbnail">
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#0f1116"/><rect x="20" y="26" width="26" height="20" rx="3" fill="#6172f3"/><rect x="54" y="26" width="26" height="20" rx="3" fill="#2a2f3a"/><rect x="20" y="54" width="26" height="20" rx="3" fill="#2a2f3a"/><rect x="54" y="54" width="26" height="20" rx="3" fill="#35c98e"/></svg>
+</template>
+
+</x-dc>
+</body>
+</html>
