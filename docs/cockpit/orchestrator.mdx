@@ -25,9 +25,20 @@ agent owns it end to end and you handle delivery.
 
 Spawn the orchestrator from the app. Spawning is **idempotent**: if an
 orchestrator is already running, the action returns the existing session instead
-of creating a new one. The app launches it as the `vibe-kanban-indie:orchestrator`
-agent on a `/loop` timer (every 5 minutes), so its behaviour lives in the plugin,
-not in the app — each tick is one dispatch sweep of the board.
+of creating a new one. The app launches it as an ordinary (default) Claude Code
+session on a `/loop` timer (every 5 minutes); each tick, the loop manager spawns a
+fresh `vibe-kanban-indie:sweeper` subagent that performs the actual dispatch sweep,
+then relays its report. Each tick is one dispatch sweep of the board.
+
+<Note>
+The orchestrator is launched as the **default** agent, not with
+`--agent vibe-kanban-indie:orchestrator`. Selecting a plugin agent as the top-level
+session agent leaves the plugin's sibling agents unregistered as spawnable subagent
+types, so the loop manager could not spawn its `sweeper`. The default agent
+registers every enabled plugin's agents, so `sweeper`, `intake`, and `decider` all
+resolve. The loop-manager behaviour therefore travels in the `/loop` brief the app
+composes rather than in a plugin agent definition.
+</Note>
 
 <Note>
 Because it runs from `~/.vibe-kanban/orchestrator` rather than a project worktree,
@@ -61,8 +72,9 @@ applies on each sweep:
 - **Telegram fan-out** — narrate status and converse with each agent over its
   per-workspace Telegram topic (requires the Telegram bridge).
 
-These are passed to the agent as simple flags; the behaviour itself lives in the
-plugin's agent instructions, not in the app.
+These are emitted as simple flags in the `/loop` brief; the loop manager forwards
+them verbatim to the `sweeper` subagent, whose plugin instructions define what each
+flag does.
 
 ## Staying in control
 

@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The orchestrator can now spawn its sweeper when started from the app.** It is
+  launched as the default Claude session instead of
+  `--agent vibe-kanban-indie:orchestrator`. Selecting a plugin agent as the
+  top-level session agent left the plugin's sibling agents
+  (`sweeper` / `decider` / `intake`) unregistered as spawnable subagent types, so
+  every tick failed at the sweep step with `Agent type 'sweeper' not found` (and
+  `--plugin-dir` did not fix it). The default agent registers every enabled
+  plugin's agents, so those siblings resolve; the loop-manager behaviour now
+  travels in the self-contained `/loop` brief the app composes rather than in the
+  plugin's `orchestrator` agent definition.
+
 ## [0.2.17] - 2026-07-14
 
 ### Added
