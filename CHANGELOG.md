@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Starting the Orchestrator no longer errors trying to spawn the retired
+  `sweeper` agent.** The `vibe-kanban-indie` plugin replaced the orchestrator/sweeper
+  split with a single-loop orchestrator and removed the `sweeper` agent, but the app
+  still composed a default-agent loop-manager brief whose first tick step was to
+  spawn `vibe-kanban-indie:sweeper` — failing with `Agent type 'sweeper' not found`.
+  The app now launches the orchestrator as the plugin's own session agent
+  (`--agent vibe-kanban-indie:orchestrator`) with the plugin's short per-tick
+  pointer as the `/loop` body; every remaining `sweeper` reference in source, docs,
+  and comments is gone. The opt-in directives block is unchanged.
+
 ## [0.2.19] - 2026-07-16
 
 ## [0.2.18] - 2026-07-15

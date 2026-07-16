@@ -28,7 +28,7 @@ struct McpListWorkspacesRequest {
 
 /// Thin list row returned by `list_workspaces`: identity, flags, the linked card, and
 /// timestamps — never scripts, prompts, or other long text (VIBE-23). Null-valued keys are
-/// omitted, not serialized as `null`. `created_at` stays: the sweeper's lane-letter
+/// omitted, not serialized as `null`. `created_at` stays: the orchestrator's lane-letter
 /// assignment sorts the inventory by `(created_at ASC, workspace_id ASC)`.
 #[derive(Debug, Serialize, schemars::JsonSchema)]
 struct WorkspaceSummary {

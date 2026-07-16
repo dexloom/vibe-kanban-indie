@@ -5,9 +5,9 @@ import {
   composeOrchestratorPrompt,
 } from './orchestratorOptions';
 
-// The byte-exact directives-block header — a contract with agents/sweeper.md. The
-// base brief mentions the block by name in its instructions, so tests key off this
-// distinguishing phrase (present only when the block itself is appended).
+// The byte-exact directives-block header — a contract with agents/orchestrator.md.
+// Tests key off this distinguishing phrase (present only when the block itself is
+// appended).
 const DIRECTIVES_BLOCK_HEADER =
   "apply each one's behavior as defined in your agent instructions";
 
@@ -31,7 +31,7 @@ describe('orchestrator directives', () => {
   });
 });
 
-describe('composeOrchestratorPrompt — self-contained default-agent brief', () => {
+describe('composeOrchestratorPrompt — single-loop per-tick pointer', () => {
   it('arms the /loop timer at the configured interval', () => {
     const prompt = composeOrchestratorPrompt(new Set());
     expect(prompt.startsWith(`/loop ${ORCHESTRATOR_LOOP_INTERVAL} `)).toBe(
@@ -39,28 +39,29 @@ describe('composeOrchestratorPrompt — self-contained default-agent brief', () 
     );
   });
 
-  it('spawns the sibling agents by fully-qualified plugin name', () => {
+  it('points at the plugin agent definition, not a loop-manager brief', () => {
     const prompt = composeOrchestratorPrompt(new Set());
-    // The default agent registers plugin agents under their qualified names, so
-    // the brief must spawn them qualified — a bare `sweeper` would not resolve.
-    expect(prompt).toContain('vibe-kanban-indie:sweeper');
-    expect(prompt).toContain('vibe-kanban-indie:intake');
-    expect(prompt).toContain('vibe-kanban-indie:decider');
+    // The session runs AS the plugin's orchestrator agent; the pointer defers to
+    // its agent definition and names the two-mode tick it should run.
+    expect(prompt).toContain('vibe-kanban-indie:orchestrator');
+    expect(prompt).toContain('MONITOR');
+    expect(prompt).toContain('SWEEP');
   });
 
-  it('does NOT depend on the plugin agent definition or plugin root', () => {
+  it('never references the retired sweeper agent', () => {
     const prompt = composeOrchestratorPrompt(new Set(['telegram-fanout']));
-    // The session runs as the DEFAULT agent: neither $CLAUDE_PLUGIN_ROOT nor a
-    // `--agent vibe-kanban-indie:orchestrator` selection is available to it.
+    // The plugin removed `sweeper`; a brief that spawns it fails on the first
+    // tick with `Agent type 'sweeper' not found`.
+    expect(prompt.toLowerCase()).not.toContain('sweeper');
+  });
+
+  it('does NOT embed launcher concerns the agent resolves itself', () => {
+    const prompt = composeOrchestratorPrompt(new Set(['telegram-fanout']));
+    // Plugin-root resolution and agent selection are the launcher's job
+    // (`orchestrator_executor_config` passes `--agent`); the /loop body carries
+    // neither.
     expect(prompt).not.toContain('CLAUDE_PLUGIN_ROOT');
     expect(prompt).not.toContain('orchestrator.prompt.md');
     expect(prompt).not.toContain('--agent');
-  });
-
-  it('carries the tick behavior inline (spawn → relay → re-arm on CADENCE)', () => {
-    const prompt = composeOrchestratorPrompt(new Set());
-    expect(prompt).toContain('CADENCE:');
-    expect(prompt).toContain('RELAY');
-    expect(prompt).toContain('SPAWN ONE SWEEPER');
   });
 });

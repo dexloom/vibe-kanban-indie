@@ -95,7 +95,7 @@ struct IssueSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     parent_issue_id: Option<String>,
     /// ⚠️ Must remain byte-identical to `get_issue`'s `updated_at` (both are
-    /// `DateTime::to_rfc3339()`): the sweeper's `cards{}` cache compares the two stamps by
+    /// `DateTime::to_rfc3339()`): the orchestrator's `cards{}` cache compares the two stamps by
     /// exact string equality, and a format drift here silently defeats that cache — every
     /// candidate card re-reads via `get_issue` every tick.
     #[schemars(description = "When the issue was last updated")]
@@ -1499,7 +1499,7 @@ mod tests {
         }
     }
 
-    // The PR fields appear exactly when a PR exists — the sweeper's status-reflection signal.
+    // The PR fields appear exactly when a PR exists — the orchestrator's status-reflection signal.
     #[test]
     fn list_row_carries_pr_fields_only_when_a_pr_exists() {
         let issue = issue_fixture(None, None);
@@ -1531,7 +1531,7 @@ mod tests {
     }
 
     // ⚠️ The cache contract: `list_issues.updated_at` must be byte-identical to `get_issue`'s
-    // stamp (both `DateTime::to_rfc3339()`) — the sweeper's `cards{}` cache compares the two by
+    // stamp (both `DateTime::to_rfc3339()`) — the orchestrator's `cards{}` cache compares the two by
     // exact STRING equality, and a one-sided format change silently defeats it (a permanent
     // cache miss = one `get_issue` per candidate per tick).
     #[test]

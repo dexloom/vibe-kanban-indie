@@ -446,25 +446,21 @@ pub async fn create_and_start_workspace(
 
 /// Build the executor config for the orchestrator: always a headed Claude Code
 /// session (its default profile sets `dangerously_skip_permissions`), launched as
-/// the **default** Claude agent (no `--agent`).
+/// the plugin's own session agent (`--agent vibe-kanban-indie:orchestrator`).
 ///
-/// It is deliberately NOT launched with `--agent vibe-kanban-indie:orchestrator`.
-/// Selecting a plugin agent as the *top-level* session agent leaves the plugin's
-/// sibling agents unregistered as spawnable subagent types, so the loop manager's
-/// `Agent(sweeper)` call fails with `Agent type 'sweeper' not found` (empty
-/// registry) — and `--plugin-dir` does not fix it. The default agent, by contrast,
-/// registers every enabled plugin's agents as spawnable subagent types (the
-/// `vibe-kanban-indie` plugin is enabled globally), so `vibe-kanban-indie:sweeper`
-/// / `:decider` / `:intake` all resolve. The loop-manager BEHAVIOR is carried
-/// entirely by the `/loop` brief the caller composes (see
-/// `composeOrchestratorPrompt`), which is self-contained and does not depend on the
-/// plugin's `orchestrator` agent definition.
+/// The plugin's SINGLE-LOOP orchestrator owns the whole tick itself (monitor-first
+/// two-mode loop) — the retired `sweeper` subagent no longer exists, so the old
+/// default-agent workaround (which existed only so a loop-manager brief could spawn
+/// `vibe-kanban-indie:sweeper` as a sibling subagent) is gone with it. The agent's
+/// full behavior lives in the plugin's `agents/orchestrator.md`; the `/loop` body
+/// the caller composes (see `composeOrchestratorPrompt`) is only the short per-tick
+/// pointer, matching the plugin's own launcher (`scripts/orchestrator.sh`).
 fn orchestrator_executor_config() -> ExecutorConfig {
     ExecutorConfig {
         executor: BaseCodingAgent::ClaudeCodeHeaded,
         variant: None,
         model_id: None,
-        agent_id: None,
+        agent_id: Some("vibe-kanban-indie:orchestrator".to_string()),
         reasoning_id: None,
         permission_policy: None,
     }

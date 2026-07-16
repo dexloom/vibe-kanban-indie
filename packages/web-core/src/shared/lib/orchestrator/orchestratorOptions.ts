@@ -1,25 +1,19 @@
-// The orchestrator is launched as the **default** Claude session (NOT
-// `--agent vibe-kanban-indie:orchestrator`). Selecting a plugin agent as the
-// top-level session agent leaves the plugin's sibling agents unregistered as
-// spawnable subagent types, so `Agent(sweeper)` fails with `Agent type 'sweeper'
-// not found` (and `--plugin-dir` does not fix it). The default agent registers
-// every enabled plugin's agents as spawnable subagent types, so the loop manager
-// can spawn `vibe-kanban-indie:sweeper` / `:decider` / `:intake`.
-//
-// Because there is no `orchestrator` *agent definition* backing the session, the
-// loop-manager BEHAVIOR now travels in the `/loop` brief this file composes: it is
-// self-contained (no `$CLAUDE_PLUGIN_ROOT`, no "your agent definition") and carries
-// the whole tick — spawn one sweeper, relay verbatim, re-arm on CADENCE, operator
-// triage. The heavy per-stage logic still lives in the plugin's `sweeper` /
-// `intake` / `decider` agents (spawned by qualified name); this brief is only the
-// thin loop-manager wrapper that drives them.
+// The orchestrator is launched as the plugin's own session agent
+// (`claude --agent vibe-kanban-indie:orchestrator` — see
+// `orchestrator_executor_config` in crates/server/src/routes/workspaces/create.rs).
+// The plugin's SINGLE-LOOP orchestrator owns the whole tick itself (monitor-first
+// two-mode loop; the retired `sweeper` subagent is gone), so its behavior lives in
+// the plugin agent definition — the `/loop` body this file composes is only the
+// SHORT per-tick pointer, mirroring the plugin's own launcher pointer
+// (`scripts/orchestrator.prompt.md` in sombrax_plugins). Keep the two aligned when
+// the plugin's pointer changes.
 //
 // This file also owns the spawn-dialog OPTIONS: the toggleable directives the
 // operator picks for a run. Each directive is emitted as a thin FLAG (its `id`) in
-// a byte-exact "Directives enabled for this run" block; the loop manager forwards
-// that block verbatim to the sweeper, whose agent instructions define what each
-// flag does. The block's header text is a contract with `agents/sweeper.md` — keep
-// it byte-identical.
+// a byte-exact "Directives enabled for this run" block appended to the end of the
+// spawn prompt; the agent's plugin instructions (`reference/directives.md`) define
+// what each flag does. The block's header text is a contract with
+// `agents/orchestrator.md` — keep it byte-identical.
 
 export interface OrchestratorDirective {
   /** Stable id; the localStorage key, i18n namespace, AND the flag passed to the
@@ -64,69 +58,34 @@ export const ORCHESTRATOR_DIRECTIVES: OrchestratorDirective[] = [
   },
 ];
 
-/** How often the orchestrator re-runs its sweep. */
+/** The orchestrator's ACTIVE cadence — the interval the `/loop` timer is armed at.
+ *  The agent adapts its own cron afterwards (5m active ↔ 30m idle). */
 export const ORCHESTRATOR_LOOP_INTERVAL = '5m';
 
 /**
- * Compose the `/loop`-wrapped spawn prompt for the orchestrator's **default** Claude
- * session. It is SELF-CONTAINED: it arms the timer at
- * {@link ORCHESTRATOR_LOOP_INTERVAL} and carries the entire loop-manager behavior
- * inline (spawn one `vibe-kanban-indie:sweeper` per tick, relay its report verbatim,
- * re-arm only on the sweeper's `CADENCE:` line, and triage operator instructions to
- * `intake` / `decider`). It intentionally references neither `$CLAUDE_PLUGIN_ROOT`
- * nor an `orchestrator` agent definition — the session runs as the default agent, so
- * neither is available.
+ * Compose the `/loop`-wrapped spawn prompt for the orchestrator session
+ * (`claude --agent vibe-kanban-indie:orchestrator`). It arms the timer at
+ * {@link ORCHESTRATOR_LOOP_INTERVAL} with the SHORT per-tick pointer — the agent's
+ * full behavior (monitor-first two-mode tick, dispatch, status reflection, adaptive
+ * cadence) lives in the plugin's `agents/orchestrator.md`, so the pointer stays tiny
+ * and `/loop` re-submits it each tick, surviving context compaction over a days-long
+ * run. The pointer mirrors the plugin's own `scripts/orchestrator.prompt.md`.
  *
- * The behavior lives in the recurring `/loop` body (not a system prompt) on purpose:
- * `/loop` re-submits this body each tick, so it survives context compaction over a
- * days-long run. Enabled directive FLAGS are appended as a byte-exact "Directives
- * enabled for this run" block that the manager forwards verbatim to the sweeper (its
- * instructions define what each flag does). Flags are emitted in declaration order so
- * the prompt is stable regardless of checkbox toggle order.
+ * Enabled directive FLAGS are appended as a byte-exact "Directives enabled for this
+ * run" block ENDING the prompt (the agent expects the directive list to end its spawn
+ * prompt; its plugin instructions define what each flag does). Flags are emitted in
+ * declaration order so the prompt is stable regardless of checkbox toggle order.
  */
 export function composeOrchestratorPrompt(
   enabledIds: ReadonlySet<string>
 ): string {
   const base =
-    `/loop ${ORCHESTRATOR_LOOP_INTERVAL} You are the vibe-kanban ORCHESTRATOR LOOP ` +
-    `MANAGER, running as an ordinary Claude session. You own the TIMER and the ` +
-    `RELAY; a fresh sweeper subagent owns each tick's board sweep. You never touch ` +
-    `the board yourself and hold no board state — every tick you delegate to the ` +
-    `sweeper and relay its short report, which keeps this session's context flat ` +
-    `over a days-long run.\n\n` +
-    `On the FIRST run, confirm the /loop timer is armed (CronList shows a recurring ` +
-    `sweep job); if not, arm it before anything else. Then each tick:\n` +
-    `1. SPAWN ONE SWEEPER, synchronously — spawn exactly one subagent of type ` +
-    `vibe-kanban-indie:sweeper (Task/Agent tool; never twice, never zero) and tell ` +
-    `it: "Run ONE full sweep of the vibe-kanban board per your agent definition, ` +
-    `and end your report with the machine-readable CADENCE: line." Append to its ` +
-    `task, each on its own line: LOOP INTERVAL: <interval> derived from the LIVE ` +
-    `cron schedule via CronList (never from prompt text; omit the line if you ` +
-    `cannot determine it); TRIGGER: scheduled (or, for an operator instruction ` +
-    `routed here, TRIGGER: operator-instruction followed by an OPERATOR ` +
-    `INSTRUCTION: heading with the operator's prompt byte-for-byte); and the ` +
-    `"Directives enabled for this run" block at the END of this prompt, if any, ` +
-    `copied BYTE-FOR-BYTE (paraphrasing it silently turns every directive off). If ` +
-    `the sweeper errors, report it and end the tick — NEVER sweep the board ` +
-    `yourself.\n` +
-    `2. RELAY the sweeper's report verbatim to the console (and, under ` +
-    `telegram-fanout, mirror it to the Orchestrate topic). Add nothing but a ` +
-    `failure note; never re-run, summarize away, or contradict a sweep you did not ` +
-    `run.\n` +
-    `3. RE-ARM ONLY IF ASKED — read the report's LAST non-empty line. CADENCE: ` +
-    `unchanged ⇒ do nothing. CADENCE: re-arm <interval> ⇒ CronList (capture the ` +
-    `sweep job's exact id AND exact prompt), CronCreate the SAME prompt on the new ` +
-    `schedule, then CronDelete the old id — CREATE BEFORE DELETE. Absent or ` +
-    `unparseable ⇒ treat as unchanged and say so; never guess a re-arm.\n\n` +
-    `OPERATOR INSTRUCTIONS (any prompt that is not the scheduled sweep) are triaged ` +
-    `FIRST, precedence A→C→B: (A) create a card / attach a pipeline ⇒ YOU spawn ` +
-    `vibe-kanban-indie:intake (never forward it); (C) a direct "answer that ` +
-    `questionnaire" ⇒ YOU spawn vibe-kanban-indie:decider (never forward it — a ` +
-    `subagent cannot spawn a subagent); (B) everything else ⇒ forward it VERBATIM ` +
-    `to the sweeper under TRIGGER: operator-instruction. sweeper, decider and ` +
-    `intake (all vibe-kanban-indie:*) are the only subagents you spawn.\n\n` +
-    `Never auto-resume or auto-clear a card the sweeper reports as parked at an ` +
-    `operator gate — that decision is the operator's. Then stop until the next tick.`;
+    `/loop ${ORCHESTRATOR_LOOP_INTERVAL} Run one tick of the board loop per your ` +
+    `agent definition (vibe-kanban-indie:orchestrator): pick the mode from retained ` +
+    `context — MONITOR the active cards by default; run a full SWEEP only when a ` +
+    `sweep trigger fires (nothing active, a lane freed, an operator instruction, or ` +
+    `the periodic backstop). Triage any operator instruction first (intake / ` +
+    `decider / handle directly).`;
   const picked = ORCHESTRATOR_DIRECTIVES.filter((d) => enabledIds.has(d.id));
   if (picked.length === 0) return base;
   const flags = picked.map((d) => `- ${d.id}`).join('\n');

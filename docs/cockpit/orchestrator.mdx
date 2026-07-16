@@ -4,11 +4,12 @@ description: "A singleton headed agent session that dispatches ready cards to co
 ---
 
 The orchestrator is a single, long-lived **headed Claude Code** session that
-dispatches work on your behalf. It does exactly one thing: on a recurring loop it
-finds cards that are ready to run, picks which coding agent to start for each, and
-starts it through the Vibe Kanban MCP tools. It does not monitor, drive, review,
-merge, or answer questions for those agents — once a card is dispatched, the coding
-agent owns it end to end and you handle delivery.
+drives the board on your behalf. On a recurring loop it finds cards that are ready
+to run, picks which coding agent to start for each, starts it through the Vibe
+Kanban MCP tools, and keeps each managed card's board column in sync with what its
+coding agent has actually accomplished. It does not drive, review, or merge the
+work itself — once a card is dispatched, the coding agent owns execution end to
+end; the orchestrator only dispatches and reflects status.
 
 ## What makes it special
 
@@ -25,19 +26,20 @@ agent owns it end to end and you handle delivery.
 
 Spawn the orchestrator from the app. Spawning is **idempotent**: if an
 orchestrator is already running, the action returns the existing session instead
-of creating a new one. The app launches it as an ordinary (default) Claude Code
-session on a `/loop` timer (every 5 minutes); each tick, the loop manager spawns a
-fresh `vibe-kanban-indie:sweeper` subagent that performs the actual dispatch sweep,
-then relays its report. Each tick is one dispatch sweep of the board.
+of creating a new one. The app launches it as the plugin's own session agent
+(`claude --agent vibe-kanban-indie:orchestrator`) on a `/loop` timer. Each tick
+runs in one of two modes: a cheap **monitor** pass over the currently active cards
+(the default), or a full board **sweep** (find ready cards, dispatch one coding
+agent per card) that runs only when a dispatch trigger fires — nothing is active,
+a card just shipped, an operator instruction asks for it, or a periodic backstop
+is due. The agent adapts its own cadence, backing off from 5 minutes to 30 when
+the board goes idle and snapping back when work returns.
 
 <Note>
-The orchestrator is launched as the **default** agent, not with
-`--agent vibe-kanban-indie:orchestrator`. Selecting a plugin agent as the top-level
-session agent leaves the plugin's sibling agents unregistered as spawnable subagent
-types, so the loop manager could not spawn its `sweeper`. The default agent
-registers every enabled plugin's agents, so `sweeper`, `intake`, and `decider` all
-resolve. The loop-manager behaviour therefore travels in the `/loop` brief the app
-composes rather than in a plugin agent definition.
+The orchestrator's full behaviour lives in the plugin's agent definition
+(`agents/orchestrator.md` in the `vibe-kanban-indie` plugin). The `/loop` body the
+app composes is only a short per-tick pointer — the same one the plugin's own
+launcher uses — so the behaviour survives context compaction over a days-long run.
 </Note>
 
 <Note>
@@ -57,13 +59,16 @@ it board-wide tools to:
   your last-used/default agent configuration when the card pins none
 - Start a workspace and dispatch one coding agent per ready card, then move the card
   to In Progress
+- Reflect each managed card's status back onto the board — In Review when the
+  pipeline is complete but nothing landed, Done when the merge or PR has actually
+  landed — and hold and surface cards parked at an operator-approval gate
 
-By default, everything after dispatch — monitoring, approvals, reviews, merges, and
-answering an agent's questions — is outside the orchestrator's scope: the coding agent
-drives its own pipeline, and you deliver the result.
+Approvals, reviews, merges, and answering an agent's questions stay outside the
+orchestrator's default scope: the coding agent drives its own pipeline, and you make
+the decisions.
 
 When you spawn the orchestrator you can opt into **directives** — extra behaviours it
-applies on each sweep:
+applies on each tick:
 
 - **Auto-unblock approvals** — auto-approve routine, plan-sanctioned tool requests;
   escalate destructive or off-plan ones to you.
@@ -71,9 +76,11 @@ applies on each sweep:
   window, a `decider` subagent reads the card, spec, and plan and answers it for you.
 - **Telegram fan-out** — narrate status and converse with each agent over its
   per-workspace Telegram topic (requires the Telegram bridge).
+- **Nudge stuck agents** — send "Why are you stuck" to a managed agent that shows no
+  progress for two consecutive ticks.
 
-These are emitted as simple flags in the `/loop` brief; the loop manager forwards
-them verbatim to the `sweeper` subagent, whose plugin instructions define what each
+These are emitted as simple flags in a "Directives enabled for this run" block at
+the end of the spawn prompt; the orchestrator's plugin instructions define what each
 flag does.
 
 ## Staying in control
