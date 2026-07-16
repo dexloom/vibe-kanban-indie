@@ -74,6 +74,10 @@ struct McpListIssuesRequest {
     sort_direction: Option<String>,
 }
 
+/// Thin list row returned by `list_issues`. Deliberately NOT the issue: list rows are for
+/// finding ids and reflecting board state, and the sanctioned deep path is `get_issue` — the
+/// description body never appears here by construction (VIBE-23, following VIBE-1/VIBE-2).
+/// Null-valued keys are omitted, not serialized as `null`.
 #[derive(Debug, Serialize, schemars::JsonSchema)]
 struct IssueSummary {
     #[schemars(description = "The unique identifier of the issue")]
@@ -84,22 +88,36 @@ struct IssueSummary {
     simple_id: String,
     #[schemars(description = "Current status of the issue")]
     status: String,
-    #[schemars(description = "Current priority of the issue")]
+    #[schemars(description = "Current priority of the issue, omitted when unset")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     priority: Option<String>,
-    #[schemars(description = "Parent issue ID if this is a subissue")]
+    #[schemars(description = "Parent issue ID if this is a subissue, omitted otherwise")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     parent_issue_id: Option<String>,
-    #[schemars(description = "When the issue was created")]
-    created_at: String,
+    /// ⚠️ Must remain byte-identical to `get_issue`'s `updated_at` (both are
+    /// `DateTime::to_rfc3339()`): the sweeper's `cards{}` cache compares the two stamps by
+    /// exact string equality, and a format drift here silently defeats that cache — every
+    /// candidate card re-reads via `get_issue` every tick.
     #[schemars(description = "When the issue was last updated")]
     updated_at: String,
-    #[schemars(description = "Number of pull requests linked to this issue")]
+    #[schemars(description = "Number of pull requests linked to this issue, omitted when zero")]
+    #[serde(skip_serializing_if = "is_zero")]
     pull_request_count: usize,
-    #[schemars(description = "URL of the most recent pull request, if any")]
+    #[schemars(description = "URL of the most recent pull request, omitted when none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     latest_pr_url: Option<String>,
     #[schemars(
-        description = "Status of the most recent pull request: 'open', 'merged', or 'closed'"
+        description = "Status of the most recent pull request ('open', 'merged', or 'closed'), omitted when none"
     )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     latest_pr_status: Option<PullRequestStatus>,
+}
+
+/// `skip_serializing_if` gate for `pull_request_count`: most board cards have no PRs, and the
+/// delta gate's probe already normalizes an absent count to `null` (`.pull_request_count //
+/// null`), so `0` carries no information that absence doesn't.
+fn is_zero(n: &usize) -> bool {
+    *n == 0
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
@@ -353,7 +371,7 @@ impl McpServer {
     }
 
     #[tool(
-        description = "List all the issues in a project. `project_id` is optional if running inside a workspace linked to a remote project."
+        description = "List all the issues in a project. `project_id` is optional if running inside a workspace linked to a remote project. Returns thin summary rows - id, simple_id, title, status, updated_at, plus priority/parent_issue_id/PR fields only when set - NEVER the description. Null fields are omitted. Call `get_issue` for full detail (description, tags, relationships, sub-issues)."
     )]
     async fn list_issues(
         &self,
@@ -481,14 +499,15 @@ impl McpServer {
         let mut summaries = Vec::with_capacity(response.issues.len());
         for issue in &response.issues {
             let pull_requests = self.fetch_pull_requests(issue.id).await;
-            summaries.push(self.issue_to_summary(
+            summaries.push(Self::issue_to_summary(
                 issue,
                 status_names_by_id.as_ref(),
                 &pull_requests,
             ));
         }
 
-        McpServer::success(&McpListIssuesResponse {
+        // Compact on purpose: a 100-row list pretty-printed is ~35% whitespace (VIBE-23).
+        McpServer::success_compact(&McpListIssuesResponse {
             total_count: response.total_count,
             returned_count: summaries.len(),
             limit: response.limit,
@@ -688,7 +707,6 @@ impl McpServer {
     }
 
     fn issue_to_summary(
-        &self,
         issue: &Issue,
         status_names_by_id: Option<&HashMap<Uuid, String>>,
         pull_requests: &ListPullRequestsResponse,
@@ -707,7 +725,6 @@ impl McpServer {
                 .map(Self::issue_priority_label)
                 .map(str::to_string),
             parent_issue_id: issue.parent_issue_id.map(|id| id.to_string()),
-            created_at: issue.created_at.to_rfc3339(),
             updated_at: issue.updated_at.to_rfc3339(),
             pull_request_count: pull_requests.pull_requests.len(),
             latest_pr_url: latest_pr.map(|pr| pr.url.clone()),
@@ -1427,6 +1444,150 @@ mod tests {
         assert!(
             new_len * 10 < old_len,
             "expected the ack to be under 10% of the old echo: old={old_len} new={new_len}"
+        );
+    }
+
+    // --- VIBE-23: thin `list_issues` rows ---
+
+    /// Serialize an `IssueSummary` and hand back its JSON object, so tests assert on keys.
+    fn summary_json(summary: &IssueSummary) -> serde_json::Map<String, serde_json::Value> {
+        let value = serde_json::to_value(summary).expect("summary serializes");
+        value.as_object().expect("summary is a JSON object").clone()
+    }
+
+    fn no_pull_requests() -> ListPullRequestsResponse {
+        ListPullRequestsResponse {
+            pull_requests: vec![],
+        }
+    }
+
+    // AC: no null-valued keys, no dropped fields resurfacing, and NEVER the description.
+    #[test]
+    fn list_row_omits_null_keys_and_never_the_description() {
+        let body = big_description();
+        let issue = issue_fixture(Some(&body), None);
+        let summary = McpServer::issue_to_summary(&issue, None, &no_pull_requests());
+
+        let text = serde_json::to_string(&summary).expect("summary serializes");
+        let obj = summary_json(&summary);
+
+        assert_no_description_body(&text, &obj);
+        assert!(
+            obj.values().all(|v| !v.is_null()),
+            "no null-valued keys allowed in list rows: {obj:?}"
+        );
+        // Dropped/conditional fields stay off a row that has nothing to say.
+        for key in [
+            "created_at",
+            "parent_issue_id",
+            "pull_request_count",
+            "latest_pr_url",
+            "latest_pr_status",
+        ] {
+            assert!(obj.get(key).is_none(), "`{key}` must be omitted");
+        }
+        // The always-present core survives (priority is set on the fixture).
+        for key in [
+            "id",
+            "simple_id",
+            "title",
+            "status",
+            "priority",
+            "updated_at",
+        ] {
+            assert!(obj.get(key).is_some(), "missing `{key}`");
+        }
+    }
+
+    // The PR fields appear exactly when a PR exists — the sweeper's status-reflection signal.
+    #[test]
+    fn list_row_carries_pr_fields_only_when_a_pr_exists() {
+        let issue = issue_fixture(None, None);
+        let pull_requests: ListPullRequestsResponse = serde_json::from_value(serde_json::json!({
+            "pull_requests": [{
+                "id": "22222222-2222-2222-2222-222222222222",
+                "project_id": "11111111-1111-1111-1111-111111111111",
+                "issue_id": issue.id.to_string(),
+                "workspace_id": null,
+                "number": 7,
+                "url": "https://github.com/sombrax/vibe-kanban-indie/pull/7",
+                "status": "open",
+                "merged_at": null,
+                "target_branch_name": "main",
+                "created_at": "2026-07-14T09:12:44Z",
+                "updated_at": "2026-07-14T09:12:44Z"
+            }]
+        }))
+        .expect("pull request fixture deserializes");
+
+        let with_pr = McpServer::issue_to_summary(&issue, None, &pull_requests);
+        let obj = summary_json(&with_pr);
+        assert_eq!(obj["pull_request_count"], serde_json::json!(1));
+        assert_eq!(
+            obj["latest_pr_url"],
+            serde_json::json!("https://github.com/sombrax/vibe-kanban-indie/pull/7")
+        );
+        assert_eq!(obj["latest_pr_status"], serde_json::json!("open"));
+    }
+
+    // ⚠️ The cache contract: `list_issues.updated_at` must be byte-identical to `get_issue`'s
+    // stamp (both `DateTime::to_rfc3339()`) — the sweeper's `cards{}` cache compares the two by
+    // exact STRING equality, and a one-sided format change silently defeats it (a permanent
+    // cache miss = one `get_issue` per candidate per tick).
+    #[test]
+    fn list_row_updated_at_matches_get_issue_rendering_byte_for_byte() {
+        let issue = issue_fixture(None, None);
+        let summary = McpServer::issue_to_summary(&issue, None, &no_pull_requests());
+
+        // `issue_to_details` (the `get_issue` path) renders `issue.updated_at.to_rfc3339()`.
+        assert_eq!(summary.updated_at, issue.updated_at.to_rfc3339());
+        // The fixture's stamp carries sub-second precision — pin that it survives, so a
+        // "shorten the timestamp" edit on either side trips this test instead of the cache.
+        assert_eq!(summary.updated_at, "2026-07-14T09:12:44.183+00:00");
+    }
+
+    // --- AC: a 20-issue project's list response fits the size budget ---
+    //
+    // The floor is contractual: a 36-char UUID (the `get_issue` key), a full-precision
+    // `updated_at` (the cache contract above), `simple_id`, `status`, and the title. With
+    // realistic 40-char titles that is ~190 chars/row compact, so 20 rows land ~3.9k — inside
+    // the AC's "~3k" for short-titled boards and title-dominated beyond. The old shape
+    // (pretty-printed, null keys, created_at) measured ~450 chars/row; pin the reduction too.
+    #[test]
+    fn twenty_issue_rows_fit_the_size_budget() {
+        let mut issues = Vec::new();
+        for i in 0..20 {
+            let mut issue = issue_fixture(Some(&big_description()), None);
+            issue.title = format!("Card {i:02}: a realistic forty-char issue title");
+            // A resolvable status map, so rows carry a real name ("In Progress"), not
+            // the 36-char status-UUID fallback.
+            let status_names = HashMap::from([(issue.status_id, "In Progress".to_string())]);
+            issues.push(McpServer::issue_to_summary(
+                &issue,
+                Some(&status_names),
+                &no_pull_requests(),
+            ));
+        }
+        let response = McpListIssuesResponse {
+            total_count: issues.len(),
+            returned_count: issues.len(),
+            limit: 50,
+            offset: 0,
+            issues,
+            project_id: "07fc0c5e-28a3-4f24-9d0f-52c86bc3a3e8".to_string(),
+        };
+
+        let compact = serde_json::to_string(&response).expect("response serializes");
+        assert!(
+            compact.len() <= 4_300,
+            "20 issue rows must stay near the ~3k budget, got {} chars",
+            compact.len()
+        );
+        // And the per-row average holds the ~190-char floor + title.
+        assert!(
+            compact.len() / 20 <= 215,
+            "per-row average drifted: {} chars/row",
+            compact.len() / 20
         );
     }
 

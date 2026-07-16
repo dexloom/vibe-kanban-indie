@@ -96,6 +96,17 @@ impl McpServer {
         )]))
     }
 
+    /// Like `success`, but compact (no pretty-printing). Used by list-shaped
+    /// tools (`list_issues`, `list_workspaces`): their rows are machine-read by
+    /// agents, and pretty-printing a many-row list is ~35% indentation and
+    /// newlines by weight (VIBE-23).
+    fn success_compact<T: Serialize>(data: &T) -> ToolCallResult {
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(data)
+                .unwrap_or_else(|_| "Failed to serialize response".to_string()),
+        )]))
+    }
+
     fn err<S: Into<String>>(msg: S, details: Option<S>) -> ToolCallResult {
         Ok(Self::tool_error(ToolError::new(msg, details)))
     }

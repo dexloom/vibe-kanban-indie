@@ -92,6 +92,16 @@ struct WorkspaceIssueLink {
     issue_id: Option<Uuid>,
 }
 
+/// One row of the bulk `GET /api/workspace-issue-links` response: a workspace and
+/// the issue (card) it is linked to. List-shaped consumers (the MCP's
+/// `list_workspaces`, VIBE-23) join these onto workspace rows in one call instead
+/// of one `GET /api/workspace-issue-link` round-trip per workspace.
+#[derive(Debug, Serialize)]
+struct WorkspaceIssueLinkRow {
+    workspace_id: Uuid,
+    issue_id: Uuid,
+}
+
 // --- conversions: DB row types -> api_types wire types ----------------------
 
 fn priority_str(p: &IssuePriority) -> &'static str {
@@ -615,6 +625,22 @@ async fn workspace_issue_link(
     }))
 }
 
+/// Every issue↔workspace link in one call. Backed by `list_linked_all`, whose
+/// JOINs against `issues`/`workspaces` naturally exclude dangling links.
+async fn list_workspace_issue_links(
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<Vec<WorkspaceIssueLinkRow>>>, ApiError> {
+    let links = IssueWorkspace::list_linked_all(&deployment.db().pool)
+        .await?
+        .into_iter()
+        .map(|link| WorkspaceIssueLinkRow {
+            workspace_id: link.workspace_id,
+            issue_id: link.issue_id,
+        })
+        .collect();
+    Ok(ok(links))
+}
+
 pub fn router(_deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     Router::new()
         .route("/projects", get(list_projects))
@@ -643,6 +669,7 @@ pub fn router(_deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
             delete(delete_issue_relationship),
         )
         .route("/workspace-issue-link", get(workspace_issue_link))
+        .route("/workspace-issue-links", get(list_workspace_issue_links))
 }
 
 #[cfg(test)]
