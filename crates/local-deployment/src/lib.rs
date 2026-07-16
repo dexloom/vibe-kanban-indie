@@ -26,6 +26,7 @@ use services::services::{
     file_search::FileSearchCache,
     filesystem::FilesystemService,
     oauth_credentials::OAuthCredentials,
+    orchestrator_compactor::OrchestratorCompactor,
     pr_monitor::PrMonitorService,
     queued_message::QueuedMessageService,
     recurrent::scheduler::RecurrentScheduler,
@@ -275,6 +276,12 @@ impl Deployment for LocalDeployment {
             let container = container.clone();
             tracing::info!("Starting recurrent scheduler");
             RecurrentScheduler::spawn(db, container).await;
+        }
+        {
+            let db = db.clone();
+            let container = container.clone();
+            tracing::info!("Starting orchestrator compactor");
+            OrchestratorCompactor::spawn(db, container).await;
         }
 
         let deployment = Self {

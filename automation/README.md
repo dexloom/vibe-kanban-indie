@@ -95,12 +95,64 @@ messaging in Telegram while the PM agent is up.
      poller); the PM agent is its listener client. The bridge is **send-only**,
      so it coexists without a 409 conflict.
 
+## Orchestrator context watchdog
+
+The backend hosts an `OrchestratorCompactor` background task (60s tick,
+`crates/services/src/services/orchestrator_compactor.rs`, spawned next to the
+recurrent scheduler in `crates/local-deployment/src/lib.rs`) that keeps the
+singleton Orchestrator session's Claude context from silently growing
+unbounded across a days-long run. Every tick, if the Orchestrator's session is
+live, it measures the summed `input_tokens + cache_creation_input_tokens +
+cache_read_input_tokens` from the last assistant record in its transcript
+JSONL and, when a trigger fires, types `/compact` into its tmux session (the
+typed-keys path — `send_interactive_input`, which executes slash commands;
+never the bracketed-paste `send_interactive_message`, which would land
+`/compact` as literal text).
+
+Two triggers, either of which sends a compaction:
+- **Size:** measured context exceeds **400,000 tokens** (`token_threshold`).
+- **Age:** the session hasn't been compacted for **1 hour** (`max_age`) *and*
+  its context is at least **50,000 tokens** (`age_floor_tokens` — compacting a
+  near-empty context is pure information loss).
+
+A **10-minute cooldown** (`cooldown`) since the last send gates both triggers
+(widened to `max(cooldown, max_age)` once escalated, as a backoff). Every
+`/compact` actually sent logs one `tracing::info!` line. If a resend doesn't
+bring usage back under the threshold for **3 consecutive attempts**, the
+watchdog logs at error level and fires one best-effort Telegram escalation
+(reusing `telegram.toml` above — no separate config). When there's no live
+Orchestrator, its tmux session is dead, or its transcript is unreadable, the
+watchdog no-ops silently (debug-level log at most) — it never crashes the
+server or acts on a dead session.
+
+Configured via a hand-edited `~/.vibe-kanban/orchestrator.toml`
+(`~/.vibe-kanban-dev` in debug builds), matching the `telegram.toml` /
+recurrent-routine precedent — an absent file uses the defaults below with the
+feature **on**; an invalid or unreadable file warns once and falls back to
+defaults (never disabled silently, never a crash):
+
+```toml
+# ~/.vibe-kanban/orchestrator.toml
+[compact]
+enabled = true            # default true — file absent ⇒ feature on with defaults
+max_age = "1h"            # time-based trigger period
+token_threshold = 400000  # size-based trigger
+age_floor_tokens = 50000  # min context for the age trigger to bother
+cooldown = "10m"          # min gap between sends
+```
+
+Set `enabled = false` to disable the watchdog entirely. Durations use the same
+`30m` / `1h` format as the recurrent routine TOMLs (integer + one of
+`s`/`m`/`h`/`d`).
+
 ## Verification
 
 - TUI: `cargo test -p tui` (unit + render) and, against a running backend,
   `VIBE_BACKEND_URL=http://127.0.0.1:8910 cargo test -p tui -- --ignored`.
 - Bridge: `cargo test -p telegram-bridge` (patch parsing + message formatting).
 - MCP: `cargo test -p mcp` (the global-mode tool set includes the approval tools).
+- Orchestrator compactor: `cargo test -p services orchestrator_compactor`
+  (config parsing, transcript usage parser, trigger-decision table tests).
 - End-to-end: trigger a real approval (e.g. an agent task that runs a
   permission-gated command), confirm the escalation appears in Telegram and that
   approving it (via the PM agent, the TUI, or a human) unblocks the worker.

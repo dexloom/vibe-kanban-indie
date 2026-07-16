@@ -119,6 +119,22 @@ pub struct AgentProgress {
     pub transcript_path: Option<String>,
 }
 
+/// The direct-access identifiers available for a Claude Code Headed
+/// execution: the forced session id, the deterministic `vk-<exec_id>` tmux
+/// session name, and (best-effort) the resolved transcript path. A narrower
+/// counterpart to [`AgentProgress`] for callers (like a transcript-polling
+/// watchdog) that only need the tmux/transcript handles, not the
+/// normalized-log message history `agent_progress` additionally
+/// reconstructs.
+#[derive(Debug, Clone)]
+pub struct HeadedClaudeHandle {
+    pub claude_session_id: String,
+    pub tmux_session_name: String,
+    /// `None` when the owning workspace/session lookup fails — mirrors
+    /// `agent_progress`'s best-effort behavior.
+    pub transcript_path: Option<PathBuf>,
+}
+
 /// Reconstruct the normalized entries document from `patches` and return the
 /// content of the highest-index `assistant_message` entry, or `None` if there
 /// is no (non-empty) assistant message. Pure so it can be unit-tested without a
@@ -1285,13 +1301,13 @@ pub trait ContainerService {
         latest_assistant_message_from_patches(&patches)
     }
 
-    /// Assemble the orchestrator-facing progress snapshot for `process`: the
-    /// portable latest assistant message plus, for Claude Code Headed runs only,
-    /// the direct-access identifiers (claude session id, `vk-<exec_id>` tmux
-    /// name, resolved transcript path).
-    async fn agent_progress(&self, process: &ExecutionProcess) -> AgentProgress {
-        let latest_message = self.latest_assistant_message(&process.id).await;
-
+    /// Resolve the headed-Claude identifiers for `process` without touching
+    /// the normalized message-history log: `agent_progress` additionally
+    /// reconstructs the full history via `latest_assistant_message`, which is
+    /// repeated O(history) work a caller that only needs the tmux/transcript
+    /// handles (e.g. a 60s watchdog polling a days-long orchestrator
+    /// transcript) doesn't need to pay for. `None` for non-headed runs.
+    async fn headed_claude_handle(&self, process: &ExecutionProcess) -> Option<HeadedClaudeHandle> {
         let action = process.executor_action().ok();
         let is_headed_claude = action
             .map(|a| {
@@ -1301,45 +1317,62 @@ pub trait ContainerService {
             .unwrap_or(false);
 
         if !is_headed_claude {
+            return None;
+        }
+
+        let cfg = action.and_then(|a| a.interactive_config())?;
+        let claude_session_id = cfg.session_uuid.to_string();
+        let handle_tmux_session_name = tmux_session_name(process.id);
+
+        // Best-effort: resolve the absolute transcript path the way the headed
+        // launcher does (canonical worktree cwd + home), so callers do not
+        // have to reconstruct Claude's cwd encoding themselves.
+        let transcript_path = match process.parent_workspace_and_session(&self.db().pool).await {
+            Ok(Some((workspace, _session))) => {
+                let current_dir = self.workspace_to_current_dir(&workspace);
+                let canonical_dir = tokio::fs::canonicalize(&current_dir)
+                    .await
+                    .unwrap_or(current_dir);
+                let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+                Some(claude_transcript_path(
+                    &home,
+                    &canonical_dir,
+                    cfg.session_uuid,
+                ))
+            }
+            _ => None,
+        };
+
+        Some(HeadedClaudeHandle {
+            claude_session_id,
+            tmux_session_name: handle_tmux_session_name,
+            transcript_path,
+        })
+    }
+
+    /// Assemble the orchestrator-facing progress snapshot for `process`: the
+    /// portable latest assistant message plus, for Claude Code Headed runs only,
+    /// the direct-access identifiers (claude session id, `vk-<exec_id>` tmux
+    /// name, resolved transcript path).
+    async fn agent_progress(&self, process: &ExecutionProcess) -> AgentProgress {
+        let latest_message = self.latest_assistant_message(&process.id).await;
+
+        let Some(handle) = self.headed_claude_handle(process).await else {
             return AgentProgress {
                 latest_message,
                 claude_session_id: None,
                 tmux_session_name: None,
                 transcript_path: None,
             };
-        }
-
-        let cfg = action.and_then(|a| a.interactive_config());
-        let claude_session_id = cfg.map(|c| c.session_uuid.to_string());
-        let tmux_session_name = Some(tmux_session_name(process.id));
-
-        // Best-effort: resolve the absolute transcript path the way the headed
-        // launcher does (canonical worktree cwd + home), so the orchestrator
-        // does not have to reconstruct Claude's cwd encoding itself.
-        let transcript_path = match (
-            cfg,
-            process.parent_workspace_and_session(&self.db().pool).await,
-        ) {
-            (Some(cfg), Ok(Some((workspace, _session)))) => {
-                let current_dir = self.workspace_to_current_dir(&workspace);
-                let canonical_dir = tokio::fs::canonicalize(&current_dir)
-                    .await
-                    .unwrap_or(current_dir);
-                let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
-                Some(
-                    claude_transcript_path(&home, &canonical_dir, cfg.session_uuid)
-                        .to_string_lossy()
-                        .to_string(),
-                )
-            }
-            _ => None,
         };
 
         AgentProgress {
             latest_message,
-            claude_session_id,
-            tmux_session_name,
-            transcript_path,
+            claude_session_id: Some(handle.claude_session_id),
+            tmux_session_name: Some(handle.tmux_session_name),
+            transcript_path: handle
+                .transcript_path
+                .map(|p| p.to_string_lossy().to_string()),
         }
     }
 

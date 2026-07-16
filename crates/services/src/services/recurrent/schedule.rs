@@ -81,7 +81,11 @@ pub fn parse_schedule(cron: Option<&str>, every: Option<&str>) -> Result<Schedul
 }
 
 /// Parse a simple interval like `"30m"` (integer + one of `s|m|h|d`). Zero is
-/// rejected — a zero-length interval would busy-loop the scheduler.
+/// rejected — a zero-length interval would busy-loop the scheduler. The
+/// unit-to-seconds multiplication is checked: an enormous-but-parseable
+/// number (e.g. `"18446744073709551615m"`) must map to an `Invalid` error
+/// rather than panicking (debug builds) or silently wrapping (release
+/// builds) — "invalid config never crashes" applies to absurd values too.
 pub fn parse_interval(s: &str) -> Result<Duration, RecurrentError> {
     let s = s.trim();
     if s.len() < 2 {
@@ -98,17 +102,20 @@ pub fn parse_interval(s: &str) -> Result<Duration, RecurrentError> {
             "invalid interval {s:?}: must be greater than zero"
         )));
     }
-    let secs = match unit {
-        "s" => n,
-        "m" => n * 60,
-        "h" => n * 3600,
-        "d" => n * 86400,
+    let multiplier: u64 = match unit {
+        "s" => 1,
+        "m" => 60,
+        "h" => 3600,
+        "d" => 86400,
         other => {
             return Err(RecurrentError::Invalid(format!(
                 "invalid interval unit {other:?} in {s:?} (expected one of s/m/h/d)"
             )));
         }
     };
+    let secs = n.checked_mul(multiplier).ok_or_else(|| {
+        RecurrentError::Invalid(format!("invalid interval {s:?}: value too large"))
+    })?;
     Ok(Duration::from_secs(secs))
 }
 
@@ -131,6 +138,16 @@ mod tests {
         assert!(parse_interval("30").is_err());
         assert!(parse_interval("30x").is_err());
         assert!(parse_interval("").is_err());
+    }
+
+    #[test]
+    fn rejects_overflowing_intervals_without_panicking() {
+        // u64::MAX minutes overflows the u64-seconds multiplication; must be
+        // a clean `Invalid` error, not a panic (debug) or wraparound
+        // (release).
+        assert!(parse_interval("18446744073709551615m").is_err());
+        assert!(parse_interval("18446744073709551615h").is_err());
+        assert!(parse_interval("18446744073709551615d").is_err());
     }
 
     #[test]
