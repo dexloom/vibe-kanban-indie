@@ -40,14 +40,16 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
 }
 
 /// Spec generation always runs headless: it's a read-only, one-shot run whose
-/// output is parsed from the agent's final message. The interactive "Claude Code
-/// Headed" executor (a detached tmux session) is normalized to its headless
-/// counterpart for this run. The user's original choice is still recorded in the
-/// issue's intake metadata, so the later "generate code from the spec" step can
-/// run with Claude Code Headed if that's what they picked.
+/// output is parsed from the agent's final message. An interactive "headed"
+/// executor (a detached tmux session) is normalized to its headless counterpart
+/// for this run. The user's original choice is still recorded in the issue's
+/// intake metadata, so the later "generate code from the spec" step can run with
+/// the headed executor if that's what they picked.
 fn headless_for_intake(mut config: ExecutorConfig) -> ExecutorConfig {
-    if config.executor == BaseCodingAgent::ClaudeCodeHeaded {
-        config.executor = BaseCodingAgent::ClaudeCode;
+    match config.executor {
+        BaseCodingAgent::ClaudeCodeHeaded => config.executor = BaseCodingAgent::ClaudeCode,
+        BaseCodingAgent::OpencodeHeaded => config.executor = BaseCodingAgent::Opencode,
+        _ => {}
     }
     config
 }

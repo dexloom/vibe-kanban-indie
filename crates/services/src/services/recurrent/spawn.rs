@@ -125,7 +125,7 @@ pub async fn spawn_routine_run<C: ContainerService + Send + Sync>(
                     .await?;
 
             if let Some(proc) = running {
-                let is_headed = cfg.executor == BaseCodingAgent::ClaudeCodeHeaded;
+                let is_headed = cfg.executor.is_headed();
                 // Headed: the DB `running` status can lag behind a tmux
                 // session that ended out-of-band, so confirm liveness before
                 // treating it as active. Headless: `is_interactive_session_live`

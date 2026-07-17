@@ -1435,11 +1435,12 @@ pub trait ContainerService {
             }
         }
 
-        // "Claude Code Headed" runs in a detached tmux terminal. This is an
-        // initial run (new session), so use a fresh Claude session id; the
-        // terminal emulator comes from the user config. Without this, starting a
-        // workspace with the headed agent would silently run headless.
-        let interactive = if executor_config.executor == BaseCodingAgent::ClaudeCodeHeaded {
+        // A "headed" agent (Claude Code Headed, OpenCode Headed) runs in a
+        // detached tmux terminal. This is an initial run (new session), so use a
+        // fresh session id; the terminal emulator comes from the user config.
+        // Without this, starting a workspace with a headed agent would silently
+        // run headless.
+        let interactive = if executor_config.executor.is_headed() {
             Some(InteractiveTmuxConfig {
                 session_uuid: Uuid::new_v4(),
                 terminal: self.config().read().await.terminal,

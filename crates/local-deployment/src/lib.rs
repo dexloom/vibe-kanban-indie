@@ -107,6 +107,17 @@ impl Deployment for LocalDeployment {
             tracing::warn!("failed to seed default pipelines: {}", e);
         }
 
+        // Seed the bundled OpenCode subagent definitions (vk-sweeper/decider/
+        // intake) into the opencode config so an opencode-headed orchestrator
+        // can spawn them. Only seeds when opencode is already configured (its
+        // config dir exists), to avoid creating config for non-opencode users.
+        let opencode_config = utils::path::opencode_config_dir();
+        if opencode_config.exists()
+            && let Err(e) = services::services::opencode_agents::ensure_seeded(&opencode_config)
+        {
+            tracing::warn!("failed to seed opencode agents: {}", e);
+        }
+
         let profiles = ExecutorConfigs::get_cached();
         if !raw_config.onboarding_acknowledged
             && let Ok(recommended_executor) = profiles.get_recommended_executor_profile().await

@@ -508,7 +508,13 @@ prompt: string,
 /**
  * Display name for the orchestrator workspace; defaults to "Orchestrator".
  */
-name?: string, };
+name?: string, 
+/**
+ * The headed executor backend for the orchestrator session. Defaults to
+ * Claude Code Headed when omitted or non-headed. OpenCode Headed is the
+ * alternative backend (useful when Claude Code is unavailable).
+ */
+executor?: BaseCodingAgent, };
 
 export type SpawnOrchestratorResponse = { workspace: Workspace, 
 /**
@@ -925,9 +931,9 @@ working_dir: string | null, };
 
 export type ScriptRequestLanguage = "Bash";
 
-export enum BaseCodingAgent { CLAUDE_CODE = "CLAUDE_CODE", CLAUDE_CODE_HEADED = "CLAUDE_CODE_HEADED", AMP = "AMP", GEMINI = "GEMINI", CODEX = "CODEX", OPENCODE = "OPENCODE", CURSOR_AGENT = "CURSOR_AGENT", QWEN_CODE = "QWEN_CODE", COPILOT = "COPILOT", DROID = "DROID" }
+export enum BaseCodingAgent { CLAUDE_CODE = "CLAUDE_CODE", CLAUDE_CODE_HEADED = "CLAUDE_CODE_HEADED", AMP = "AMP", GEMINI = "GEMINI", CODEX = "CODEX", OPENCODE = "OPENCODE", OPENCODE_HEADED = "OPENCODE_HEADED", CURSOR_AGENT = "CURSOR_AGENT", QWEN_CODE = "QWEN_CODE", COPILOT = "COPILOT", DROID = "DROID" }
 
-export type CodingAgent = { "CLAUDE_CODE": ClaudeCode } | { "CLAUDE_CODE_HEADED": ClaudeCodeHeaded } | { "AMP": Amp } | { "GEMINI": Gemini } | { "CODEX": Codex } | { "OPENCODE": Opencode } | { "CURSOR_AGENT": CursorAgent } | { "QWEN_CODE": QwenCode } | { "COPILOT": Copilot } | { "DROID": Droid };
+export type CodingAgent = { "CLAUDE_CODE": ClaudeCode } | { "CLAUDE_CODE_HEADED": ClaudeCodeHeaded } | { "AMP": Amp } | { "GEMINI": Gemini } | { "CODEX": Codex } | { "OPENCODE": Opencode } | { "OPENCODE_HEADED": OpencodeHeaded } | { "CURSOR_AGENT": CursorAgent } | { "QWEN_CODE": QwenCode } | { "COPILOT": Copilot } | { "DROID": Droid };
 
 export type SlashCommandDescription = { 
 /**
@@ -967,7 +973,7 @@ models?: Array<string>,
  */
 reasoning_by_model?: { [key in string]?: string }, };
 
-export type ExecutorProfile = { recently_used_models?: ExecutorRecentModels | null, } & ({ [key in string]?: { "CLAUDE_CODE": ClaudeCode } | { "CLAUDE_CODE_HEADED": ClaudeCodeHeaded } | { "AMP": Amp } | { "GEMINI": Gemini } | { "CODEX": Codex } | { "OPENCODE": Opencode } | { "CURSOR_AGENT": CursorAgent } | { "QWEN_CODE": QwenCode } | { "COPILOT": Copilot } | { "DROID": Droid } });
+export type ExecutorProfile = { recently_used_models?: ExecutorRecentModels | null, } & ({ [key in string]?: { "CLAUDE_CODE": ClaudeCode } | { "CLAUDE_CODE_HEADED": ClaudeCodeHeaded } | { "AMP": Amp } | { "GEMINI": Gemini } | { "CODEX": Codex } | { "OPENCODE": Opencode } | { "OPENCODE_HEADED": OpencodeHeaded } | { "CURSOR_AGENT": CursorAgent } | { "QWEN_CODE": QwenCode } | { "COPILOT": Copilot } | { "DROID": Droid } });
 
 export type ExecutorConfigs = { executors: { [key in BaseCodingAgent]?: ExecutorProfile }, };
 
@@ -1028,6 +1034,28 @@ export type CursorAgent = { append_prompt: AppendPrompt, force?: boolean | null,
 export type Copilot = { append_prompt: AppendPrompt, model?: string | null, allow_all_tools?: boolean | null, allow_tool?: string | null, deny_tool?: string | null, add_dir?: Array<string> | null, disable_mcp_server?: Array<string> | null, base_command_override?: string | null, additional_params?: Array<string> | null, env?: { [key in string]?: string } | null, };
 
 export type Opencode = { append_prompt: AppendPrompt, model?: string | null, variant?: string | null, agent?: string | null, 
+/**
+ * Auto-approve agent actions
+ */
+auto_approve: boolean, 
+/**
+ * Enable auto-compaction when the context length approaches the model's context window limit
+ */
+auto_compact: boolean, base_command_override?: string | null, additional_params?: Array<string> | null, env?: { [key in string]?: string } | null, };
+
+export type OpencodeHeaded = { 
+/**
+ * Load the Sombrax Telegram channel into the headed session (parity with
+ * [`ClaudeCodeHeaded::telegram_channel`]). Currently advisory for opencode.
+ */
+telegram_channel?: boolean | null, 
+/**
+ * Open a terminal-emulator window attached to the session when a headed run
+ * starts. When disabled, the agent still runs in a detached tmux session
+ * (`tmux attach -t vk-<id>`) but no window is opened. A non-`Option` `bool`
+ * with a serde default of `true` so the RJSF checkbox renders checked.
+ */
+open_terminal: boolean, append_prompt: AppendPrompt, model?: string | null, variant?: string | null, agent?: string | null, 
 /**
  * Auto-approve agent actions
  */

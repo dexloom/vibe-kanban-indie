@@ -23,7 +23,8 @@ use crate::{
     env::ExecutionEnv,
     executors::{
         amp::Amp, claude::ClaudeCode, claude::ClaudeCodeHeaded, codex::Codex, copilot::Copilot,
-        cursor::CursorAgent, droid::Droid, gemini::Gemini, opencode::Opencode, qwen::QwenCode,
+        cursor::CursorAgent, droid::Droid, gemini::Gemini, opencode::Opencode,
+        opencode::OpencodeHeaded, qwen::QwenCode,
     },
     logs::utils::patch,
     mcp_config::McpConfig,
@@ -113,6 +114,7 @@ pub enum CodingAgent {
     Gemini,
     Codex,
     Opencode,
+    OpencodeHeaded,
     #[serde(alias = "CURSOR")]
     #[strum_discriminants(serde(alias = "CURSOR"))]
     #[strum_discriminants(strum(serialize = "CURSOR", serialize = "CURSOR_AGENT"))]
@@ -143,7 +145,7 @@ impl CodingAgent {
                 self.preconfigured_mcp(),
                 false,
             ),
-            Self::Opencode(_) => McpConfig::new(
+            Self::Opencode(_) | Self::OpencodeHeaded(_) => McpConfig::new(
                 vec!["mcp".to_string()],
                 serde_json::json!({
                     "mcp": {},
@@ -181,7 +183,7 @@ impl CodingAgent {
                 BaseAgentCapability::SessionFork,
                 BaseAgentCapability::ContextUsage,
             ],
-            Self::Opencode(_) => vec![
+            Self::Opencode(_) | Self::OpencodeHeaded(_) => vec![
                 BaseAgentCapability::SessionFork,
                 BaseAgentCapability::ContextUsage,
             ],
@@ -198,6 +200,16 @@ impl CodingAgent {
             #[cfg(feature = "qa-mode")]
             Self::QaMock(_) => vec![], // QA mock doesn't need special capabilities
         }
+    }
+}
+
+impl BaseCodingAgent {
+    /// Whether this agent runs as an interactive TUI inside a detached tmux
+    /// session ("headed"), as opposed to a headless child process driven over
+    /// stdio/HTTP. The container uses this to decide between the detached-tmux
+    /// launch path and a normal owned-child spawn.
+    pub fn is_headed(&self) -> bool {
+        matches!(self, Self::ClaudeCodeHeaded | Self::OpencodeHeaded)
     }
 }
 

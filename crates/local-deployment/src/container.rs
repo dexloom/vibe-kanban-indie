@@ -1237,8 +1237,7 @@ impl LocalContainerService {
         // the logic in the `follow_up` route: reuse the existing conversation id
         // (so `--resume` reattaches) for a follow-up, or a fresh uuid for an
         // initial run; the terminal emulator comes from the user config.
-        let want_interactive =
-            executor_profile_id.executor == executors::executors::BaseCodingAgent::ClaudeCodeHeaded;
+        let want_interactive = executor_profile_id.executor.is_headed();
         let interactive = if want_interactive {
             let terminal = self.config.read().await.terminal;
             let session_uuid = latest_session_info
@@ -1509,6 +1508,24 @@ impl LocalContainerService {
             if has_overrides {
                 agent.apply_overrides(&executor_config);
             }
+            // OpenCode Headed launches its TUI via a dedicated path: it has no
+            // Claude transcript to tail, no `--settings` approval hook, and no
+            // Telegram dev-channel flag, so branch out before the Claude-specific
+            // resolution below. `agent` is consumed here; the match below only
+            // ever sees the Claude variants.
+            if let CodingAgent::OpencodeHeaded(oh) = agent {
+                return self
+                    .start_detached_tmux_opencode(
+                        execution_process,
+                        cfg,
+                        current_dir,
+                        oh,
+                        resume,
+                        prompt,
+                        env,
+                    )
+                    .await;
+            }
             let (claude, telegram_channel, open_terminal, is_headed) = match agent {
                 // A bare (non-headed) Claude reaching this interactive path keeps
                 // the historical behavior of opening a terminal.
@@ -1702,6 +1719,138 @@ impl LocalContainerService {
 
             Ok(())
         }
+    }
+
+    /// Headed launch path for the **OpenCode** TUI variant.
+    ///
+    /// Unlike Claude's headed path (which tails a transcript JSONL), OpenCode
+    /// runs its interactive TUI inside the tmux session; vibe-kanban tracks only
+    /// liveness here (the operator watches live via the opened terminal or
+    /// `tmux attach`). Richer output mirroring — via the TUI's embedded HTTP
+    /// server SSE stream — is a follow-up; for now the session lifecycle is owned
+    /// here and the `MsgStore` stays empty until the run completes.
+    ///
+    /// The seed prompt is delivered via opencode's `--prompt` flag, and "resume"
+    /// maps to opencode's own `-c/--continue` (continue the last session in the
+    /// working directory) because opencode cannot be forced to an external
+    /// session id on a fresh launch. The embedded server is bound to an
+    /// allocated free port (pinned, not `0`) so concurrent headed sessions don't
+    /// collide on opencode's 4096 default. `autoupdate: false` (set in
+    /// [`OpencodeHeaded::prepare_headed_env`]) suppresses the blocking "Update
+    /// Available" modal that would otherwise stall a detached launch.
+    #[allow(clippy::too_many_arguments)]
+    async fn start_detached_tmux_opencode(
+        &self,
+        execution_process: &ExecutionProcess,
+        cfg: &InteractiveTmuxConfig,
+        current_dir: &Path,
+        oh: executors::executors::opencode::OpencodeHeaded,
+        resume: bool,
+        prompt: String,
+        env: ExecutionEnv,
+    ) -> Result<(), ContainerError> {
+        let exec_id = execution_process.id;
+        let open_terminal = oh.open_terminal_enabled();
+
+        // Allocate a free port for the TUI's embedded server (avoiding opencode's
+        // 4096 default so concurrent headed sessions don't clash).
+        let port = std::net::TcpListener::bind(("127.0.0.1", 0))
+            .and_then(|listener| listener.local_addr().map(|addr| addr.port()))
+            .unwrap_or(4096);
+
+        // Build the argv (opencode TUI + --port + model/agent + -c/--continue + --prompt).
+        let command = oh
+            .build_interactive_command(&prompt, resume, port)
+            .map_err(|e| {
+                ContainerError::Other(anyhow!("Failed to build opencode interactive command: {e}"))
+            })?;
+        let (program, args) = command
+            .into_resolved()
+            .await
+            .map_err(ContainerError::ExecutorError)?;
+        let mut argv = vec![program.to_string_lossy().into_owned()];
+        argv.extend(args);
+
+        // Replicate the env the headless opencode spawn injects (profile env +
+        // permission/compaction/autoupdate config + npm noise suppression).
+        let env = oh.prepare_headed_env(&env).with_profile(&oh.inner.cmd);
+        let mut env_map = env.vars.clone();
+        env_map.insert("NPM_CONFIG_LOGLEVEL".to_string(), "error".to_string());
+        env_map.insert("NODE_NO_WARNINGS".to_string(), "1".to_string());
+        env_map.insert("NO_COLOR".to_string(), "1".to_string());
+
+        // Create the detached tmux session (the TUI needs a PTY, which tmux supplies).
+        let tmux_session = interactive::tmux_session_name(exec_id);
+        terminal::tmux_new_session(&tmux_session, current_dir, &argv, &env_map, &[])
+            .await
+            .map_err(|e| ContainerError::Other(anyhow!(e)))?;
+
+        tracing::info!(
+            "interactive opencode session started: tmux={tmux_session} port={port} \
+             attach=`{}`",
+            terminal::attach_command(&tmux_session)
+        );
+
+        // Open the terminal emulator as a viewer unless opted out.
+        if open_terminal {
+            let iterm_tabs = self.config.read().await.iterm_tabs;
+            let tab_title = self.interactive_tab_title(exec_id, &tmux_session).await;
+            if let Err(e) =
+                terminal::open_in_terminal(cfg.terminal, &tmux_session, &tab_title, iterm_tabs)
+                    .await
+            {
+                tracing::warn!("Could not open terminal emulator for {tmux_session}: {e}");
+            }
+        } else {
+            tracing::info!(
+                "headed opencode session {tmux_session} started detached (open_terminal=off); \
+                 attach with `{}`",
+                terminal::attach_command(&tmux_session)
+            );
+        }
+
+        // Lifecycle-only tracking (liveness poller finalizes the execution when
+        // the session ends). Output mirroring via the embedded-server SSE stream
+        // is a follow-up; for now the operator watches via the opened terminal.
+        self.attach_detached_tracking_opencode(exec_id, cfg).await;
+
+        Ok(())
+    }
+
+    /// OpenCode-headed equivalent of [`Self::attach_detached_tracking`]: records
+    /// the forced session id and starts the liveness poller, but skips Claude's
+    /// transcript tail (opencode has no analogous on-disk JSONL). The `MsgStore`
+    /// is left empty for now, so viewers show the spinner until the session
+    /// ends; full SSE/pane mirroring is a follow-up.
+    async fn attach_detached_tracking_opencode(&self, exec_id: Uuid, cfg: &InteractiveTmuxConfig) {
+        let tmux_session = interactive::tmux_session_name(exec_id);
+        let store = {
+            let map = self.msg_stores.read().await;
+            map.get(&exec_id).cloned()
+        };
+        let Some(store) = store else {
+            tracing::error!("MsgStore missing for detached opencode execution {exec_id}");
+            return;
+        };
+        store.push_session_id(cfg.session_uuid.to_string());
+
+        let cancel = CancellationToken::new();
+        // No transcript to tail; keep a no-op handle so DetachedHandle's contract holds.
+        let cancel_for_tail = cancel.clone();
+        let tail_handle = tokio::spawn(async move {
+            cancel_for_tail.cancelled().await;
+        });
+        let poll_handle = self.spawn_liveness_poller(exec_id, tmux_session.clone(), cancel.clone());
+
+        self.detached_store.write().await.insert(
+            exec_id,
+            DetachedHandle {
+                tmux_session,
+                cancel,
+                tail_handle,
+                poll_handle,
+            },
+        );
     }
 
     /// Human-readable title for an interactive terminal tab: the kanban card id
@@ -1948,19 +2097,27 @@ impl LocalContainerService {
                 spawn_pipeline_stage_tracker(store, ctx.workspace.id, exec_id, self.db.clone());
             }
 
-            // Resume the transcript tail after the lines already mirrored
-            // (= count of persisted Stdout lines).
-            let from_line_offset = execution_process::load_raw_log_messages(&self.db.pool, exec_id)
-                .await
-                .map(|msgs| {
-                    msgs.iter()
-                        .filter(|m| matches!(m, LogMsg::Stdout(_)))
-                        .count()
-                })
-                .unwrap_or(0);
+            // OpenCode-headed sessions have no Claude transcript JSONL to tail;
+            // route them to the lifecycle-only tracker. Claude-headed (and any
+            // other headed variant) keeps the transcript-tail path.
+            if profile_id.executor == executors::executors::BaseCodingAgent::OpencodeHeaded {
+                self.attach_detached_tracking_opencode(exec_id, cfg).await;
+            } else {
+                // Resume the transcript tail after the lines already mirrored
+                // (= count of persisted Stdout lines).
+                let from_line_offset =
+                    execution_process::load_raw_log_messages(&self.db.pool, exec_id)
+                        .await
+                        .map(|msgs| {
+                            msgs.iter()
+                                .filter(|m| matches!(m, LogMsg::Stdout(_)))
+                                .count()
+                        })
+                        .unwrap_or(0);
 
-            self.attach_detached_tracking(exec_id, &effective_dir, cfg, from_line_offset)
-                .await;
+                self.attach_detached_tracking(exec_id, &effective_dir, cfg, from_line_offset)
+                    .await;
+            }
         }
     }
 

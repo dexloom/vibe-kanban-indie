@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "append_prompt": {
+      "title": "Append Prompt",
+      "description": "Extra text appended to the prompt",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "textarea",
+      "default": null
+    },
+    "model": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "variant": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "agent": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "auto_approve": {
+      "description": "Auto-approve agent actions",
+      "type": "boolean",
+      "default": true
+    },
+    "auto_compact": {
+      "description": "Enable auto-compaction when the context length approaches the model's context window limit",
+      "type": "boolean",
+      "default": true
+    },
+    "base_command_override": {
+      "title": "Base Command Override",
+      "description": "Override the base command with a custom command",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "additional_params": {
+      "title": "Additional Parameters",
+      "description": "Additional parameters to append to the base command",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "env": {
+      "title": "Environment Variables",
+      "description": "Environment variables to set when running the executor",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "telegram_channel": {
+      "description": "Load the Sombrax Telegram channel into the headed session (parity with\n[`ClaudeCodeHeaded::telegram_channel`]). Currently advisory for opencode.",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "open_terminal": {
+      "title": "Open terminal window",
+      "description": "Open a terminal window attached to the session on start. When off, the agent runs in a background tmux session you can attach to later.",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "description": "The \"headed\" (interactive TUI) variant of [`Opencode`].\n\nUnlike the headless [`Opencode`] executor — which spawns an `opencode-ai`\n`serve` HTTP server and drives it over its REST/SSE API — the headed variant\nlaunches the opencode **TUI** (the default subcommand) inside a detached\n`tmux` session, mirroring the [`ClaudeCodeHeaded`] pattern.\n\nThe opencode TUI itself embeds the same HTTP server, so this is strictly an\nadditive observability affordance: an operator can `tmux attach` to watch the\nsession live while vibe-kanban tracks liveness and mirrors the pane. Because\nopencode manages its own session ids (it cannot be *forced* to an external\nsession id on a fresh launch), \"resume\" maps to opencode's own `-c/--continue`\n(continue the last session in the working directory) rather than a forced id.",
+  "type": "object"
+}

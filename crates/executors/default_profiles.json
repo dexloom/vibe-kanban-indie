@@ -43,6 +43,14 @@
         }
       }
     },
+    "OPENCODE_HEADED": {
+      "DEFAULT": {
+        "OPENCODE_HEADED": {
+          "auto_approve": true,
+          "open_terminal": true
+        }
+      }
+    },
     "QWEN_CODE": {
       "DEFAULT": {
         "QWEN_CODE": {

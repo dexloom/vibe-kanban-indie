@@ -157,6 +157,21 @@ pub fn recurrent_dir() -> PathBuf {
     get_vibe_kanban_home_dir().join("recurrent")
 }
 
+/// The opencode global config directory, matching opencode-ai's own XDG-style
+/// resolution (`$XDG_CONFIG_HOME`, else `$HOME/.config/opencode`) — NOT the
+/// platform-default config dir — so it lines up with where opencode actually
+/// reads `agents/*.md` and `opencode.json`. Used to seed the bundled vibe-kanban
+/// subagent definitions.
+pub fn opencode_config_dir() -> PathBuf {
+    if let Ok(xdg_config) = std::env::var("XDG_CONFIG_HOME")
+        && !xdg_config.is_empty()
+    {
+        return PathBuf::from(xdg_config).join("opencode");
+    }
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    home.join(".config").join("opencode")
+}
+
 /// Expand leading ~ to user's home directory.
 pub fn expand_tilde(path_str: &str) -> std::path::PathBuf {
     shellexpand::tilde(path_str).as_ref().into()

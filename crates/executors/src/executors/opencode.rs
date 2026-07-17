@@ -14,7 +14,7 @@ use workspace_utils::{command_ext::GroupSpawnNoWindowExt, msg_store::MsgStore};
 
 use crate::{
     approvals::ExecutorApprovalService,
-    command::{CmdOverrides, CommandBuildError, CommandBuilder, apply_overrides},
+    command::{CmdOverrides, CommandBuildError, CommandBuilder, CommandParts, apply_overrides},
     env::{ExecutionEnv, RepoContext},
     executors::{
         AppendPrompt, AvailabilityInfo, BaseCodingAgent, ExecutorError, ExecutorExitResult,
@@ -819,4 +819,190 @@ fn merge_compaction_config(existing_json: Option<&str>) -> String {
     config.insert("compaction".to_string(), Value::Object(compaction));
 
     serde_json::to_string(&config).unwrap_or_else(|_| r#"{"compaction":{"auto":true}}"#.to_string())
+}
+
+/// Merge `autoupdate: false` into the `OPENCODE_CONFIG_CONTENT` JSON (creating
+/// it if absent). The opencode TUI shows a blocking "Update Available" modal on
+/// every launch; pinning the binary via `npx -y opencode-ai@<version>` makes any
+/// update pointless, so a detached headed launch disables autoupdate to avoid
+/// that modal stalling the session.
+fn merge_autoupdate_disabled(existing_json: Option<&str>) -> String {
+    let mut config: Map<String, Value> = existing_json
+        .and_then(|value| serde_json::from_str(value.trim()).ok())
+        .unwrap_or_default();
+    config.insert("autoupdate".to_string(), Value::Bool(false));
+    serde_json::to_string(&config).unwrap_or_else(|_| r#"{"autoupdate":false}"#.to_string())
+}
+
+/// The "headed" (interactive TUI) variant of [`Opencode`].
+///
+/// Unlike the headless [`Opencode`] executor — which spawns an `opencode-ai`
+/// `serve` HTTP server and drives it over its REST/SSE API — the headed variant
+/// launches the opencode **TUI** (the default subcommand) inside a detached
+/// `tmux` session, mirroring the [`ClaudeCodeHeaded`] pattern.
+///
+/// The opencode TUI itself embeds the same HTTP server, so this is strictly an
+/// additive observability affordance: an operator can `tmux attach` to watch the
+/// session live while vibe-kanban tracks liveness and mirrors the pane. Because
+/// opencode manages its own session ids (it cannot be *forced* to an external
+/// session id on a fresh launch), "resume" maps to opencode's own `-c/--continue`
+/// (continue the last session in the working directory) rather than a forced id.
+#[derive(Derivative, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[derivative(Debug, PartialEq)]
+pub struct OpencodeHeaded {
+    #[serde(flatten)]
+    #[ts(flatten)]
+    #[schemars(flatten)]
+    pub inner: Opencode,
+
+    /// Load the Sombrax Telegram channel into the headed session (parity with
+    /// [`ClaudeCodeHeaded::telegram_channel`]). Currently advisory for opencode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telegram_channel: Option<bool>,
+
+    /// Open a terminal-emulator window attached to the session when a headed run
+    /// starts. When disabled, the agent still runs in a detached tmux session
+    /// (`tmux attach -t vk-<id>`) but no window is opened. A non-`Option` `bool`
+    /// with a serde default of `true` so the RJSF checkbox renders checked.
+    #[serde(default = "default_open_terminal")]
+    #[schemars(
+        title = "Open terminal window",
+        description = "Open a terminal window attached to the session on start. When off, the agent runs in a background tmux session you can attach to later."
+    )]
+    pub open_terminal: bool,
+}
+
+fn default_open_terminal() -> bool {
+    true
+}
+
+impl OpencodeHeaded {
+    /// Whether the Telegram channel option is enabled for this headed session.
+    pub fn telegram_channel_enabled(&self) -> bool {
+        self.telegram_channel.unwrap_or(false)
+    }
+
+    /// Whether to open a terminal window on headed start. Defaults to `true`.
+    pub fn open_terminal_enabled(&self) -> bool {
+        self.open_terminal
+    }
+
+    /// Compose the environment for a headed TUI launch: the opencode permission
+    /// policy, auto-compaction, and `autoupdate: false` (so the "update
+    /// available" modal never blocks a detached launch), all merged into
+    /// `OPENCODE_CONFIG_CONTENT`. The container additionally injects profile env
+    /// and npm noise-suppression vars.
+    pub fn prepare_headed_env(&self, env: &ExecutionEnv) -> ExecutionEnv {
+        let env = setup_permissions_env(self.inner.auto_approve, env);
+        let env = setup_compaction_env(self.inner.auto_compact, &env);
+        let existing = env.get("OPENCODE_CONFIG_CONTENT").map(String::as_str);
+        let merged = merge_autoupdate_disabled(existing);
+        let mut env = env;
+        env.insert("OPENCODE_CONFIG_CONTENT", &merged);
+        env
+    }
+
+    /// Build the command that launches the opencode **TUI** (the default
+    /// subcommand) for a headed run.
+    ///
+    /// - `resume`: when `true`, appends `-c/--continue` so opencode reopens the
+    ///   last session in the working directory (opencode cannot be forced to an
+    ///   external session id on a fresh launch, so we lean on its own continue).
+    /// - `port`: the embedded HTTP server port. Pinned (not `0`) so concurrent
+    ///   headed opencode sessions don't collide on opencode's 4096 default.
+    /// - the seed prompt is delivered via opencode's `--prompt` flag.
+    ///
+    /// Returns structured [`CommandParts`]; the container wraps this into a tmux
+    /// `new-session` invocation (the TUI requires a PTY, which tmux supplies).
+    pub fn build_interactive_command(
+        &self,
+        prompt: &str,
+        resume: bool,
+        port: u16,
+    ) -> Result<CommandParts, CommandBuildError> {
+        let mut builder = CommandBuilder::new("npx -y opencode-ai@1.4.7")
+            .extend_params(["--port", &port.to_string()]);
+
+        if let Some(model) = &self.inner.model {
+            builder = builder.extend_params(["-m", model]);
+        }
+        if let Some(agent) = &self.inner.agent {
+            builder = builder.extend_params(["--agent", agent]);
+        }
+        if resume {
+            builder = builder.extend_params(["-c"]);
+        }
+        if !prompt.is_empty() {
+            builder = builder.extend_params(["--prompt", prompt]);
+        }
+
+        builder = apply_overrides(builder, &self.inner.cmd)?;
+        builder.build_initial()
+    }
+}
+
+#[async_trait]
+impl StandardCodingAgentExecutor for OpencodeHeaded {
+    fn apply_overrides(&mut self, executor_config: &ExecutorConfig) {
+        self.inner.apply_overrides(executor_config);
+    }
+
+    fn use_approvals(&mut self, approvals: Arc<dyn ExecutorApprovalService>) {
+        self.inner.use_approvals(approvals);
+    }
+
+    async fn spawn(
+        &self,
+        current_dir: &Path,
+        prompt: &str,
+        env: &ExecutionEnv,
+    ) -> Result<SpawnedChild, ExecutorError> {
+        // Headed executions are launched via the container's detached tmux path;
+        // this is only reached if that interception is bypassed, in which case we
+        // fall back to the headless behaviour rather than failing.
+        self.inner.spawn(current_dir, prompt, env).await
+    }
+
+    async fn spawn_follow_up(
+        &self,
+        current_dir: &Path,
+        prompt: &str,
+        session_id: &str,
+        reset_to_message_id: Option<&str>,
+        env: &ExecutionEnv,
+    ) -> Result<SpawnedChild, ExecutorError> {
+        self.inner
+            .spawn_follow_up(current_dir, prompt, session_id, reset_to_message_id, env)
+            .await
+    }
+
+    fn normalize_logs(
+        &self,
+        msg_store: Arc<MsgStore>,
+        current_dir: &Path,
+    ) -> Vec<tokio::task::JoinHandle<()>> {
+        self.inner.normalize_logs(msg_store, current_dir)
+    }
+
+    async fn discover_options(
+        &self,
+        workdir: Option<&Path>,
+        repo_path: Option<&Path>,
+    ) -> Result<futures::stream::BoxStream<'static, json_patch::Patch>, ExecutorError> {
+        self.inner.discover_options(workdir, repo_path).await
+    }
+
+    fn get_preset_options(&self) -> ExecutorConfig {
+        let mut cfg = self.inner.get_preset_options();
+        cfg.executor = BaseCodingAgent::OpencodeHeaded;
+        cfg
+    }
+
+    fn default_mcp_config_path(&self) -> Option<std::path::PathBuf> {
+        self.inner.default_mcp_config_path()
+    }
+
+    fn get_availability_info(&self) -> AvailabilityInfo {
+        self.inner.get_availability_info()
+    }
 }

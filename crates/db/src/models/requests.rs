@@ -54,7 +54,7 @@ pub struct CreateAndStartWorkspaceResponse {
 }
 
 /// Spawn (or reuse) the singleton orchestrator: a repo-independent, headed
-/// Claude Code session that drives the board on a loop from a fixed folder.
+/// coding-agent session that drives the board on a loop from a fixed folder.
 #[derive(Debug, Serialize, Deserialize, TS)]
 pub struct SpawnOrchestratorRequest {
     /// The `/loop`-wrapped orchestration brief composed from the enabled
@@ -64,6 +64,12 @@ pub struct SpawnOrchestratorRequest {
     #[serde(default)]
     #[ts(optional)]
     pub name: Option<String>,
+    /// The headed executor backend for the orchestrator session. Defaults to
+    /// Claude Code Headed when omitted or non-headed. OpenCode Headed is the
+    /// alternative backend (useful when Claude Code is unavailable).
+    #[serde(default)]
+    #[ts(optional)]
+    pub executor: Option<executors::executors::BaseCodingAgent>,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]

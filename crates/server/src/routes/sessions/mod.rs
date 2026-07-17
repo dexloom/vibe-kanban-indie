@@ -235,13 +235,13 @@ pub async fn follow_up(
         .filter(|dir| !dir.is_empty())
         .cloned();
 
-    // The "Claude Code Headed" agent runs in a detached tmux terminal rather
-    // than headless. When that executor is selected we attach an interactive
-    // config: the forced Claude session id is the existing conversation's id for
-    // a follow-up (so `--resume` reattaches it) or a fresh uuid for an initial
-    // run. The terminal emulator comes from the user config.
-    let want_interactive =
-        executor_profile_id.executor == executors::executors::BaseCodingAgent::ClaudeCodeHeaded;
+    // A "headed" agent (Claude Code Headed, OpenCode Headed) runs in a detached
+    // tmux terminal rather than headless. When such an executor is selected we
+    // attach an interactive config: the forced session id is the existing
+    // conversation's id for a follow-up (so `--resume`/`-c` reattaches it) or a
+    // fresh uuid for an initial run. The terminal emulator comes from the user
+    // config.
+    let want_interactive = executor_profile_id.executor.is_headed();
     let interactive = if want_interactive {
         let terminal = deployment.config().read().await.terminal;
         let session_uuid = latest_session_info

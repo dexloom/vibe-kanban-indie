@@ -13,6 +13,7 @@ pub mod filesystem;
 pub mod filesystem_watcher;
 pub mod notification;
 pub mod oauth_credentials;
+pub mod opencode_agents;
 pub mod orchestrator_compactor;
 pub mod pipeline_stage;
 pub mod pipelines;

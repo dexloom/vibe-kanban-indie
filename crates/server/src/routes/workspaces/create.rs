@@ -444,9 +444,9 @@ pub async fn create_and_start_workspace(
     )))
 }
 
-/// Build the executor config for the orchestrator: always a headed Claude Code
-/// session (its default profile sets `dangerously_skip_permissions`), launched as
-/// the plugin's own session agent (`--agent vibe-kanban-indie:orchestrator`).
+/// Build the executor config for the orchestrator: a headed coding-agent session
+/// (its default profile skips permission prompts), launched as the plugin's own
+/// session agent (`--agent vibe-kanban-indie:orchestrator`).
 ///
 /// The plugin's SINGLE-LOOP orchestrator owns the whole tick itself (monitor-first
 /// two-mode loop) — the retired `sweeper` subagent no longer exists, so the old
@@ -455,9 +455,15 @@ pub async fn create_and_start_workspace(
 /// full behavior lives in the plugin's `agents/orchestrator.md`; the `/loop` body
 /// the caller composes (see `composeOrchestratorPrompt`) is only the short per-tick
 /// pointer, matching the plugin's own launcher (`scripts/orchestrator.sh`).
-fn orchestrator_executor_config() -> ExecutorConfig {
+///
+/// The headed `executor` backend is parameterized (defaulting to Claude Code
+/// Headed in the caller) so the orchestrator can later run on OpenCode Headed.
+/// Today the `agent_id` targets the Claude plugin orchestrator, so only the
+/// Claude backend is actually exercised — the OpenCode backend remains
+/// intentionally inert until its orchestrator is built.
+fn orchestrator_executor_config(executor: BaseCodingAgent) -> ExecutorConfig {
     ExecutorConfig {
-        executor: BaseCodingAgent::ClaudeCodeHeaded,
+        executor,
         variant: None,
         model_id: None,
         agent_id: Some("vibe-kanban-indie:orchestrator".to_string()),
@@ -484,6 +490,13 @@ pub async fn spawn_orchestrator(
         .name
         .filter(|n| !n.trim().is_empty())
         .unwrap_or_else(|| "Orchestrator".to_string());
+    // Resolve the headed backend: default to Claude Code Headed; any non-headed
+    // value (or omission) falls back to it so the orchestrator always runs headed.
+    let executor = payload
+        .executor
+        .filter(|e| e.is_headed())
+        .unwrap_or(BaseCodingAgent::ClaudeCodeHeaded);
+    let executor_config = orchestrator_executor_config(executor);
 
     let pool = &deployment.db().pool;
 
@@ -537,7 +550,7 @@ pub async fn spawn_orchestrator(
         // the same singleton workspace.
         deployment
             .container()
-            .start_workspace(&existing, orchestrator_executor_config(), prompt)
+            .start_workspace(&existing, executor_config.clone(), prompt)
             .await?;
         let workspace = Workspace::find_by_id(pool, existing.id)
             .await?
@@ -565,7 +578,7 @@ pub async fn spawn_orchestrator(
 
     deployment
         .container()
-        .start_workspace(&workspace, orchestrator_executor_config(), prompt)
+        .start_workspace(&workspace, executor_config, prompt)
         .await?;
 
     deployment

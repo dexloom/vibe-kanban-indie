@@ -23,6 +23,8 @@ export function getAgentName(
       return 'Codex';
     case BaseCodingAgent.OPENCODE:
       return 'OpenCode';
+    case BaseCodingAgent.OPENCODE_HEADED:
+      return 'OpenCode (Headed)';
     case BaseCodingAgent.CURSOR_AGENT:
       return 'Cursor';
     case BaseCodingAgent.QWEN_CODE:
@@ -62,6 +64,7 @@ export function AgentIcon({ agent, className = 'h-4 w-4' }: AgentIconProps) {
       iconPath = `/agents/codex${suffix}.svg`;
       break;
     case BaseCodingAgent.OPENCODE:
+    case BaseCodingAgent.OPENCODE_HEADED:
       iconPath = `/agents/opencode${suffix}.svg`;
       break;
     case BaseCodingAgent.CURSOR_AGENT:
