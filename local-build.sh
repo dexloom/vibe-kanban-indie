@@ -42,9 +42,12 @@ fi
 echo "🔍 Detected platform: $PLATFORM"
 echo "🔧 Using target directory: $CARGO_TARGET_DIR"
 
-# Set API base URL for remote features
-export VK_SHARED_API_BASE="https://api.vibekanban.com"
-export VITE_VK_SHARED_API_BASE="https://api.vibekanban.com"
+# Indie fork is local-only; no shared cloud API. Build the frontend with an
+# EMPTY shared API base so it talks to the local backend (relative /api) instead
+# of api.vibekanban.com — otherwise the UI runs in cloud/remote mode and shows
+# zero local projects. Mirrors release-indie.yml's build env.
+export VK_SHARED_API_BASE=""
+export VITE_VK_SHARED_API_BASE=""
 
 echo "🧹 Cleaning previous builds..."
 rm -rf npx-cli/dist
