@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Headed sessions no longer 500 on large task prompts.** A headed
+  `start_workspace` (Claude Code Headed / OpenCode Headed) packed the entire agent
+  invocation — env prefix + flags + the full seed prompt — into `tmux new-session`'s
+  single command argument, which tmux ships to its server over a unix socket capped at
+  `MAX_IMSGSIZE` (16 KiB). A spec-sized prompt (>16 KiB) tripped tmux's "command too
+  long" and surfaced as an HTTP 500. `tmux_new_session` now writes the invocation to a
+  self-deleting launch script and hands tmux only the short `sh <path>`; the prompt
+  still reaches the agent as its positional seed argument. The non-headed path was
+  unaffected (it `execve`s the argv directly).
+
 ## [0.2.22] - 2026-07-17
 
 ### Added

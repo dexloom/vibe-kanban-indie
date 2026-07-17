@@ -6,7 +6,11 @@
 //! terminal window. The emulator (iTerm2 / WezTerm / Terminal.app /
 //! gnome-terminal / xterm) merely attaches via `tmux attach -t <name>`.
 
-use std::{collections::HashMap, path::Path, sync::OnceLock};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::OnceLock,
+};
 
 use executors::interactive::TerminalKind;
 use thiserror::Error;
@@ -77,6 +81,14 @@ pub async fn tmux_available() -> bool {
 /// The agent command is composed into a single shell string with `shlex`
 /// escaping and an `env …` prefix, because the tmux session does NOT inherit
 /// vibe-kanban's per-execution environment the way a child process would.
+///
+/// That composed string is NOT handed to tmux directly: tmux ships every command
+/// to its server over a unix socket whose payload is capped at `MAX_IMSGSIZE`
+/// (16 KiB), so a large seed prompt makes `new-session` fail with "command too
+/// long". Instead we write the invocation to a short-lived launch script and
+/// pass tmux only its (tiny) path; the prompt still reaches the agent as a
+/// positional argument inside the script. The non-headed spawn path sidesteps
+/// this entirely by `execve`-ing the argv directly (ARG_MAX, ~1 MiB).
 pub async fn tmux_new_session(
     session_name: &str,
     cwd: &Path,
@@ -85,6 +97,8 @@ pub async fn tmux_new_session(
     env_remove: &[String],
 ) -> Result<(), TerminalError> {
     let inner = build_inner_command(argv, env, env_remove)?;
+    let script_path = write_launch_script(session_name, &inner).await?;
+    let launch = tmux_launch_command(&script_path)?;
 
     let output = Command::new("tmux")
         .arg("new-session")
@@ -93,7 +107,7 @@ pub async fn tmux_new_session(
         .arg(session_name)
         .arg("-c")
         .arg(cwd)
-        .arg(&inner)
+        .arg(&launch)
         .output()
         .await
         .map_err(map_tmux_io_err)?;
@@ -104,6 +118,33 @@ pub async fn tmux_new_session(
         ));
     }
     Ok(())
+}
+
+/// The body of the temp launch script tmux runs. It removes itself first (so the
+/// temp dir is not littered — safe because `sh` has already opened the file), then
+/// `exec`s the real invocation so the tmux pane's process IS the agent, matching
+/// the non-headed direct-spawn's signal/pid semantics. `inner` is already a
+/// shell-escaped `env … <argv>` string.
+fn launch_script_body(inner: &str) -> String {
+    format!("#!/bin/sh\nrm -f -- \"$0\"\nexec {inner}\n")
+}
+
+/// The (short) command string handed to `tmux new-session`: just `sh <path>`,
+/// which stays far under tmux's 16 KiB imsg limit no matter how large the seed
+/// prompt inside the script is.
+fn tmux_launch_command(script_path: &Path) -> Result<String, TerminalError> {
+    let path = script_path.to_string_lossy();
+    shlex::try_join(["sh", path.as_ref()]).map_err(|e| TerminalError::Quote(e.to_string()))
+}
+
+/// Write the launch script for `session_name` to a deterministic temp path
+/// (`<tmpdir>/<session_name>-launch.sh`) and return it. Deterministic on the
+/// session name (a unique `vk-<exec_id>`) so a relaunch overwrites cleanly and
+/// nothing needs persisting; the script self-deletes when it runs.
+async fn write_launch_script(session_name: &str, inner: &str) -> Result<PathBuf, TerminalError> {
+    let path = std::env::temp_dir().join(format!("{session_name}-launch.sh"));
+    tokio::fs::write(&path, launch_script_body(inner)).await?;
+    Ok(path)
 }
 
 /// Build the `env [-u NAME]… KEY=VAL… <argv>` shell string that tmux runs.
@@ -752,6 +793,38 @@ mod tests {
         // Round-trips back to the original tokens.
         let parsed = shlex::split(&inner).unwrap();
         assert_eq!(parsed.last().unwrap(), "fix the $BUG in \"main\"");
+    }
+
+    #[test]
+    fn launch_script_execs_inner_and_self_deletes() {
+        let body = launch_script_body("env -u ANTHROPIC_API_KEY /bin/claude 'hi'");
+        assert!(body.starts_with("#!/bin/sh\n"));
+        // Cleans itself up, then hands the pane to the agent via exec.
+        assert!(body.contains("rm -f -- \"$0\""));
+        assert!(body.contains("exec env -u ANTHROPIC_API_KEY /bin/claude 'hi'"));
+        // rm precedes exec so the file is gone before the agent takes over.
+        assert!(body.find("rm -f").unwrap() < body.find("exec ").unwrap());
+    }
+
+    #[test]
+    fn tmux_launch_command_stays_short_regardless_of_prompt_size() {
+        // A seed prompt far larger than tmux's 16 KiB imsg cap — the exact input
+        // that used to make `tmux new-session` fail with "command too long".
+        let mut env = HashMap::new();
+        env.insert("NPM_CONFIG_LOGLEVEL".to_string(), "error".to_string());
+        let big_prompt = "x".repeat(64 * 1024);
+        let argv = vec!["/usr/bin/claude".to_string(), big_prompt];
+        let inner = build_inner_command(&argv, &env, &[]).unwrap();
+        assert!(
+            inner.len() > 16 * 1024,
+            "inner command must exceed tmux's imsg cap to exercise the regression"
+        );
+
+        // ...yet the command tmux actually receives is a tiny `sh <path>`, so
+        // `new-session` never sees the over-long string.
+        let cmd = tmux_launch_command(Path::new("/tmp/vk-abc-launch.sh")).unwrap();
+        assert_eq!(cmd, "sh /tmp/vk-abc-launch.sh");
+        assert!(cmd.len() < 4096);
     }
 
     #[test]
