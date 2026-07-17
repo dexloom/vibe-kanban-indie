@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.22] - 2026-07-17
+
+### Added
+
+- **OpenCode Headed agent type — an alternative to Claude Code Headed.** A new
+  `OPENCODE_HEADED` executor runs the opencode TUI inside a detached tmux session
+  (mirroring the `ClaudeCodeHeaded` pattern), so a solo dev can drive the board with
+  opencode instead of Claude Code. Includes the full agent-type plumbing (enum
+  variant, profile, generated TS types/schema, UI icon), a dedicated
+  `start_detached_tmux_opencode` launch path (free embedded-server port, `--prompt`/
+  `-c` resume, `autoupdate:false` to suppress the update modal, permission/compaction
+  env), generalized `BaseCodingAgent::is_headed()` detection across all sites, and
+  lifecycle-only tracking. The orchestrator executor is now parameterized
+  (`SpawnOrchestratorRequest.executor`) so it can later run on OpenCode; the Claude
+  backend stays the default. Bundled in-repo opencode subagents
+  (`vk-sweeper`/`vk-decider`/`vk-intake`) are seeded into the opencode config when
+  opencode is already installed. Full output mirroring via the TUI's embedded server
+  is the remaining follow-up for an OpenCode orchestrator.
+
 ## [0.2.21] - 2026-07-16
 
 ## [0.2.20] - 2026-07-16
