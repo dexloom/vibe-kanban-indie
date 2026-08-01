@@ -89,7 +89,13 @@ type ServerPassword = String;
 
 impl Opencode {
     fn build_command_builder(&self) -> Result<CommandBuilder, CommandBuildError> {
-        let builder = CommandBuilder::new("npx -y opencode-ai@1.18.10")
+        // Spawn the locally-installed `opencode` binary directly (resolved on
+        // PATH) instead of wrapping it in `npx -y opencode-ai@...`. The npx
+        // wrapper puts the real opencode in a grandchild process group that
+        // the backend's killpg() cannot reliably kill on macOS (EPERM), so
+        // spawned servers leaked and piled up. A direct child is killed
+        // cleanly.
+        let builder = CommandBuilder::new("opencode")
             // Pass hostname/port as separate args so OpenCode treats them as explicitly set
             // (it checks `process.argv.includes(\"--port\")` / `\"--hostname\"`).
             .extend_params(["serve", "--hostname", "127.0.0.1", "--port", "0"]);
@@ -603,7 +609,7 @@ impl StandardCodingAgentExecutor for Opencode {
             let env = ExecutionEnv::new(RepoContext::default(), false, String::new());
             let env = setup_permissions_env(this.auto_approve, &env);
 
-            let server = match this.spawn_server(&discovery_path, &env).await {
+            let mut server = match this.spawn_server(&discovery_path, &env).await {
                 Ok(s) => s,
                 Err(e) => {
                     tracing::warn!("Failed to spawn OpenCode server: {}", e);
@@ -746,6 +752,13 @@ impl StandardCodingAgentExecutor for Opencode {
                 BaseCodingAgent::Opencode,
             );
             cache.put(global_cache_key, final_options);
+
+            // Explicitly kill the discovery server so it never leaks. With a
+            // direct binary spawn the process group is owned by this server and
+            // killpg works; kill_on_drop alone can race the stream end.
+            if let Some(mut child) = server.child.take() {
+                let _ = workspace_utils::process::kill_process_group(&mut child).await;
+            }
         };
 
         Ok(Box::pin(
@@ -920,7 +933,7 @@ impl OpencodeHeaded {
         resume: bool,
         port: u16,
     ) -> Result<CommandParts, CommandBuildError> {
-        let mut builder = CommandBuilder::new("npx -y opencode-ai@1.18.10")
+        let mut builder = CommandBuilder::new("opencode")
             .extend_params(["--port", &port.to_string()]);
 
         if let Some(model) = &self.inner.model {
