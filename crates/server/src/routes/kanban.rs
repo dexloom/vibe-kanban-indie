@@ -457,6 +457,11 @@ async fn dispatch_issue_to_workspace(
         .await?
         .ok_or_else(|| ApiError::BadRequest("workspace not found".into()))?;
 
+    // Ensure the workspace is linked to this issue so it shows up in the issue's
+    // Workspaces section (idempotent: ON CONFLICT relinks the workspace to this
+    // issue).
+    IssueWorkspace::link(pool, id, workspace.id).await?;
+
     let session = Session::find_latest_by_workspace_id(pool, workspace.id)
         .await?
         .ok_or_else(|| ApiError::BadRequest("workspace has no sessions".into()))?;

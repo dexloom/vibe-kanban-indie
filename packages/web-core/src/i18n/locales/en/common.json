@@ -375,6 +375,8 @@
     "unassigned": "Unassigned",
     "noTagsAvailable": "No tags available",
     "createNewIssue": "Create new issue",
+    "selectWorkspace": "Run in workspace...",
+    "dispatchIssue": "Run issue in selected workspace",
     "searchTags": "Search tags...",
     "selectColorFor": "Select color for",
     "createTag": "Create",

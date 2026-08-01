@@ -51,6 +51,9 @@ import {
   type DropResult,
 } from '@vibe/ui/components/KanbanBoard';
 import { KanbanCardContent } from '@vibe/ui/components/KanbanCardContent';
+import { KanbanWorkspaceDispatch } from '@vibe/ui/components/KanbanWorkspaceDispatch';
+import { useQueryClient } from '@tanstack/react-query';
+import { workspacesApi } from '@/shared/lib/api';
 import {
   IssueWorkspaceCard,
   type WorkspaceWithStats,
@@ -568,6 +571,30 @@ export function KanbanContainer() {
 
     return map;
   }, [activeWorkspaces]);
+
+  const queryClient = useQueryClient();
+
+  // Every dispatchable workspace (active, with a local id) for the per-card
+  // quick-dispatch dropdown.
+  const dispatchWorkspaces = useMemo(
+    () =>
+      activeWorkspaces
+        .filter((workspace) => !!workspace.id)
+        .map((workspace) => ({ id: workspace.id, name: workspace.name })),
+    [activeWorkspaces]
+  );
+
+  const handleDispatchIssueToWorkspace = useCallback(
+    async (issueId: string, workspaceId: string) => {
+      try {
+        await workspacesApi.dispatchIssueToWorkspace(issueId, workspaceId);
+        await queryClient.invalidateQueries();
+      } catch (error) {
+        console.error('Failed to dispatch issue to workspace', error);
+      }
+    },
+    [queryClient]
+  );
 
   const prsByWorkspaceId = useMemo(() => {
     const map = new Map<string, WorkspacePr[]>();
@@ -1113,6 +1140,19 @@ export function KanbanContainer() {
                                     showNoPrText={false}
                                   />
                                 ))}
+                              </div>
+                            )}
+                            {dispatchWorkspaces.length > 0 && (
+                              <div className="mt-half">
+                                <KanbanWorkspaceDispatch
+                                  workspaces={dispatchWorkspaces}
+                                  onDispatch={(workspaceId) =>
+                                    handleDispatchIssueToWorkspace(
+                                      issue.id,
+                                      workspaceId
+                                    )
+                                  }
+                                />
                               </div>
                             )}
                           </KanbanCard>
