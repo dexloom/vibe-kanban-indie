@@ -152,6 +152,8 @@
     },
     "unlinkFromIssue": "Unlink from issue",
     "deleteWorkspace": "Delete workspace",
+    "sendIssueHere": "Send issue here",
+    "dispatchError": "Failed to run issue in workspace",
     "unlink": "Unlink",
     "delete": "Delete",
     "unlinkConfirmMessage": "Are you sure you want to unlink this workspace from the issue? The workspace will still exist but will no longer be associated with this issue.",

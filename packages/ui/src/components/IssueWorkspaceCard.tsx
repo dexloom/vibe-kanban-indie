@@ -9,6 +9,7 @@ import {
   HandIcon,
   TriangleIcon,
   CircleIcon,
+  PaperPlaneTiltIcon,
 } from '@phosphor-icons/react';
 import { UserAvatar, type UserAvatarUser } from './UserAvatar';
 import { RunningDots } from './RunningDots';
@@ -48,6 +49,7 @@ export interface WorkspaceWithStats {
 export interface IssueWorkspaceCardProps {
   workspace: WorkspaceWithStats;
   onClick?: () => void;
+  onRunIssue?: () => void;
   onUnlink?: () => void;
   onDelete?: () => void;
   showOwner?: boolean;
@@ -110,6 +112,7 @@ function IssueWorkspaceCardContainer({
 export function IssueWorkspaceCard({
   workspace,
   onClick,
+  onRunIssue,
   onUnlink,
   onDelete,
   showOwner = true,
@@ -165,7 +168,7 @@ export function IssueWorkspaceCard({
               className="h-5 w-5 text-[10px] border-2 border-panel"
             />
           )}
-          {(onUnlink || onDelete) && (
+          {(onRunIssue || onUnlink || onDelete) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -180,6 +183,17 @@ export function IssueWorkspaceCard({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {onRunIssue && (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRunIssue();
+                    }}
+                  >
+                    <PaperPlaneTiltIcon className="size-icon-xs" />
+                    {t('workspaces.sendIssueHere')}
+                  </DropdownMenuItem>
+                )}
                 {onUnlink && (
                   <DropdownMenuItem
                     onClick={(e) => {

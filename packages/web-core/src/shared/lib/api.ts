@@ -515,6 +515,22 @@ export const specKitApi = {
 };
 
 export const workspacesApi = {
+  /** Run an issue in an existing workspace: dispatches its title + description
+   *  to the workspace's latest session as a follow-up prompt. */
+  dispatchIssueToWorkspace: async (
+    issueId: string,
+    workspaceId: string
+  ): Promise<ExecutionProcess> => {
+    const response = await makeRequest(
+      `/api/issues/${issueId}/dispatch-to-workspace`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ workspace_id: workspaceId }),
+      }
+    );
+    return handleApiResponse<ExecutionProcess>(response);
+  },
+
   createAndStart: async (
     data: CreateAndStartWorkspaceRequest
   ): Promise<CreateAndStartWorkspaceResponse> => {

@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react';
 import { useParams } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { LinkIcon, PlusIcon } from '@phosphor-icons/react';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
@@ -191,6 +192,28 @@ export function IssueWorkspacesSectionContainer({
     await WorkspaceSelectionDialog.show({ projectId, issueId });
   }, [projectId, issueId]);
 
+  // Handle "Send issue here": dispatch the issue to an existing workspace's
+  // session as a follow-up (context retained), then refresh the workspace state.
+  const handleRunIssue = useCallback(
+    async (localWorkspaceId: string) => {
+      try {
+        await workspacesApi.dispatchIssueToWorkspace(issueId, localWorkspaceId);
+        await queryClient.invalidateQueries();
+      } catch (error) {
+        ConfirmDialog.show({
+          title: t('common:error'),
+          message:
+            error instanceof Error
+              ? error.message
+              : t('workspaces.dispatchError'),
+          confirmText: t('common:ok'),
+          showCancelButton: false,
+        });
+      }
+    },
+    [issueId, queryClient, t]
+  );
+
   // Handle clicking a workspace card to open it
   const handleWorkspaceClick = useCallback(
     (localWorkspaceId: string | null) => {
@@ -307,6 +330,7 @@ export function IssueWorkspacesSectionContainer({
       isLoading={isLoading}
       actions={actions}
       onWorkspaceClick={handleWorkspaceClick}
+      onRunIssue={handleRunIssue}
       onCreateWorkspace={handleAddWorkspace}
       onUnlinkWorkspace={handleUnlinkWorkspace}
       onDeleteWorkspace={handleDeleteWorkspace}

@@ -1,3 +1,4 @@
+use api_types::Issue;
 use db::models::{
     execution_process::{ExecutionProcess, ExecutionProcessStatus},
     session::Session,
@@ -75,6 +76,20 @@ struct RunCodingAgentInSessionRequest {
     session_id: Uuid,
     #[schemars(description = "Prompt for the coding agent")]
     prompt: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct RunIssueInWorkspaceRequest {
+    #[schemars(description = "Issue ID whose title + description are sent as the follow-up prompt")]
+    issue_id: Uuid,
+    #[schemars(
+        description = "Workspace ID to run the issue in. Optional when running inside a scoped orchestrator MCP."
+    )]
+    workspace_id: Option<Uuid>,
+    #[schemars(
+        description = "Optional explicit session ID to run in. Defaults to the workspace's latest session."
+    )]
+    session_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize)]
@@ -389,6 +404,123 @@ impl McpServer {
                 Ok(value) => value,
                 Err(error_result) => return Ok(Self::tool_error(error_result)),
             };
+
+        let execution_id = result.execution_process.id.to_string();
+        let execution = match Self::serialize_execution_process(&result.execution_process) {
+            Ok(value) => value,
+            Err(error_result) => return Ok(Self::tool_error(error_result)),
+        };
+
+        Self::success(&RunCodingAgentInSessionResponse {
+            session_id: session_id.to_string(),
+            execution_id,
+            execution,
+            delivered_to_live_session: result.delivered_to_live_session,
+        })
+    }
+
+    #[tool(
+        description = "Run an issue in an existing workspace: sends the issue's title + description to the workspace's session as a follow-up prompt (context retained) and returns the execution process immediately. Uses the workspace's latest session unless `session_id` is given."
+    )]
+    async fn run_issue_in_workspace(
+        &self,
+        Parameters(RunIssueInWorkspaceRequest {
+            issue_id,
+            workspace_id,
+            session_id,
+        }): Parameters<RunIssueInWorkspaceRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let workspace_id = match self.resolve_workspace_id(workspace_id) {
+            Ok(id) => id,
+            Err(error_result) => return Ok(Self::tool_error(error_result)),
+        };
+        if let Err(error_result) = self.scope_allows_workspace(workspace_id) {
+            return Ok(Self::tool_error(error_result));
+        }
+
+        // Build the prompt from the issue (mirrors the UI's workspace-create prompt).
+        let issue_url = self.url(&format!("/api/issues/{issue_id}"));
+        let issue: Issue = match self.send_json(self.client.get(&issue_url)).await {
+            Ok(issue) => issue,
+            Err(error_result) => return Ok(Self::tool_error(error_result)),
+        };
+        let trimmed_title = issue.title.trim();
+        if trimmed_title.is_empty() {
+            return Self::err(
+                "issue has no title; cannot build a prompt".to_string(),
+                Some("Update the issue with a title first.".to_string()),
+            );
+        }
+        let prompt = match issue.description.as_deref().map(str::trim) {
+            Some(description) if !description.is_empty() => {
+                format!("{trimmed_title}\n\n{description}")
+            }
+            _ => trimmed_title.to_string(),
+        };
+
+        // Resolve the session: explicit one, or the workspace's latest.
+        let session_id = match session_id {
+            Some(id) => id,
+            None => {
+                let list_url = self.url(&format!("/api/sessions?workspace_id={workspace_id}"));
+                let sessions: Vec<Session> = match self.send_json(self.client.get(&list_url)).await
+                {
+                    Ok(sessions) => sessions,
+                    Err(error_result) => return Ok(Self::tool_error(error_result)),
+                };
+                match sessions.into_iter().max_by_key(|session| session.created_at) {
+                    Some(session) => session.id,
+                    None => {
+                        return Self::err(
+                            format!("workspace {workspace_id} has no sessions"),
+                            Some("Create a session in the workspace first.".to_string()),
+                        );
+                    }
+                }
+            }
+        };
+
+        let session_url = self.url(&format!("/api/sessions/{session_id}"));
+        let session: Session = match self.send_json(self.client.get(&session_url)).await {
+            Ok(session) => session,
+            Err(error_result) => return Ok(Self::tool_error(error_result)),
+        };
+        if session.workspace_id != workspace_id {
+            return Self::err(
+                format!(
+                    "session {} does not belong to workspace {workspace_id}",
+                    session.id
+                ),
+                None,
+            );
+        }
+        if self.orchestrator_session_id() == Some(session_id) {
+            return Self::err(
+                "Cannot run coding agent in the orchestrator session".to_string(),
+                Some("Create or re-use a different session and run the coding agent there."
+                    .to_string()),
+            );
+        }
+
+        let executor_config = match Self::executor_config_payload_for_session(&session) {
+            Ok(config) => config,
+            Err(error_result) => return Ok(Self::tool_error(error_result)),
+        };
+
+        let payload = FollowUpPayload {
+            prompt,
+            executor_config,
+            retry_process_id: None,
+            force_when_dirty: None,
+            perform_git_reset: None,
+        };
+
+        let url = self.url(&format!("/api/sessions/{session_id}/follow-up"));
+        let result: FollowUpResult = match self.send_json(self.client.post(&url).json(&payload)).await
+        {
+            Ok(value) => value,
+            Err(error_result) => return Ok(Self::tool_error(error_result)),
+        };
 
         let execution_id = result.execution_process.id.to_string();
         let execution = match Self::serialize_execution_process(&result.execution_process) {

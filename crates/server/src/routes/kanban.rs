@@ -42,14 +42,21 @@ use db::models::{
     project::{LOCAL_ORGANIZATION_ID, Project as DbProject},
     project_status::ProjectStatus as DbProjectStatus,
     pull_request::PullRequest as DbPullRequest,
+    session::Session,
+    workspace::Workspace,
 };
 use deployment::Deployment;
+use executors::{executors::BaseCodingAgent, profile::ExecutorConfig};
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
 use super::local_kanban::{derive_key, merge_and_update_issue};
-use crate::{DeploymentImpl, error::ApiError};
+use crate::{
+    DeploymentImpl, error::ApiError,
+    routes::sessions::{run_follow_up, FollowUpResponse},
+};
 
 /// Process-local monotonic txid for the `MutationResponse` envelope. The MCP
 /// client ignores the value but the field must be present to deserialize.
@@ -421,6 +428,62 @@ async fn get_issue(
     Ok(ok(to_api_issue(issue)))
 }
 
+#[derive(Debug, Deserialize)]
+struct DispatchToWorkspaceRequest {
+    workspace_id: Uuid,
+}
+
+/// Run an issue in an existing workspace: sends the issue's title + description
+/// to the workspace's latest session as a follow-up prompt (context retained),
+/// spawning a coding-agent execution. Returns the same envelope as
+/// `POST /api/sessions/{id}/follow-up`.
+async fn dispatch_issue_to_workspace(
+    State(deployment): State<DeploymentImpl>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<DispatchToWorkspaceRequest>,
+) -> Result<ResponseJson<ApiResponse<FollowUpResponse>>, ApiError> {
+    let pool = &deployment.db().pool;
+
+    let issue = DbIssue::find_by_id(pool, id)
+        .await?
+        .ok_or_else(|| ApiError::BadRequest("issue not found".into()))?;
+
+    let prompt = match &issue.description {
+        Some(desc) if !desc.is_empty() => format!("{}\n\n{}", issue.title, desc),
+        _ => issue.title.clone(),
+    };
+
+    let workspace = Workspace::find_by_id(pool, body.workspace_id)
+        .await?
+        .ok_or_else(|| ApiError::BadRequest("workspace not found".into()))?;
+
+    let session = Session::find_latest_by_workspace_id(pool, workspace.id)
+        .await?
+        .ok_or_else(|| ApiError::BadRequest("workspace has no sessions".into()))?;
+
+    let executor_str = session
+        .executor
+        .as_deref()
+        .ok_or_else(|| ApiError::BadRequest("session has no executor configured".into()))?;
+
+    let executor = BaseCodingAgent::from_str(executor_str)
+        .map_err(|error| ApiError::BadRequest(format!("invalid executor: {error}")))?;
+
+    let executor_config = ExecutorConfig::new(executor);
+
+    run_follow_up(
+        &deployment,
+        session,
+        workspace,
+        prompt,
+        executor_config,
+        None,
+        None,
+        None,
+    )
+    .await
+}
+
 async fn create_issue(
     State(deployment): State<DeploymentImpl>,
     Json(req): Json<CreateIssueRequest>,
@@ -653,6 +716,10 @@ pub fn router(_deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
             get(get_issue).patch(update_issue).delete(delete_issue),
         )
         .route("/issues/{id}/pull-requests", get(list_issue_pull_requests))
+        .route(
+            "/issues/{id}/dispatch-to-workspace",
+            post(dispatch_issue_to_workspace),
+        )
         .route("/issue-tags", get(list_issue_tags).post(create_issue_tag))
         .route("/issue-tags/{id}", delete(delete_issue_tag))
         .route(
