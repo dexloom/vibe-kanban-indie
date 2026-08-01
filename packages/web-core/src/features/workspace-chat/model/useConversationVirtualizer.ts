@@ -328,8 +328,15 @@ export function useConversationVirtualizer({
 
       bottomLockedRef.current = true;
 
+      // Guard the follow-bottom scroll (and any immediate measurement
+      // correction that follows it) from being misread as a user-initiated
+      // upward scroll in the scroll handler, which would falsely release the
+      // bottom lock and leave the stream "stuck" mid-list. The deadline is set
+      // for BOTH behaviors — streaming uses 'auto', so it previously had no
+      // guard at all.
+      smoothScrollDeadlineRef.current = performance.now() + 500;
+
       if (behavior === 'smooth') {
-        smoothScrollDeadlineRef.current = performance.now() + 500;
         el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
       } else {
         el.scrollTop = el.scrollHeight - el.clientHeight;
