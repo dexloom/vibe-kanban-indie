@@ -33,6 +33,7 @@ use axum::{
     routing::{delete, get, post},
 };
 use db::models::{
+    execution_process::ExecutionProcess,
     issue::{Issue as DbIssue, NewIssue},
     issue_relationship::IssueRelationship as DbIssueRelationship,
     issue_workspace::IssueWorkspace,
@@ -43,7 +44,7 @@ use db::models::{
     project_status::ProjectStatus as DbProjectStatus,
     pull_request::PullRequest as DbPullRequest,
     session::Session,
-    workspace::Workspace,
+    workspace::{Workspace, WorkspaceKind},
 };
 use deployment::Deployment;
 use executors::{executors::BaseCodingAgent, profile::ExecutorConfig};
@@ -448,14 +449,62 @@ async fn dispatch_issue_to_workspace(
         .await?
         .ok_or_else(|| ApiError::BadRequest("issue not found".into()))?;
 
-    let prompt = match &issue.description {
-        Some(desc) if !desc.is_empty() => format!("{}\n\n{}", issue.title, desc),
-        _ => issue.title.clone(),
-    };
-
     let workspace = Workspace::find_by_id(pool, body.workspace_id)
         .await?
         .ok_or_else(|| ApiError::BadRequest("workspace not found".into()))?;
+
+    // Cannot dispatch into an archived workspace.
+    if workspace.archived {
+        return Err(ApiError::BadRequest(format!(
+            "cannot dispatch to archived workspace '{}'",
+            workspace.name.as_deref().unwrap_or("")
+        )));
+    }
+
+    // The orchestrator is a special workspace (headed /loop session); dispatching
+    // a card into it would corrupt its orchestration loop.
+    if workspace.kind == Some(WorkspaceKind::Orchestrator) {
+        return Err(ApiError::BadRequest(
+            "cannot dispatch a card to the orchestrator workspace".to_string(),
+        ));
+    }
+
+    // Re-dispatch of the SAME card the workspace is currently on: if it already
+    // ran pipeline stages, tell the agent to continue from the next stage rather
+    // than restart the whole pipeline. Only applies when this card is the
+    // workspace's current linked card (the stage counter is workspace-scoped).
+    let current_link =
+        IssueWorkspace::find_issue_and_project_by_workspace(pool, workspace.id).await?;
+    let resume_stage = if workspace.current_pipeline_stage.map(|s| s > 0).unwrap_or(false) {
+        match current_link {
+            Some((current_issue_id, _)) if current_issue_id == id => {
+                workspace.current_pipeline_stage
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    // A fresh card (not a same-card re-dispatch) resets any stale pipeline
+    // stage left over from a previous card, so the board doesn't show the old
+    // card's progress against the new one.
+    if resume_stage.is_none() {
+        Workspace::set_current_pipeline_stage(pool, workspace.id, None).await?;
+    }
+
+    let mut prompt = match &issue.description {
+        Some(desc) if !desc.is_empty() => format!("{}\n\n{}", issue.title, desc),
+        _ => issue.title.clone(),
+    };
+    if let Some(stage) = resume_stage {
+        prompt = format!(
+            "You previously worked on this issue and completed stages 1 through {stage}. \
+             The card text below includes the full pipeline for context. \
+             Continue from stage {next}.\n\n{prompt}",
+            next = stage + 1,
+        );
+    }
 
     // Ensure the workspace is linked to this issue so it shows up in the issue's
     // Workspaces section (idempotent: ON CONFLICT relinks the workspace to this
@@ -465,6 +514,15 @@ async fn dispatch_issue_to_workspace(
     let session = Session::find_latest_by_workspace_id(pool, workspace.id)
         .await?
         .ok_or_else(|| ApiError::BadRequest("workspace has no sessions".into()))?;
+
+    // Reject concurrent dispatch: a second agent process on the same session
+    // would corrupt the conversation.
+    if ExecutionProcess::has_running_coding_agent_for_session(pool, session.id).await? {
+        return Err(ApiError::Conflict(
+            "workspace session is currently executing; wait for it to finish before dispatching another card"
+                .to_string(),
+        ));
+    }
 
     let executor_str = session
         .executor

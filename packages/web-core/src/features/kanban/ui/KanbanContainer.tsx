@@ -52,6 +52,7 @@ import {
 } from '@vibe/ui/components/KanbanBoard';
 import { KanbanCardContent } from '@vibe/ui/components/KanbanCardContent';
 import { KanbanWorkspaceDispatch } from '@vibe/ui/components/KanbanWorkspaceDispatch';
+import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { workspacesApi } from '@/shared/lib/api';
 import {
@@ -590,10 +591,18 @@ export function KanbanContainer() {
         await workspacesApi.dispatchIssueToWorkspace(issueId, workspaceId);
         await queryClient.invalidateQueries();
       } catch (error) {
-        console.error('Failed to dispatch issue to workspace', error);
+        ConfirmDialog.show({
+          title: t('common:error'),
+          message:
+            error instanceof Error
+              ? error.message
+              : String(error),
+          confirmText: t('common:ok'),
+          showCancelButton: false,
+        });
       }
     },
-    [queryClient]
+    [queryClient, t]
   );
 
   const prsByWorkspaceId = useMemo(() => {
