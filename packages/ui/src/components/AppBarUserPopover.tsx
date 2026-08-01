@@ -3,7 +3,6 @@ import {
   CheckIcon,
   GearIcon,
   SignInIcon,
-  SignOutIcon,
   UserIcon,
 } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
@@ -34,7 +33,6 @@ interface AppBarUserPopoverProps {
   onOrgSettings?: (orgId: string) => void;
   onSettings?: () => void;
   onSignIn: () => void;
-  onLogout: () => void;
   onAvatarError: () => void;
 }
 
@@ -50,7 +48,6 @@ export function AppBarUserPopover({
   onOrgSettings,
   onSettings,
   onSignIn,
-  onLogout,
   onAvatarError,
 }: AppBarUserPopoverProps) {
   const { t } = useTranslation();
@@ -157,10 +154,6 @@ export function AppBarUserPopover({
             </DropdownMenuItem>
           </>
         )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem icon={SignOutIcon} onClick={onLogout}>
-          {t('signOut')}
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

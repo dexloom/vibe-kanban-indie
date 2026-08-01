@@ -104,9 +104,20 @@ function getHostStatusIndicatorClass(status: AppBarHostStatus): string {
 
 function AppBarSectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="w-10 text-center text-[9px] font-medium leading-none tracking-wide text-low">
+    <p className="w-full text-center text-[9px] font-medium leading-none tracking-wide text-low">
       {children}
     </p>
+  );
+}
+
+// A nav group: its icons on top, the group label BELOW them, wrapped in a
+// subtle rounded border so adjacent groups read as separate blocks.
+function AppBarSection({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex w-full flex-col items-center gap-1 rounded-lg border border-border bg-primary/40 px-1 py-2">
+      {children}
+      <AppBarSectionLabel>{label}</AppBarSectionLabel>
+    </div>
   );
 }
 
@@ -536,8 +547,7 @@ export function AppBar({
       )}
     >
       {sections.map((section) => (
-        <div key={section.key} className="flex flex-col items-center gap-1">
-          <AppBarSectionLabel>{section.label}</AppBarSectionLabel>
+        <AppBarSection key={section.key} label={section.label}>
           {section.items.map((item) => (
             <div
               key={item.key}
@@ -548,7 +558,7 @@ export function AppBar({
               {renderSectionItem(item)}
             </div>
           ))}
-        </div>
+        </AppBarSection>
       ))}
 
       {/* Bottom section: Notifications + User popover + GitHub */}
