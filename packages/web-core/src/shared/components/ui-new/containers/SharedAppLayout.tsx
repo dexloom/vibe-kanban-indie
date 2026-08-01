@@ -340,7 +340,6 @@ export function SharedAppLayout() {
               activeProjectId={activeProjectId}
               isSignedIn={isSignedIn}
               isLoadingProjects={isLoading}
-              onSignIn={handleSignIn}
               onHoverStart={() => setIsAppBarHovered(true)}
               onHoverEnd={() => setIsAppBarHovered(false)}
               notificationBell={

@@ -89,7 +89,7 @@ type ServerPassword = String;
 
 impl Opencode {
     fn build_command_builder(&self) -> Result<CommandBuilder, CommandBuildError> {
-        let builder = CommandBuilder::new("npx -y opencode-ai@1.4.7")
+        let builder = CommandBuilder::new("npx -y opencode-ai@1.18.10")
             // Pass hostname/port as separate args so OpenCode treats them as explicitly set
             // (it checks `process.argv.includes(\"--port\")` / `\"--hostname\"`).
             .extend_params(["serve", "--hostname", "127.0.0.1", "--port", "0"]);
@@ -920,7 +920,7 @@ impl OpencodeHeaded {
         resume: bool,
         port: u16,
     ) -> Result<CommandParts, CommandBuildError> {
-        let mut builder = CommandBuilder::new("npx -y opencode-ai@1.4.7")
+        let mut builder = CommandBuilder::new("npx -y opencode-ai@1.18.10")
             .extend_params(["--port", &port.to_string()]);
 
         if let Some(model) = &self.inner.model {
