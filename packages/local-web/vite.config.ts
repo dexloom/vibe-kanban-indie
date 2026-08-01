@@ -1,5 +1,4 @@
 // vite.config.ts
-import { sentryVitePlugin } from '@sentry/vite-plugin';
 import { createLogger, defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
@@ -80,22 +79,6 @@ export default schemas;
 
 // Sentry source-map upload is opt-in and entirely user-configured: it only runs
 // when you supply your own SENTRY_AUTH_TOKEN / SENTRY_ORG / SENTRY_PROJECT.
-// Nothing is ever sent to Vibe Kanban's Sentry, and the plugin's own telemetry
-// is always disabled.
-const sentryPlugins =
-  process.env.SENTRY_AUTH_TOKEN &&
-  process.env.SENTRY_ORG &&
-  process.env.SENTRY_PROJECT
-    ? [
-        sentryVitePlugin({
-          org: process.env.SENTRY_ORG,
-          project: process.env.SENTRY_PROJECT,
-          authToken: process.env.SENTRY_AUTH_TOKEN,
-          telemetry: false,
-        }),
-      ]
-    : [];
-
 export default defineConfig({
   customLogger: createFilteredLogger(),
   publicDir: path.resolve(__dirname, '../public'),
@@ -126,7 +109,6 @@ export default defineConfig({
         ],
       },
     }),
-    ...sentryPlugins,
     executorSchemasPlugin(),
   ],
   resolve: {
@@ -170,5 +152,5 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['wa-sqlite'],
   },
-  build: { sourcemap: true },
+  build: { sourcemap: false },
 });
