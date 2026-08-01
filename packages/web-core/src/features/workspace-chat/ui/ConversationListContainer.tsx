@@ -6,19 +6,17 @@ import {
   useMemo,
   useRef,
   useState,
-  type MouseEvent,
 } from 'react';
 import { SpinnerIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 
 import {
-  findPreviousUserMessageIndex,
   type ConversationRow,
 } from '../model/conversation-row-model';
 import { deriveConversationEntries } from '../model/deriveConversationEntries';
 import { deriveConversationTimeline } from '../model/deriveConversationTimeline';
 import { useConversationVirtualizer } from '../model/useConversationVirtualizer';
-import { useScrollCommandExecutor } from '../model/useScrollCommandExecutor';
+import { useInteractionAnchor } from '../model/useInteractionAnchor';
 
 import DisplayConversationEntry from './DisplayConversationEntry';
 import { ApprovalFormProvider } from '@/shared/hooks/ApprovalForm';
@@ -156,7 +154,6 @@ export const ConversationList = forwardRef<
   const resetAction = useResetProcess(attempt.id, attempt.session?.id);
   const conversationScopeKey = `${attempt.id}:${sessionScopeId ?? attempt.session?.id ?? 'new'}`;
   const [filteredEntries, setFilteredEntries] = useState<DisplayEntry[]>([]);
-  const [dataVersion, setDataVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   const [hasSetupScriptRun, setHasSetupScriptRun] = useState(false);
   const [hasCleanupScriptRun, setHasCleanupScriptRun] = useState(false);
@@ -167,9 +164,6 @@ export const ConversationList = forwardRef<
   const scriptOutputCacheRef = useRef<
     Map<string, { count: number; output: string }>
   >(new Map());
-  const scrollOnEntriesChangedRef = useRef<
-    ((addType: AddEntryType, isInitialLoad: boolean) => void) | null
-  >(null);
   const pendingUpdateRef = useRef<{
     source: ConversationTimelineSource;
     addType: AddEntryType;
@@ -185,12 +179,6 @@ export const ConversationList = forwardRef<
   // ensuring every frame reflects the latest data.
   const rafIdRef = useRef<number | null>(null);
   const planRevealSpacerRef = useRef<HTMLDivElement | null>(null);
-  const pendingInteractionAnchorRef = useRef<{
-    element: HTMLElement;
-    top: number;
-  } | null>(null);
-  const pendingInteractionAnchorFrameRef = useRef<number | null>(null);
-  const pendingInteractionAnchorDeadlineRef = useRef(0);
 
   // Use ref to access current repos without causing callback recreation
   const reposRef = useRef(repos);
@@ -243,7 +231,6 @@ export const ConversationList = forwardRef<
     setHasCleanupScriptRun(false);
     setHasRunningProcess(false);
     setFilteredEntries([]);
-    setDataVersion(0);
     lastSettledTailStartIndexRef.current = null;
     reset();
   }, [conversationScopeKey, reset]);
@@ -259,77 +246,9 @@ export const ConversationList = forwardRef<
   // ---- TanStack Virtual plumbing ----
   const tanstackScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const clearPendingInteractionAnchor = useCallback(() => {
-    if (pendingInteractionAnchorFrameRef.current !== null) {
-      cancelAnimationFrame(pendingInteractionAnchorFrameRef.current);
-      pendingInteractionAnchorFrameRef.current = null;
-    }
-    pendingInteractionAnchorDeadlineRef.current = 0;
-    pendingInteractionAnchorRef.current = null;
-  }, []);
-
-  const programmaticScrollDeadlineRef = useRef(0);
-
-  const shouldSuppressInteractionDrivenSizeAdjustment = useCallback(
-    () =>
-      performance.now() < programmaticScrollDeadlineRef.current ||
-      (pendingInteractionAnchorRef.current !== null &&
-        performance.now() < pendingInteractionAnchorDeadlineRef.current),
-    []
-  );
-
-  const runInteractionAnchorCorrection = useCallback(() => {
-    pendingInteractionAnchorFrameRef.current = null;
-
-    const anchor = pendingInteractionAnchorRef.current;
-    const activeScrollContainer = tanstackScrollRef.current;
-    if (!anchor || !activeScrollContainer || !anchor.element.isConnected) {
-      clearPendingInteractionAnchor();
-      return;
-    }
-
-    const currentTop = anchor.element.getBoundingClientRect().top;
-    const delta = currentTop - anchor.top;
-    if (Math.abs(delta) >= 0.5) {
-      activeScrollContainer.scrollTop += delta;
-    }
-
-    if (performance.now() < pendingInteractionAnchorDeadlineRef.current) {
-      pendingInteractionAnchorFrameRef.current = requestAnimationFrame(
-        runInteractionAnchorCorrection
-      );
-      return;
-    }
-
-    clearPendingInteractionAnchor();
-  }, [clearPendingInteractionAnchor]);
-
-  const handleConversationClickCapture = useCallback(
-    (event: MouseEvent<HTMLDivElement>) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-
-      const trigger = target.closest<HTMLElement>(
-        'button, summary, [role="button"], [data-scroll-anchor-target]'
-      );
-      if (!trigger || trigger.closest('[data-scroll-anchor-ignore]')) return;
-
-      const scrollContainer = tanstackScrollRef.current;
-      if (!scrollContainer || !scrollContainer.contains(trigger)) return;
-
-      clearPendingInteractionAnchor();
-      pendingInteractionAnchorRef.current = {
-        element: trigger,
-        top: trigger.getBoundingClientRect().top,
-      };
-
-      pendingInteractionAnchorDeadlineRef.current = performance.now() + 250;
-      pendingInteractionAnchorFrameRef.current = requestAnimationFrame(
-        runInteractionAnchorCorrection
-      );
-    },
-    [clearPendingInteractionAnchor, runInteractionAnchorCorrection]
-  );
+  const { handleClickCapture, isCorrectionActive } = useInteractionAnchor({
+    scrollContainerRef: tanstackScrollRef,
+  });
 
   const flushPendingUpdate = () => {
     rafIdRef.current = null;
@@ -356,10 +275,12 @@ export const ConversationList = forwardRef<
     prevRowsRef.current = derivedTimeline.rows;
 
     setFilteredEntries(derivedTimeline.displayEntries);
-    setDataVersion((current) => current + 1);
     setEntries(derivedEntries.entries);
 
-    scrollOnEntriesChangedRef.current?.(pending.addType, pending.isInitialLoad);
+    conversationVirtualizer.handleEntriesChanged(
+      pending.addType,
+      pending.isInitialLoad
+    );
 
     if (loading) {
       setLoading(pending.loading);
@@ -464,7 +385,7 @@ export const ConversationList = forwardRef<
     totalRowCount: conversationRows.length,
     scrollContainerRef: tanstackScrollRef,
     onAtBottomChange,
-    shouldSuppressSizeAdjustment: shouldSuppressInteractionDrivenSizeAdjustment,
+    shouldSuppressSizeAdjustment: isCorrectionActive,
   });
 
   // NOTE: Do NOT call conversationVirtualizer.virtualizer.measure() when
@@ -539,16 +460,6 @@ export const ConversationList = forwardRef<
     [conversationVirtualizer]
   );
 
-  const scrollExecutor = useScrollCommandExecutor({
-    virtualizer: conversationVirtualizer.virtualizer,
-    itemCount: conversationRows.length,
-    dataVersion,
-    checkIsAtBottom: conversationVirtualizer.checkIsAtBottom,
-    scrollToBottom: scrollToBottomAndClearSpacer,
-    scrollToAbsoluteIndex,
-  });
-  scrollOnEntriesChangedRef.current = scrollExecutor.onEntriesChanged;
-
   // Determine if there are entries to show placeholders
   const hasEntries = conversationRows.length > 0;
 
@@ -562,80 +473,10 @@ export const ConversationList = forwardRef<
     hasEntries &&
     isFirstTurn;
 
-  // Expose scroll functionality via ref — delegates to TanStack Virtual
+  // Expose scroll functionality via ref — delegates to the virtualizer hook
   const scrollToPreviousUserMessage = useCallback(() => {
-    conversationVirtualizer.releaseBottomLock();
-
-    const scrollEl = tanstackScrollRef.current;
-    if (!scrollEl || conversationRows.length === 0) return;
-
-    const containerTop = scrollEl.getBoundingClientRect().top;
-    const rowNodes = Array.from(
-      scrollEl.querySelectorAll<HTMLElement>('[data-row-index]')
-    );
-
-    let firstVisibleIndex = conversationRows.length - 1;
-
-    for (const node of rowNodes) {
-      const rect = node.getBoundingClientRect();
-      if (rect.bottom <= containerTop + 1) continue;
-      const indexAttr = node.dataset.rowIndex;
-      if (!indexAttr) continue;
-      const parsedIndex = Number.parseInt(indexAttr, 10);
-      if (!Number.isFinite(parsedIndex)) continue;
-      firstVisibleIndex = parsedIndex;
-      break;
-    }
-
-    const targetIndex = findPreviousUserMessageIndex(
-      conversationRows,
-      firstVisibleIndex
-    );
-
-    if (targetIndex < 0) return;
-
-    programmaticScrollDeadlineRef.current = performance.now() + 1000;
-
-    let attempts = 0;
-    const maxAttempts = 6;
-
-    const correctScroll = () => {
-      if (attempts >= maxAttempts) return;
-      attempts++;
-
-      programmaticScrollDeadlineRef.current = performance.now() + 500;
-
-      const node = scrollEl.querySelector<HTMLElement>(
-        `[data-row-index="${targetIndex}"]`
-      );
-      if (!node) {
-        if (attempts === 1) {
-          conversationVirtualizer.scrollToIndex(targetIndex, {
-            align: 'start',
-            behavior: 'auto',
-          });
-        }
-        requestAnimationFrame(correctScroll);
-        return;
-      }
-
-      const nodeRect = node.getBoundingClientRect();
-      const contRect = scrollEl.getBoundingClientRect();
-      const delta = nodeRect.top - contRect.top;
-
-      if (Math.abs(delta) < 2) return;
-
-      scrollEl.scrollTop += delta;
-      requestAnimationFrame(correctScroll);
-    };
-
-    correctScroll();
-  }, [
-    conversationRows,
-    firstUnvirtualizedRowIndex,
-    conversationVirtualizer,
-    scrollToAbsoluteIndex,
-  ]);
+    conversationVirtualizer.scrollToPreviousUserMessage();
+  }, [conversationVirtualizer]);
 
   useImperativeHandle(
     ref,
@@ -659,47 +500,8 @@ export const ConversationList = forwardRef<
         );
         if (targetIndex < 0) return;
 
-        const scrollEl = tanstackScrollRef.current;
-        if (!scrollEl) return;
-
-        conversationVirtualizer.releaseBottomLock();
-        programmaticScrollDeadlineRef.current = performance.now() + 1000;
-
-        // Initial scroll via scrollToAbsoluteIndex which handles both
-        // virtualized and unvirtualized (tail) rows correctly.
+        // Handles both virtualized head and unvirtualized tail rows.
         scrollToAbsoluteIndex(targetIndex, 'start', 'auto');
-
-        // Correction loop: after the virtualizer lays out the target
-        // row, its actual size may differ from the estimate, so we
-        // iteratively adjust until the row is at the container top.
-        let attempts = 0;
-        const maxAttempts = 5;
-
-        const correctScroll = () => {
-          if (attempts >= maxAttempts) return;
-          attempts++;
-
-          programmaticScrollDeadlineRef.current = performance.now() + 500;
-
-          const node = scrollEl.querySelector<HTMLElement>(
-            `[data-row-index="${targetIndex}"]`
-          );
-          if (!node) {
-            requestAnimationFrame(correctScroll);
-            return;
-          }
-
-          const nodeRect = node.getBoundingClientRect();
-          const contRect = scrollEl.getBoundingClientRect();
-          const delta = nodeRect.top - contRect.top;
-
-          if (Math.abs(delta) < 2) return;
-
-          scrollEl.scrollTop += delta;
-          requestAnimationFrame(correctScroll);
-        };
-
-        requestAnimationFrame(correctScroll);
       },
       getVisibleUserMessagePatchKey: () => {
         const scrollEl = tanstackScrollRef.current;
@@ -746,12 +548,6 @@ export const ConversationList = forwardRef<
 
   const { virtualItems, totalSize, measureElement } = conversationVirtualizer;
 
-  useEffect(() => {
-    return () => {
-      clearPendingInteractionAnchor();
-    };
-  }, [clearPendingInteractionAnchor]);
-
   return (
     <ApprovalFormProvider>
       <div className="relative h-full overflow-hidden">
@@ -764,7 +560,7 @@ export const ConversationList = forwardRef<
           ref={tanstackScrollRef}
           className="h-full overflow-y-auto scrollbar-none"
           style={{ overflowAnchor: 'none', contain: 'strict' }}
-          onClickCapture={handleConversationClickCapture}
+          onClickCapture={handleClickCapture}
         >
           <div className="pt-2">
             {showSetupPlaceholder && (
