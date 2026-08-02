@@ -10,9 +10,7 @@ use tokio_util::sync::CancellationToken;
 use tower_http::validate_request::ValidateRequestHeaderLayer;
 use utils::assets::asset_dir;
 
-use crate::{
-    DeploymentImpl, middleware::origin::validate_origin, routes, runtime::relay_registration,
-};
+use crate::{DeploymentImpl, middleware::origin::validate_origin, routes};
 
 /// A running server instance. Callers can read the port, then call `serve()`
 /// to run the server until the shutdown token is cancelled.
@@ -38,9 +36,6 @@ impl ServerHandle {
 
     /// Run both the main and proxy servers until the shutdown token is cancelled.
     pub async fn serve(self) -> anyhow::Result<()> {
-        // Start relay tunnel so the host registers with the relay server.
-        // This must happen after the port is known (it's needed for local
-        // proxying) and is shared between the standalone binary and Tauri.
         self.deployment
             .client_info()
             .set_server_addr(self.main_listener.local_addr()?)
@@ -49,7 +44,6 @@ impl ServerHandle {
             .client_info()
             .set_preview_proxy_port(self.proxy_port)
             .expect("client preview proxy port already set");
-        relay_registration::spawn_relay(&self.deployment).await;
 
         let app_router = routes::router(self.deployment.clone());
         let proxy_router: axum::Router = routes::preview::subdomain_router(self.deployment.clone())
@@ -154,7 +148,6 @@ pub async fn initialize_deployment(
 
     let deployment = DeploymentImpl::new(shutdown).await?;
     migrate_legacy_attachment_directories(&deployment).await?;
-    deployment.update_sentry_scope().await?;
     deployment
         .container()
         .cleanup_orphan_executions()
@@ -178,10 +171,6 @@ pub async fn initialize_deployment(
     {
         tracing::warn!("ensure local user failed: {e}");
     }
-
-    deployment
-        .track_if_analytics_allowed("session_start", serde_json::json!({}))
-        .await;
 
     // Preload global executor options cache for all executors with DEFAULT presets
     tokio::spawn(async move {

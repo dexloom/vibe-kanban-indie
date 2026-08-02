@@ -20,16 +20,6 @@ services.workspace = true
 worktree-manager.workspace = true
 workspace-manager.workspace = true
 embedded-ssh.workspace = true
-relay-control.workspace = true
-relay-protocol.workspace = true
-relay-ws.workspace = true
-relay-client.workspace = true
-relay-hosts.workspace = true
-relay-types.workspace = true
-relay-tunnel-core.workspace = true
-relay-webrtc.workspace = true
-ws-bridge.workspace = true
-desktop-bridge.workspace = true
 preview-proxy.workspace = true
 trusted-key-auth.workspace = true
 tokio.workspace = true
@@ -66,6 +56,8 @@ spake2.workspace = true
 sha2.workspace = true
 ed25519-dalek.workspace = true
 tokio-tungstenite.workspace = true
+bytes.workspace = true
+futures.workspace = true
 
 [build-dependencies]
 dotenv.workspace = true

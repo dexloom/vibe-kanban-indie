@@ -1,12 +1,13 @@
 //! SSH session handler implementing `russh::server::Handler`.
 //!
-//! Handles public key authentication (matched against relay signing sessions),
-//! shell/exec channels over stdio, and SFTP subsystem requests.
+//! Handles public key authentication, shell/exec channels over stdio, and SFTP
+//! subsystem requests. In local-only mode the handler accepts any offered
+//! Ed25519 public key — the SSH tunnel terminates on the local server and is
+//! only reachable from loopback clients.
 
 use std::{collections::HashMap, process::Stdio};
 
 use async_trait::async_trait;
-use relay_control::signing::RelaySigningService;
 use russh::{
     Channel, ChannelId, CryptoVec, Pty,
     server::{Auth, Msg, Session},
@@ -21,7 +22,6 @@ use tokio::{
 use crate::sftp::SftpHandler;
 
 pub struct SshSessionHandler {
-    relay_signing: RelaySigningService,
     channels: HashMap<ChannelId, ChannelState>,
     tcpip_forwards: HashMap<(String, u32), tokio::task::JoinHandle<()>>,
 }
@@ -37,9 +37,8 @@ enum ChannelState {
 }
 
 impl SshSessionHandler {
-    pub fn new(relay_signing: RelaySigningService) -> Self {
+    pub fn new() -> Self {
         Self {
-            relay_signing,
             channels: HashMap::new(),
             tcpip_forwards: HashMap::new(),
         }
@@ -216,27 +215,13 @@ impl russh::server::Handler for SshSessionHandler {
         _user: &str,
         public_key: &PublicKey,
     ) -> Result<Auth, Self::Error> {
-        // Extract raw Ed25519 bytes from the SSH public key
-        let ed25519_key = match public_key.key_data().ed25519() {
-            Some(key) => key,
-            None => {
-                return Ok(Auth::Reject {
-                    proceed_with_methods: None,
-                });
-            }
-        };
-
-        let key_bytes: &[u8; 32] = ed25519_key.as_ref();
-
-        if self
-            .relay_signing
-            .has_active_session_with_key(key_bytes)
-            .await
-        {
-            tracing::debug!("SSH auth accepted for Ed25519 key");
+        // Local-only mode: accept any offered Ed25519 key. The tunnel is
+        // bound to loopback and terminates on this server.
+        if public_key.key_data().ed25519().is_some() {
+            tracing::debug!("SSH auth accepted for Ed25519 key (local-only mode)");
             Ok(Auth::Accept)
         } else {
-            tracing::debug!("SSH auth rejected: no matching signing session");
+            tracing::debug!("SSH auth rejected: non-Ed25519 keys are not accepted");
             Ok(Auth::Reject {
                 proceed_with_methods: None,
             })

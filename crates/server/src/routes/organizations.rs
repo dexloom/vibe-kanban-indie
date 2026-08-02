@@ -3,12 +3,12 @@ use api_types::{
     CreateOrganizationRequest, CreateOrganizationResponse, GetInvitationResponse,
     GetOrganizationResponse, ListInvitationsResponse, ListMembersResponse,
     ListOrganizationsResponse, MemberRole, Organization, OrganizationMemberWithProfile,
-    OrganizationWithRole, RevokeInvitationRequest, UpdateMemberRoleRequest,
-    UpdateMemberRoleResponse, UpdateOrganizationRequest,
+    OrganizationWithRole, UpdateMemberRoleRequest, UpdateMemberRoleResponse,
+    UpdateOrganizationRequest,
 };
 use axum::{
-    Router,
-    extract::{Json, Path, State},
+    Json, Router,
+    extract::{Path, State},
     http::StatusCode,
     response::Json as ResponseJson,
     routing::{delete, get, patch, post},
@@ -16,6 +16,7 @@ use axum::{
 use chrono::Utc;
 use db::models::{local_user::LocalUser, project::LOCAL_ORGANIZATION_ID};
 use deployment::Deployment;
+use serde::Deserialize;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
@@ -70,135 +71,130 @@ async fn list_organizations(
     Ok(ResponseJson(ApiResponse::success(response)))
 }
 
-async fn get_organization(
-    State(deployment): State<DeploymentImpl>,
-    Path(id): Path<Uuid>,
-) -> Result<ResponseJson<ApiResponse<GetOrganizationResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
+#[derive(Debug, Deserialize)]
+struct EmptyOrgCreate;
 
-    let response = client.get_organization(id).await?;
-
+async fn create_organization(
+    State(_deployment): State<DeploymentImpl>,
+    Json(_request): Json<CreateOrganizationRequest>,
+) -> Result<ResponseJson<ApiResponse<CreateOrganizationResponse>>, ApiError> {
+    // Local-only fork: ignore the request and return a stub response.
+    let now = Utc::now();
+    let response = CreateOrganizationResponse {
+        organization: OrganizationWithRole {
+            id: LOCAL_ORGANIZATION_ID,
+            name: "Local".to_string(),
+            slug: "local".to_string(),
+            is_personal: false,
+            issue_prefix: "LOCAL".to_string(),
+            created_at: now,
+            updated_at: now,
+            user_role: MemberRole::Admin,
+        },
+    };
     Ok(ResponseJson(ApiResponse::success(response)))
 }
 
-async fn create_organization(
-    State(deployment): State<DeploymentImpl>,
-    Json(request): Json<CreateOrganizationRequest>,
-) -> Result<ResponseJson<ApiResponse<CreateOrganizationResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
-
-    let response = client.create_organization(&request).await?;
-
-    deployment
-        .track_if_analytics_allowed(
-            "organization_created",
-            serde_json::json!({
-                "org_id": response.organization.id.to_string(),
-            }),
-        )
-        .await;
-
+async fn get_organization(
+    State(_deployment): State<DeploymentImpl>,
+    Path(_id): Path<Uuid>,
+) -> Result<ResponseJson<ApiResponse<GetOrganizationResponse>>, ApiError> {
+    let now = Utc::now();
+    let response = GetOrganizationResponse {
+        organization: Organization {
+            id: LOCAL_ORGANIZATION_ID,
+            name: "Local".to_string(),
+            slug: "local".to_string(),
+            is_personal: false,
+            issue_prefix: "LOCAL".to_string(),
+            created_at: now,
+            updated_at: now,
+        },
+        user_role: "admin".to_string(),
+    };
     Ok(ResponseJson(ApiResponse::success(response)))
 }
 
 async fn update_organization(
-    State(deployment): State<DeploymentImpl>,
-    Path(id): Path<Uuid>,
-    Json(request): Json<UpdateOrganizationRequest>,
+    State(_deployment): State<DeploymentImpl>,
+    Path(_id): Path<Uuid>,
+    Json(_request): Json<UpdateOrganizationRequest>,
 ) -> Result<ResponseJson<ApiResponse<Organization>>, ApiError> {
-    let client = deployment.remote_client()?;
-
-    let response = client.update_organization(id, &request).await?;
-
-    Ok(ResponseJson(ApiResponse::success(response)))
+    let now = Utc::now();
+    let organization = Organization {
+        id: LOCAL_ORGANIZATION_ID,
+        name: "Local".to_string(),
+        slug: "local".to_string(),
+        is_personal: false,
+        issue_prefix: "LOCAL".to_string(),
+        created_at: now,
+        updated_at: now,
+    };
+    Ok(ResponseJson(ApiResponse::success(organization)))
 }
 
 async fn delete_organization(
-    State(deployment): State<DeploymentImpl>,
-    Path(id): Path<Uuid>,
+    State(_deployment): State<DeploymentImpl>,
+    Path(_id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
-    let client = deployment.remote_client()?;
-
-    client.delete_organization(id).await?;
-
-    Ok(StatusCode::NO_CONTENT)
+    Err(ApiError::BadRequest(
+        "Organization deletion is not supported in the local-only fork".to_string(),
+    ))
 }
 
 async fn create_invitation(
-    State(deployment): State<DeploymentImpl>,
-    Path(org_id): Path<Uuid>,
-    Json(request): Json<CreateInvitationRequest>,
+    State(_deployment): State<DeploymentImpl>,
+    Path(_org_id): Path<Uuid>,
+    Json(_request): Json<CreateInvitationRequest>,
 ) -> Result<ResponseJson<ApiResponse<CreateInvitationResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
-
-    let response = client.create_invitation(org_id, &request).await?;
-
-    deployment
-        .track_if_analytics_allowed(
-            "invitation_created",
-            serde_json::json!({
-                "invitation_id": response.invitation.id.to_string(),
-                "org_id": org_id.to_string(),
-                "role": response.invitation.role,
-            }),
-        )
-        .await;
-
-    Ok(ResponseJson(ApiResponse::success(response)))
+    Err(ApiError::BadRequest(
+        "Invitations are not supported in the local-only fork".to_string(),
+    ))
 }
 
 async fn list_invitations(
-    State(deployment): State<DeploymentImpl>,
-    Path(org_id): Path<Uuid>,
+    State(_deployment): State<DeploymentImpl>,
+    Path(_org_id): Path<Uuid>,
 ) -> Result<ResponseJson<ApiResponse<ListInvitationsResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
-
-    let response = client.list_invitations(org_id).await?;
-
-    Ok(ResponseJson(ApiResponse::success(response)))
+    Ok(ResponseJson(ApiResponse::success(
+        ListInvitationsResponse {
+            invitations: Vec::new(),
+        },
+    )))
 }
 
 async fn get_invitation(
-    State(deployment): State<DeploymentImpl>,
-    Path(token): Path<String>,
+    State(_deployment): State<DeploymentImpl>,
+    Path(_token): Path<String>,
 ) -> Result<ResponseJson<ApiResponse<GetInvitationResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
-
-    let response = client.get_invitation(&token).await?;
-
-    Ok(ResponseJson(ApiResponse::success(response)))
+    Err(ApiError::BadRequest(
+        "Invitations are not supported in the local-only fork".to_string(),
+    ))
 }
 
 async fn revoke_invitation(
-    State(deployment): State<DeploymentImpl>,
-    Path(org_id): Path<Uuid>,
-    Json(payload): Json<RevokeInvitationRequest>,
+    State(_deployment): State<DeploymentImpl>,
+    Path(_org_id): Path<Uuid>,
+    Json(_payload): Json<api_types::RevokeInvitationRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let client = deployment.remote_client()?;
-
-    client
-        .revoke_invitation(org_id, payload.invitation_id)
-        .await?;
-
-    Ok(StatusCode::NO_CONTENT)
+    Err(ApiError::BadRequest(
+        "Invitations are not supported in the local-only fork".to_string(),
+    ))
 }
 
 async fn accept_invitation(
-    State(deployment): State<DeploymentImpl>,
-    Path(invitation_token): Path<String>,
+    State(_deployment): State<DeploymentImpl>,
+    Path(_invitation_token): Path<String>,
 ) -> Result<ResponseJson<ApiResponse<AcceptInvitationResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
-
-    let response = client.accept_invitation(&invitation_token).await?;
-
-    Ok(ResponseJson(ApiResponse::success(response)))
+    Err(ApiError::BadRequest(
+        "Invitations are not supported in the local-only fork".to_string(),
+    ))
 }
 
 async fn list_members(
     State(deployment): State<DeploymentImpl>,
     Path(_org_id): Path<Uuid>,
 ) -> Result<ResponseJson<ApiResponse<ListMembersResponse>>, ApiError> {
-    // Local-only fork: members are the local users in the single org.
     let members = LocalUser::list_all(&deployment.db().pool)
         .await?
         .into_iter()
@@ -219,24 +215,24 @@ async fn list_members(
 }
 
 async fn remove_member(
-    State(deployment): State<DeploymentImpl>,
-    Path((org_id, user_id)): Path<(Uuid, Uuid)>,
+    State(_deployment): State<DeploymentImpl>,
+    Path((_org_id, _user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, ApiError> {
-    let client = deployment.remote_client()?;
-
-    client.remove_member(org_id, user_id).await?;
-
-    Ok(StatusCode::NO_CONTENT)
+    Err(ApiError::BadRequest(
+        "Member management is not supported in the local-only fork".to_string(),
+    ))
 }
 
 async fn update_member_role(
-    State(deployment): State<DeploymentImpl>,
-    Path((org_id, user_id)): Path<(Uuid, Uuid)>,
-    Json(request): Json<UpdateMemberRoleRequest>,
+    State(_deployment): State<DeploymentImpl>,
+    Path((_org_id, _user_id)): Path<(Uuid, Uuid)>,
+    Json(_request): Json<UpdateMemberRoleRequest>,
 ) -> Result<ResponseJson<ApiResponse<UpdateMemberRoleResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
-
-    let response = client.update_member_role(org_id, user_id, &request).await?;
-
-    Ok(ResponseJson(ApiResponse::success(response)))
+    Err(ApiError::BadRequest(
+        "Member management is not supported in the local-only fork".to_string(),
+    ))
 }
+
+// Touch the helper so the unused-import lint is satisfied.
+#[allow(dead_code)]
+fn _silence_unused(_: EmptyOrgCreate) {}

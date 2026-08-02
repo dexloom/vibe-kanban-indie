@@ -2,9 +2,7 @@
 resolver = "3"
 members = [
     "crates/api-types",
-    "crates/relay-client",
     "crates/server",
-    "crates/relay-types",
     "crates/trusted-key-auth",
     "crates/mcp",
     "crates/tui",
@@ -14,13 +12,7 @@ members = [
     "crates/services",
     "crates/worktree-manager",
     "crates/workspace-manager",
-    "crates/relay-control",
-    "crates/relay-protocol",
-    "crates/relay-ws",
-    "crates/ws-bridge",
-    "crates/relay-hosts",
     "crates/client-info",
-    "crates/remote-info",
     "crates/utils",
     "crates/git",
     "crates/git-host",
@@ -28,11 +20,8 @@ members = [
     "crates/deployment",
     "crates/review",
     "crates/embedded-ssh",
-    "crates/desktop-bridge",
     "crates/tauri-app",
     "crates/preview-proxy",
-    "crates/relay-tunnel-core",
-    "crates/relay-webrtc",
 ]
 exclude = ["crates/remote", "crates/relay-tunnel"]
 
@@ -71,7 +60,6 @@ dashmap = "6.1"
 db = { path = "crates/db" }
 deployment = { path = "crates/deployment" }
 derivative = "2.2.0"
-desktop-bridge = { path = "crates/desktop-bridge" }
 dialoguer = "0.11"
 directories = "6.0.0"
 dirs = "5.0"
@@ -118,15 +106,6 @@ preview-proxy = { path = "crates/preview-proxy" }
 rand = { version = "0.8", features = ["std"] }
 ratatui = "0.29"
 regex = "1.11.1"
-relay-client = { path = "crates/relay-client" }
-relay-control = { path = "crates/relay-control" }
-relay-hosts = { path = "crates/relay-hosts" }
-relay-protocol = { path = "crates/relay-protocol" }
-relay-tunnel-core = { path = "crates/relay-tunnel-core" }
-relay-types = { path = "crates/relay-types" }
-relay-webrtc = { path = "crates/relay-webrtc" }
-relay-ws = { path = "crates/relay-ws" }
-remote-info = { path = "crates/remote-info" }
 reqwest = { version = "0.13", default-features = false, features = ["json", "query", "rustls", "stream"] }
 rmcp = { version = "1.2.0", features = ["server", "transport-io"] }
 russh = "0.48"
@@ -184,7 +163,6 @@ which = "8.0.0"
 workspace-manager = { path = "crates/workspace-manager" }
 workspace_utils = { path = "crates/utils", package = "utils" }
 worktree-manager = { path = "crates/worktree-manager" }
-ws-bridge = { path = "crates/ws-bridge" }
 xdg = "3.0"
 
 [profile.release]

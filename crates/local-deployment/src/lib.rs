@@ -1,45 +1,34 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, OnceLock},
+    sync::Arc,
 };
 
 use api_types::LoginStatus;
 use async_trait::async_trait;
 use client_info::ClientInfo;
 use db::DBService;
-use deployment::{Deployment, DeploymentError, RelayHostsNotConfigured, RemoteClientNotConfigured};
+use deployment::{Deployment, DeploymentError};
 use executors::profile::ExecutorConfigs;
 use git::GitService;
 use preview_proxy::PreviewProxyService;
-use relay_control::{RelayControl, signing::RelaySigningService};
-use relay_hosts::RelayHosts;
-use relay_webrtc::WebRtcHost;
-use remote_info::RemoteInfo;
 use services::services::{
-    analytics::{AnalyticsConfig, AnalyticsContext, AnalyticsService, generate_user_id},
     approvals::Approvals,
-    auth::AuthContext,
     config::{Config, load_config_from_file, save_config_to_file},
     container::ContainerService,
     events::EventService,
     file::FileService,
     file_search::FileSearchCache,
     filesystem::FilesystemService,
-    oauth_credentials::OAuthCredentials,
     orchestrator_compactor::OrchestratorCompactor,
     pr_monitor::PrMonitorService,
     queued_message::QueuedMessageService,
     recurrent::scheduler::RecurrentScheduler,
-    remote_client::{RemoteClient, RemoteClientError},
     repo::RepoService,
 };
 use tokio::sync::{Notify, RwLock};
 use tokio_util::sync::CancellationToken;
 use trusted_key_auth::runtime::TrustedKeyAuthRuntime;
-use utils::{
-    assets::{config_path, credentials_path, server_signing_key_path, trusted_keys_path},
-    msg_store::MsgStore,
-};
+use utils::{assets::config_path, msg_store::MsgStore};
 use uuid::Uuid;
 use workspace_manager::WorkspaceManager;
 use worktree_manager::WorktreeManager;
@@ -57,7 +46,6 @@ pub struct LocalDeployment {
     user_id: String,
     db: DBService,
     workspace_manager: WorkspaceManager,
-    analytics: Option<AnalyticsService>,
     container: LocalContainerService,
     git: GitService,
     repo: RepoService,
@@ -67,27 +55,12 @@ pub struct LocalDeployment {
     file_search_cache: Arc<FileSearchCache>,
     approvals: Approvals,
     queued_message_service: QueuedMessageService,
-    remote_client: Result<RemoteClient, RemoteClientNotConfigured>,
-    auth_context: AuthContext,
-    oauth_handoffs: Arc<RwLock<HashMap<Uuid, PendingHandoff>>>,
-    trusted_key_auth: TrustedKeyAuthRuntime,
-    relay_signing: RelaySigningService,
-    relay_control: Arc<RelayControl>,
     client_info: ClientInfo,
-    remote_info: RemoteInfo,
     preview_proxy: PreviewProxyService,
-    relay_hosts: Option<Arc<RelayHosts>>,
-    shutdown: CancellationToken,
-    webrtc_host: OnceLock<Arc<WebRtcHost>>,
+    trusted_key_auth: TrustedKeyAuthRuntime,
     ssh_config: Arc<russh::server::Config>,
     pty: PtyService,
     pr_sync_notify: Arc<Notify>,
-}
-
-#[derive(Debug, Clone)]
-struct PendingHandoff {
-    provider: String,
-    app_verifier: String,
 }
 
 #[async_trait]
@@ -145,8 +118,7 @@ impl Deployment for LocalDeployment {
         }
 
         let config = Arc::new(RwLock::new(raw_config));
-        let user_id = generate_user_id();
-        let analytics = AnalyticsConfig::new().map(AnalyticsService::new);
+        let user_id = Uuid::new_v4().to_string();
         let git = GitService::new();
         let repo = RepoService::new();
         let msg_stores = Arc::new(RwLock::new(HashMap::new()));
@@ -180,65 +152,11 @@ impl Deployment for LocalDeployment {
         let approvals = Approvals::new();
         let queued_message_service = QueuedMessageService::new();
 
-        let oauth_credentials = Arc::new(OAuthCredentials::new(credentials_path()));
-        if let Err(e) = oauth_credentials.load().await {
-            tracing::warn!(?e, "failed to load OAuth credentials");
-        }
-
-        let profile_cache = Arc::new(RwLock::new(None));
-        let auth_context = AuthContext::new(oauth_credentials.clone(), profile_cache.clone());
-
-        let api_base = std::env::var("VK_SHARED_API_BASE")
-            .ok()
-            .or_else(|| option_env!("VK_SHARED_API_BASE").map(|s| s.to_string()));
-        let relay_api_base = std::env::var("VK_SHARED_RELAY_API_BASE")
-            .ok()
-            .or_else(|| option_env!("VK_SHARED_RELAY_API_BASE").map(|s| s.to_string()));
-        let remote_info = RemoteInfo::new();
-        if let Some(api_base) = api_base.clone() {
-            remote_info
-                .set_api_base(api_base)
-                .expect("api_base already set");
-        }
-        if let Some(relay_api_base) = relay_api_base {
-            remote_info
-                .set_relay_api_base(relay_api_base)
-                .expect("relay_api_base already set");
-        }
-
-        let remote_client = match remote_info.get_api_base() {
-            Some(url) => match RemoteClient::new(&url, auth_context.clone()) {
-                Ok(client) => {
-                    tracing::info!("Remote client initialized with URL: {}", url);
-                    Ok(client)
-                }
-                Err(e) => {
-                    tracing::error!(?e, "failed to create remote client");
-                    Err(RemoteClientNotConfigured)
-                }
-            },
-            None => {
-                tracing::info!("VK_SHARED_API_BASE not set; remote features disabled");
-                Err(RemoteClientNotConfigured)
-            }
-        };
-
-        let oauth_handoffs = Arc::new(RwLock::new(HashMap::new()));
-        let trusted_key_auth = TrustedKeyAuthRuntime::new(trusted_keys_path());
-        let relay_signing = RelaySigningService::load_or_generate(&server_signing_key_path())
-            .expect("Failed to load or generate server signing key");
-        let relay_control = Arc::new(RelayControl::new());
         let client_info = ClientInfo::new();
         let preview_proxy = PreviewProxyService::new();
 
-        let ssh_config = embedded_ssh::config::build_config(relay_signing.signing_key());
+        let ssh_config = embedded_ssh::config::build_config();
 
-        // We need to make analytics accessible to the ContainerService
-        // TODO: Handle this more gracefully
-        let analytics_ctx = analytics.as_ref().map(|s| AnalyticsContext {
-            user_id: user_id.clone(),
-            analytics_service: s.clone(),
-        });
         let workspace_manager = WorkspaceManager::new(db.clone());
         let container = LocalContainerService::new(
             db.clone(),
@@ -247,10 +165,8 @@ impl Deployment for LocalDeployment {
             config.clone(),
             git.clone(),
             file.clone(),
-            analytics_ctx,
             approvals.clone(),
             queued_message_service.clone(),
-            remote_client.clone().ok(),
         )
         .await;
 
@@ -259,28 +175,12 @@ impl Deployment for LocalDeployment {
         let file_search_cache = Arc::new(FileSearchCache::new());
 
         let pty = PtyService::new();
-        let relay_hosts = match remote_client.clone().ok() {
-            Some(remote_client) => Some(Arc::new(
-                RelayHosts::load(
-                    remote_client,
-                    remote_info.clone(),
-                    relay_signing.clone(),
-                    shutdown.child_token(),
-                )
-                .await,
-            )),
-            None => None,
-        };
+        let trusted_key_auth = TrustedKeyAuthRuntime::new(utils::assets::trusted_keys_path());
         let pr_sync_notify = Arc::new(Notify::new());
         {
             let db = db.clone();
-            let analytics = analytics.as_ref().map(|s| AnalyticsContext {
-                user_id: user_id.clone(),
-                analytics_service: s.clone(),
-            });
             let container = container.clone();
-            let rc = remote_client.clone().ok();
-            PrMonitorService::spawn(db, analytics, container, rc, pr_sync_notify.clone()).await;
+            PrMonitorService::spawn(db, container, pr_sync_notify.clone()).await;
         }
         {
             let db = db.clone();
@@ -300,7 +200,6 @@ impl Deployment for LocalDeployment {
             user_id,
             db,
             workspace_manager,
-            analytics,
             container,
             git,
             repo,
@@ -310,18 +209,9 @@ impl Deployment for LocalDeployment {
             file_search_cache,
             approvals,
             queued_message_service,
-            remote_client,
-            auth_context,
-            oauth_handoffs,
-            trusted_key_auth,
-            relay_signing,
-            relay_control,
             client_info,
-            remote_info,
             preview_proxy,
-            relay_hosts,
-            shutdown,
-            webrtc_host: OnceLock::new(),
+            trusted_key_auth,
             ssh_config,
             pty,
             pr_sync_notify,
@@ -340,10 +230,6 @@ impl Deployment for LocalDeployment {
 
     fn db(&self) -> &DBService {
         &self.db
-    }
-
-    fn analytics(&self) -> &Option<AnalyticsService> {
-        &self.analytics
     }
 
     fn container(&self) -> &impl ContainerService {
@@ -382,32 +268,12 @@ impl Deployment for LocalDeployment {
         &self.queued_message_service
     }
 
-    fn auth_context(&self) -> &AuthContext {
-        &self.auth_context
-    }
-
-    fn relay_control(&self) -> &Arc<RelayControl> {
-        &self.relay_control
-    }
-
-    fn relay_signing(&self) -> &RelaySigningService {
-        &self.relay_signing
-    }
-
     fn client_info(&self) -> &ClientInfo {
         &self.client_info
     }
 
-    fn remote_info(&self) -> &RemoteInfo {
-        &self.remote_info
-    }
-
     fn preview_proxy(&self) -> &PreviewProxyService {
         &self.preview_proxy
-    }
-
-    fn relay_hosts(&self) -> Result<&Arc<RelayHosts>, RelayHostsNotConfigured> {
-        self.relay_hosts.as_ref().ok_or(RelayHostsNotConfigured)
     }
 
     fn trusted_key_auth(&self) -> &TrustedKeyAuthRuntime {
@@ -416,94 +282,14 @@ impl Deployment for LocalDeployment {
 }
 
 impl LocalDeployment {
-    pub fn webrtc_host(&self) -> Option<Arc<WebRtcHost>> {
-        let local_addr = self.client_info.get_server_addr()?;
-
-        Some(
-            self.webrtc_host
-                .get_or_init(|| Arc::new(WebRtcHost::new(local_addr, self.shutdown.child_token())))
-                .clone(),
-        )
-    }
-
     pub fn workspace_manager(&self) -> &WorkspaceManager {
         &self.workspace_manager
     }
 
-    pub fn remote_client(&self) -> Result<RemoteClient, RemoteClientNotConfigured> {
-        self.remote_client.clone()
-    }
-
     pub async fn get_login_status(&self) -> LoginStatus {
-        if self.auth_context.get_credentials().await.is_none() {
-            self.auth_context.clear_profile().await;
-            self.auth_context.clear_remote_auth_degraded_slug().await;
-            return LoginStatus::LoggedOut;
-        };
-
-        if let Some(cached_profile) = self.auth_context.cached_profile().await {
-            return LoginStatus::LoggedIn {
-                profile: Some(cached_profile),
-            };
-        }
-
-        let Ok(client) = self.remote_client() else {
-            return LoginStatus::LoggedOut;
-        };
-
-        match client.profile().await {
-            Ok(profile) => {
-                self.auth_context.clear_remote_auth_degraded_slug().await;
-                self.auth_context.set_profile(profile.clone()).await;
-                LoginStatus::LoggedIn {
-                    profile: Some(profile),
-                }
-            }
-            Err(RemoteClientError::Auth) => {
-                let _ = self.auth_context.clear_credentials().await;
-                self.auth_context.clear_profile().await;
-                self.auth_context.clear_remote_auth_degraded_slug().await;
-                LoginStatus::LoggedOut
-            }
-            Err(err) => {
-                if self.auth_context.get_credentials().await.is_none() {
-                    self.auth_context.clear_profile().await;
-                    self.auth_context.clear_remote_auth_degraded_slug().await;
-                    return LoginStatus::LoggedOut;
-                }
-
-                self.auth_context
-                    .set_remote_auth_degraded_slug(
-                        err.degraded_slug()
-                            .unwrap_or_else(RemoteClientError::generic_degraded_slug),
-                    )
-                    .await;
-                LoginStatus::LoggedIn { profile: None }
-            }
-        }
-    }
-
-    pub async fn store_oauth_handoff(
-        &self,
-        handoff_id: Uuid,
-        provider: String,
-        app_verifier: String,
-    ) {
-        self.oauth_handoffs.write().await.insert(
-            handoff_id,
-            PendingHandoff {
-                provider,
-                app_verifier,
-            },
-        );
-    }
-
-    pub async fn take_oauth_handoff(&self, handoff_id: &Uuid) -> Option<(String, String)> {
-        self.oauth_handoffs
-            .write()
-            .await
-            .remove(handoff_id)
-            .map(|state| (state.provider, state.app_verifier))
+        // Local-only fork: no remote profile exists. Return LoggedOut so the
+        // local UI prompts the user to keep using the local server.
+        LoginStatus::LoggedOut
     }
 
     pub fn pty(&self) -> &PtyService {

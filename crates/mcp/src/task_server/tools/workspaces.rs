@@ -100,10 +100,6 @@ struct McpDeleteWorkspaceRequest {
         description = "Workspace ID to delete. Optional if running inside that workspace context."
     )]
     workspace_id: Option<Uuid>,
-    #[schemars(
-        description = "Also delete linked remote workspace when available (default: false)"
-    )]
-    delete_remote: Option<bool>,
     #[schemars(description = "Also delete workspace branches from repos (default: false)")]
     delete_branches: Option<bool>,
 }
@@ -112,7 +108,6 @@ struct McpDeleteWorkspaceRequest {
 struct McpDeleteWorkspaceResponse {
     success: bool,
     workspace_id: String,
-    delete_remote: bool,
     delete_branches: bool,
 }
 
@@ -247,7 +242,6 @@ impl McpServer {
         &self,
         Parameters(McpDeleteWorkspaceRequest {
             workspace_id,
-            delete_remote,
             delete_branches,
         }): Parameters<McpDeleteWorkspaceRequest>,
     ) -> Result<CallToolResult, ErrorData> {
@@ -259,15 +253,15 @@ impl McpServer {
             return Ok(Self::tool_error(error_result));
         }
 
-        let delete_remote = delete_remote.unwrap_or(false);
         let delete_branches = delete_branches.unwrap_or(false);
 
         let url = self.url(&format!("/api/workspaces/{}", workspace_id));
         if let Err(e) = self
-            .send_empty_json(self.client.delete(&url).query(&[
-                ("delete_remote", delete_remote),
-                ("delete_branches", delete_branches),
-            ]))
+            .send_empty_json(
+                self.client
+                    .delete(&url)
+                    .query(&[("delete_branches", delete_branches)]),
+            )
             .await
         {
             return Ok(Self::tool_error(e));
@@ -276,7 +270,6 @@ impl McpServer {
         McpServer::success(&McpDeleteWorkspaceResponse {
             success: true,
             workspace_id: workspace_id.to_string(),
-            delete_remote,
             delete_branches,
         })
     }

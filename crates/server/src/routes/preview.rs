@@ -1,14 +1,19 @@
 use axum::{
     Router,
+    extract::ws::{Message, WebSocket},
     extract::{Path, Request, State, ws::rejection::WebSocketUpgradeRejection},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::any,
 };
 use deployment::Deployment;
-use ws_bridge::{bridge_axum_ws, connect_upstream_ws};
+use futures_util::{SinkExt, StreamExt};
+use tokio_tungstenite::tungstenite::{self, client::IntoClientRequest};
 
-use crate::{DeploymentImpl, middleware::signed_ws::SignedWsUpgrade};
+use crate::{
+    DeploymentImpl,
+    middleware::signed_ws::{MaybeSignedWebSocket, SignedWsUpgrade},
+};
 
 pub(super) fn api_router() -> Router<DeploymentImpl> {
     Router::new()
@@ -86,14 +91,34 @@ async fn forward_preview_ws(
         .and_then(|v| v.to_str().ok())
         .map(ToOwned::to_owned);
 
-    let (upstream_ws, selected_protocol) =
-        match connect_upstream_ws(ws_url, protocols.as_deref()).await {
-            Ok(value) => value,
-            Err(error) => {
-                tracing::warn!(?error, "Failed to connect preview upstream WebSocket");
-                return (StatusCode::BAD_GATEWAY, "Preview WebSocket unavailable").into_response();
-            }
-        };
+    let mut ws_request = match ws_url.into_client_request() {
+        Ok(r) => r,
+        Err(error) => {
+            tracing::warn!(?error, "Invalid preview upstream WebSocket URL");
+            return (StatusCode::BAD_REQUEST, "Invalid WebSocket URL").into_response();
+        }
+    };
+
+    if let Some(protocols) = protocols.as_deref().filter(|p| !p.trim().is_empty())
+        && let Ok(header_value) = protocols.parse::<axum::http::HeaderValue>()
+    {
+        ws_request
+            .headers_mut()
+            .insert("sec-websocket-protocol", header_value);
+    }
+
+    let (upstream_ws, response) = match tokio_tungstenite::connect_async(ws_request).await {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(?error, "Failed to connect preview upstream WebSocket");
+            return (StatusCode::BAD_GATEWAY, "Preview WebSocket unavailable").into_response();
+        }
+    };
+    let selected_protocol = response
+        .headers()
+        .get("sec-websocket-protocol")
+        .and_then(|value| value.to_str().ok())
+        .map(ToOwned::to_owned);
 
     let ws = if let Some(protocol) = selected_protocol {
         ws.protocols([protocol])
@@ -102,11 +127,76 @@ async fn forward_preview_ws(
     };
 
     ws.on_upgrade(move |client| async move {
-        if let Err(error) = bridge_axum_ws(client, upstream_ws).await {
+        if let Err(error) = bridge_ws(client, upstream_ws).await {
             tracing::debug!(?error, "Preview WS bridge closed with error");
         }
     })
     .into_response()
+}
+
+async fn bridge_ws(
+    client: MaybeSignedWebSocket,
+    upstream: tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+) -> Result<(), String> {
+    let (mut client_sink, mut client_stream) = client.split();
+    let (mut upstream_sink, mut upstream_stream) = upstream.split();
+
+    let client_to_upstream = async {
+        while let Some(msg) = client_stream.next().await {
+            let msg = msg.map_err(|e| e.to_string())?;
+            if let Some(outgoing) = axum_to_tungstenite(msg) {
+                upstream_sink
+                    .send(outgoing)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            } else {
+                break;
+            }
+        }
+        let _ = upstream_sink.close().await;
+        Ok::<(), String>(())
+    };
+
+    let upstream_to_client = async {
+        while let Some(msg) = upstream_stream.next().await {
+            let msg = msg.map_err(|e| e.to_string())?;
+            if let Some(incoming) = tungstenite_to_axum(msg) {
+                client_sink.send(incoming).await.map_err(|e| e.to_string())?;
+            } else {
+                break;
+            }
+        }
+        let _ = client_sink.close().await;
+        Ok::<(), String>(())
+    };
+
+    tokio::select! {
+        result = client_to_upstream => result,
+        result = upstream_to_client => result,
+    }
+}
+
+fn axum_to_tungstenite(msg: Message) -> Option<tungstenite::Message> {
+    match msg {
+        Message::Text(text) => Some(tungstenite::Message::Text(text.to_string().into())),
+        Message::Binary(bytes) => Some(tungstenite::Message::Binary(bytes.to_vec().into())),
+        Message::Ping(bytes) => Some(tungstenite::Message::Ping(bytes.to_vec().into())),
+        Message::Pong(bytes) => Some(tungstenite::Message::Pong(bytes.to_vec().into())),
+        Message::Close(_) => None,
+    }
+}
+
+fn tungstenite_to_axum(msg: tungstenite::Message) -> Option<Message> {
+    match msg {
+        tungstenite::Message::Text(text) => Some(Message::Text(text.to_string().into())),
+        tungstenite::Message::Binary(bytes) => Some(Message::Binary(bytes.to_vec().into())),
+        tungstenite::Message::Ping(bytes) => Some(Message::Ping(bytes.to_vec().into())),
+        tungstenite::Message::Pong(bytes) => Some(Message::Pong(bytes.to_vec().into())),
+        tungstenite::Message::Close(_) => None,
+        tungstenite::Message::Frame(_) => Some(Message::Binary(vec![].into())),
+    }
 }
 
 async fn subdomain_proxy_request(

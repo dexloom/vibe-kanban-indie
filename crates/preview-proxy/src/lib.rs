@@ -15,9 +15,9 @@ use axum::{
     http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
+use futures::{SinkExt, StreamExt};
 use reqwest::Client;
-use uuid::Uuid;
-use ws_bridge::{UpstreamWsConnectError, WsBridgeError, bridge_axum_ws, connect_upstream_ws};
+use tokio_tungstenite::tungstenite::{self, client::IntoClientRequest};
 
 use crate::proxy_common::{
     build_local_upstream_url, extract_ws_protocols, normalized_proxy_path,
@@ -59,19 +59,6 @@ fn env_flag_enabled(name: &str) -> bool {
             || value.eq_ignore_ascii_case("yes")
             || value.eq_ignore_ascii_case("on")
     })
-}
-#[derive(Clone, Copy, Debug)]
-struct PreviewTarget {
-    port: u16,
-    relay_host_id: Option<Uuid>,
-}
-
-#[derive(Debug, thiserror::Error)]
-enum PreviewWsBridgeError {
-    #[error(transparent)]
-    Connect(#[from] UpstreamWsConnectError),
-    #[error(transparent)]
-    Bridge(#[from] WsBridgeError),
 }
 
 /// Headers that should be stripped from the proxied response.
@@ -193,49 +180,10 @@ fn normalize_refresh_url_token(raw_value: &str) -> &str {
     trim_wrapping_quotes(without_trailing_punctuation).trim()
 }
 
-fn proxy_host_label(target_port: u16, relay_host_id: Option<Uuid>) -> String {
-    match relay_host_id {
-        Some(host_id) => format!("{target_port}--{host_id}"),
-        None => target_port.to_string(),
-    }
-}
-
-fn preview_api_target_path(target_port: u16, path: &str, query: &str) -> String {
-    let mut target_path = if path.is_empty() {
-        format!("/api/preview/{target_port}")
-    } else {
-        format!("/api/preview/{target_port}/{path}")
-    };
-
-    if !query.is_empty() {
-        target_path.push('?');
-        target_path.push_str(query);
-    }
-
-    target_path
-}
-
-fn relay_preview_target_url(
-    backend_addr: SocketAddr,
-    host_id: Uuid,
-    target_port: u16,
-    normalized_path: &str,
-    query_string: &str,
-    scheme: &str,
-) -> String {
-    let relay_path = preview_api_target_path(target_port, normalized_path, query_string);
-
-    format!(
-        "{scheme}://{backend_addr}/api/host/{host_id}/{}",
-        relay_path.trim_start_matches("/api/")
-    )
-}
-
 fn rewrite_redirect_like_header_value(
     value: &str,
     target_port: u16,
     proxy_port: u16,
-    relay_host_id: Option<Uuid>,
 ) -> Option<String> {
     let original_value = value.trim();
     if original_value.is_empty() {
@@ -278,10 +226,7 @@ fn rewrite_redirect_like_header_value(
 
     parsed.set_scheme("http").ok()?;
     parsed
-        .set_host(Some(&format!(
-            "{}.localhost",
-            proxy_host_label(target_port, relay_host_id)
-        )))
+        .set_host(Some(&format!("{target_port}.localhost")))
         .ok()?;
     parsed.set_port(Some(proxy_port)).ok()?;
     Some(parsed.to_string())
@@ -291,7 +236,6 @@ fn rewrite_refresh_header_value(
     value: &str,
     target_port: u16,
     proxy_port: u16,
-    relay_host_id: Option<Uuid>,
 ) -> Option<String> {
     let mut segments: Vec<String> = value.split(';').map(|s| s.trim().to_string()).collect();
     if segments.len() < 2 {
@@ -310,8 +254,7 @@ fn rewrite_refresh_header_value(
             continue;
         }
 
-        if let Some(rewritten) =
-            rewrite_redirect_like_header_value(raw_unquoted, target_port, proxy_port, relay_host_id)
+        if let Some(rewritten) = rewrite_redirect_like_header_value(raw_value, target_port, proxy_port)
         {
             *segment = format!("url={rewritten}");
             return Some(segments.join("; "));
@@ -333,7 +276,6 @@ fn rewrite_redirect_like_headers(
     headers: &mut [(HeaderName, HeaderValue)],
     target_port: u16,
     proxy_port: Option<u16>,
-    relay_host_id: Option<Uuid>,
 ) {
     let Some(proxy_port) = proxy_port else {
         return;
@@ -348,11 +290,10 @@ fn rewrite_redirect_like_headers(
         let Ok(value_str) = value.to_str() else {
             continue;
         };
-
         let rewritten = if name_lower == "refresh" {
-            rewrite_refresh_header_value(value_str, target_port, proxy_port, relay_host_id)
+            rewrite_refresh_header_value(value_str, target_port, proxy_port)
         } else {
-            rewrite_redirect_like_header_value(value_str, target_port, proxy_port, relay_host_id)
+            rewrite_redirect_like_header_value(value_str, target_port, proxy_port)
         };
 
         if let Some(rewritten) = rewritten
@@ -363,22 +304,14 @@ fn rewrite_redirect_like_headers(
     }
 }
 
-fn extract_target_from_host(headers: &HeaderMap) -> Option<PreviewTarget> {
+fn extract_target_port(headers: &HeaderMap) -> Option<u16> {
     let host = headers.get(header::HOST)?.to_str().ok()?;
     let subdomain = host.split('.').next()?;
-    let (port_str, relay_host_id) = match subdomain.split_once("--") {
-        Some((port_str, host_id_str)) => {
-            let host_id = Uuid::parse_str(host_id_str).ok()?;
-            (port_str, Some(host_id))
-        }
-        None => (subdomain, None),
+    let port_str = match subdomain.split_once("--") {
+        Some((port_str, _)) => port_str,
+        None => subdomain,
     };
-
-    let port = port_str.parse::<u16>().ok()?;
-    Some(PreviewTarget {
-        port,
-        relay_host_id,
-    })
+    port_str.parse::<u16>().ok()
 }
 
 pub async fn proxy_subdomain_request(
@@ -387,7 +320,7 @@ pub async fn proxy_subdomain_request(
     proxy_port: u16,
     request: Request,
 ) -> Response {
-    let target = match extract_target_from_host(request.headers()) {
+    let target_port = match extract_target_port(request.headers()) {
         Some(port) => port,
         None => {
             return (StatusCode::BAD_REQUEST, "No valid port in Host subdomain").into_response();
@@ -396,14 +329,14 @@ pub async fn proxy_subdomain_request(
 
     let path = normalized_proxy_path(request.uri().path()).to_string();
 
-    proxy_impl(service, backend_addr, proxy_port, target, path, request).await
+    proxy_impl(service, backend_addr, proxy_port, target_port, path, request).await
 }
 
 async fn proxy_impl(
     service: &PreviewProxyService,
     backend_addr: SocketAddr,
     proxy_port: u16,
-    target: PreviewTarget,
+    target_port: u16,
     path_str: String,
     request: Request,
 ) -> Response {
@@ -419,7 +352,7 @@ async fn proxy_impl(
         tracing::debug!(
             "WebSocket upgrade request for path: {} -> localhost:{}",
             path_str,
-            target.port
+            target_port
         );
 
         let ws = if let Some(ref protocols) = ws_protocols {
@@ -433,9 +366,8 @@ async fn proxy_impl(
         return ws
             .on_upgrade(move |client_socket| async move {
                 if let Err(e) = handle_ws_proxy(
-                    backend_addr,
                     client_socket,
-                    target,
+                    target_port,
                     path_str,
                     query_string,
                     ws_protocols,
@@ -449,14 +381,14 @@ async fn proxy_impl(
     }
 
     let request = Request::from_parts(parts, body);
-    http_proxy_handler(service, backend_addr, proxy_port, target, path_str, request).await
+    http_proxy_handler(service, backend_addr, proxy_port, target_port, path_str, request).await
 }
 
 async fn http_proxy_handler(
     service: &PreviewProxyService,
-    backend_addr: SocketAddr,
+    _backend_addr: SocketAddr,
     proxy_port: u16,
-    target: PreviewTarget,
+    target_port: u16,
     path_str: String,
     request: Request,
 ) -> Response {
@@ -478,18 +410,7 @@ async fn http_proxy_handler(
             return (StatusCode::BAD_REQUEST, "Failed to read request body").into_response();
         }
     };
-    let target_url = if let Some(host_id) = target.relay_host_id {
-        relay_preview_target_url(
-            backend_addr,
-            host_id,
-            target.port,
-            normalized_path,
-            query_string,
-            "http",
-        )
-    } else {
-        build_local_upstream_url("http", target.port, normalized_path, query_string)
-    };
+    let target_url = build_local_upstream_url("http", target_port, normalized_path, query_string);
 
     let client = service.http_client();
 
@@ -544,12 +465,7 @@ async fn http_proxy_handler(
     let is_html = content_type.contains("text/html");
 
     let mut response_headers = collect_response_headers(response.headers(), is_html);
-    rewrite_redirect_like_headers(
-        &mut response_headers,
-        target.port,
-        Some(proxy_port),
-        target.relay_host_id,
-    );
+    rewrite_redirect_like_headers(&mut response_headers, target_port, Some(proxy_port));
 
     let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);
 
@@ -655,9 +571,8 @@ async fn http_proxy_handler(
                     // Absolute URL — rewrite to maintain proxy isolation
                     rewrite_redirect_like_header_value(
                         &redirect_info.url,
-                        target.port,
+                        target_port,
                         proxy_port,
-                        target.relay_host_id,
                     )
                     .unwrap_or_else(|| redirect_info.url.clone())
                 } else {
@@ -721,35 +636,102 @@ async fn http_proxy_handler(
 }
 
 async fn handle_ws_proxy(
-    backend_addr: SocketAddr,
     client_socket: axum::extract::ws::WebSocket,
-    target: PreviewTarget,
+    target_port: u16,
     path: String,
     query_string: Option<String>,
     ws_protocols: Option<String>,
-) -> Result<(), PreviewWsBridgeError> {
+) -> Result<(), String> {
     let normalized_path = normalized_proxy_path(&path);
     let query = query_string.as_deref().unwrap_or_default();
-    let ws_url = if let Some(host_id) = target.relay_host_id {
-        relay_preview_target_url(
-            backend_addr,
-            host_id,
-            target.port,
-            normalized_path,
-            query,
-            "ws",
-        )
-    } else {
-        build_local_upstream_url("ws", target.port, normalized_path, query)
-    };
+    let ws_url = build_local_upstream_url("ws", target_port, normalized_path, query);
     tracing::debug!("Connecting to dev server WebSocket: {}", ws_url);
 
-    let (dev_server_ws, _selected_protocol) =
-        connect_upstream_ws(ws_url, ws_protocols.as_deref()).await?;
+    let mut ws_request = ws_url
+        .into_client_request()
+        .map_err(|error| error.to_string())?;
+    if let Some(protocols) = ws_protocols.as_deref().filter(|p| !p.trim().is_empty())
+        && let Ok(header_value) = protocols.parse()
+    {
+        ws_request
+            .headers_mut()
+            .insert("sec-websocket-protocol", header_value);
+    }
+
+    let (dev_server_ws, _response) =
+        tokio_tungstenite::connect_async(ws_request)
+            .await
+            .map_err(|error| error.to_string())?;
     tracing::debug!("Connected to dev server WebSocket");
 
-    bridge_axum_ws(client_socket, dev_server_ws).await?;
-    Ok(())
+    bridge_ws(client_socket, dev_server_ws).await
+}
+
+type UpstreamWs = tokio_tungstenite::WebSocketStream<
+    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+>;
+
+async fn bridge_ws(
+    client: axum::extract::ws::WebSocket,
+    upstream: UpstreamWs,
+) -> Result<(), String> {
+    let (mut client_sink, mut client_stream) = client.split();
+    let (mut upstream_sink, mut upstream_stream) = upstream.split();
+
+    let client_to_upstream = async {
+        while let Some(msg) = client_stream.next().await {
+            let msg = msg.map_err(|e| e.to_string())?;
+            if let Some(outgoing) = axum_to_tungstenite(msg) {
+                upstream_sink
+                    .send(outgoing)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            } else {
+                break;
+            }
+        }
+        let _ = upstream_sink.close().await;
+        Ok::<(), String>(())
+    };
+
+    let upstream_to_client = async {
+        while let Some(msg) = upstream_stream.next().await {
+            let msg = msg.map_err(|e| e.to_string())?;
+            if let Some(incoming) = tungstenite_to_axum(msg) {
+                client_sink.send(incoming).await.map_err(|e| e.to_string())?;
+            } else {
+                break;
+            }
+        }
+        let _ = client_sink.close().await;
+        Ok::<(), String>(())
+    };
+
+    tokio::select! {
+        result = client_to_upstream => result,
+        result = upstream_to_client => result,
+    }
+}
+
+fn axum_to_tungstenite(msg: axum::extract::ws::Message) -> Option<tungstenite::Message> {
+    match msg {
+        axum::extract::ws::Message::Text(text) => Some(tungstenite::Message::Text(text.to_string().into())),
+        axum::extract::ws::Message::Binary(bytes) => Some(tungstenite::Message::Binary(bytes.to_vec().into())),
+        axum::extract::ws::Message::Ping(bytes) => Some(tungstenite::Message::Ping(bytes.to_vec().into())),
+        axum::extract::ws::Message::Pong(bytes) => Some(tungstenite::Message::Pong(bytes.to_vec().into())),
+        axum::extract::ws::Message::Close(_) => None,
+    }
+}
+
+fn tungstenite_to_axum(msg: tungstenite::Message) -> Option<axum::extract::ws::Message> {
+    match msg {
+        tungstenite::Message::Text(text) => Some(axum::extract::ws::Message::Text(text.to_string().into())),
+        tungstenite::Message::Binary(bytes) => Some(axum::extract::ws::Message::Binary(bytes.to_vec().into())),
+        tungstenite::Message::Ping(bytes) => Some(axum::extract::ws::Message::Ping(bytes.to_vec().into())),
+        tungstenite::Message::Pong(bytes) => Some(axum::extract::ws::Message::Pong(bytes.to_vec().into())),
+        tungstenite::Message::Close(_) => None,
+        tungstenite::Message::Frame(_) => Some(axum::extract::ws::Message::Binary(vec![].into())),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -834,7 +816,6 @@ mod tests {
     use axum::http::header::{
         CACHE_CONTROL, CONTENT_LENGTH, CONTENT_SECURITY_POLICY, LOCATION, SET_COOKIE,
     };
-    use uuid::Uuid;
 
     use super::*;
 
@@ -935,7 +916,6 @@ mod tests {
             "http://localhost:4000/generate?from=auth#done",
             4000,
             3009,
-            None,
         );
 
         assert_eq!(
@@ -947,15 +927,15 @@ mod tests {
     #[test]
     fn rewrite_redirect_like_header_value_keeps_relative_and_non_loopback_urls() {
         assert_eq!(
-            rewrite_redirect_like_header_value("/generate", 4000, 3009, None),
+            rewrite_redirect_like_header_value("/generate", 4000, 3009),
             None
         );
         assert_eq!(
-            rewrite_redirect_like_header_value("?from=auth", 4000, 3009, None),
+            rewrite_redirect_like_header_value("?from=auth", 4000, 3009),
             None
         );
         assert_eq!(
-            rewrite_redirect_like_header_value("https://example.com/generate", 4000, 3009, None),
+            rewrite_redirect_like_header_value("https://example.com/generate", 4000, 3009),
             None
         );
     }
@@ -963,27 +943,11 @@ mod tests {
     #[test]
     fn rewrite_redirect_like_header_value_rewrites_scheme_relative_loopback_url() {
         let rewritten =
-            rewrite_redirect_like_header_value("//localhost:4000/generate", 4000, 3009, None);
+            rewrite_redirect_like_header_value("//localhost:4000/generate", 4000, 3009);
 
         assert_eq!(
             rewritten.as_deref(),
             Some("http://4000.localhost:3009/generate")
-        );
-    }
-
-    #[test]
-    fn rewrite_redirect_like_header_value_rewrites_for_relay_host_subdomain() {
-        let host_id = Uuid::parse_str("01234567-89ab-cdef-0123-456789abcdef").expect("valid UUID");
-        let rewritten = rewrite_redirect_like_header_value(
-            "http://localhost:4000/generate",
-            4000,
-            3009,
-            Some(host_id),
-        );
-
-        assert_eq!(
-            rewritten.as_deref(),
-            Some("http://4000--01234567-89ab-cdef-0123-456789abcdef.localhost:3009/generate")
         );
     }
 
@@ -993,7 +957,6 @@ mod tests {
             "0; URL='http://localhost:4000/generate?from=auth'",
             4000,
             3009,
-            None,
         );
 
         assert_eq!(
@@ -1008,7 +971,6 @@ mod tests {
             "0; URL=\"http://localhost:4000/?_refresh=7\",",
             4000,
             3009,
-            None,
         );
 
         assert_eq!(
@@ -1019,7 +981,7 @@ mod tests {
 
     #[test]
     fn rewrite_redirect_like_header_value_cleans_quoted_relative_url() {
-        let rewritten = rewrite_redirect_like_header_value("\"/generate\",", 4000, 3009, None);
+        let rewritten = rewrite_redirect_like_header_value("\"/generate\",", 4000, 3009);
 
         assert_eq!(rewritten.as_deref(), Some("/generate"));
     }
@@ -1030,7 +992,6 @@ mod tests {
             "\"http://localhost:4000/generate\",",
             4000,
             3009,
-            None,
         );
 
         assert_eq!(
@@ -1041,12 +1002,8 @@ mod tests {
 
     #[test]
     fn rewrite_redirect_like_header_value_skips_structured_values() {
-        let rewritten = rewrite_redirect_like_header_value(
-            "url=\"http://localhost:4000/generate\", mode=replace",
-            4000,
-            3009,
-            None,
-        );
+        let rewritten =
+            rewrite_redirect_like_header_value("url=\"http://localhost:4000/generate\", mode=replace", 4000, 3009);
 
         assert_eq!(rewritten, None);
     }
@@ -1072,7 +1029,7 @@ mod tests {
             ),
         ];
 
-        rewrite_redirect_like_headers(&mut headers, 4000, Some(3009), None);
+        rewrite_redirect_like_headers(&mut headers, 4000, Some(3009));
 
         assert_eq!(
             headers[0].1,
@@ -1105,7 +1062,7 @@ mod tests {
             ),
         ];
 
-        rewrite_redirect_like_headers(&mut headers, 4000, Some(3009), None);
+        rewrite_redirect_like_headers(&mut headers, 4000, Some(3009));
 
         assert_eq!(
             headers[0].1,
@@ -1138,7 +1095,7 @@ mod tests {
             HeaderValue::from_static("http://localhost:4000/generate"),
         )];
 
-        rewrite_redirect_like_headers(&mut headers, 4000, Some(3009), None);
+        rewrite_redirect_like_headers(&mut headers, 4000, Some(3009));
 
         assert_eq!(
             headers[0].1,
@@ -1157,7 +1114,7 @@ mod tests {
         let proxied = collect_response_headers(&upstream_headers, false);
         assert_eq!(proxied.len(), 1);
         assert_eq!(proxied[0].0, "x-nextjs-redirect");
-        assert_eq!(proxied[0].1, "/generate");
+        assert_eq!(proxied[0].1, HeaderValue::from_static("/generate"));
     }
 
     #[test]
@@ -1167,7 +1124,7 @@ mod tests {
             HeaderValue::from_static("/generate"),
         )];
 
-        rewrite_redirect_like_headers(&mut headers, 4000, Some(3009), None);
+        rewrite_redirect_like_headers(&mut headers, 4000, Some(3009));
 
         // Relative URLs are NOT rewritten — only absolute loopback URLs are
         assert_eq!(headers[0].1, HeaderValue::from_static("/generate"));

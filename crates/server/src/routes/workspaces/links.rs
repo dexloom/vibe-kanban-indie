@@ -1,4 +1,3 @@
-use api_types::{CreateWorkspaceRequest, PullRequestStatus, UpsertPullRequestRequest};
 use axum::{
     Extension, Json, Router,
     extract::{Path as AxumPath, State},
@@ -6,13 +5,9 @@ use axum::{
     response::Json as ResponseJson,
     routing::{delete, post},
 };
-use db::models::{
-    issue::Issue, issue_workspace::IssueWorkspace, merge::MergeStatus, pull_request::PullRequest,
-    workspace::Workspace,
-};
+use db::models::{issue::Issue, issue_workspace::IssueWorkspace, workspace::Workspace};
 use deployment::Deployment;
 use serde::Deserialize;
-use services::services::{diff_stream, remote_client::RemoteClientError, remote_sync};
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
@@ -29,78 +24,15 @@ pub async fn link_workspace(
     State(deployment): State<DeploymentImpl>,
     Json(payload): Json<LinkWorkspaceRequest>,
 ) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
-    // Persist the link locally first. This is what makes the kanban board (both
-    // the TUI and the web UI) show the workspace under its card in local-only
-    // mode, where no remote client is configured.
+    // Persist the link locally. This is what makes the kanban board show the
+    // workspace under its card in local-only mode.
     IssueWorkspace::link(&deployment.db().pool, payload.issue_id, workspace.id).await?;
 
-    // Best-effort remote sync when a cloud account is configured.
-    let Ok(client) = deployment.remote_client() else {
-        return Ok(ResponseJson(ApiResponse::success(())));
-    };
-
-    // Guard against pushing inconsistent state to the cloud: only sync when the
-    // issue actually belongs to the claimed project. The local link is already
-    // recorded regardless.
+    // Guard against linking against an issue that does not belong to the
+    // claimed project — the local link is already recorded regardless.
     let issue = Issue::find_by_id(&deployment.db().pool, payload.issue_id).await?;
     if issue.map(|i| i.project_id) != Some(payload.project_id) {
         return Ok(ResponseJson(ApiResponse::success(())));
-    }
-
-    let stats =
-        diff_stream::compute_diff_stats(&deployment.db().pool, deployment.git(), &workspace).await;
-
-    client
-        .create_workspace(CreateWorkspaceRequest {
-            project_id: payload.project_id,
-            local_workspace_id: workspace.id,
-            issue_id: payload.issue_id,
-            name: workspace.name.clone(),
-            archived: Some(workspace.archived),
-            files_changed: stats.as_ref().map(|s| s.files_changed as i32),
-            lines_added: stats.as_ref().map(|s| s.lines_added as i32),
-            lines_removed: stats.as_ref().map(|s| s.lines_removed as i32),
-        })
-        .await?;
-
-    {
-        let pool = deployment.db().pool.clone();
-        let ws_id = workspace.id;
-        let client = client.clone();
-        tokio::spawn(async move {
-            let pull_requests = match PullRequest::find_by_workspace_id(&pool, ws_id).await {
-                Ok(prs) => prs,
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to fetch PRs for workspace {} during link: {}",
-                        ws_id,
-                        e
-                    );
-                    return;
-                }
-            };
-            for pr in pull_requests {
-                let pr_status = match pr.pr_status {
-                    MergeStatus::Open => PullRequestStatus::Open,
-                    MergeStatus::Merged => PullRequestStatus::Merged,
-                    MergeStatus::Closed => PullRequestStatus::Closed,
-                    MergeStatus::Unknown => continue,
-                };
-                remote_sync::sync_pr_to_remote(
-                    &client,
-                    UpsertPullRequestRequest {
-                        url: pr.pr_url,
-                        number: pr.pr_number as i32,
-                        status: pr_status,
-                        merged_at: pr.merged_at,
-                        merge_commit_sha: pr.merge_commit_sha,
-                        target_branch_name: pr.target_branch_name,
-                        local_workspace_id: ws_id,
-                    },
-                )
-                .await;
-            }
-        });
     }
 
     Ok(ResponseJson(ApiResponse::success(())))
@@ -110,19 +42,8 @@ pub async fn unlink_workspace(
     AxumPath(workspace_id): AxumPath<uuid::Uuid>,
     State(deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
-    // Always drop the local link.
     IssueWorkspace::unlink_by_workspace(&deployment.db().pool, workspace_id).await?;
-
-    // Best-effort remote delete when a cloud account is configured.
-    let Ok(client) = deployment.remote_client() else {
-        return Ok(ResponseJson(ApiResponse::success(())));
-    };
-    match client.delete_workspace(workspace_id).await {
-        Ok(()) | Err(RemoteClientError::Http { status: 404, .. }) => {
-            Ok(ResponseJson(ApiResponse::success(())))
-        }
-        Err(e) => Err(e.into()),
-    }
+    Ok(ResponseJson(ApiResponse::success(())))
 }
 
 pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
