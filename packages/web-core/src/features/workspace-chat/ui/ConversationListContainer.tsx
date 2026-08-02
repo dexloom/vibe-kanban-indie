@@ -160,6 +160,14 @@ export const ConversationList = forwardRef<
   const lastSettledTailStartIndexRef = useRef<number | null>(null);
   const { setEntries, reset } = useEntriesActions();
   const setTokenUsageInfo = useSetTokenUsageInfo();
+  // Preserves the topmost visible row across the virtualized↔unvirtualized
+  // boundary restructure that happens when a streaming turn starts/ends (the
+  // browser's native scroll anchoring is disabled on this container). Captured
+  // in the pre-render flush, applied in a post-render layout effect.
+  const pendingAnchorRef = useRef<{ index: number; offsetTop: number } | null>(
+    null
+  );
+  const anchorActiveRef = useRef(false);
   const scriptOutputCacheRef = useRef<
     Map<string, { count: number; output: string }>
   >(new Map());
@@ -254,6 +262,14 @@ export const ConversationList = forwardRef<
     scrollContainerRef: tanstackScrollRef,
   });
 
+  // True while a scroll-anchor correction or a click-anchor correction is in
+  // flight; the virtualizer's own size-adjustment is suppressed then so the
+  // two corrections don't fight over scrollTop.
+  const shouldSuppressSizeAdjustment = useCallback(
+    () => isCorrectionActive() || anchorActiveRef.current,
+    [isCorrectionActive]
+  );
+
   const flushPendingUpdate = () => {
     rafIdRef.current = null;
     const pending = pendingUpdateRef.current;
@@ -277,6 +293,31 @@ export const ConversationList = forwardRef<
 
     prevEntriesRef.current = derivedTimeline.displayEntries;
     prevRowsRef.current = derivedTimeline.rows;
+
+    // If the reader is not at the bottom, capture the topmost visible row so
+    // the post-render layout effect can keep it pinned while the virtualized↔
+    // unvirtualized boundary restructures (native anchoring is disabled).
+    if (!conversationVirtualizer.checkIsAtBottom()) {
+      const el = tanstackScrollRef.current;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const topElement = document.elementFromPoint(
+          rect.left + 10,
+          rect.top + 2
+        );
+        const rowNode = topElement?.closest<HTMLElement>('[data-row-index]');
+        if (rowNode) {
+          const indexAttr = rowNode.dataset.rowIndex;
+          if (indexAttr) {
+            pendingAnchorRef.current = {
+              index: Number.parseInt(indexAttr, 10),
+              offsetTop: rowNode.getBoundingClientRect().top - rect.top,
+            };
+            anchorActiveRef.current = true;
+          }
+        }
+      }
+    }
 
     setFilteredEntries(derivedTimeline.displayEntries);
     setEntries(derivedEntries.entries);
@@ -399,7 +440,34 @@ export const ConversationList = forwardRef<
     totalRowCount: conversationRows.length,
     scrollContainerRef: tanstackScrollRef,
     onAtBottomChange,
-    shouldSuppressSizeAdjustment: isCorrectionActive,
+    // Suppress the virtualizer's own size-adjustment compensation while an
+    // anchor correction or a click-anchor correction is in flight, so the two
+    // don't fight over scrollTop.
+    shouldSuppressSizeAdjustment: shouldSuppressSizeAdjustment,
+  });
+
+  // Apply a captured scroll anchor after the re-render (boundary restructure)
+  // so the row the reader was looking at stays in place.
+  useLayoutEffect(() => {
+    const anchor = pendingAnchorRef.current;
+    if (!anchor) return;
+    pendingAnchorRef.current = null;
+    anchorActiveRef.current = false;
+
+    const el = tanstackScrollRef.current;
+    if (!el) return;
+
+    const node = el.querySelector<HTMLElement>(
+      `[data-row-index="${anchor.index}"]`
+    );
+    if (!node) return;
+
+    const containerTop = el.getBoundingClientRect().top;
+    const currentOffsetTop = node.getBoundingClientRect().top - containerTop;
+    const delta = currentOffsetTop - anchor.offsetTop;
+    if (Math.abs(delta) >= 0.5) {
+      el.scrollTop += delta;
+    }
   });
 
   // NOTE: Do NOT call conversationVirtualizer.virtualizer.measure() when
