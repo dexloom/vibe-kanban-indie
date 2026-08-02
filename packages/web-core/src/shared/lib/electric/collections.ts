@@ -211,6 +211,20 @@ export function forceFallbackMode(): void {
   }
 }
 
+/// Immediately re-fetch a shape's fallback source. The local build polls
+/// fallback endpoints on a fixed interval, so backend-initiated changes that
+/// only surface through a shape (e.g. an issue dispatch relinking a workspace)
+/// would otherwise lag behind the real-time workspace stream and render the
+/// running indicator on the wrong card.
+export function refreshShapeSource(
+  shape: ShapeDefinition<unknown>,
+  params: Record<string, string>
+): void {
+  const sourceKey = buildSourceKey(shape.table, params);
+  invalidateFallbackCache(sourceKey);
+  refreshFallbackSource(sourceKey);
+}
+
 function lockSourceToFallback(sourceKey: string): void {
   const runtime = getOrCreateSourceRuntime(sourceKey);
   if (runtime.fallbackLocked) return;

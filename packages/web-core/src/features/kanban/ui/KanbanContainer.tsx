@@ -74,6 +74,8 @@ import {
 } from '@vibe/ui/components/Dropdown';
 import { SearchableTagDropdownContainer } from '@/shared/components/SearchableTagDropdownContainer';
 import type { IssuePriority } from 'shared/remote-types';
+import { PROJECT_WORKSPACES_SHAPE } from 'shared/remote-types';
+import { refreshShapeSource } from '@/shared/lib/electric/collections';
 import { useIssueMultiSelect } from '@/shared/hooks/useIssueMultiSelect';
 import { useIssueSelectionStore } from '@/shared/stores/useIssueSelectionStore';
 import { BulkActionBarContainer } from './BulkActionBarContainer';
@@ -576,11 +578,17 @@ export function KanbanContainer() {
   const queryClient = useQueryClient();
 
   // Every dispatchable workspace (active, with a local id) for the per-card
-  // quick-dispatch dropdown.
+  // quick-dispatch dropdown. Orchestrator/recurrent workspaces are excluded:
+  // dispatching a card into them would corrupt their orchestration loop.
   const dispatchWorkspaces = useMemo(
     () =>
       activeWorkspaces
-        .filter((workspace) => !!workspace.id)
+        .filter(
+          (workspace) =>
+            !!workspace.id &&
+            workspace.kind !== 'orchestrator' &&
+            workspace.kind !== 'recurrent'
+        )
         .map((workspace) => ({ id: workspace.id, name: workspace.name })),
     [activeWorkspaces]
   );
@@ -589,6 +597,11 @@ export function KanbanContainer() {
     async (issueId: string, workspaceId: string) => {
       try {
         await workspacesApi.dispatchIssueToWorkspace(issueId, workspaceId);
+        // The workspace↔issue relink only surfaces through the workspaces
+        // shape, which the local build polls on a slow interval. Force a
+        // refresh so the card picks up the link (and the running indicator)
+        // immediately instead of on the next poll.
+        refreshShapeSource(PROJECT_WORKSPACES_SHAPE, { project_id: projectId });
         // A dispatch touches many disparate caches (board, workspace session,
         // execution processes, branch status, the issue's Workspaces section),
         // all keyed differently. Scoping to a subset would leave stale UI; the
@@ -603,7 +616,7 @@ export function KanbanContainer() {
         });
       }
     },
-    [queryClient, t]
+    [queryClient, t, projectId]
   );
 
   const prsByWorkspaceId = useMemo(() => {
