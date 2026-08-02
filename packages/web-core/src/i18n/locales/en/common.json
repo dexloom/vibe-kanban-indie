@@ -548,13 +548,6 @@
     "refreshPage": "Refresh Page",
     "remoteAuthUnavailable": "Remote authentication is temporarily unavailable. Some remote features may not work until it recovers."
   },
-  "appBar": {
-    "kanban": {
-      "tooltip": "Sign in to view projects",
-      "title": "Kanban Boards",
-      "description": "Sign in to organise your coding agents with kanban boards."
-    }
-  },
   "askQuestion": {
     "title": "Agent is asking a question",
     "selectMultiple": "select multiple",

@@ -3,6 +3,7 @@ import {
   CheckIcon,
   GearIcon,
   SignInIcon,
+  SignOutIcon,
   UserIcon,
 } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
@@ -33,6 +34,9 @@ interface AppBarUserPopoverProps {
   onOrgSettings?: (orgId: string) => void;
   onSettings?: () => void;
   onSignIn: () => void;
+  // Optional: render a "Sign out" item. The local-only indie app has nothing to
+  // sign out of and omits this; remote-web (which still has auth) passes it.
+  onLogout?: () => void;
   onAvatarError: () => void;
 }
 
@@ -48,6 +52,7 @@ export function AppBarUserPopover({
   onOrgSettings,
   onSettings,
   onSignIn,
+  onLogout,
   onAvatarError,
 }: AppBarUserPopoverProps) {
   const { t } = useTranslation();
@@ -151,6 +156,14 @@ export function AppBarUserPopover({
             <DropdownMenuSeparator />
             <DropdownMenuItem icon={GearIcon} onClick={onSettings}>
               {settingsLabel}
+            </DropdownMenuItem>
+          </>
+        )}
+        {onLogout && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem icon={SignOutIcon} onClick={onLogout}>
+              {t('signOut')}
             </DropdownMenuItem>
           </>
         )}

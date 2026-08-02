@@ -540,13 +540,6 @@
     "yes": "Yes",
     "no": "No"
   },
-  "appBar": {
-    "kanban": {
-      "tooltip": "Connectez-vous pour voir les projets",
-      "title": "Tableaux Kanban",
-      "description": "Connectez-vous pour organiser vos agents de codage avec des tableaux kanban."
-    }
-  },
   "errors": {
     "generic": "An unexpected error occurred"
   },

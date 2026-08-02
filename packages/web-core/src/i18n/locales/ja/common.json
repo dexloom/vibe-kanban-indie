@@ -540,13 +540,6 @@
     "yes": "Yes",
     "no": "No"
   },
-  "appBar": {
-    "kanban": {
-      "tooltip": "サインインしてプロジェクトを表示",
-      "title": "カンバンボード",
-      "description": "サインインしてカンバンボードでコーディングエージェントを整理しましょう。"
-    }
-  },
   "errors": {
     "generic": "An unexpected error occurred"
   },
