@@ -444,6 +444,7 @@ mod tests {
             // stop the agents it drives (mirrors global mode).
             "list_pending_approvals".to_string(),
             "respond_to_approval".to_string(),
+            "run_issue_in_workspace".to_string(),
             "run_session_prompt".to_string(),
             "stop_execution".to_string(),
             "update_session".to_string(),

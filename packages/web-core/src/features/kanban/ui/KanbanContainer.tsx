@@ -589,14 +589,15 @@ export function KanbanContainer() {
     async (issueId: string, workspaceId: string) => {
       try {
         await workspacesApi.dispatchIssueToWorkspace(issueId, workspaceId);
+        // A dispatch touches many disparate caches (board, workspace session,
+        // execution processes, branch status, the issue's Workspaces section),
+        // all keyed differently. Scoping to a subset would leave stale UI; the
+        // local SQLite backing store makes a full invalidation cheap.
         await queryClient.invalidateQueries();
       } catch (error) {
         ConfirmDialog.show({
           title: t('common:error'),
-          message:
-            error instanceof Error
-              ? error.message
-              : String(error),
+          message: error instanceof Error ? error.message : String(error),
           confirmText: t('common:ok'),
           showCancelButton: false,
         });

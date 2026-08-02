@@ -55,8 +55,9 @@ use uuid::Uuid;
 
 use super::local_kanban::{derive_key, merge_and_update_issue};
 use crate::{
-    DeploymentImpl, error::ApiError,
-    routes::sessions::{run_follow_up, FollowUpResponse},
+    DeploymentImpl,
+    error::ApiError,
+    routes::sessions::{FollowUpResponse, run_follow_up},
 };
 
 /// Process-local monotonic txid for the `MutationResponse` envelope. The MCP
@@ -432,12 +433,20 @@ async fn get_issue(
 #[derive(Debug, Deserialize)]
 struct DispatchToWorkspaceRequest {
     workspace_id: Uuid,
+    /// Optional explicit session to dispatch into. Defaults to the workspace's
+    /// latest session. When provided, must belong to `workspace_id`.
+    #[serde(default)]
+    session_id: Option<Uuid>,
 }
 
 /// Run an issue in an existing workspace: sends the issue's title + description
-/// to the workspace's latest session as a follow-up prompt (context retained),
-/// spawning a coding-agent execution. Returns the same envelope as
-/// `POST /api/sessions/{id}/follow-up`.
+/// to the workspace's (latest, or `session_id`) session as a follow-up prompt
+/// (context retained), spawning a coding-agent execution. Returns the same
+/// envelope as `POST /api/sessions/{id}/follow-up`.
+///
+/// This is the single owner of the dispatch guard matrix (archived workspace,
+/// orchestrator workspace, concurrent-run, resume-stage prompt) — the MCP
+/// `run_issue_in_workspace` tool delegates here so the two paths cannot drift.
 async fn dispatch_issue_to_workspace(
     State(deployment): State<DeploymentImpl>,
     Path(id): Path<Uuid>,
@@ -475,7 +484,11 @@ async fn dispatch_issue_to_workspace(
     // workspace's current linked card (the stage counter is workspace-scoped).
     let current_link =
         IssueWorkspace::find_issue_and_project_by_workspace(pool, workspace.id).await?;
-    let resume_stage = if workspace.current_pipeline_stage.map(|s| s > 0).unwrap_or(false) {
+    let resume_stage = if workspace
+        .current_pipeline_stage
+        .map(|s| s > 0)
+        .unwrap_or(false)
+    {
         match current_link {
             Some((current_issue_id, _)) if current_issue_id == id => {
                 workspace.current_pipeline_stage
@@ -511,9 +524,26 @@ async fn dispatch_issue_to_workspace(
     // issue).
     IssueWorkspace::link(pool, id, workspace.id).await?;
 
-    let session = Session::find_latest_by_workspace_id(pool, workspace.id)
-        .await?
-        .ok_or_else(|| ApiError::BadRequest("workspace has no sessions".into()))?;
+    // Resolve the target session: an explicit one (must belong to this
+    // workspace) or the workspace's latest. The MCP tool and the UI both
+    // delegate here, so session ownership is validated in one place.
+    let session = match body.session_id {
+        Some(session_id) => {
+            let session = Session::find_by_id(pool, session_id)
+                .await?
+                .ok_or_else(|| ApiError::BadRequest("session not found".into()))?;
+            if session.workspace_id != workspace.id {
+                return Err(ApiError::BadRequest(format!(
+                    "session {session_id} does not belong to workspace {}",
+                    workspace.id
+                )));
+            }
+            session
+        }
+        None => Session::find_latest_by_workspace_id(pool, workspace.id)
+            .await?
+            .ok_or_else(|| ApiError::BadRequest("workspace has no sessions".into()))?,
+    };
 
     // Reject concurrent dispatch: a second agent process on the same session
     // would corrupt the conversation.

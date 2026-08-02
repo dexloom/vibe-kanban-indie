@@ -199,6 +199,9 @@ export function IssueWorkspacesSectionContainer({
     async (localWorkspaceId: string) => {
       try {
         await workspacesApi.dispatchIssueToWorkspace(issueId, localWorkspaceId);
+        // Full invalidation: a dispatch fans out to many caches (issue's
+        // workspaces, workspace session, execution processes, branch status),
+        // each keyed differently; a partial scope would leave stale UI.
         await queryClient.invalidateQueries();
       } catch (error) {
         ConfirmDialog.show({

@@ -198,6 +198,7 @@ pub async fn follow_up(
 /// executor against the session, and spawns a coding-agent execution with the
 /// given prompt. Used by the `POST /api/sessions/{id}/follow-up` route and by
 /// the `POST /api/issues/{id}/dispatch-to-workspace` route.
+#[allow(clippy::too_many_arguments)] // internal dispatcher mirroring FollowUpPayload + context
 pub(crate) async fn run_follow_up(
     deployment: &DeploymentImpl,
     session: Session,

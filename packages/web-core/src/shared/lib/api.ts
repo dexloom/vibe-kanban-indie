@@ -516,11 +516,13 @@ export const specKitApi = {
 
 export const workspacesApi = {
   /** Run an issue in an existing workspace: dispatches its title + description
-   *  to the workspace's latest session as a follow-up prompt. */
+   *  to the workspace's latest session as a follow-up prompt. The backend
+   *  returns a `FollowUpResponse`; callers ignore the body, so we surface `void`
+   *  to avoid mistyping it as `ExecutionProcess`. */
   dispatchIssueToWorkspace: async (
     issueId: string,
     workspaceId: string
-  ): Promise<ExecutionProcess> => {
+  ): Promise<void> => {
     const response = await makeRequest(
       `/api/issues/${issueId}/dispatch-to-workspace`,
       {
@@ -528,7 +530,7 @@ export const workspacesApi = {
         body: JSON.stringify({ workspace_id: workspaceId }),
       }
     );
-    return handleApiResponse<ExecutionProcess>(response);
+    await handleApiResponse<unknown>(response);
   },
 
   createAndStart: async (
