@@ -63,6 +63,10 @@
           "label": "語言",
           "placeholder": "選擇語言",
           "helper": "選擇您偏好的語言。瀏覽器預設將跟隨系統語言。"
+        },
+        "animateRunningOutline": {
+          "label": "Animated border while working",
+          "helper": "Show a shimmering border around the message box while the agent works. A subtle pulsating dot is always shown."
         }
       },
       "taskExecution": {

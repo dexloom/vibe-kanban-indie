@@ -71,6 +71,10 @@
           "label": "Language",
           "placeholder": "Select language",
           "helper": "Choose your preferred language. Browser Default follows your system language."
+        },
+        "animateRunningOutline": {
+          "label": "Animated border while working",
+          "helper": "Show a shimmering border around the message box while the agent works. A subtle pulsating dot is always shown."
         }
       },
       "taskExecution": {

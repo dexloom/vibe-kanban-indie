@@ -270,9 +270,6 @@ export function RemoteAppShell({ children }: RemoteAppShellProps) {
             activeProjectId={activeProjectId}
             isSignedIn={isSignedIn}
             isLoadingProjects={isLoadingProjects}
-            onSignIn={() => {
-              navigate({ to: "/account" });
-            }}
             notificationBell={
               isSignedIn ? <AppBarNotificationBellContainer /> : undefined
             }

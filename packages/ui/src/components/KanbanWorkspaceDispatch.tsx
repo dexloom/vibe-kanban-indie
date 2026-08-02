@@ -20,6 +20,8 @@ export interface KanbanWorkspaceDispatchProps {
   disabled?: boolean;
   onDispatch: (workspaceId: string) => void;
   className?: string;
+  /** Workspaces already linked to this card — shown with a "(running here)" hint. */
+  currentWorkspaceIds?: ReadonlySet<string>;
 }
 
 /**
@@ -33,6 +35,7 @@ export function KanbanWorkspaceDispatch({
   disabled,
   onDispatch,
   className,
+  currentWorkspaceIds,
 }: KanbanWorkspaceDispatchProps) {
   const { t } = useTranslation("common");
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
@@ -60,6 +63,9 @@ export function KanbanWorkspaceDispatch({
           {workspaces.map((workspace) => (
             <SelectItem key={workspace.id} value={workspace.id}>
               {workspace.name ?? workspace.id}
+              {currentWorkspaceIds?.has(workspace.id)
+                ? ` (${t("kanban.currentWorkspace")})`
+                : ""}
             </SelectItem>
           ))}
         </SelectContent>

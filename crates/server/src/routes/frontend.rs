@@ -33,12 +33,11 @@ fn frontend_dir() -> Option<std::path::PathBuf> {
 }
 
 async fn serve_file_from_disk(dir: &Path, path: &str) -> Option<Response> {
-    // Never resolve outside the frontend dir (e.g. `../` traversal).
-    if path.split('/').any(|segment| segment == "..") {
-        return None;
-    }
-
-    let candidate = dir.join(path);
+    // Resolve the candidate against the canonicalized frontend dir and refuse
+    // anything that escapes it — this blocks `..`, absolute paths, and symlink
+    // traversal, not just a literal `..` segment.
+    let canonical_dir = dir.canonicalize().ok()?;
+    let candidate = dir.join(path.trim_start_matches('/'));
     let file_path = if candidate.is_file() {
         candidate
     } else {
@@ -50,8 +49,13 @@ async fn serve_file_from_disk(dir: &Path, path: &str) -> Option<Response> {
         index
     };
 
-    let bytes = tokio::fs::read(&file_path).await.ok()?;
-    let mime = mime_guess::from_path(&file_path).first_or_octet_stream();
+    let canonical = file_path.canonicalize().ok()?;
+    if !canonical.starts_with(&canonical_dir) {
+        return None;
+    }
+
+    let bytes = tokio::fs::read(&canonical).await.ok()?;
+    let mime = mime_guess::from_path(&canonical).first_or_octet_stream();
     Some(
         Response::builder()
             .status(StatusCode::OK)

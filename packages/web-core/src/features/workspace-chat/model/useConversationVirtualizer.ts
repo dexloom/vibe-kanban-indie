@@ -215,7 +215,10 @@ export function useConversationVirtualizer({
       // compensation in the same batch — the continuous scroll jumps during
       // streaming. Compensating only the boundary row breaks the cascade: the
       // rest measure silently and only move the viewport when the user scrolls.
-      const atViewportEdge = Math.abs(item.end - scrollOffset) < 120;
+      // ~1-3 typical rows above the fold.
+      const TOP_EDGE_COMPENSATION_BAND_PX = 120;
+      const atViewportEdge =
+        Math.abs(item.end - scrollOffset) < TOP_EDGE_COMPENSATION_BAND_PX;
 
       const shouldAdjust =
         !isBottomLocked &&

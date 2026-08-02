@@ -102,7 +102,9 @@ export function ChatAggregatedToolEntries({
           )}
         </span>
         <span className="min-w-0 flex-1 truncate">
-          {label} · {countLabel}
+          {entries.length === 1 && entries[0]?.summary
+            ? entries[0].summary
+            : `${label} · ${countLabel}`}
         </span>
       </div>
 

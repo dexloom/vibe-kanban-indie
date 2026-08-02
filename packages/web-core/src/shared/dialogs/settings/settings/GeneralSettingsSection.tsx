@@ -341,8 +341,10 @@ export function GeneralSettingsSection() {
 
         <SettingsCheckbox
           id="animate-running-outline"
-          label="Animated border while working"
-          description="Show a shimmering border around the message box while the agent works. A subtle pulsating dot is always shown."
+          label={t('settings.general.appearance.animateRunningOutline.label')}
+          description={t(
+            'settings.general.appearance.animateRunningOutline.helper'
+          )}
           checked={animateRunningOutline}
           onChange={setAnimateRunningOutline}
         />

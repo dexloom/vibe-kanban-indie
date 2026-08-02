@@ -510,10 +510,6 @@ async fn dispatch_issue_to_workspace(
         ));
     }
 
-    // All validation is done. Everything below mutates state (pipeline stage,
-    // issue link, the spawned execution) and must not fail with a recoverable
-    // error that leaves the workspace moved off its current card.
-
     // Re-dispatch of the SAME card the workspace is currently on: if it already
     // ran pipeline stages, tell the agent to continue from the next stage rather
     // than restart the whole pipeline. Only applies when this card is the
@@ -535,13 +531,6 @@ async fn dispatch_issue_to_workspace(
         None
     };
 
-    // A fresh card (not a same-card re-dispatch) resets any stale pipeline
-    // stage left over from a previous card, so the board doesn't show the old
-    // card's progress against the new one.
-    if resume_stage.is_none() {
-        Workspace::set_current_pipeline_stage(pool, workspace.id, None).await?;
-    }
-
     let mut prompt = match &issue.description {
         Some(desc) if !desc.is_empty() => format!("{}\n\n{}", issue.title, desc),
         _ => issue.title.clone(),
@@ -554,11 +543,6 @@ async fn dispatch_issue_to_workspace(
             next = stage + 1,
         );
     }
-
-    // Ensure the workspace is linked to this issue so it shows up in the issue's
-    // Workspaces section (idempotent: ON CONFLICT relinks the workspace to this
-    // issue).
-    IssueWorkspace::link(pool, id, workspace.id).await?;
 
     // Preserve the session's last-used executor profile (variant/preset) instead
     // of dropping back to the base default — a workspace on a custom preset
@@ -577,7 +561,13 @@ async fn dispatch_issue_to_workspace(
             }
         };
 
-    run_follow_up(
+    // Spawn first: this can still fail with a 409 (the DB unique partial index
+    // is the hard gate against a concurrent dispatch between the advisory
+    // preflight above and here) or a container-start error. Nothing below
+    // mutates until it has succeeded, so a failed dispatch leaves the
+    // workspace linked to its ORIGINAL card with its pipeline stage intact.
+    let workspace_id = workspace.id;
+    let response = run_follow_up(
         &deployment,
         session,
         workspace,
@@ -587,7 +577,18 @@ async fn dispatch_issue_to_workspace(
         None,
         None,
     )
-    .await
+    .await?;
+
+    // Only now that the execution is guaranteed to be running: move the
+    // workspace's link to this card and (for a fresh card) clear any stale
+    // pipeline stage from the previous card so the board doesn't show old
+    // progress against the new one.
+    if resume_stage.is_none() {
+        Workspace::set_current_pipeline_stage(pool, workspace_id, None).await?;
+    }
+    IssueWorkspace::link(pool, id, workspace_id).await?;
+
+    Ok(response)
 }
 
 async fn create_issue(

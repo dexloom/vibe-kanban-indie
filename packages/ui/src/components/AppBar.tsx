@@ -56,12 +56,6 @@ interface AppBarProps {
   activeProjectId: string | null;
   isSignedIn?: boolean;
   isLoadingProjects?: boolean;
-  // Optional sign-in handler. The local-only indie app has nothing to sign in
-  // to and omits this; remote-web still passes it. The dedicated kanban sign-in
-  // CTA was removed (sign-in remains available via the user popover), so this
-  // prop is currently inert in the rail — kept so remote-web compiles and can
-  // re-wire a CTA later without churning the prop interface again.
-  onSignIn?: () => void;
   onHoverStart?: () => void;
   onHoverEnd?: () => void;
   notificationBell?: ReactNode;
