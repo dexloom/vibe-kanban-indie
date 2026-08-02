@@ -1,7 +1,6 @@
 import {
   BuildingsIcon,
   GearIcon,
-  SignInIcon,
   SignOutIcon,
   UserIcon,
 } from '@phosphor-icons/react';
@@ -22,7 +21,6 @@ export interface AppBarUserOrganization {
 }
 
 interface AppBarUserPopoverProps {
-  isSignedIn: boolean;
   avatarUrl: string | null;
   avatarError: boolean;
   organizations: AppBarUserOrganization[];
@@ -32,7 +30,6 @@ interface AppBarUserPopoverProps {
   onOrgSelect: (orgId: string) => void;
   onOrgSettings?: (orgId: string) => void;
   onSettings?: () => void;
-  onSignIn: () => void;
   // Optional: render a "Sign out" item. The local-only indie app has nothing
   // to sign out of and typically omits this; pass it when you need a logout
   // entry in the popover.
@@ -41,7 +38,6 @@ interface AppBarUserPopoverProps {
 }
 
 export function AppBarUserPopover({
-  isSignedIn,
   avatarUrl,
   avatarError,
   organizations,
@@ -49,7 +45,6 @@ export function AppBarUserPopover({
   open,
   onOpenChange,
   onSettings,
-  onSignIn,
   onLogout,
   onAvatarError,
 }: AppBarUserPopoverProps) {
@@ -59,41 +54,6 @@ export function AppBarUserPopover({
   });
   const selectedOrg =
     organizations.find((org) => org.id === selectedOrgId) ?? organizations[0];
-
-  if (!isSignedIn) {
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className={cn(
-              'flex items-center justify-center w-7 h-7 sm:w-10 sm:h-10 rounded-md sm:rounded-lg',
-              'bg-panel text-normal font-medium text-sm',
-              'transition-colors cursor-pointer',
-              'hover:bg-panel/70',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand'
-            )}
-            aria-label="Sign in"
-          >
-            <UserIcon className="size-icon-sm" weight="bold" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent side="right" align="end" className="min-w-[200px]">
-          <DropdownMenuItem icon={SignInIcon} onClick={onSignIn}>
-            {t('signIn')}
-          </DropdownMenuItem>
-          {onSettings && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem icon={GearIcon} onClick={onSettings}>
-                {settingsLabel}
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
-  }
 
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>

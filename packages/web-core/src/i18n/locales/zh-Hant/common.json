@@ -75,12 +75,8 @@
   },
   "ok": "確定",
   "error": "錯誤",
-  "signIn": "登入",
   "signOut": "登出",
-  "oauth": {
-    "continueWithGitHub": "使用 GitHub 繼續",
-    "continueWithGoogle": "使用 Google 繼續"
-  },
+  "oauth": {},
   "toolbar": {
     "sortBy": "排序方式",
     "groupBy": "分組方式"

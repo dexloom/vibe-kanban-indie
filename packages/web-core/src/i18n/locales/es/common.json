@@ -75,12 +75,8 @@
   },
   "ok": "OK",
   "error": "Error",
-  "signIn": "Iniciar sesión",
   "signOut": "Cerrar sesión",
-  "oauth": {
-    "continueWithGitHub": "Continuar con GitHub",
-    "continueWithGoogle": "Continuar con Google"
-  },
+  "oauth": {},
   "toolbar": {
     "sortBy": "Ordenar por",
     "groupBy": "Agrupar por"

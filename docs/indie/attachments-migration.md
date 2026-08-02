@@ -100,6 +100,9 @@ already ran the pre-migration schema:
 
 - Issue panel edit mode: paste/drop an image → upload → inline `<img>` render →
   reload page → image still renders from `/api/attachments/{id}/file`.
+- Issue panel edit mode, restart durability: edit an existing issue → attach an
+  image → **restart the server** → reload → image must still render (the
+  attachment is linked to the issue, so the orphan reaper must NOT delete it).
 - Issue panel create mode: upload → submit → reopen created issue → image renders.
 - Non-image file (e.g. PDF): renders as an attachment chip; click opens
   `/api/attachments/{id}/file` (forced download via Content-Disposition for

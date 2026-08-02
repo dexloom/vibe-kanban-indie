@@ -75,12 +75,8 @@
   },
   "ok": "확인",
   "error": "오류",
-  "signIn": "로그인",
   "signOut": "로그아웃",
-  "oauth": {
-    "continueWithGitHub": "GitHub로 계속",
-    "continueWithGoogle": "Google로 계속"
-  },
+  "oauth": {},
   "toolbar": {
     "sortBy": "정렬 기준",
     "groupBy": "그룹화 기준"

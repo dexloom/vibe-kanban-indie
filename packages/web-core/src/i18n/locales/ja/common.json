@@ -75,12 +75,8 @@
   },
   "ok": "OK",
   "error": "エラー",
-  "signIn": "サインイン",
   "signOut": "サインアウト",
-  "oauth": {
-    "continueWithGitHub": "GitHubで続行",
-    "continueWithGoogle": "Googleで続行"
-  },
+  "oauth": {},
   "toolbar": {
     "sortBy": "並べ替え",
     "groupBy": "グループ化"

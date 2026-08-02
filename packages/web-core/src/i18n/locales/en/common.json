@@ -79,12 +79,8 @@
     "organizations": "Organizations"
   },
   "personal": "Personal",
-  "signIn": "Sign in",
   "signOut": "Sign out",
-  "oauth": {
-    "continueWithGitHub": "Continue with GitHub",
-    "continueWithGoogle": "Continue with Google"
-  },
+  "oauth": {},
   "toolbar": {
     "sortBy": "Sort by",
     "groupBy": "Group by"

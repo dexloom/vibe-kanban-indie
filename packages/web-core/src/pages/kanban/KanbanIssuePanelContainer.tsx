@@ -581,7 +581,27 @@ export function KanbanIssuePanelContainer({
     uploadError,
     clearUploadError,
     localAttachments,
+    uploadedAttachments,
   } = useIssueAttachments(handleDescriptionInsert);
+
+  const linkedAttachmentIdsRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (kanbanCreateMode || !selectedKanbanIssueId) return;
+
+    const newAttachments = uploadedAttachments.filter(
+      (attachment) => !linkedAttachmentIdsRef.current.has(attachment.id)
+    );
+    for (const attachment of newAttachments) {
+      linkedAttachmentIdsRef.current.add(attachment.id);
+      void attachmentsApi
+        .linkIssueAttachments(selectedKanbanIssueId, [attachment.id])
+        .catch((error) => {
+          linkedAttachmentIdsRef.current.delete(attachment.id);
+          console.error('Failed to link issue attachment:', error);
+        });
+    }
+  }, [kanbanCreateMode, selectedKanbanIssueId, uploadedAttachments]);
 
   // Dropzone for drag-drop image upload on description area
   const {
@@ -625,6 +645,8 @@ export function KanbanIssuePanelContainer({
     cancelDebouncedTitle();
     cancelDebouncedDescription();
     cancelDebouncedPipelineEdit();
+    clearAttachments();
+    linkedAttachmentIdsRef.current.clear();
 
     let nextCreateFormData: IssueFormData | null = null;
     let restoredFromScratch = false;
