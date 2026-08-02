@@ -6,16 +6,18 @@ use std::{
 };
 
 use axum::{
-    extract::ws::{Message as AxumWsMessage, WebSocket as AxumWebSocket},
     extract::State,
+    extract::ws::{Message as AxumWsMessage, WebSocket as AxumWebSocket},
     response::IntoResponse,
 };
 use bytes::BytesMut;
-use deployment::Deployment;
 use futures::{Sink, Stream};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
-use crate::{DeploymentImpl, middleware::signed_ws::MaybeSignedWebSocket, middleware::signed_ws::SignedWsUpgrade};
+use crate::{
+    DeploymentImpl, middleware::signed_ws::MaybeSignedWebSocket,
+    middleware::signed_ws::SignedWsUpgrade,
+};
 
 pub(super) async fn ssh_session_ws(
     State(deployment): State<DeploymentImpl>,
@@ -145,12 +147,14 @@ where
     }
 }
 
-pub fn axum_ws_stream_io(ws: MaybeSignedWebSocket) -> WsMessageStreamIo<
+pub type AxumWsStreamIo = WsMessageStreamIo<
     MaybeSignedWebSocket,
     AxumWsMessage,
     fn(AxumWsMessage) -> WsIoReadMessage,
     fn(Vec<u8>) -> AxumWsMessage,
-> {
+>;
+
+pub fn axum_ws_stream_io(ws: MaybeSignedWebSocket) -> AxumWsStreamIo {
     WsMessageStreamIo::new(ws, read_axum_message, write_axum_message)
 }
 

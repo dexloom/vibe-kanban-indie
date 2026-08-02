@@ -57,12 +57,6 @@ pub struct ImportIssueAttachmentsResponse {
     pub attachment_ids: Vec<Uuid>,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct ImportedIssueAttachment {
-    pub attachment_id: Uuid,
-    pub file: File,
-}
-
 pub async fn get_workspace_files(
     Extension(workspace): Extension<Workspace>,
     State(deployment): State<DeploymentImpl>,
@@ -110,7 +104,7 @@ pub async fn associate_workspace_attachments(
 }
 
 pub async fn import_issue_attachments(
-    Extension(workspace): Extension<Workspace>,
+    Extension(_workspace): Extension<Workspace>,
     State(_deployment): State<DeploymentImpl>,
     _axum_json: axum::Json<ImportIssueAttachmentsRequest>,
 ) -> Result<ResponseJson<ApiResponse<ImportIssueAttachmentsResponse>>, ApiError> {

@@ -69,10 +69,10 @@ async fn serve_file_from_disk(dir: &Path, path: &str) -> Option<Response> {
 }
 
 async fn serve_file(path: &str) -> impl IntoResponse + use<> {
-    if let Some(dir) = frontend_dir() {
-        if let Some(response) = serve_file_from_disk(&dir, path).await {
-            return response;
-        }
+    if let Some(dir) = frontend_dir()
+        && let Some(response) = serve_file_from_disk(&dir, path).await
+    {
+        return response;
     }
 
     let file = Assets::get(path);

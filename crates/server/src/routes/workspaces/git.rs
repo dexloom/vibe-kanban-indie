@@ -18,7 +18,7 @@ use db::models::{
 use deployment::Deployment;
 use git::{ConflictOp, GitCliError, GitServiceError};
 use serde::{Deserialize, Serialize};
-use services::services::{container::ContainerService, diff_stream};
+use services::services::container::ContainerService;
 use ts_rs::TS;
 use utils::response::ApiResponse;
 use uuid::Uuid;

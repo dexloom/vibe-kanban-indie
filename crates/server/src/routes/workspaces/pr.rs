@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use api_types::{PullRequestStatus, UpsertPullRequestRequest};
 use axum::{
     Extension, Json, Router,
     extract::{Query, State},

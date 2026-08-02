@@ -144,7 +144,8 @@ impl<C: ContainerService + Send + Sync + 'static> PrMonitorService<C> {
         if matches!(&status.status, MergeStatus::Merged)
             && let Some(workspace_id) = pr.workspace_id
         {
-            self.try_archive_workspace(workspace_id, pr.pr_number).await?;
+            self.try_archive_workspace(workspace_id, pr.pr_number)
+                .await?;
         }
 
         info!("PR #{} status changed to {:?}", pr.pr_number, status.status);

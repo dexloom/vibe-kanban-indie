@@ -1,6 +1,6 @@
 use axum::{
     Router,
-    extract::ws::{Message, WebSocket},
+    extract::ws::Message,
     extract::{Path, Request, State, ws::rejection::WebSocketUpgradeRejection},
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -163,7 +163,10 @@ async fn bridge_ws(
         while let Some(msg) = upstream_stream.next().await {
             let msg = msg.map_err(|e| e.to_string())?;
             if let Some(incoming) = tungstenite_to_axum(msg) {
-                client_sink.send(incoming).await.map_err(|e| e.to_string())?;
+                client_sink
+                    .send(incoming)
+                    .await
+                    .map_err(|e| e.to_string())?;
             } else {
                 break;
             }

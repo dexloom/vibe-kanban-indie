@@ -133,9 +133,8 @@ async fn forward_ws(
     .into_response()
 }
 
-type UpstreamWs = tokio_tungstenite::WebSocketStream<
-    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
->;
+type UpstreamWs =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 async fn bridge_ws(
     client: axum::extract::ws::WebSocket,
@@ -164,7 +163,10 @@ async fn bridge_ws(
         while let Some(msg) = upstream_stream.next().await {
             let msg = msg.map_err(|e| e.to_string())?;
             if let Some(incoming) = tungstenite_to_axum(msg) {
-                client_sink.send(incoming).await.map_err(|e| e.to_string())?;
+                client_sink
+                    .send(incoming)
+                    .await
+                    .map_err(|e| e.to_string())?;
             } else {
                 break;
             }
@@ -181,20 +183,36 @@ async fn bridge_ws(
 
 fn axum_to_tungstenite(msg: axum::extract::ws::Message) -> Option<tungstenite::Message> {
     match msg {
-        axum::extract::ws::Message::Text(text) => Some(tungstenite::Message::Text(text.to_string().into())),
-        axum::extract::ws::Message::Binary(bytes) => Some(tungstenite::Message::Binary(bytes.to_vec().into())),
-        axum::extract::ws::Message::Ping(bytes) => Some(tungstenite::Message::Ping(bytes.to_vec().into())),
-        axum::extract::ws::Message::Pong(bytes) => Some(tungstenite::Message::Pong(bytes.to_vec().into())),
+        axum::extract::ws::Message::Text(text) => {
+            Some(tungstenite::Message::Text(text.to_string().into()))
+        }
+        axum::extract::ws::Message::Binary(bytes) => {
+            Some(tungstenite::Message::Binary(bytes.to_vec().into()))
+        }
+        axum::extract::ws::Message::Ping(bytes) => {
+            Some(tungstenite::Message::Ping(bytes.to_vec().into()))
+        }
+        axum::extract::ws::Message::Pong(bytes) => {
+            Some(tungstenite::Message::Pong(bytes.to_vec().into()))
+        }
         axum::extract::ws::Message::Close(_) => None,
     }
 }
 
 fn tungstenite_to_axum(msg: tungstenite::Message) -> Option<axum::extract::ws::Message> {
     match msg {
-        tungstenite::Message::Text(text) => Some(axum::extract::ws::Message::Text(text.to_string().into())),
-        tungstenite::Message::Binary(bytes) => Some(axum::extract::ws::Message::Binary(bytes.to_vec().into())),
-        tungstenite::Message::Ping(bytes) => Some(axum::extract::ws::Message::Ping(bytes.to_vec().into())),
-        tungstenite::Message::Pong(bytes) => Some(axum::extract::ws::Message::Pong(bytes.to_vec().into())),
+        tungstenite::Message::Text(text) => {
+            Some(axum::extract::ws::Message::Text(text.to_string().into()))
+        }
+        tungstenite::Message::Binary(bytes) => {
+            Some(axum::extract::ws::Message::Binary(bytes.to_vec().into()))
+        }
+        tungstenite::Message::Ping(bytes) => {
+            Some(axum::extract::ws::Message::Ping(bytes.to_vec().into()))
+        }
+        tungstenite::Message::Pong(bytes) => {
+            Some(axum::extract::ws::Message::Pong(bytes.to_vec().into()))
+        }
         tungstenite::Message::Close(_) => None,
         tungstenite::Message::Frame(_) => Some(axum::extract::ws::Message::Binary(vec![].into())),
     }

@@ -232,11 +232,7 @@ fn rewrite_redirect_like_header_value(
     Some(parsed.to_string())
 }
 
-fn rewrite_refresh_header_value(
-    value: &str,
-    target_port: u16,
-    proxy_port: u16,
-) -> Option<String> {
+fn rewrite_refresh_header_value(value: &str, target_port: u16, proxy_port: u16) -> Option<String> {
     let mut segments: Vec<String> = value.split(';').map(|s| s.trim().to_string()).collect();
     if segments.len() < 2 {
         return None;
@@ -254,7 +250,8 @@ fn rewrite_refresh_header_value(
             continue;
         }
 
-        if let Some(rewritten) = rewrite_redirect_like_header_value(raw_value, target_port, proxy_port)
+        if let Some(rewritten) =
+            rewrite_redirect_like_header_value(raw_value, target_port, proxy_port)
         {
             *segment = format!("url={rewritten}");
             return Some(segments.join("; "));
@@ -329,7 +326,15 @@ pub async fn proxy_subdomain_request(
 
     let path = normalized_proxy_path(request.uri().path()).to_string();
 
-    proxy_impl(service, backend_addr, proxy_port, target_port, path, request).await
+    proxy_impl(
+        service,
+        backend_addr,
+        proxy_port,
+        target_port,
+        path,
+        request,
+    )
+    .await
 }
 
 async fn proxy_impl(
@@ -381,7 +386,15 @@ async fn proxy_impl(
     }
 
     let request = Request::from_parts(parts, body);
-    http_proxy_handler(service, backend_addr, proxy_port, target_port, path_str, request).await
+    http_proxy_handler(
+        service,
+        backend_addr,
+        proxy_port,
+        target_port,
+        path_str,
+        request,
+    )
+    .await
 }
 
 async fn http_proxy_handler(
@@ -569,12 +582,8 @@ async fn http_proxy_handler(
                     || redirect_info.url.starts_with("https://")
                 {
                     // Absolute URL — rewrite to maintain proxy isolation
-                    rewrite_redirect_like_header_value(
-                        &redirect_info.url,
-                        target_port,
-                        proxy_port,
-                    )
-                    .unwrap_or_else(|| redirect_info.url.clone())
+                    rewrite_redirect_like_header_value(&redirect_info.url, target_port, proxy_port)
+                        .unwrap_or_else(|| redirect_info.url.clone())
                 } else {
                     // Relative URL — use as-is (browser resolves against proxy origin)
                     redirect_info.url.clone()
@@ -658,18 +667,16 @@ async fn handle_ws_proxy(
             .insert("sec-websocket-protocol", header_value);
     }
 
-    let (dev_server_ws, _response) =
-        tokio_tungstenite::connect_async(ws_request)
-            .await
-            .map_err(|error| error.to_string())?;
+    let (dev_server_ws, _response) = tokio_tungstenite::connect_async(ws_request)
+        .await
+        .map_err(|error| error.to_string())?;
     tracing::debug!("Connected to dev server WebSocket");
 
     bridge_ws(client_socket, dev_server_ws).await
 }
 
-type UpstreamWs = tokio_tungstenite::WebSocketStream<
-    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
->;
+type UpstreamWs =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 async fn bridge_ws(
     client: axum::extract::ws::WebSocket,
@@ -698,7 +705,10 @@ async fn bridge_ws(
         while let Some(msg) = upstream_stream.next().await {
             let msg = msg.map_err(|e| e.to_string())?;
             if let Some(incoming) = tungstenite_to_axum(msg) {
-                client_sink.send(incoming).await.map_err(|e| e.to_string())?;
+                client_sink
+                    .send(incoming)
+                    .await
+                    .map_err(|e| e.to_string())?;
             } else {
                 break;
             }
@@ -715,20 +725,36 @@ async fn bridge_ws(
 
 fn axum_to_tungstenite(msg: axum::extract::ws::Message) -> Option<tungstenite::Message> {
     match msg {
-        axum::extract::ws::Message::Text(text) => Some(tungstenite::Message::Text(text.to_string().into())),
-        axum::extract::ws::Message::Binary(bytes) => Some(tungstenite::Message::Binary(bytes.to_vec().into())),
-        axum::extract::ws::Message::Ping(bytes) => Some(tungstenite::Message::Ping(bytes.to_vec().into())),
-        axum::extract::ws::Message::Pong(bytes) => Some(tungstenite::Message::Pong(bytes.to_vec().into())),
+        axum::extract::ws::Message::Text(text) => {
+            Some(tungstenite::Message::Text(text.to_string().into()))
+        }
+        axum::extract::ws::Message::Binary(bytes) => {
+            Some(tungstenite::Message::Binary(bytes.to_vec().into()))
+        }
+        axum::extract::ws::Message::Ping(bytes) => {
+            Some(tungstenite::Message::Ping(bytes.to_vec().into()))
+        }
+        axum::extract::ws::Message::Pong(bytes) => {
+            Some(tungstenite::Message::Pong(bytes.to_vec().into()))
+        }
         axum::extract::ws::Message::Close(_) => None,
     }
 }
 
 fn tungstenite_to_axum(msg: tungstenite::Message) -> Option<axum::extract::ws::Message> {
     match msg {
-        tungstenite::Message::Text(text) => Some(axum::extract::ws::Message::Text(text.to_string().into())),
-        tungstenite::Message::Binary(bytes) => Some(axum::extract::ws::Message::Binary(bytes.to_vec().into())),
-        tungstenite::Message::Ping(bytes) => Some(axum::extract::ws::Message::Ping(bytes.to_vec().into())),
-        tungstenite::Message::Pong(bytes) => Some(axum::extract::ws::Message::Pong(bytes.to_vec().into())),
+        tungstenite::Message::Text(text) => {
+            Some(axum::extract::ws::Message::Text(text.to_string().into()))
+        }
+        tungstenite::Message::Binary(bytes) => {
+            Some(axum::extract::ws::Message::Binary(bytes.to_vec().into()))
+        }
+        tungstenite::Message::Ping(bytes) => {
+            Some(axum::extract::ws::Message::Ping(bytes.to_vec().into()))
+        }
+        tungstenite::Message::Pong(bytes) => {
+            Some(axum::extract::ws::Message::Pong(bytes.to_vec().into()))
+        }
         tungstenite::Message::Close(_) => None,
         tungstenite::Message::Frame(_) => Some(axum::extract::ws::Message::Binary(vec![].into())),
     }
@@ -942,8 +968,7 @@ mod tests {
 
     #[test]
     fn rewrite_redirect_like_header_value_rewrites_scheme_relative_loopback_url() {
-        let rewritten =
-            rewrite_redirect_like_header_value("//localhost:4000/generate", 4000, 3009);
+        let rewritten = rewrite_redirect_like_header_value("//localhost:4000/generate", 4000, 3009);
 
         assert_eq!(
             rewritten.as_deref(),
@@ -988,11 +1013,8 @@ mod tests {
 
     #[test]
     fn rewrite_redirect_like_header_value_cleans_and_rewrites_quoted_absolute_url() {
-        let rewritten = rewrite_redirect_like_header_value(
-            "\"http://localhost:4000/generate\",",
-            4000,
-            3009,
-        );
+        let rewritten =
+            rewrite_redirect_like_header_value("\"http://localhost:4000/generate\",", 4000, 3009);
 
         assert_eq!(
             rewritten.as_deref(),
@@ -1002,8 +1024,11 @@ mod tests {
 
     #[test]
     fn rewrite_redirect_like_header_value_skips_structured_values() {
-        let rewritten =
-            rewrite_redirect_like_header_value("url=\"http://localhost:4000/generate\", mode=replace", 4000, 3009);
+        let rewritten = rewrite_redirect_like_header_value(
+            "url=\"http://localhost:4000/generate\", mode=replace",
+            4000,
+            3009,
+        );
 
         assert_eq!(rewritten, None);
     }

@@ -104,17 +104,6 @@ fn normalize_prompt(prompt: &str) -> Option<String> {
     }
 }
 
-fn escape_markdown_label(label: &str) -> String {
-    let mut escaped = String::with_capacity(label.len());
-    for ch in label.chars() {
-        if matches!(ch, '[' | ']' | '\\') {
-            escaped.push('\\');
-        }
-        escaped.push(ch);
-    }
-    escaped
-}
-
 pub async fn create_and_start_workspace(
     State(deployment): State<DeploymentImpl>,
     Json(payload): Json<CreateAndStartWorkspaceRequest>,
@@ -129,7 +118,7 @@ pub async fn create_and_start_workspace(
         kind,
     } = payload;
 
-    let mut workspace_prompt = normalize_prompt(&prompt).ok_or_else(|| {
+    let workspace_prompt = normalize_prompt(&prompt).ok_or_else(|| {
         ApiError::BadRequest(
             "A workspace prompt is required. Provide a non-empty `prompt`.".to_string(),
         )

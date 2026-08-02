@@ -12,7 +12,6 @@ use axum::{
     http::request::Parts,
     response::IntoResponse,
 };
-use deployment::Deployment;
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
 
 use crate::DeploymentImpl;
@@ -118,9 +117,7 @@ impl Sink<Message> for MaybeSignedWebSocket {
     fn start_send(self: Pin<&mut Self>, item: Message) -> Result<(), Self::Error> {
         let this = self.get_mut();
         match &mut this.inner {
-            WebSocketInner::Plain(ws) => {
-                Pin::new(ws).start_send(item).map_err(anyhow::Error::from)
-            }
+            WebSocketInner::Plain(ws) => Pin::new(ws).start_send(item).map_err(anyhow::Error::from),
         }
     }
 
