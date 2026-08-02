@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, type MouseEvent, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  type MouseEvent,
+  type RefObject,
+} from 'react';
 
 /**
  * Keeps a clicked interactive element (button, summary, etc.) pinned to its
@@ -57,9 +63,8 @@ export function useInteractionAnchor({
     }
 
     if (performance.now() < pendingAnchorDeadlineRef.current) {
-      pendingAnchorFrameRef.current = requestAnimationFrame(
-        runAnchorCorrection
-      );
+      pendingAnchorFrameRef.current =
+        requestAnimationFrame(runAnchorCorrection);
       return;
     }
 
@@ -86,9 +91,8 @@ export function useInteractionAnchor({
       };
 
       pendingAnchorDeadlineRef.current = performance.now() + 250;
-      pendingAnchorFrameRef.current = requestAnimationFrame(
-        runAnchorCorrection
-      );
+      pendingAnchorFrameRef.current =
+        requestAnimationFrame(runAnchorCorrection);
     },
     [clearPendingAnchor, runAnchorCorrection, scrollContainerRef]
   );

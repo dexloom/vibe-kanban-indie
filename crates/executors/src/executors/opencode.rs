@@ -933,8 +933,8 @@ impl OpencodeHeaded {
         resume: bool,
         port: u16,
     ) -> Result<CommandParts, CommandBuildError> {
-        let mut builder = CommandBuilder::new("opencode")
-            .extend_params(["--port", &port.to_string()]);
+        let mut builder =
+            CommandBuilder::new("opencode").extend_params(["--port", &port.to_string()]);
 
         if let Some(model) = &self.inner.model {
             builder = builder.extend_params(["-m", model]);

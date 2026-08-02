@@ -10,9 +10,7 @@ import {
 import { SpinnerIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 
-import {
-  type ConversationRow,
-} from '../model/conversation-row-model';
+import { type ConversationRow } from '../model/conversation-row-model';
 import { deriveConversationEntries } from '../model/deriveConversationEntries';
 import { deriveConversationTimeline } from '../model/deriveConversationTimeline';
 import { useConversationVirtualizer } from '../model/useConversationVirtualizer';
