@@ -478,6 +478,42 @@ async fn dispatch_issue_to_workspace(
         ));
     }
 
+    // Resolve the target session: an explicit one (must belong to this
+    // workspace) or the workspace's latest. The MCP tool and the UI both
+    // delegate here, so session ownership is validated in one place.
+    let session = match body.session_id {
+        Some(session_id) => {
+            let session = Session::find_by_id(pool, session_id)
+                .await?
+                .ok_or_else(|| ApiError::BadRequest("session not found".into()))?;
+            if session.workspace_id != workspace.id {
+                return Err(ApiError::BadRequest(format!(
+                    "session {session_id} does not belong to workspace {}",
+                    workspace.id
+                )));
+            }
+            session
+        }
+        None => Session::find_latest_by_workspace_id(pool, workspace.id)
+            .await?
+            .ok_or_else(|| ApiError::BadRequest("workspace has no sessions".into()))?,
+    };
+
+    // Reject concurrent dispatch: a second agent process on the same session
+    // would corrupt the conversation. (The DB unique partial index is the hard
+    // guarantee against the check-then-act race; this preflight just gives a
+    // clean 409 before we mutate anything.)
+    if ExecutionProcess::has_running_coding_agent_for_session(pool, session.id).await? {
+        return Err(ApiError::Conflict(
+            "workspace session is currently executing; wait for it to finish before dispatching another card"
+                .to_string(),
+        ));
+    }
+
+    // All validation is done. Everything below mutates state (pipeline stage,
+    // issue link, the spawned execution) and must not fail with a recoverable
+    // error that leaves the workspace moved off its current card.
+
     // Re-dispatch of the SAME card the workspace is currently on: if it already
     // ran pipeline stages, tell the agent to continue from the next stage rather
     // than restart the whole pipeline. Only applies when this card is the
@@ -524,45 +560,22 @@ async fn dispatch_issue_to_workspace(
     // issue).
     IssueWorkspace::link(pool, id, workspace.id).await?;
 
-    // Resolve the target session: an explicit one (must belong to this
-    // workspace) or the workspace's latest. The MCP tool and the UI both
-    // delegate here, so session ownership is validated in one place.
-    let session = match body.session_id {
-        Some(session_id) => {
-            let session = Session::find_by_id(pool, session_id)
-                .await?
-                .ok_or_else(|| ApiError::BadRequest("session not found".into()))?;
-            if session.workspace_id != workspace.id {
-                return Err(ApiError::BadRequest(format!(
-                    "session {session_id} does not belong to workspace {}",
-                    workspace.id
-                )));
+    // Preserve the session's last-used executor profile (variant/preset) instead
+    // of dropping back to the base default — a workspace on a custom preset
+    // would otherwise lose it on its next card. Falls back to the session's base
+    // executor when there's no prior coding-agent run.
+    let executor_config =
+        match ExecutionProcess::latest_executor_profile_for_session(pool, session.id).await? {
+            Some(profile) => ExecutorConfig::from(profile),
+            None => {
+                let executor_str = session.executor.as_deref().ok_or_else(|| {
+                    ApiError::BadRequest("session has no executor configured".into())
+                })?;
+                let executor = BaseCodingAgent::from_str(executor_str)
+                    .map_err(|error| ApiError::BadRequest(format!("invalid executor: {error}")))?;
+                ExecutorConfig::new(executor)
             }
-            session
-        }
-        None => Session::find_latest_by_workspace_id(pool, workspace.id)
-            .await?
-            .ok_or_else(|| ApiError::BadRequest("workspace has no sessions".into()))?,
-    };
-
-    // Reject concurrent dispatch: a second agent process on the same session
-    // would corrupt the conversation.
-    if ExecutionProcess::has_running_coding_agent_for_session(pool, session.id).await? {
-        return Err(ApiError::Conflict(
-            "workspace session is currently executing; wait for it to finish before dispatching another card"
-                .to_string(),
-        ));
-    }
-
-    let executor_str = session
-        .executor
-        .as_deref()
-        .ok_or_else(|| ApiError::BadRequest("session has no executor configured".into()))?;
-
-    let executor = BaseCodingAgent::from_str(executor_str)
-        .map_err(|error| ApiError::BadRequest(format!("invalid executor: {error}")))?;
-
-    let executor_config = ExecutorConfig::new(executor);
+        };
 
     run_follow_up(
         &deployment,
