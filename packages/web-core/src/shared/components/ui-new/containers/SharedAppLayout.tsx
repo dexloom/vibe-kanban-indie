@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DropResult } from '@hello-pangea/dnd';
 import { Outlet, useNavigate, useParams } from '@tanstack/react-router';
-import { siGithub } from 'simple-icons';
 import {
   XIcon,
   PlusIcon,
@@ -23,7 +22,7 @@ import { AppBarUserPopoverContainer } from './AppBarUserPopoverContainer';
 import { useUserOrganizations } from '@/shared/hooks/useUserOrganizations';
 import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
-import { useGitHubStars } from '@/shared/hooks/useGitHubStars';
+
 import { useAppUpdateStore } from '@/shared/stores/useAppUpdateStore';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentAppDestination } from '@/shared/hooks/useCurrentAppDestination';
@@ -65,12 +64,10 @@ export function SharedAppLayout() {
   const appVersion = __APP_VERSION__;
   const updateVersion = useAppUpdateStore((s) => s.updateVersion);
   const restartForUpdate = useAppUpdateStore((s) => s.restart);
-  const { data: starCount } = useGitHubStars();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isAppBarHovered, setIsAppBarHovered] = useState(false);
   const { hostId: routeHostId } = useParams({ strict: false });
   const navigate = useNavigate();
-
   // Register CMD+K shortcut globally for all routes under SharedAppLayout
   useCommandBarShortcut(() => CommandBarDialog.show());
 
@@ -337,11 +334,9 @@ export function SharedAppLayout() {
                   onOrgSelect={setSelectedOrgId}
                 />
               }
-              starCount={starCount}
               appVersion={appVersion}
               updateVersion={updateVersion}
               onUpdateClick={restartForUpdate ?? undefined}
-              githubIconPath={siGithub.path}
             />
             {/* Desktop content. */}
             <div className="relative min-h-0 overflow-hidden">

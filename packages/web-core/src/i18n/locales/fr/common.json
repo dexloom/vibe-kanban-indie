@@ -214,44 +214,6 @@
     "selectBranch": "Select Branch",
     "selectBranchFor": "Select Branch for {{repoName}}"
   },
-  "workspacesGuide": {
-    "welcome": {
-      "title": "Bienvenue",
-      "content": "Bienvenue dans les Espaces de travail, une interface repensée pour Vibe Kanban. Nous la déployons auprès d'utilisateurs sélectionnés pour recueillir leurs premiers retours. Partagez vos impressions à tout moment en utilisant l'icône de feedback dans la barre de navigation."
-    },
-    "commandBar": {
-      "title": "Barre de commandes",
-      "content": "La barre de commandes est votre hub central de navigation. Ouvrez-la avec CMD+K pour rechercher et accéder à toutes les actions disponibles dans un espace de travail."
-    },
-    "contextBar": {
-      "title": "Barre de contexte",
-      "content": "La barre de contexte vous permet de basculer rapidement entre les panneaux. Faites-la glisser là où cela vous convient le mieux."
-    },
-    "sidebar": {
-      "title": "Barre latérale des espaces de travail",
-      "content": "Visualisez l'état de tous vos espaces de travail d'un coup d'œil. Les notifications mettent en évidence ceux qui nécessitent votre attention. Archivez les espaces de travail fusionnés pour garder votre barre latérale propre."
-    },
-    "multiRepo": {
-      "title": "Support multi-dépôts",
-      "content": "Ajoutez plusieurs dépôts à un seul espace de travail. Référencez le code d'un dépôt tout en travaillant dans un autre, ou implémentez des modifications sur plusieurs dépôts à la fois."
-    },
-    "sessions": {
-      "title": "Sessions multiples",
-      "content": "Créez plusieurs sessions de conversation d'agent au sein d'un même espace de travail, y compris des sessions avec différents agents. Cela vous aide à contourner les limites de conversation ou à lancer des agents de révision dans des fils séparés."
-    },
-    "preview": {
-      "title": "Prévisualiser les modifications",
-      "content": "Prévisualisez votre travail dans un navigateur intégré sans changer de contexte. Testez sur ordinateur, mobile et des tailles de viewport personnalisées."
-    },
-    "diffs": {
-      "title": "Diffs et commentaires",
-      "content": "Le panneau de diffs repensé inclut une arborescence de vos modifications. Commentez directement sur les diffs pour donner des retours à l'agent, et visualisez les commentaires GitHub lorsque votre espace de travail est lié à une PR."
-    },
-    "classicUi": {
-      "title": "Retourner à l'interface classique",
-      "content": "Cliquez sur l'icône de sortie à gauche de la barre de navigation pour revenir au tableau kanban classique. Pour désactiver complètement la nouvelle interface, modifiez l'option \"Activer la bêta des espaces de travail\" sous \"Fonctionnalités bêta\" dans les paramètres."
-    }
-  },
   "logs": {
     "searchLogs": "Rechercher dans les logs",
     "selectProcessToView": "Sélectionnez un processus pour voir les logs"

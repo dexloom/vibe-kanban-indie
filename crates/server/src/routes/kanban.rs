@@ -1,11 +1,10 @@
 //! Local kanban API for the MCP server (envelope-wrapped).
 //!
-//! Re-homes the project/issue/tag/assignee/relationship endpoints the
-//! `vibe-kanban-mcp` server used to call on the cloud (`/api/remote/*`) onto the
-//! local SQLite database. Unlike the frontend's `/v1/*` fallback transport
-//! (which returns bare `{ "<table>": [...] }` / `{ data, txid }` shapes), these
-//! handlers return the standard `ApiResponse` envelope the MCP client expects,
-//! so the MCP tools only need their URLs repointed.
+//! Re-homes the project/issue/tag/assignee/relationship endpoints `vibe-kanban-mcp`
+//! calls onto the local SQLite database. Unlike the frontend's `/v1/*` fallback
+//! transport (which returns bare `{ "<table>": [...] }` / `{ data, txid }` shapes),
+//! these handlers return the standard `ApiResponse` envelope the MCP client
+//! expects, so the MCP tools only need their URLs repointed.
 //!
 //! Mutation endpoints wrap their payload in `ApiResponse<MutationResponse<T>>`
 //! (the double-wrap the MCP client deserializes); reads return

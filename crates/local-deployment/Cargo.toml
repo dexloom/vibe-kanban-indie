@@ -36,8 +36,5 @@ portable-pty.workspace = true
 shlex.workspace = true
 dirs.workspace = true
 
-[build-dependencies]
-dotenv.workspace = true
-
 [dev-dependencies]
 tempfile.workspace = true

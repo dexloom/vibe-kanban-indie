@@ -18,9 +18,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Indie fork is local-only; no shared cloud API. Keep frontend build offline.
-  VITE_VK_SHARED_API_BASE: ""
-  VK_SHARED_API_BASE: ""
   # Must match rust-toolchain.toml — otherwise the toolchain file overrides
   # whatever the action installs and the requested matrix target is missing.
   RUST_TOOLCHAIN: stable

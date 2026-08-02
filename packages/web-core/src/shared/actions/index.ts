@@ -36,7 +36,6 @@ import {
   ArrowUpIcon,
   HighlighterIcon,
   ListIcon,
-  MegaphoneIcon,
   QuestionIcon,
   ArrowsLeftRightIcon,
   ArrowFatLineUpIcon,
@@ -71,7 +70,6 @@ import { CreatePRDialog } from '@/shared/dialogs/command-bar/CreatePRDialog';
 import { getIdeName } from '@/shared/lib/ideName';
 import { EditorSelectionDialog } from '@/shared/dialogs/command-bar/EditorSelectionDialog';
 import { StartReviewDialog } from '@/shared/dialogs/command-bar/StartReviewDialog';
-import { WorkspacesGuideDialog } from '@/shared/dialogs/shared/WorkspacesGuideDialog';
 import { SettingsDialog } from '@/shared/dialogs/settings/SettingsDialog';
 import { CreateWorkspaceFromPrDialog } from '@/shared/dialogs/command-bar/CreateWorkspaceFromPrDialog';
 import { SpawnOrchestratorDialog } from '@/shared/dialogs/orchestrator/SpawnOrchestratorDialog';
@@ -490,28 +488,6 @@ export const Actions = {
       ctx.appNavigation.goToWorkspaces();
     },
   } satisfies GlobalActionDefinition,
-
-  Feedback: {
-    id: 'feedback',
-    label: 'Give Feedback',
-    icon: MegaphoneIcon,
-    requiresTarget: ActionTargetType.NONE,
-    execute: () => {
-      // Feedback provider removed; this action is kept as a stub so the
-      // command bar still has a slot for it.
-    },
-  },
-
-  WorkspacesGuide: {
-    id: 'workspaces-guide',
-    label: 'Workspaces Guide',
-    icon: QuestionIcon,
-    requiresTarget: ActionTargetType.NONE,
-    isVisible: (ctx) => ctx.layoutMode === 'workspaces',
-    execute: async () => {
-      await WorkspacesGuideDialog.show();
-    },
-  },
 
   ProjectsGuide: {
     id: 'projects-guide',
@@ -1579,8 +1555,6 @@ export const NavbarActionGroups = {
     NavbarDivider,
     Actions.SpawnOrchestrator,
     Actions.OpenCommandBar,
-    Actions.Feedback,
-    Actions.WorkspacesGuide,
     Actions.ProjectsGuide,
     Actions.Settings,
   ] as NavbarItem[],

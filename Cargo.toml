@@ -112,8 +112,6 @@ russh-sftp = "2.0"
 rust-embed = "8.2"
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std", "tls12"] }
 schemars = { version = "1.0.4", features = ["chrono04", "derive", "preserve_order", "uuid1"] }
-sentry = { version = "0.46.2", default-features = false, features = ["anyhow", "backtrace", "debug-images", "panic", "reqwest", "rustls"] }
-sentry-tracing = { version = "0.46.2", default-features = false, features = ["backtrace"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde_with = "3"

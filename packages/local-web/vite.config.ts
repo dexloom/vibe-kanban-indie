@@ -77,8 +77,6 @@ export default schemas;
   };
 }
 
-// Sentry source-map upload is opt-in and entirely user-configured: it only runs
-// when you supply your own SENTRY_AUTH_TOKEN / SENTRY_ORG / SENTRY_PROJECT.
 export default defineConfig({
   customLogger: createFilteredLogger(),
   publicDir: path.resolve(__dirname, '../public'),

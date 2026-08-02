@@ -12,18 +12,10 @@ import {
   LinkIcon,
   PlusIcon,
   SpinnerIcon,
-  StarIcon,
   type Icon,
 } from '@phosphor-icons/react';
 import { cn } from '../lib/cn';
-import { AppBarSocialLink } from './AppBarSocialLink';
 import { Tooltip } from './Tooltip';
-
-function formatStarCount(count: number): string {
-  if (count < 1000) return String(count);
-  const k = count / 1000;
-  return k >= 10 ? `${Math.floor(k)}k` : `${k.toFixed(1)}k`;
-}
 
 function getProjectInitials(name: string): string {
   const trimmed = name.trim();
@@ -60,11 +52,9 @@ interface AppBarProps {
   onHoverEnd?: () => void;
   notificationBell?: ReactNode;
   userPopover?: ReactNode;
-  starCount?: number | null;
   appVersion?: string | null;
   updateVersion?: string | null;
   onUpdateClick?: () => void;
-  githubIconPath: string;
 }
 
 export interface AppBarProject {
@@ -216,11 +206,9 @@ export function AppBar({
   onHoverEnd,
   notificationBell,
   userPopover,
-  starCount,
   appVersion,
   updateVersion,
   onUpdateClick,
-  githubIconPath,
 }: AppBarProps) {
   const sections: AppBarSection[] = [];
 
@@ -497,23 +485,10 @@ export function AppBar({
         </AppBarSection>
       ))}
 
-      {/* Bottom section: Notifications + User popover + GitHub */}
+      {/* Bottom section: Notifications + User popover */}
       <div className="mt-auto pt-base flex flex-col items-center gap-4">
         {notificationBell}
         {userPopover}
-        <AppBarSocialLink
-          href="https://github.com/dexloom/vibe-kanban-indie"
-          label="Star on GitHub"
-          iconPath={githubIconPath}
-          badge={
-            starCount != null && (
-              <>
-                <StarIcon size={10} weight="fill" />
-                {formatStarCount(starCount)}
-              </>
-            )
-          }
-        />
         {updateVersion ? (
           <Tooltip content={`Update to v${updateVersion}`} side="right">
             <button

@@ -13,7 +13,7 @@
     "lint": "pnpm run local-web:lint && pnpm run ui:lint && pnpm run backend:lint && node scripts/check-unused-i18n-keys.mjs",
     "format": "pnpm run backend:format && pnpm run web-core:format && pnpm run local-web:format",
     "check": "pnpm run local-web:legacy-path-guard && pnpm run local-web:check && pnpm run web-core:check && pnpm run ui:check && pnpm run backend:check",
-    "dev": "export FRONTEND_PORT=$(node scripts/setup-dev-environment.js frontend) && export BACKEND_PORT=$(node scripts/setup-dev-environment.js backend) && export PREVIEW_PROXY_PORT=$(node scripts/setup-dev-environment.js preview_proxy) && export VK_ALLOWED_ORIGINS=\"http://localhost:${FRONTEND_PORT}\" && export VITE_VK_SHARED_API_BASE=${VK_SHARED_API_BASE:-} && concurrently \"pnpm run backend:dev:watch\" \"pnpm run local-web:dev\"",
+    "dev": "export FRONTEND_PORT=$(node scripts/setup-dev-environment.js frontend) && export BACKEND_PORT=$(node scripts/setup-dev-environment.js backend) && export PREVIEW_PROXY_PORT=$(node scripts/setup-dev-environment.js preview_proxy) && export VK_ALLOWED_ORIGINS=\"http://localhost:${FRONTEND_PORT}\" && concurrently \"pnpm run backend:dev:watch\" \"pnpm run local-web:dev\"",
     "test:npm": "./test-npm-package.sh",
     "local-web:lint": "pnpm --filter @vibe/local-web run lint",
     "local-web:legacy-path-guard": "./scripts/check-legacy-frontend-paths.sh",
@@ -31,7 +31,7 @@
     "backend:check": "cargo check --workspace",
     "backend:check:full": "pnpm run backend:check",
     "backend:dev:watch": "DISABLE_WORKTREE_CLEANUP=1 RUST_LOG=debug cargo watch -w crates -x 'run --bin server'",
-    "dev:qa": "export FRONTEND_PORT=$(node scripts/setup-dev-environment.js frontend) && export BACKEND_PORT=$(node scripts/setup-dev-environment.js backend) && export PREVIEW_PROXY_PORT=$(node scripts/setup-dev-environment.js preview_proxy) && export VK_ALLOWED_ORIGINS=\"http://localhost:${FRONTEND_PORT}\" && export VITE_VK_SHARED_API_BASE=${VK_SHARED_API_BASE:-} && concurrently \"pnpm run backend:dev:watch:qa\" \"pnpm run local-web:dev\"",
+    "dev:qa": "export FRONTEND_PORT=$(node scripts/setup-dev-environment.js frontend) && export BACKEND_PORT=$(node scripts/setup-dev-environment.js backend) && export PREVIEW_PROXY_PORT=$(node scripts/setup-dev-environment.js preview_proxy) && export VK_ALLOWED_ORIGINS=\"http://localhost:${FRONTEND_PORT}\" && concurrently \"pnpm run backend:dev:watch:qa\" \"pnpm run local-web:dev\"",
     "generate-types": "cargo run --bin generate_types",
     "generate-types:check": "cargo run --bin generate_types -- --check",
     "prepare-db": "node scripts/prepare-db.js",
@@ -41,7 +41,7 @@
     "build:npx-cli": "cd npx-cli && npm ci && npm run build",
     "check:npx-cli": "tsc --noEmit -p npx-cli/tsconfig.json",
     "prepack": "pnpm run build:npx && pnpm run build:npx-cli",
-    "tauri:dev": "set -a && [ -f .env ] && . ./.env && set +a && export FRONTEND_PORT=$(node scripts/setup-dev-environment.js frontend) && export BACKEND_PORT=$(node scripts/setup-dev-environment.js backend) && export VK_ALLOWED_ORIGINS=\"http://localhost:${FRONTEND_PORT}\" && export DISABLE_WORKTREE_CLEANUP=1 && export RUST_LOG=debug && export VITE_VK_SHARED_API_BASE=${VK_SHARED_API_BASE:-} && cd crates/tauri-app && cargo tauri dev --config '{\"build\":{\"devUrl\":\"http://localhost:'\"${FRONTEND_PORT}\"'\"}}'",
+    "tauri:dev": "set -a && [ -f .env ] && . ./.env && set +a && export FRONTEND_PORT=$(node scripts/setup-dev-environment.js frontend) && export BACKEND_PORT=$(node scripts/setup-dev-environment.js backend) && export VK_ALLOWED_ORIGINS=\"http://localhost:${FRONTEND_PORT}\" && export DISABLE_WORKTREE_CLEANUP=1 && export RUST_LOG=debug && cd crates/tauri-app && cargo tauri dev --config '{\"build\":{\"devUrl\":\"http://localhost:'\"${FRONTEND_PORT}\"'\"}}'",
     "tauri:build": "cd crates/tauri-app && cargo tauri build"
   },
   "devDependencies": {

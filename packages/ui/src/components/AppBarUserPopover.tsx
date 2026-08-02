@@ -1,6 +1,5 @@
 import {
   BuildingsIcon,
-  CheckIcon,
   GearIcon,
   SignInIcon,
   SignOutIcon,
@@ -49,8 +48,8 @@ export function AppBarUserPopover({
   selectedOrgId,
   open,
   onOpenChange,
-  onOrgSelect,
-  onOrgSettings,
+  onOrgSelect: _onOrgSelect,
+  onOrgSettings: _onOrgSettings,
   onSettings,
   onSignIn,
   onLogout,
@@ -60,6 +59,8 @@ export function AppBarUserPopover({
   const settingsLabel = t('settings:settings.layout.nav.title', {
     defaultValue: 'Settings',
   });
+  const selectedOrg =
+    organizations.find((org) => org.id === selectedOrgId) ?? organizations[0];
 
   if (!isSignedIn) {
     return (
@@ -126,32 +127,12 @@ export function AppBarUserPopover({
       <DropdownMenuContent side="right" align="end" className="min-w-[200px]">
         <DropdownMenuLabel>{t('orgSwitcher.organizations')}</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {organizations.map((org) => (
-          <DropdownMenuItem
-            key={org.id}
-            icon={org.id === selectedOrgId ? CheckIcon : BuildingsIcon}
-            onClick={() => onOrgSelect(org.id)}
-            className={cn(org.id === selectedOrgId && 'bg-brand/10', 'group')}
-          >
-            <span className="flex items-center gap-2 w-full">
-              <span className="flex-1 truncate">{org.name}</span>
-              {onOrgSettings && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenChange(false);
-                    onOrgSettings(org.id);
-                  }}
-                  className="sm:opacity-0 sm:group-hover:opacity-100 p-1 rounded hover:bg-secondary transition-opacity shrink-0"
-                  aria-label={t('orgSwitcher.orgSettings')}
-                >
-                  <GearIcon className="size-icon-xs" weight="bold" />
-                </button>
-              )}
-            </span>
-          </DropdownMenuItem>
-        ))}
+        {selectedOrg && (
+          <div className="px-3 py-2 text-sm text-fg-muted flex items-center gap-2">
+            <BuildingsIcon className="size-icon-xs" weight="bold" />
+            <span className="truncate">{selectedOrg.name}</span>
+          </div>
+        )}
         {onSettings && (
           <>
             <DropdownMenuSeparator />
