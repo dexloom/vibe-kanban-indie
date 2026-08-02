@@ -129,3 +129,11 @@ already ran the pre-migration schema:
   `local_kanban.rs` does not currently expose `/v1/fallback/issue_comments`.
   Comment attachment *linking* is wired end-to-end, but the comment section's
   data path is unchanged from before this PR — this migration does not regress it.
+- **Startup race in the orphan reaper.** The orphan reaper runs once at
+  startup as a fire-and-forget task; an upload that is linked after the
+  reaper's query but before its delete completes could be lost. Probability
+  is low.
+- **Comment persistence failure swallows uploads.** If the comment insert
+  (`persisted`) rejects in local mode, the typed text has already been
+  cleared and any uploaded files are orphaned until the next restart
+  (pre-existing comment data-path caveat).

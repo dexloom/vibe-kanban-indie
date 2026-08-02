@@ -1510,13 +1510,6 @@ export const attachmentsApi = {
     await handleApiResponse<void>(response);
   },
 
-  delete: async (attachmentId: string): Promise<void> => {
-    const response = await makeRequest(`/api/attachments/${attachmentId}`, {
-      method: 'DELETE',
-    });
-    return handleApiResponse<void>(response);
-  },
-
   getAttachmentUrl: (attachmentId: string): string => {
     return `/api/attachments/${attachmentId}/file`;
   },

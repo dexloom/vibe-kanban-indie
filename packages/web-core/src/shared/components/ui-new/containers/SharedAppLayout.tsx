@@ -288,10 +288,7 @@ export function SharedAppLayout() {
               style={isTauriMac() ? { minWidth: 56 } : undefined}
             />
             {/* Desktop navbar. */}
-            <NavbarContainer
-              onOrgSelect={setSelectedOrgId}
-              onOpenDrawer={() => setIsDrawerOpen(true)}
-            />
+            <NavbarContainer onOpenDrawer={() => setIsDrawerOpen(true)} />
             {/* Desktop AppBar sidebar. */}
             <AppBar
               projects={orderedProjects}
@@ -318,7 +315,6 @@ export function SharedAppLayout() {
                 <AppBarUserPopoverContainer
                   organizations={organizations}
                   selectedOrgId={selectedOrgId ?? ''}
-                  onOrgSelect={setSelectedOrgId}
                 />
               }
               appVersion={appVersion}
@@ -364,7 +360,6 @@ export function SharedAppLayout() {
           <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
             <NavbarContainer
               mobileMode={isMobile}
-              onOrgSelect={setSelectedOrgId}
               onOpenDrawer={() => setIsDrawerOpen(true)}
             />
             <div className="flex-1 min-h-0 overflow-hidden">

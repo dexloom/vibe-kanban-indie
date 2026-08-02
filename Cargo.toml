@@ -74,8 +74,6 @@ git = { path = "crates/git" }
 git-host = { path = "crates/git-host" }
 git2 = { version = "0.20.3", default-features = false }
 globwalk = "0.9"
-hkdf = "0.12"
-hmac = "0.12"
 http = "1"
 hyper = { version = "1", features = ["client", "http1", "server"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
@@ -102,9 +100,6 @@ ratatui = "0.29"
 regex = "1.11.1"
 reqwest = { version = "0.13", default-features = false, features = ["json", "query", "rustls", "stream"] }
 rmcp = { version = "1.2.0", features = ["server", "transport-io"] }
-russh = "0.48"
-russh-keys = "0.48"
-russh-sftp = "2.0"
 rust-embed = "8.2"
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std", "tls12"] }
 schemars = { version = "1.0.4", features = ["chrono04", "derive", "preserve_order", "uuid1"] }
@@ -117,7 +112,6 @@ sha2 = "0.10"
 shellexpand = "3.1.1"
 shlex = "1.3.0"
 similar = "2"
-spake2 = { version = "0.5.0-pre.0", features = ["getrandom"] }
 sqlx = { version = "0.8.6", features = ["chrono", "derive", "postgres", "runtime-tokio", "sqlite", "sqlite-preupdate-hook", "tls-rustls-aws-lc-rs", "uuid"] }
 strip-ansi-escapes = "0.2.1"
 strum = "0.27.2"
@@ -135,7 +129,6 @@ tokio = { version = "1.0", features = ["full", "macros", "net", "rt-multi-thread
 tokio-stream = { version = "0.1.17", features = ["io-util", "sync"] }
 tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots", "rustls-tls-webpki-roots"] }
 tokio-util = { version = "0.7", features = ["codec", "compat", "io", "rt"] }
-tokio-yamux = "0.3.17"
 toml = "0.8"
 toml_edit = "0.20"
 tower-http = { version = "0.5", features = ["compression-br", "compression-gzip", "cors", "fs", "request-id", "trace", "validate-request"] }
@@ -147,8 +140,6 @@ url = "2.5"
 utils = { path = "crates/utils" }
 uuid = { version = "1.0", features = ["serde", "v4"] }
 walkdir = "2"
-webrtc = "0.12"
-webrtc-ice = "0.12"
 which = "8.0.0"
 workspace-manager = { path = "crates/workspace-manager" }
 workspace_utils = { path = "crates/utils", package = "utils" }

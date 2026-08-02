@@ -27,8 +27,6 @@ interface AppBarUserPopoverProps {
   selectedOrgId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onOrgSelect: (orgId: string) => void;
-  onOrgSettings?: (orgId: string) => void;
   onSettings?: () => void;
   // Optional: render a "Sign out" item. The local-only indie app has nothing
   // to sign out of and typically omits this; pass it when you need a logout

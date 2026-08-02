@@ -848,7 +848,6 @@ export function KanbanIssuePanelContainer({
       projectId,
       createFormFallback,
       createFormData,
-      isUploading,
       debouncedSaveTitle,
       debouncedSaveDescription,
       openStatusSelection,

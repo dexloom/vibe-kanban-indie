@@ -115,11 +115,9 @@ function toNavbarSectionItems(
 
 export function NavbarContainer({
   mobileMode = false,
-  onOrgSelect,
   onOpenDrawer,
 }: {
   mobileMode?: boolean;
-  onOrgSelect?: (orgId: string) => void;
   onOpenDrawer?: () => void;
 }) {
   const { executeAction } = useActions();
@@ -300,10 +298,9 @@ export function NavbarContainer({
       <AppBarUserPopoverContainer
         organizations={orgsData?.organizations ?? []}
         selectedOrgId={selectedOrgId ?? ''}
-        onOrgSelect={onOrgSelect ?? (() => {})}
       />
     );
-  }, [mobileMode, orgsData?.organizations, selectedOrgId, onOrgSelect]);
+  }, [mobileMode, orgsData?.organizations, selectedOrgId]);
 
   const syncErrors = useMemo(() => {
     return syncErrorContext?.errors ? [...syncErrorContext.errors] : [];

@@ -57,20 +57,14 @@ COPY crates/git/Cargo.toml crates/git/Cargo.toml
 COPY crates/git-host/Cargo.toml crates/git-host/Cargo.toml
 COPY crates/local-deployment/Cargo.toml crates/local-deployment/Cargo.toml
 COPY crates/mcp/Cargo.toml crates/mcp/Cargo.toml
-COPY crates/relay-control/Cargo.toml crates/relay-control/Cargo.toml
-COPY crates/relay-protocol/Cargo.toml crates/relay-protocol/Cargo.toml
-COPY crates/relay-tunnel-core/Cargo.toml crates/relay-tunnel-core/Cargo.toml
-COPY crates/relay-ws/Cargo.toml crates/relay-ws/Cargo.toml
 COPY crates/review/Cargo.toml crates/review/Cargo.toml
 COPY crates/server/Cargo.toml crates/server/Cargo.toml
 COPY crates/server-info/Cargo.toml crates/server-info/Cargo.toml
 COPY crates/services/Cargo.toml crates/services/Cargo.toml
 COPY crates/tauri-app/Cargo.toml crates/tauri-app/Cargo.toml
-COPY crates/trusted-key-auth/Cargo.toml crates/trusted-key-auth/Cargo.toml
 COPY crates/utils/Cargo.toml crates/utils/Cargo.toml
 COPY crates/workspace-manager/Cargo.toml crates/workspace-manager/Cargo.toml
 COPY crates/worktree-manager/Cargo.toml crates/worktree-manager/Cargo.toml
-COPY crates/ws-bridge/Cargo.toml crates/ws-bridge/Cargo.toml
 
 COPY crates/api-types/ crates/api-types/
 COPY crates/db/ crates/db/
@@ -80,19 +74,13 @@ COPY crates/git/ crates/git/
 COPY crates/git-host/ crates/git-host/
 COPY crates/local-deployment/ crates/local-deployment/
 COPY crates/mcp/ crates/mcp/
-COPY crates/relay-control/ crates/relay-control/
-COPY crates/relay-protocol/ crates/relay-protocol/
-COPY crates/relay-tunnel-core/ crates/relay-tunnel-core/
-COPY crates/relay-ws/ crates/relay-ws/
 COPY crates/review/ crates/review/
 COPY crates/server/ crates/server/
 COPY crates/server-info/ crates/server-info/
 COPY crates/services/ crates/services/
-COPY crates/trusted-key-auth/ crates/trusted-key-auth/
 COPY crates/utils/ crates/utils/
 COPY crates/workspace-manager/ crates/workspace-manager/
 COPY crates/worktree-manager/ crates/worktree-manager/
-COPY crates/ws-bridge/ crates/ws-bridge/
 COPY assets/ assets/
 COPY --from=fe-builder /app/packages/local-web/dist packages/local-web/dist
 
