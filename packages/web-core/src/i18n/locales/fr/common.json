@@ -493,16 +493,6 @@
     "refreshPage": "Actualiser la page",
     "remoteAuthUnavailable": "L’authentification distante est temporairement indisponible. Certaines fonctionnalités distantes peuvent ne pas fonctionner jusqu’à son rétablissement."
   },
-  "onboardingSignIn": {
-    "subtitle": "Sign in to continue",
-    "signedInAs": "Signed in as {{name}}.",
-    "moreOptions": "More options",
-    "featureHeader": "Feature",
-    "signedInHeader": "Signed in",
-    "skipSignInHeader": "Don't sign in",
-    "yes": "Yes",
-    "no": "No"
-  },
   "errors": {
     "generic": "An unexpected error occurred"
   },

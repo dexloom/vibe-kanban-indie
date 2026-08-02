@@ -281,6 +281,9 @@ importers:
       '@tailwindcss/container-queries':
         specifier: ^0.1.1
         version: 0.1.1(tailwindcss@3.4.17)
+      '@tanstack/router-cli':
+        specifier: 1.161.1
+        version: 1.161.1
       '@tanstack/router-plugin':
         specifier: ^1.161.1
         version: 1.161.1(@tanstack/react-router@1.161.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(vite@7.3.1(@types/node@24.10.1)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.0))
@@ -2302,6 +2305,11 @@ packages:
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  '@tanstack/router-cli@1.161.1':
+    resolution: {integrity: sha512-AIAvio34XQfh165qC2aWoV1XVQVxufxv4lBNuThgAFHX5plcAAParpc64O1tCTrzBc0p14V2Tj44nYAjErfdwg==}
+    engines: {node: '>=12'}
+    hasBin: true
 
   '@tanstack/router-core@1.161.1':
     resolution: {integrity: sha512-Ika9RBvxB5cE+ziLxq90rqwhl9sb+j6mlGkRDwuDaGSDODenFeCDzjE0YQlgQ/kBUdSK2K1fFBiQPy5cnl54Og==}
@@ -6655,6 +6663,14 @@ snapshots:
       '@tanstack/virtual-core': 3.13.23
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
+
+  '@tanstack/router-cli@1.161.1':
+    dependencies:
+      '@tanstack/router-generator': 1.161.1
+      chokidar: 3.6.0
+      yargs: 17.7.2
+    transitivePeerDependencies:
+      - supports-color
 
   '@tanstack/router-core@1.161.1':
     dependencies:

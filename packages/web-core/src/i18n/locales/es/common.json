@@ -493,16 +493,6 @@
     "refreshPage": "Actualizar página",
     "remoteAuthUnavailable": "La autenticación remota no está disponible temporalmente. Es posible que algunas funciones remotas no funcionen hasta que se recupere."
   },
-  "onboardingSignIn": {
-    "subtitle": "Sign in to continue",
-    "signedInAs": "Signed in as {{name}}.",
-    "moreOptions": "More options",
-    "featureHeader": "Feature",
-    "signedInHeader": "Signed in",
-    "skipSignInHeader": "Don't sign in",
-    "yes": "Yes",
-    "no": "No"
-  },
   "errors": {
     "generic": "An unexpected error occurred"
   },

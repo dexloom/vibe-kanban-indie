@@ -493,16 +493,6 @@
     "refreshPage": "重新整理頁面",
     "remoteAuthUnavailable": "遠端驗證暫時無法使用。在恢復之前，部分遠端功能可能無法使用。"
   },
-  "onboardingSignIn": {
-    "subtitle": "Sign in to continue",
-    "signedInAs": "Signed in as {{name}}.",
-    "moreOptions": "More options",
-    "featureHeader": "Feature",
-    "signedInHeader": "Signed in",
-    "skipSignInHeader": "Don't sign in",
-    "yes": "Yes",
-    "no": "No"
-  },
   "errors": {
     "generic": "An unexpected error occurred"
   },

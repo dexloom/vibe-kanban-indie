@@ -493,16 +493,6 @@
     "refreshPage": "ページを更新",
     "remoteAuthUnavailable": "リモート認証は一時的に利用できません。復旧するまで、一部のリモート機能は利用できない可能性があります。"
   },
-  "onboardingSignIn": {
-    "subtitle": "Sign in to continue",
-    "signedInAs": "Signed in as {{name}}.",
-    "moreOptions": "More options",
-    "featureHeader": "Feature",
-    "signedInHeader": "Signed in",
-    "skipSignInHeader": "Don't sign in",
-    "yes": "Yes",
-    "no": "No"
-  },
   "errors": {
     "generic": "An unexpected error occurred"
   },

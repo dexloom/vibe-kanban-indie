@@ -212,6 +212,7 @@ export function LandingPage() {
     setSaving(true);
     const success = await updateAndSaveConfig({
       onboarding_acknowledged: true,
+      remote_onboarding_acknowledged: true,
       disclaimer_acknowledged: true,
       executor_profile: {
         executor: selectedAgent,
@@ -227,7 +228,7 @@ export function LandingPage() {
     setSaving(false);
 
     if (success) {
-      appNavigation.goToOnboardingSignIn({
+      appNavigation.goToRoot({
         replace: true,
       });
       return;
