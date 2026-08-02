@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { workspacesApi } from '@/shared/lib/api';
 import type { CreateAndStartWorkspaceRequest } from 'shared/types';
 import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
+import { PROJECT_WORKSPACES_SHAPE } from 'shared/remote-types';
+import { refreshShapeSource } from '@/shared/lib/electric/collections';
 
 interface CreateWorkspaceParams {
   data: CreateAndStartWorkspaceRequest;
@@ -25,6 +27,12 @@ export function useCreateWorkspace() {
             linkToIssue.remoteProjectId,
             linkToIssue.issueId
           );
+          // The new workspace↔issue link only surfaces through the workspaces
+          // shape, which the local build polls on a slow interval. Force a
+          // refresh so the kanban card shows the workspace immediately.
+          refreshShapeSource(PROJECT_WORKSPACES_SHAPE, {
+            project_id: linkToIssue.remoteProjectId,
+          });
         } catch (linkError) {
           console.error('Failed to link workspace to issue:', linkError);
         }

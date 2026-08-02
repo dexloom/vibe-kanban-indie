@@ -175,12 +175,41 @@ pub async fn follow_up(
 ) -> Result<ResponseJson<ApiResponse<FollowUpResponse>>, ApiError> {
     let pool = &deployment.db().pool;
 
-    // Load workspace from session
     let workspace = Workspace::find_by_id(pool, session.workspace_id)
         .await?
         .ok_or(ApiError::Workspace(WorkspaceError::ValidationError(
             "Workspace not found".to_string(),
         )))?;
+
+    run_follow_up(
+        &deployment,
+        session,
+        workspace,
+        payload.prompt,
+        payload.executor_config,
+        payload.retry_process_id,
+        payload.force_when_dirty,
+        payload.perform_git_reset,
+    )
+    .await
+}
+
+/// Shared follow-up dispatcher: ensures the container exists, validates the
+/// executor against the session, and spawns a coding-agent execution with the
+/// given prompt. Used by the `POST /api/sessions/{id}/follow-up` route and by
+/// the `POST /api/issues/{id}/dispatch-to-workspace` route.
+#[allow(clippy::too_many_arguments)] // internal dispatcher mirroring FollowUpPayload + context
+pub(crate) async fn run_follow_up(
+    deployment: &DeploymentImpl,
+    session: Session,
+    workspace: Workspace,
+    prompt: String,
+    executor_config: ExecutorConfig,
+    retry_process_id: Option<Uuid>,
+    force_when_dirty: Option<bool>,
+    perform_git_reset: Option<bool>,
+) -> Result<ResponseJson<ApiResponse<FollowUpResponse>>, ApiError> {
+    let pool = &deployment.db().pool;
 
     tracing::info!("{:?}", workspace);
 
@@ -189,7 +218,7 @@ pub async fn follow_up(
         .ensure_container_exists(&workspace)
         .await?;
 
-    let executor_profile_id = payload.executor_config.profile_id();
+    let executor_profile_id = executor_config.profile_id();
 
     // Validate executor matches session if session has prior executions
     let expected_executor: Option<String> =
@@ -213,18 +242,16 @@ pub async fn follow_up(
             .await?;
     }
 
-    if let Some(proc_id) = payload.retry_process_id {
-        let force_when_dirty = payload.force_when_dirty.unwrap_or(false);
-        let perform_git_reset = payload.perform_git_reset.unwrap_or(true);
+    if let Some(proc_id) = retry_process_id {
+        let force = force_when_dirty.unwrap_or(false);
+        let reset = perform_git_reset.unwrap_or(true);
         deployment
             .container()
-            .reset_session_to_process(session.id, proc_id, perform_git_reset, force_when_dirty)
+            .reset_session_to_process(session.id, proc_id, reset, force)
             .await?;
     }
 
     let latest_session_info = CodingAgentTurn::find_latest_session_info(pool, session.id).await?;
-
-    let prompt = payload.prompt;
 
     let repos = WorkspaceRepo::find_repos_for_workspace(pool, workspace.id).await?;
     let cleanup_action = deployment.container().cleanup_actions_for_repos(&repos);
@@ -263,7 +290,7 @@ pub async fn follow_up(
     // session exists, or if the session dies between the liveness check and the
     // send (so the prompt is never silently dropped).
     if want_interactive
-        && payload.retry_process_id.is_none()
+        && retry_process_id.is_none()
         && let Some(candidate) =
             ExecutionProcess::find_latest_running_coding_agent_for_session(pool, session.id).await?
     {
@@ -308,12 +335,12 @@ pub async fn follow_up(
     }
 
     let action_type = if let Some(info) = latest_session_info {
-        let is_reset = payload.retry_process_id.is_some();
+        let is_reset = retry_process_id.is_some();
         ExecutorActionType::CodingAgentFollowUpRequest(CodingAgentFollowUpRequest {
             prompt: prompt.clone(),
             session_id: info.session_id,
             reset_to_message_id: if is_reset { info.message_id } else { None },
-            executor_config: payload.executor_config.clone(),
+            executor_config: executor_config.clone(),
             working_dir: working_dir.clone(),
             interactive: interactive.clone(),
         })
@@ -321,7 +348,7 @@ pub async fn follow_up(
         ExecutorActionType::CodingAgentInitialRequest(
             executors::actions::coding_agent_initial::CodingAgentInitialRequest {
                 prompt,
-                executor_config: payload.executor_config.clone(),
+                executor_config: executor_config.clone(),
                 working_dir,
                 interactive,
             },

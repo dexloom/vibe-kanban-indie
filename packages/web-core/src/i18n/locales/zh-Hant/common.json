@@ -540,13 +540,6 @@
     "yes": "Yes",
     "no": "No"
   },
-  "appBar": {
-    "kanban": {
-      "tooltip": "登入以查看專案",
-      "title": "看板",
-      "description": "登入以使用看板管理您的編碼代理。"
-    }
-  },
   "errors": {
     "generic": "An unexpected error occurred"
   },

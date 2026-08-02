@@ -379,6 +379,15 @@ impl IntoResponse for ApiError {
             ApiError::ExecutionProcess(ExecutionProcessError::ExecutionProcessNotFound) => {
                 ErrorInfo::not_found("ExecutionProcessError", "Execution process not found.")
             }
+            ApiError::ExecutionProcess(ExecutionProcessError::AlreadyRunningCodingAgent {
+                session_id,
+            }) => ErrorInfo::conflict(
+                "ExecutionProcessError",
+                format!(
+                    "workspace session {session_id} is currently executing; \
+                     wait for it to finish before dispatching another card"
+                ),
+            ),
             ApiError::ExecutionProcess(_) => ErrorInfo::internal("ExecutionProcessError"),
 
             ApiError::GitService(GitServiceError::MergeConflicts { message, .. }) => {

@@ -34,7 +34,9 @@ interface AppBarUserPopoverProps {
   onOrgSettings?: (orgId: string) => void;
   onSettings?: () => void;
   onSignIn: () => void;
-  onLogout: () => void;
+  // Optional: render a "Sign out" item. The local-only indie app has nothing to
+  // sign out of and omits this; remote-web (which still has auth) passes it.
+  onLogout?: () => void;
   onAvatarError: () => void;
 }
 
@@ -157,10 +159,14 @@ export function AppBarUserPopover({
             </DropdownMenuItem>
           </>
         )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem icon={SignOutIcon} onClick={onLogout}>
-          {t('signOut')}
-        </DropdownMenuItem>
+        {onLogout && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem icon={SignOutIcon} onClick={onLogout}>
+              {t('signOut')}
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

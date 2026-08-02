@@ -51,6 +51,10 @@ import {
   type DropResult,
 } from '@vibe/ui/components/KanbanBoard';
 import { KanbanCardContent } from '@vibe/ui/components/KanbanCardContent';
+import { KanbanWorkspaceDispatch } from '@vibe/ui/components/KanbanWorkspaceDispatch';
+import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
+import { useQueryClient } from '@tanstack/react-query';
+import { workspacesApi } from '@/shared/lib/api';
 import {
   IssueWorkspaceCard,
   type WorkspaceWithStats,
@@ -70,6 +74,8 @@ import {
 } from '@vibe/ui/components/Dropdown';
 import { SearchableTagDropdownContainer } from '@/shared/components/SearchableTagDropdownContainer';
 import type { IssuePriority } from 'shared/remote-types';
+import { PROJECT_WORKSPACES_SHAPE } from 'shared/remote-types';
+import { refreshShapeSource } from '@/shared/lib/electric/collections';
 import { useIssueMultiSelect } from '@/shared/hooks/useIssueMultiSelect';
 import { useIssueSelectionStore } from '@/shared/stores/useIssueSelectionStore';
 import { BulkActionBarContainer } from './BulkActionBarContainer';
@@ -568,6 +574,50 @@ export function KanbanContainer() {
 
     return map;
   }, [activeWorkspaces]);
+
+  const queryClient = useQueryClient();
+
+  // Every dispatchable workspace (active, with a local id) for the per-card
+  // quick-dispatch dropdown. Orchestrator/recurrent workspaces are excluded:
+  // dispatching a card into them would corrupt their orchestration loop.
+  const dispatchWorkspaces = useMemo(
+    () =>
+      activeWorkspaces
+        .filter(
+          (workspace) =>
+            !!workspace.id &&
+            workspace.kind !== 'orchestrator' &&
+            workspace.kind !== 'recurrent'
+        )
+        .map((workspace) => ({ id: workspace.id, name: workspace.name })),
+    [activeWorkspaces]
+  );
+
+  const handleDispatchIssueToWorkspace = useCallback(
+    async (issueId: string, workspaceId: string) => {
+      try {
+        await workspacesApi.dispatchIssueToWorkspace(issueId, workspaceId);
+        // The workspace↔issue relink only surfaces through the workspaces
+        // shape, which the local build polls on a slow interval. Force a
+        // refresh so the card picks up the link (and the running indicator)
+        // immediately instead of on the next poll.
+        refreshShapeSource(PROJECT_WORKSPACES_SHAPE, { project_id: projectId });
+        // A dispatch touches many disparate caches (board, workspace session,
+        // execution processes, branch status, the issue's Workspaces section),
+        // all keyed differently. Scoping to a subset would leave stale UI; the
+        // local SQLite backing store makes a full invalidation cheap.
+        await queryClient.invalidateQueries();
+      } catch (error) {
+        ConfirmDialog.show({
+          title: t('common:error'),
+          message: error instanceof Error ? error.message : String(error),
+          confirmText: t('common:ok'),
+          showCancelButton: false,
+        });
+      }
+    },
+    [queryClient, t, projectId]
+  );
 
   const prsByWorkspaceId = useMemo(() => {
     const map = new Map<string, WorkspacePr[]>();
@@ -1113,6 +1163,19 @@ export function KanbanContainer() {
                                     showNoPrText={false}
                                   />
                                 ))}
+                              </div>
+                            )}
+                            {dispatchWorkspaces.length > 0 && (
+                              <div className="mt-half">
+                                <KanbanWorkspaceDispatch
+                                  workspaces={dispatchWorkspaces}
+                                  onDispatch={(workspaceId) =>
+                                    handleDispatchIssueToWorkspace(
+                                      issue.id,
+                                      workspaceId
+                                    )
+                                  }
+                                />
                               </div>
                             )}
                           </KanbanCard>

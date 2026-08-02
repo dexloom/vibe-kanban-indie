@@ -33,6 +33,7 @@ use axum::{
     routing::{delete, get, post},
 };
 use db::models::{
+    execution_process::ExecutionProcess,
     issue::{Issue as DbIssue, NewIssue},
     issue_relationship::IssueRelationship as DbIssueRelationship,
     issue_workspace::IssueWorkspace,
@@ -42,14 +43,22 @@ use db::models::{
     project::{LOCAL_ORGANIZATION_ID, Project as DbProject},
     project_status::ProjectStatus as DbProjectStatus,
     pull_request::PullRequest as DbPullRequest,
+    session::Session,
+    workspace::{Workspace, WorkspaceKind},
 };
 use deployment::Deployment;
+use executors::{executors::BaseCodingAgent, profile::ExecutorConfig};
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
 use super::local_kanban::{derive_key, merge_and_update_issue};
-use crate::{DeploymentImpl, error::ApiError};
+use crate::{
+    DeploymentImpl,
+    error::ApiError,
+    routes::sessions::{FollowUpResponse, run_follow_up},
+};
 
 /// Process-local monotonic txid for the `MutationResponse` envelope. The MCP
 /// client ignores the value but the field must be present to deserialize.
@@ -421,6 +430,166 @@ async fn get_issue(
     Ok(ok(to_api_issue(issue)))
 }
 
+#[derive(Debug, Deserialize)]
+struct DispatchToWorkspaceRequest {
+    workspace_id: Uuid,
+    /// Optional explicit session to dispatch into. Defaults to the workspace's
+    /// latest session. When provided, must belong to `workspace_id`.
+    #[serde(default)]
+    session_id: Option<Uuid>,
+}
+
+/// Run an issue in an existing workspace: sends the issue's title + description
+/// to the workspace's (latest, or `session_id`) session as a follow-up prompt
+/// (context retained), spawning a coding-agent execution. Returns the same
+/// envelope as `POST /api/sessions/{id}/follow-up`.
+///
+/// This is the single owner of the dispatch guard matrix (archived workspace,
+/// orchestrator workspace, concurrent-run, resume-stage prompt) — the MCP
+/// `run_issue_in_workspace` tool delegates here so the two paths cannot drift.
+async fn dispatch_issue_to_workspace(
+    State(deployment): State<DeploymentImpl>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<DispatchToWorkspaceRequest>,
+) -> Result<ResponseJson<ApiResponse<FollowUpResponse>>, ApiError> {
+    let pool = &deployment.db().pool;
+
+    let issue = DbIssue::find_by_id(pool, id)
+        .await?
+        .ok_or_else(|| ApiError::BadRequest("issue not found".into()))?;
+
+    let workspace = Workspace::find_by_id(pool, body.workspace_id)
+        .await?
+        .ok_or_else(|| ApiError::BadRequest("workspace not found".into()))?;
+
+    // Cannot dispatch into an archived workspace.
+    if workspace.archived {
+        return Err(ApiError::BadRequest(format!(
+            "cannot dispatch to archived workspace '{}'",
+            workspace.name.as_deref().unwrap_or("")
+        )));
+    }
+
+    // The orchestrator is a special workspace (headed /loop session); dispatching
+    // a card into it would corrupt its orchestration loop.
+    if workspace.kind == Some(WorkspaceKind::Orchestrator) {
+        return Err(ApiError::BadRequest(
+            "cannot dispatch a card to the orchestrator workspace".to_string(),
+        ));
+    }
+
+    // Resolve the target session: an explicit one (must belong to this
+    // workspace) or the workspace's latest. The MCP tool and the UI both
+    // delegate here, so session ownership is validated in one place.
+    let session = match body.session_id {
+        Some(session_id) => {
+            let session = Session::find_by_id(pool, session_id)
+                .await?
+                .ok_or_else(|| ApiError::BadRequest("session not found".into()))?;
+            if session.workspace_id != workspace.id {
+                return Err(ApiError::BadRequest(format!(
+                    "session {session_id} does not belong to workspace {}",
+                    workspace.id
+                )));
+            }
+            session
+        }
+        None => Session::find_latest_by_workspace_id(pool, workspace.id)
+            .await?
+            .ok_or_else(|| ApiError::BadRequest("workspace has no sessions".into()))?,
+    };
+
+    // Reject concurrent dispatch: a second agent process on the same session
+    // would corrupt the conversation. (The DB unique partial index is the hard
+    // guarantee against the check-then-act race; this preflight just gives a
+    // clean 409 before we mutate anything.)
+    if ExecutionProcess::has_running_coding_agent_for_session(pool, session.id).await? {
+        return Err(ApiError::Conflict(
+            "workspace session is currently executing; wait for it to finish before dispatching another card"
+                .to_string(),
+        ));
+    }
+
+    // All validation is done. Everything below mutates state (pipeline stage,
+    // issue link, the spawned execution) and must not fail with a recoverable
+    // error that leaves the workspace moved off its current card.
+
+    // Re-dispatch of the SAME card the workspace is currently on: if it already
+    // ran pipeline stages, tell the agent to continue from the next stage rather
+    // than restart the whole pipeline. Only applies when this card is the
+    // workspace's current linked card (the stage counter is workspace-scoped).
+    let current_link =
+        IssueWorkspace::find_issue_and_project_by_workspace(pool, workspace.id).await?;
+    let resume_stage = if workspace
+        .current_pipeline_stage
+        .map(|s| s > 0)
+        .unwrap_or(false)
+    {
+        match current_link {
+            Some((current_issue_id, _)) if current_issue_id == id => {
+                workspace.current_pipeline_stage
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    // A fresh card (not a same-card re-dispatch) resets any stale pipeline
+    // stage left over from a previous card, so the board doesn't show the old
+    // card's progress against the new one.
+    if resume_stage.is_none() {
+        Workspace::set_current_pipeline_stage(pool, workspace.id, None).await?;
+    }
+
+    let mut prompt = match &issue.description {
+        Some(desc) if !desc.is_empty() => format!("{}\n\n{}", issue.title, desc),
+        _ => issue.title.clone(),
+    };
+    if let Some(stage) = resume_stage {
+        prompt = format!(
+            "You previously worked on this issue and completed stages 1 through {stage}. \
+             The card text below includes the full pipeline for context. \
+             Continue from stage {next}.\n\n{prompt}",
+            next = stage + 1,
+        );
+    }
+
+    // Ensure the workspace is linked to this issue so it shows up in the issue's
+    // Workspaces section (idempotent: ON CONFLICT relinks the workspace to this
+    // issue).
+    IssueWorkspace::link(pool, id, workspace.id).await?;
+
+    // Preserve the session's last-used executor profile (variant/preset) instead
+    // of dropping back to the base default — a workspace on a custom preset
+    // would otherwise lose it on its next card. Falls back to the session's base
+    // executor when there's no prior coding-agent run.
+    let executor_config =
+        match ExecutionProcess::latest_executor_profile_for_session(pool, session.id).await? {
+            Some(profile) => ExecutorConfig::from(profile),
+            None => {
+                let executor_str = session.executor.as_deref().ok_or_else(|| {
+                    ApiError::BadRequest("session has no executor configured".into())
+                })?;
+                let executor = BaseCodingAgent::from_str(executor_str)
+                    .map_err(|error| ApiError::BadRequest(format!("invalid executor: {error}")))?;
+                ExecutorConfig::new(executor)
+            }
+        };
+
+    run_follow_up(
+        &deployment,
+        session,
+        workspace,
+        prompt,
+        executor_config,
+        None,
+        None,
+        None,
+    )
+    .await
+}
+
 async fn create_issue(
     State(deployment): State<DeploymentImpl>,
     Json(req): Json<CreateIssueRequest>,
@@ -653,6 +822,10 @@ pub fn router(_deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
             get(get_issue).patch(update_issue).delete(delete_issue),
         )
         .route("/issues/{id}/pull-requests", get(list_issue_pull_requests))
+        .route(
+            "/issues/{id}/dispatch-to-workspace",
+            post(dispatch_issue_to_workspace),
+        )
         .route("/issue-tags", get(list_issue_tags).post(create_issue_tag))
         .route("/issue-tags/{id}", delete(delete_issue_tag))
         .route(

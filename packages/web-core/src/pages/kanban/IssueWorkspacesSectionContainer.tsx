@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react';
 import { useParams } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { LinkIcon, PlusIcon } from '@phosphor-icons/react';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
@@ -19,6 +20,8 @@ import {
 } from '@/shared/lib/workspaceCreateState';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import { DeleteWorkspaceDialog } from '@vibe/ui/components/DeleteWorkspaceDialog';
+import { PROJECT_WORKSPACES_SHAPE } from 'shared/remote-types';
+import { refreshShapeSource } from '@/shared/lib/electric/collections';
 import type { WorkspaceWithStats } from '@vibe/ui/components/IssueWorkspaceCard';
 import { IssueWorkspacesSection } from '@vibe/ui/components/IssueWorkspacesSection';
 import type { SectionAction } from '@vibe/ui/components/CollapsibleSectionHeader';
@@ -36,6 +39,7 @@ export function IssueWorkspacesSectionContainer({
 }: IssueWorkspacesSectionContainerProps) {
   const { t } = useTranslation('common');
   const { projectId } = useParams({ strict: false });
+  const queryClient = useQueryClient();
   const appNavigation = useAppNavigation();
   const { openWorkspaceCreateFromState } = useProjectWorkspaceCreateDraft();
   const { userId } = useAuth();
@@ -185,11 +189,50 @@ export function IssueWorkspacesSectionContainer({
       return;
     }
 
-    const { WorkspaceSelectionDialog } = await import(
-      '@/shared/dialogs/command-bar/WorkspaceSelectionDialog'
-    );
+    const { WorkspaceSelectionDialog } =
+      await import('@/shared/dialogs/command-bar/WorkspaceSelectionDialog');
     await WorkspaceSelectionDialog.show({ projectId, issueId });
   }, [projectId, issueId]);
+
+  // The workspace↔issue relink only surfaces through the workspaces shape,
+  // which the local build polls on a slow interval. Force a refresh so the
+  // section (and the kanban card) picks up the link immediately instead of
+  // on the next poll.
+  const refreshWorkspaceLinks = useCallback(() => {
+    if (projectId) {
+      refreshShapeSource(PROJECT_WORKSPACES_SHAPE, { project_id: projectId });
+    }
+  }, [projectId]);
+
+  // Handle "Send issue here": dispatch the issue to an existing workspace's
+  // session as a follow-up (context retained), then refresh the workspace state.
+  const handleRunIssue = useCallback(
+    async (localWorkspaceId: string) => {
+      try {
+        await workspacesApi.dispatchIssueToWorkspace(issueId, localWorkspaceId);
+        // The workspace↔issue relink only surfaces through the workspaces
+        // shape, which the local build polls on a slow interval. Force a
+        // refresh so the section (and the kanban card) picks up the link
+        // immediately instead of on the next poll.
+        refreshWorkspaceLinks();
+        // Full invalidation: a dispatch fans out to many caches (issue's
+        // workspaces, workspace session, execution processes, branch status),
+        // each keyed differently; a partial scope would leave stale UI.
+        await queryClient.invalidateQueries();
+      } catch (error) {
+        ConfirmDialog.show({
+          title: t('common:error'),
+          message:
+            error instanceof Error
+              ? error.message
+              : t('workspaces.dispatchError'),
+          confirmText: t('common:ok'),
+          showCancelButton: false,
+        });
+      }
+    },
+    [issueId, queryClient, t, refreshWorkspaceLinks]
+  );
 
   // Handle clicking a workspace card to open it
   const handleWorkspaceClick = useCallback(
@@ -218,6 +261,7 @@ export function IssueWorkspacesSectionContainer({
       if (result === 'confirmed') {
         try {
           await workspacesApi.unlinkFromIssue(localWorkspaceId);
+          refreshWorkspaceLinks();
         } catch (error) {
           ConfirmDialog.show({
             title: t('common:error'),
@@ -231,7 +275,7 @@ export function IssueWorkspacesSectionContainer({
         }
       }
     },
-    [t]
+    [t, refreshWorkspaceLinks]
   );
 
   // Handle deleting a workspace (unlinks first, then deletes local)
@@ -265,8 +309,8 @@ export function IssueWorkspacesSectionContainer({
       }
 
       try {
-        // Delete local workspace first
         await workspacesApi.delete(localWorkspaceId, result.deleteBranches);
+        refreshWorkspaceLinks();
         // Unlink from remote after successful deletion
         if (result.unlinkFromIssue) {
           await workspacesApi.unlinkFromIssue(localWorkspaceId);
@@ -283,7 +327,14 @@ export function IssueWorkspacesSectionContainer({
         });
       }
     },
-    [localWorkspacesById, workspacesWithStats, t, issueId, getIssue]
+    [
+      localWorkspacesById,
+      workspacesWithStats,
+      t,
+      issueId,
+      getIssue,
+      refreshWorkspaceLinks,
+    ]
   );
 
   // Actions for the section header
@@ -307,6 +358,7 @@ export function IssueWorkspacesSectionContainer({
       isLoading={isLoading}
       actions={actions}
       onWorkspaceClick={handleWorkspaceClick}
+      onRunIssue={handleRunIssue}
       onCreateWorkspace={handleAddWorkspace}
       onUnlinkWorkspace={handleUnlinkWorkspace}
       onDeleteWorkspace={handleDeleteWorkspace}

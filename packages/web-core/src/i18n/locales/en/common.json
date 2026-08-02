@@ -152,6 +152,8 @@
     },
     "unlinkFromIssue": "Unlink from issue",
     "deleteWorkspace": "Delete workspace",
+    "sendIssueHere": "Send issue here",
+    "dispatchError": "Failed to run issue in workspace",
     "unlink": "Unlink",
     "delete": "Delete",
     "unlinkConfirmMessage": "Are you sure you want to unlink this workspace from the issue? The workspace will still exist but will no longer be associated with this issue.",
@@ -373,6 +375,8 @@
     "unassigned": "Unassigned",
     "noTagsAvailable": "No tags available",
     "createNewIssue": "Create new issue",
+    "selectWorkspace": "Run in workspace...",
+    "dispatchIssue": "Run issue in selected workspace",
     "searchTags": "Search tags...",
     "selectColorFor": "Select color for",
     "createTag": "Create",
@@ -543,13 +547,6 @@
     "status": "(status {{status}})",
     "refreshPage": "Refresh Page",
     "remoteAuthUnavailable": "Remote authentication is temporarily unavailable. Some remote features may not work until it recovers."
-  },
-  "appBar": {
-    "kanban": {
-      "tooltip": "Sign in to view projects",
-      "title": "Kanban Boards",
-      "description": "Sign in to organise your coding agents with kanban boards."
-    }
   },
   "askQuestion": {
     "title": "Agent is asking a question",

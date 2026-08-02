@@ -11,21 +11,13 @@ import {
   ClockClockwiseIcon,
   LinkIcon,
   PlusIcon,
-  KanbanIcon,
   SpinnerIcon,
   StarIcon,
   type Icon,
 } from '@phosphor-icons/react';
 import { cn } from '../lib/cn';
 import { AppBarSocialLink } from './AppBarSocialLink';
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-  PopoverClose,
-} from './Popover';
 import { Tooltip } from './Tooltip';
-import { useTranslation } from 'react-i18next';
 
 function formatStarCount(count: number): string {
   if (count < 1000) return String(count);
@@ -64,6 +56,11 @@ interface AppBarProps {
   activeProjectId: string | null;
   isSignedIn?: boolean;
   isLoadingProjects?: boolean;
+  // Optional sign-in handler. The local-only indie app has nothing to sign in
+  // to and omits this; remote-web still passes it. The dedicated kanban sign-in
+  // CTA was removed (sign-in remains available via the user popover), so this
+  // prop is currently inert in the rail — kept so remote-web compiles and can
+  // re-wire a CTA later without churning the prop interface again.
   onSignIn?: () => void;
   onHoverStart?: () => void;
   onHoverEnd?: () => void;
@@ -104,9 +101,20 @@ function getHostStatusIndicatorClass(status: AppBarHostStatus): string {
 
 function AppBarSectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="w-10 text-center text-[9px] font-medium leading-none tracking-wide text-low">
+    <p className="w-full text-center text-[9px] font-medium leading-none tracking-wide text-low">
       {children}
     </p>
+  );
+}
+
+// A nav group: its icons on top, the group label BELOW them, wrapped in a
+// subtle rounded border so adjacent groups read as separate blocks.
+function AppBarSection({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex w-full flex-col items-center gap-1 rounded-lg border border-border bg-primary/40 px-1 py-2">
+      {children}
+      <AppBarSectionLabel>{label}</AppBarSectionLabel>
+    </div>
   );
 }
 
@@ -137,12 +145,6 @@ type AppBarSectionItem =
       isActive: boolean;
       onClick?: () => void;
       wrapperClassName?: string;
-    }
-  | {
-      key: string;
-      kind: 'kanban-cta';
-      label: string;
-      onSignIn?: () => void;
     }
   | {
       key: string;
@@ -216,7 +218,6 @@ export function AppBar({
   activeProjectId,
   isSignedIn,
   isLoadingProjects,
-  onSignIn,
   onHoverStart,
   onHoverEnd,
   notificationBell,
@@ -227,7 +228,6 @@ export function AppBar({
   onUpdateClick,
   githubIconPath,
 }: AppBarProps) {
-  const { t } = useTranslation('common');
   const sections: AppBarSection[] = [];
 
   if (showWorkspacesButton) {
@@ -300,15 +300,6 @@ export function AppBar({
   }
 
   const projectSectionItems: AppBarSectionItem[] = [];
-
-  if (!isSignedIn) {
-    projectSectionItems.push({
-      key: 'kanban-cta',
-      kind: 'kanban-cta',
-      label: t('appBar.kanban.tooltip'),
-      onSignIn,
-    });
-  }
 
   if (isLoadingProjects) {
     projectSectionItems.push({ key: 'projects-loading', kind: 'loading' });
@@ -414,44 +405,6 @@ export function AppBar({
           </Tooltip>
         );
       }
-      case 'kanban-cta':
-        return (
-          <Popover>
-            <Tooltip content={item.label} side="right">
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className={getStandardAppBarButtonClassName({})}
-                  aria-label={item.label}
-                >
-                  <KanbanIcon className="size-icon-base" weight="bold" />
-                </button>
-              </PopoverTrigger>
-            </Tooltip>
-            <PopoverContent side="right" sideOffset={8}>
-              <p className="text-sm font-medium text-high">
-                {t('appBar.kanban.title')}
-              </p>
-              <p className="text-xs text-low mt-1">
-                {t('appBar.kanban.description')}
-              </p>
-              <div className="mt-base">
-                <PopoverClose asChild>
-                  <button
-                    type="button"
-                    onClick={item.onSignIn}
-                    className={cn(
-                      'px-base py-1 rounded-sm text-xs',
-                      'bg-brand text-on-brand hover:bg-brand-hover cursor-pointer'
-                    )}
-                  >
-                    {t('signIn')}
-                  </button>
-                </PopoverClose>
-              </div>
-            </PopoverContent>
-          </Popover>
-        );
       case 'loading':
         return (
           <div className="flex items-center justify-center w-10 h-10">
@@ -536,8 +489,7 @@ export function AppBar({
       )}
     >
       {sections.map((section) => (
-        <div key={section.key} className="flex flex-col items-center gap-1">
-          <AppBarSectionLabel>{section.label}</AppBarSectionLabel>
+        <AppBarSection key={section.key} label={section.label}>
           {section.items.map((item) => (
             <div
               key={item.key}
@@ -548,7 +500,7 @@ export function AppBar({
               {renderSectionItem(item)}
             </div>
           ))}
-        </div>
+        </AppBarSection>
       ))}
 
       {/* Bottom section: Notifications + User popover + GitHub */}

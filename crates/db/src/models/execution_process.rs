@@ -34,6 +34,13 @@ pub enum ExecutionProcessError {
     InvalidExecutorAction,
     #[error("Validation error: {0}")]
     ValidationError(String),
+    /// A coding-agent execution is already running for this session. Raised by
+    /// [`ExecutionProcess::create`] when the unique partial index
+    /// `execution_processes_one_running_codingagent_per_session` rejects a
+    /// second live running coding-agent INSERT — the hard guarantee against the
+    /// check-then-act race in dispatch/follow-up.
+    #[error("a coding-agent execution is already running for session {session_id}")]
+    AlreadyRunningCodingAgent { session_id: Uuid },
 }
 
 #[derive(Debug, Clone, Type, Serialize, Deserialize, PartialEq, TS)]
@@ -458,11 +465,11 @@ impl ExecutionProcess {
         data: &CreateExecutionProcess,
         process_id: Uuid,
         repo_states: &[CreateExecutionProcessRepoState],
-    ) -> Result<Self, sqlx::Error> {
+    ) -> Result<Self, ExecutionProcessError> {
         let now = Utc::now();
         let executor_action_json = sqlx::types::Json(&data.executor_action);
 
-        sqlx::query!(
+        let insert_result = sqlx::query!(
             r#"INSERT INTO execution_processes (
                     id, session_id, run_reason, executor_action,
                     status, exit_code, started_at, completed_at, created_at, updated_at
@@ -479,13 +486,29 @@ impl ExecutionProcess {
             now
         )
         .execute(pool)
-        .await?;
+        .await;
+
+        // The unique partial index
+        // `execution_processes_one_running_codingagent_per_session` is the hard
+        // atomic gate against two concurrent coding-agent launches on the same
+        // session. Translate its UNIQUE violation into a typed error so callers
+        // can surface a 409 instead of a generic 500.
+        if let Err(sqlx::Error::Database(ref db_err)) = insert_result
+            && db_err.is_unique_violation()
+            && data.run_reason == ExecutionProcessRunReason::CodingAgent
+        {
+            return Err(ExecutionProcessError::AlreadyRunningCodingAgent {
+                session_id: data.session_id,
+            });
+        }
+
+        insert_result?;
 
         ExecutionProcessRepoState::create_many(pool, process_id, repo_states).await?;
 
         Self::find_by_id(pool, process_id)
             .await?
-            .ok_or(sqlx::Error::RowNotFound)
+            .ok_or(ExecutionProcessError::ExecutionProcessNotFound)
     }
 
     pub async fn was_stopped(pool: &SqlitePool, id: Uuid) -> bool {
@@ -751,5 +774,167 @@ impl ExecutionProcess {
         .await?;
 
         Ok(rows.into_iter().collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    /// In-memory DB with all migrations applied, so the
+    /// `execution_processes_one_running_codingagent_per_session` partial unique
+    /// index exists.
+    async fn pool() -> SqlitePool {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        pool
+    }
+
+    async fn seed_session(pool: &SqlitePool) -> Uuid {
+        let ws_id = Uuid::new_v4();
+        sqlx::query("INSERT INTO workspaces (id, branch, name) VALUES (?, 'b', 'ws')")
+            .bind(ws_id)
+            .execute(pool)
+            .await
+            .unwrap();
+        let session_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO sessions (id, workspace_id, created_at, updated_at) \
+             VALUES (?, ?, datetime('now'), datetime('now'))",
+        )
+        .bind(session_id)
+        .bind(ws_id)
+        .execute(pool)
+        .await
+        .unwrap();
+        session_id
+    }
+
+    async fn insert_running(
+        pool: &SqlitePool,
+        session_id: Uuid,
+        run_reason: &str,
+    ) -> sqlx::Result<()> {
+        sqlx::query(
+            "INSERT INTO execution_processes \
+             (id, session_id, run_reason, executor_action, status, started_at, created_at, updated_at) \
+             VALUES (?, ?, ?, '{}', 'running', datetime('now'), datetime('now'), datetime('now'))",
+        )
+        .bind(Uuid::new_v4())
+        .bind(session_id)
+        .bind(run_reason)
+        .execute(pool)
+        .await
+        .map(|_| ())
+    }
+
+    #[tokio::test]
+    async fn index_blocks_second_running_codingagent_for_same_session() {
+        let pool = pool().await;
+        let session = seed_session(&pool).await;
+
+        insert_running(&pool, session, "codingagent")
+            .await
+            .expect("first running codingagent inserts");
+
+        let err = insert_running(&pool, session, "codingagent")
+            .await
+            .expect_err("second running codingagent must be rejected");
+        match err {
+            sqlx::Error::Database(db) => assert!(
+                db.is_unique_violation(),
+                "expected UNIQUE violation, got: {}",
+                db.message()
+            ),
+            other => panic!("expected database unique violation, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn index_allows_other_run_reasons_and_sessions() {
+        let pool = pool().await;
+        let session = seed_session(&pool).await;
+
+        // A running codingagent and a running setupscript coexist (different
+        // run_reason, same session).
+        insert_running(&pool, session, "codingagent")
+            .await
+            .expect("codingagent inserts");
+        insert_running(&pool, session, "setupscript")
+            .await
+            .expect("setupscript coexists");
+
+        // A different session can host its own running codingagent.
+        let other = seed_session(&pool).await;
+        insert_running(&pool, other, "codingagent")
+            .await
+            .expect("different session is independent");
+    }
+
+    #[tokio::test]
+    async fn index_ignores_dropped_rows() {
+        let pool = pool().await;
+        let session = seed_session(&pool).await;
+
+        // A dropped (logically-removed) running codingagent must not block a new
+        // live one — only non-dropped rows participate in the index.
+        sqlx::query(
+            "INSERT INTO execution_processes \
+             (id, session_id, run_reason, executor_action, status, dropped, started_at, created_at, updated_at) \
+             VALUES (?, ?, 'codingagent', '{}', 'running', 1, datetime('now'), datetime('now'), datetime('now'))",
+        )
+        .bind(Uuid::new_v4())
+        .bind(session)
+        .execute(&pool)
+        .await
+        .expect("dropped row inserts");
+
+        insert_running(&pool, session, "codingagent")
+            .await
+            .expect("live codingagent is allowed despite the dropped row");
+    }
+
+    #[tokio::test]
+    async fn create_maps_unique_violation_to_already_running() {
+        let pool = pool().await;
+        let session = seed_session(&pool).await;
+
+        // Occupy the single running-codingagent slot for this session.
+        insert_running(&pool, session, "codingagent")
+            .await
+            .expect("seed running codingagent");
+
+        // The second codingagent ExecutionProcess::create must surface as
+        // AlreadyRunningCodingAgent (not a raw sqlx error).
+        let action = ExecutorAction::new(
+            ExecutorActionType::CodingAgentInitialRequest(
+                executors::actions::coding_agent_initial::CodingAgentInitialRequest {
+                    prompt: "p".to_string(),
+                    executor_config: executors::profile::ExecutorConfig::new(
+                        executors::executors::BaseCodingAgent::ClaudeCode,
+                    ),
+                    working_dir: None,
+                    interactive: None,
+                },
+            ),
+            None,
+        );
+        let data = CreateExecutionProcess {
+            session_id: session,
+            executor_action: action,
+            run_reason: ExecutionProcessRunReason::CodingAgent,
+        };
+        let result = ExecutionProcess::create(&pool, &data, Uuid::new_v4(), &[]).await;
+        match result {
+            Err(ExecutionProcessError::AlreadyRunningCodingAgent { session_id }) => {
+                assert_eq!(session_id, session);
+            }
+            other => panic!("expected AlreadyRunningCodingAgent, got {other:?}"),
+        }
     }
 }

@@ -77,6 +77,22 @@ struct RunCodingAgentInSessionRequest {
     prompt: String,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct RunIssueInWorkspaceRequest {
+    #[schemars(
+        description = "Issue ID whose title + description are sent as the follow-up prompt"
+    )]
+    issue_id: Uuid,
+    #[schemars(
+        description = "Workspace ID to run the issue in. Optional when running inside a scoped orchestrator MCP."
+    )]
+    workspace_id: Option<Uuid>,
+    #[schemars(
+        description = "Optional explicit session ID to run in. Defaults to the workspace's latest session."
+    )]
+    session_id: Option<Uuid>,
+}
+
 #[derive(Debug, Serialize)]
 struct FollowUpPayload {
     prompt: String,
@@ -84,6 +100,15 @@ struct FollowUpPayload {
     retry_process_id: Option<Uuid>,
     force_when_dirty: Option<bool>,
     perform_git_reset: Option<bool>,
+}
+
+/// Body for `POST /api/issues/{id}/dispatch-to-workspace`. The backend is the
+/// single owner of dispatch validation; the MCP tool just forwards these.
+#[derive(Debug, Serialize)]
+struct DispatchToWorkspacePayload {
+    workspace_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    session_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize)]
@@ -390,6 +415,58 @@ impl McpServer {
                 Err(error_result) => return Ok(Self::tool_error(error_result)),
             };
 
+        let execution_id = result.execution_process.id.to_string();
+        let execution = match Self::serialize_execution_process(&result.execution_process) {
+            Ok(value) => value,
+            Err(error_result) => return Ok(Self::tool_error(error_result)),
+        };
+
+        Self::success(&RunCodingAgentInSessionResponse {
+            session_id: session_id.to_string(),
+            execution_id,
+            execution,
+            delivered_to_live_session: result.delivered_to_live_session,
+        })
+    }
+
+    #[tool(
+        description = "Run an issue in an existing workspace: sends the issue's title + description to the workspace's session as a follow-up prompt (context retained) and returns the execution process immediately. Uses the workspace's latest session unless `session_id` is given. Delegates to the backend dispatch endpoint so all guards (archived workspace, orchestrator workspace, concurrent-run, resume-stage prompt) are enforced in one place."
+    )]
+    async fn run_issue_in_workspace(
+        &self,
+        Parameters(RunIssueInWorkspaceRequest {
+            issue_id,
+            workspace_id,
+            session_id,
+        }): Parameters<RunIssueInWorkspaceRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let workspace_id = match self.resolve_workspace_id(workspace_id) {
+            Ok(id) => id,
+            Err(error_result) => return Ok(Self::tool_error(error_result)),
+        };
+        if let Err(error_result) = self.scope_allows_workspace(workspace_id) {
+            return Ok(Self::tool_error(error_result));
+        }
+
+        // Delegate to `POST /api/issues/{id}/dispatch-to-workspace`. The
+        // endpoint is the single owner of the dispatch logic: it builds the
+        // prompt from the issue (including the resume-stage prefix), resolves
+        // the session (explicit or latest), links the issue to the workspace,
+        // rejects archived/orchestrator workspaces and concurrent runs, and
+        // spawns the follow-up. Routing through it keeps this tool consistent
+        // with the UI's "Send issue here" action.
+        let payload = DispatchToWorkspacePayload {
+            workspace_id,
+            session_id,
+        };
+        let url = self.url(&format!("/api/issues/{issue_id}/dispatch-to-workspace"));
+        let result: FollowUpResult =
+            match self.send_json(self.client.post(&url).json(&payload)).await {
+                Ok(value) => value,
+                Err(error_result) => return Ok(Self::tool_error(error_result)),
+            };
+
+        let session_id = result.execution_process.session_id;
         let execution_id = result.execution_process.id.to_string();
         let execution = match Self::serialize_execution_process(&result.execution_process) {
             Ok(value) => value,

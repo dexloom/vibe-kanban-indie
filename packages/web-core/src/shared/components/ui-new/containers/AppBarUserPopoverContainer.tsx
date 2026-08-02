@@ -36,10 +36,6 @@ export function AppBarUserPopoverContainer({
     await executeAction(Actions.SignIn);
   };
 
-  const handleLogout = async () => {
-    await executeAction(Actions.SignOut);
-  };
-
   const handleOrgSettings = async (orgId: string) => {
     setSelectedOrgId(orgId);
     await SettingsDialog.show({ initialSection: 'organizations' });
@@ -62,7 +58,6 @@ export function AppBarUserPopoverContainer({
       onOrgSelect={onOrgSelect}
       onOrgSettings={handleOrgSettings}
       onSignIn={handleSignIn}
-      onLogout={handleLogout}
       onAvatarError={() => setAvatarError(true)}
       onSettings={handleSettings}
     />
