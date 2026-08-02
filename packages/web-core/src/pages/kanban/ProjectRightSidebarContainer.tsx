@@ -307,7 +307,7 @@ function WorkspaceSessionPanel({
                     <button
                       type="button"
                       onClick={() => handleScrollToBottom('auto')}
-                      className="absolute bottom-2 right-4 z-10 pointer-events-auto flex items-center justify-center size-10 rounded-full bg-secondary border border-border text-normal hover:text-high hover:bg-secondary shadow-lg transition-all animate-pulse"
+                      className="absolute bottom-2 right-4 z-10 pointer-events-auto flex items-center justify-center size-10 rounded-full bg-secondary border border-border text-normal hover:text-high hover:bg-secondary shadow-lg transition-all"
                       aria-label="Scroll to bottom"
                       title="Scroll to bottom"
                     >
