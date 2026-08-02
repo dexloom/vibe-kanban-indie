@@ -105,6 +105,13 @@ export function useConversationVirtualizer({
   // (which is what previously released the bottom lock mid-stream).
   const isProgrammaticScrollRef = useRef(false);
 
+  // A plan reveal requested from within the rAF entry-flush must run AFTER React
+  // has committed the new rows and the virtualizer has measured them; otherwise
+  // `scrollToIndex(rows.length - 1)` targets the previously-last row (the plan
+  // row hasn't been counted yet). `handleEntriesChanged` sets this flag and the
+  // layout effect below consumes it on the next commit.
+  const pendingPlanRevealRef = useRef(false);
+
   const setScrollTopProgrammatic = useCallback(
     (el: HTMLDivElement, top: number) => {
       isProgrammaticScrollRef.current = true;
@@ -269,6 +276,22 @@ export function useConversationVirtualizer({
     setScrollTopProgrammatic,
   ]);
 
+  // Plan-reveal correction: deferred from `handleEntriesChanged` so it runs
+  // after React has committed the new plan row and the virtualizer has measured
+  // it. Scrolling to `rows.length - 1` here targets the just-added plan row.
+  // Clears the bottom lock (mirroring `scrollToIndex`) so a subsequent streaming
+  // chunk's bottom-lock correction doesn't yank the viewport off the plan.
+  useLayoutEffect(() => {
+    if (!pendingPlanRevealRef.current) return;
+    if (rows.length === 0) return;
+    pendingPlanRevealRef.current = false;
+    bottomLockedRef.current = false;
+    virtualizer.scrollToIndex(rows.length - 1, {
+      align: 'start',
+      behavior: 'auto',
+    });
+  }, [rows.length, totalRowCount, totalSize, virtualizer]);
+
   // -------------------------------------------------------------------------
   // Scroll commands
   // -------------------------------------------------------------------------
@@ -355,8 +378,11 @@ export function useConversationVirtualizer({
       const atBottom = checkIsAtBottom();
 
       if (addType === 'plan') {
-        if (atBottom && rows.length > 0) {
-          scrollToIndex(rows.length - 1, { align: 'start', behavior: 'auto' });
+        // Defer to the post-commit layout effect above: scrolling here would
+        // target the previously-last row because the new plan row hasn't been
+        // committed or measured yet.
+        if (atBottom) {
+          pendingPlanRevealRef.current = true;
         }
         return;
       }
@@ -365,7 +391,7 @@ export function useConversationVirtualizer({
         scrollToBottom('auto');
       }
     },
-    [checkIsAtBottom, rows.length, scrollToBottom, scrollToIndex]
+    [checkIsAtBottom, scrollToBottom]
   );
 
   // -------------------------------------------------------------------------
