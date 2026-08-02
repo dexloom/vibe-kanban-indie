@@ -1048,12 +1048,12 @@ mod tests {
         // filter did not exclude non-card kinds.
         let old_updated_at = Utc::now() - Duration::hours(100);
         let container_ref = "/tmp/does-not-matter".to_string();
-        sqlx::query!(
+        sqlx::query(
             "UPDATE workspaces SET container_ref = ?, updated_at = ? WHERE id = ?",
-            container_ref,
-            old_updated_at,
-            created.id
         )
+        .bind(container_ref)
+        .bind(old_updated_at)
+        .bind(created.id)
         .execute(&pool)
         .await
         .unwrap();

@@ -31,6 +31,20 @@ the same **multipart** path the workspaces already used:
 | `POST` | `/api/issues/{issueId}/attachments` | `{ "attachment_ids": ["uuid", ...] }` | Links attachments to an issue |
 | `POST` | `/api/comments/{commentId}/attachments` | `{ "attachment_ids": ["uuid", ...] }` | Links attachments to a comment |
 
+### Local issue comments
+
+Issue comments previously had no local backend (the frontend's
+`/v1/issue_comments` shape 404'd). This PR implements them end-to-end so
+comment attachment linking has a working success path:
+
+- Migration `20260802000002_add_issue_comments.sql` adds the `issue_comments`
+  table (id, issue_id FK, parent_id, author_id, message, timestamps).
+- Model `crates/db/src/models/issue_comment.rs` + `comment_attachments`
+  junction now has a real FK target for future hardening.
+- Routes in `local_kanban.rs`: `GET /v1/fallback/issue_comments?issue_id=...`,
+  `POST /v1/issue_comments`, `PATCH /v1/issue_comments/{id}`,
+  `DELETE /v1/issue_comments/{id}`. Comments use `LOCAL_USER_ID` as author.
+
 ### New database tables
 
 Migration: `crates/db/migrations/20260802000001_add_issue_comment_attachments.sql`
@@ -44,10 +58,10 @@ Both junction tables follow the existing `workspace_attachments` pattern
 UNIQUE(owner_id, attachment_id)`).
 
 Note: `comment_attachments.comment_id` intentionally has **no `REFERENCES`
-clause** — there is no `issue_comments` table in the local SQLite schema
-(comments live behind the `/v1/issue_comments` shape/mutation surface, not a
-direct table). Do not add an FK to a non-existent table; SQLite would reject
-the migration.
+clause**. Migration `…000001` runs before `…000002` (which creates the
+`issue_comments` table), so an FK could not exist at junction-creation time.
+An FK can be added in a later migration as hardening. Do not reorder these
+migrations.
 
 ### Frontend
 
@@ -82,11 +96,14 @@ running all migrations in order. If you are merging onto a deployment that
 already ran the pre-migration schema:
 
 1. **Run migrations** (they apply automatically on server start via
-   `sqlx::migrate!`): the `20260802000001_add_issue_comment_attachments.sql`
-   migration creates the two junction tables and drops `task_attachments`.
-2. **No data backfill needed.** No issue/comment attachments were ever
-   successfully saved under the Azure flow (its endpoints 404'd), so there is no
-   legacy `attachment://` markdown or orphaned Azure blob metadata to convert.
+   `sqlx::migrate!`): `20260802000001_add_issue_comment_attachments.sql`
+   creates the two junction tables and drops `task_attachments`;
+   `20260802000002_add_issue_comments.sql` creates the `issue_comments` table.
+2. **Existing data is preserved.** No destructive changes to `issues`,
+   `attachments`, or `workspace_attachments`. Existing issues and their
+   workspace attachments are untouched; the reaper (below) treats them exactly
+   as before. No data backfill needed — the Azure upload flow never succeeded
+   locally, so there is no legacy `attachment://` markdown to convert.
 3. **Orphan reaper** (`File::find_orphaned_files`) now LEFT JOINs all three
    junction tables (`workspace_attachments`, `issue_attachments`,
    `comment_attachments`). A file is reaped at startup only if it is not linked
@@ -124,16 +141,10 @@ already ran the pre-migration schema:
 - **Compose-then-abandon leak.** Upload in create mode, then abandon without
   submitting → the file is reaped on next server start (no junction row exists).
   Acceptable for a single-dev local tool.
-- **Comments caveat (pre-existing).** Issue comments render through the
-  `/v1/issue_comments` shape surface; the local fallback route list in
-  `local_kanban.rs` does not currently expose `/v1/fallback/issue_comments`.
-  Comment attachment *linking* is wired end-to-end, but the comment section's
-  data path is unchanged from before this PR — this migration does not regress it.
 - **Startup race in the orphan reaper.** The orphan reaper runs once at
   startup as a fire-and-forget task; an upload that is linked after the
   reaper's query but before its delete completes could be lost. Probability
   is low.
 - **Comment persistence failure swallows uploads.** If the comment insert
-  (`persisted`) rejects in local mode, the typed text has already been
-  cleared and any uploaded files are orphaned until the next restart
-  (pre-existing comment data-path caveat).
+  (`persisted`) rejects, the typed text has already been cleared and any
+  uploaded files are orphaned until the next restart.
