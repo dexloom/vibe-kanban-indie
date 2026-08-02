@@ -6,7 +6,6 @@ import {
   PlusIcon,
   LayoutIcon,
   KanbanIcon,
-  DownloadSimpleIcon,
   ClockClockwiseIcon,
 } from '@phosphor-icons/react';
 import { SyncErrorProvider } from '@/shared/providers/SyncErrorProvider';
@@ -35,7 +34,6 @@ import {
   CreateRemoteProjectDialog,
   type CreateRemoteProjectResult,
 } from '@/shared/dialogs/org/CreateRemoteProjectDialog';
-import { OAuthDialog } from '@/shared/dialogs/global/OAuthDialog';
 import { CommandBarDialog } from '@/shared/dialogs/command-bar/CommandBarDialog';
 import { useCommandBarShortcut } from '@/shared/hooks/useCommandBarShortcut';
 import { useWorkspaceSidebarPreviewController } from '@/shared/hooks/useWorkspaceSidebarPreviewController';
@@ -164,7 +162,6 @@ export function SharedAppLayout() {
     [currentDestination]
   );
   const isWorkspacesActive = isLocalWorkspacesDestination(currentDestination);
-  const isExportActive = currentDestination?.kind === 'export';
   const isCommonTasksActive = currentDestination?.kind === 'common-tasks';
   const isWorkspaceSidebarPreviewEnabled =
     !isMobile && isWorkspacesActive && !isLeftSidebarVisible;
@@ -189,10 +186,6 @@ export function SharedAppLayout() {
   const handleWorkspacesClick = useCallback(() => {
     void navigate({ to: '/workspaces' });
   }, [navigate]);
-
-  const handleExportClick = useCallback(() => {
-    appNavigation.goToExport();
-  }, [appNavigation]);
 
   const handleCommonTasksClick = useCallback(() => {
     appNavigation.goToCommonTasks();
@@ -259,11 +252,7 @@ export function SharedAppLayout() {
   }, [selectedOrgId, appNavigation]);
 
   const handleSignIn = useCallback(async () => {
-    try {
-      await OAuthDialog.show({});
-    } catch {
-      // Dialog cancelled
-    }
+    // Local-only fork: no OAuth flow.
   }, []);
 
   const handleHostClick = useCallback(
@@ -309,7 +298,6 @@ export function SharedAppLayout() {
               hosts={[]}
               activeHostId={activeHostId}
               onCreateProject={handleCreateProject}
-              onExportClick={handleExportClick}
               onCommonTasksClick={handleCommonTasksClick}
               onWorkspacesClick={handleWorkspacesClick}
               onHostClick={handleHostClick}
@@ -317,7 +305,6 @@ export function SharedAppLayout() {
               onProjectsDragEnd={handleProjectsDragEnd}
               isSavingProjectOrder={isSavingProjectOrder}
               isWorkspacesActive={isWorkspacesActive}
-              isExportActive={isExportActive}
               isCommonTasksActive={isCommonTasksActive}
               activeProjectId={activeProjectId}
               isSignedIn={isSignedIn}
@@ -435,27 +422,6 @@ export function SharedAppLayout() {
 
             {/* Divider */}
             <div className="border-t border-border mx-4" />
-
-            {/* Export link */}
-            {isSignedIn && (
-              <div className="px-4 py-3">
-                <p className="mb-2 text-xs font-medium text-low">Export</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleExportClick();
-                    setIsDrawerOpen(false);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm text-normal hover:bg-secondary cursor-pointer"
-                >
-                  <DownloadSimpleIcon className="h-4 w-4" />
-                  Export data
-                </button>
-              </div>
-            )}
-
-            {/* Divider */}
-            {isSignedIn && <div className="border-t border-border mx-4" />}
 
             {/* Project list */}
             <div className="flex-1 overflow-y-auto p-2">

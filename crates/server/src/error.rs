@@ -20,7 +20,6 @@ use services::services::{
     repo::RepoError as RepoServiceError,
 };
 use thiserror::Error;
-use trusted_key_auth::error::TrustedKeyAuthError;
 use utils::response::ApiResponse;
 use workspace_manager::WorkspaceError as WorkspaceManagerError;
 use worktree_manager::WorktreeError;
@@ -62,16 +61,12 @@ pub enum ApiError {
     Io(#[from] std::io::Error),
     #[error(transparent)]
     EditorOpen(#[from] EditorOpenError),
-    #[error("Unauthorized")]
-    Unauthorized,
     #[error("Bad request: {0}")]
     BadRequest(String),
     #[error("Conflict: {0}")]
     Conflict(String),
     #[error("Forbidden: {0}")]
     Forbidden(String),
-    #[error("Too many requests: {0}")]
-    TooManyRequests(String),
     #[error("Payload too large")]
     PayloadTooLarge,
     #[error("Bad gateway: {0}")]
@@ -344,21 +339,11 @@ impl IntoResponse for ApiError {
             }
             ApiError::Pty(_) => ErrorInfo::internal("PtyError"),
 
-            ApiError::Unauthorized => ErrorInfo::with_status(
-                StatusCode::UNAUTHORIZED,
-                "Unauthorized",
-                "Unauthorized. Please sign in again.",
-            ),
             ApiError::BadRequest(msg) => ErrorInfo::bad_request("BadRequest", msg.clone()),
             ApiError::Conflict(msg) => ErrorInfo::conflict("ConflictError", msg.clone()),
             ApiError::Forbidden(msg) => {
                 ErrorInfo::with_status(StatusCode::FORBIDDEN, "ForbiddenError", msg.clone())
             }
-            ApiError::TooManyRequests(msg) => ErrorInfo::with_status(
-                StatusCode::TOO_MANY_REQUESTS,
-                "TooManyRequests",
-                msg.clone(),
-            ),
             ApiError::PayloadTooLarge => ErrorInfo::with_status(
                 StatusCode::PAYLOAD_TOO_LARGE,
                 "PayloadTooLarge",
@@ -401,18 +386,6 @@ impl IntoResponse for ApiError {
             .unwrap_or_else(|| format!("{}: {}", info.error_type, self));
         let response = ApiResponse::<()>::error(&message);
         (info.status, Json(response)).into_response()
-    }
-}
-
-impl From<TrustedKeyAuthError> for ApiError {
-    fn from(err: TrustedKeyAuthError) -> Self {
-        match err {
-            TrustedKeyAuthError::Unauthorized => ApiError::Unauthorized,
-            TrustedKeyAuthError::BadRequest(msg) => ApiError::BadRequest(msg),
-            TrustedKeyAuthError::Forbidden(msg) => ApiError::Forbidden(msg),
-            TrustedKeyAuthError::TooManyRequests(msg) => ApiError::TooManyRequests(msg),
-            TrustedKeyAuthError::Io(e) => ApiError::Io(e),
-        }
     }
 }
 

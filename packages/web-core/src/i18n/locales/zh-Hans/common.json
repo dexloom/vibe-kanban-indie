@@ -71,28 +71,15 @@
     "currentDisabled": "无法选择当前分支"
   },
   "orgSwitcher": {
-    "organizations": "组织",
-    "orgSettings": "组织设置"
+    "organizations": "组织"
   },
   "ok": "确定",
   "error": "错误",
   "signIn": "登录",
   "signOut": "退出登录",
   "oauth": {
-    "title": "登录 Vibe Kanban",
-    "description": "登录以加入组织并与团队共享任务",
     "continueWithGitHub": "使用 GitHub 继续",
-    "continueWithGoogle": "使用 Google 继续",
-    "waitingTitle": "完成身份验证",
-    "waitingDescription": "已打开弹出窗口进行身份验证",
-    "waitingForAuth": "等待身份验证...",
-    "popupInstructions": "如果弹出窗口未打开，请检查您的弹窗拦截器设置。",
-    "back": "返回",
-    "successTitle": "身份验证成功！",
-    "welcomeBack": "欢迎回来，{{name}}",
-    "errorTitle": "身份验证失败",
-    "errorDescription": "验证您的账户时出现问题",
-    "tryAgain": "重试"
+    "continueWithGoogle": "使用 Google 继续"
   },
   "toolbar": {
     "sortBy": "排序方式",
@@ -367,9 +354,7 @@
       "all": "全部"
     },
     "loginRequired": {
-      "title": "需要登录",
-      "description": "请登录以查看此项目。",
-      "action": "登录"
+      "description": "请登录以查看此项目。"
     },
     "team": "Team",
     "personal": "Personal",
@@ -490,8 +475,7 @@
     "streamsAffected": "{{count}} 个数据流受影响",
     "streamsAffected_other": "{{count}} 个数据流受影响",
     "status": "(状态 {{status}})",
-    "refreshPage": "刷新页面",
-    "remoteAuthUnavailable": "远程身份验证暂时不可用。在恢复之前，部分远程功能可能无法使用。"
+    "refreshPage": "刷新页面"
   },
   "errors": {
     "generic": "An unexpected error occurred"

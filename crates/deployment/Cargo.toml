@@ -13,7 +13,6 @@ executors.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
-trusted-key-auth.workspace = true
 client-info.workspace = true
 preview-proxy.workspace = true
 tokio.workspace = true

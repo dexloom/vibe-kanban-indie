@@ -71,28 +71,15 @@
     "loading": "로딩 중..."
   },
   "orgSwitcher": {
-    "organizations": "조직",
-    "orgSettings": "조직 설정"
+    "organizations": "조직"
   },
   "ok": "확인",
   "error": "오류",
   "signIn": "로그인",
   "signOut": "로그아웃",
   "oauth": {
-    "title": "Vibe Kanban 로그인",
-    "description": "로그인하여 조직에 참여하고 팀과 작업을 공유하세요",
     "continueWithGitHub": "GitHub로 계속",
-    "continueWithGoogle": "Google로 계속",
-    "waitingTitle": "인증 완료",
-    "waitingDescription": "인증을 위한 팝업 창이 열렸습니다",
-    "waitingForAuth": "인증 대기 중...",
-    "popupInstructions": "팝업 창이 열리지 않는 경우 팝업 차단 설정을 확인해주세요.",
-    "back": "뒤로",
-    "successTitle": "인증 성공!",
-    "welcomeBack": "환영합니다, {{name}}",
-    "errorTitle": "인증 실패",
-    "errorDescription": "계정 인증 중 문제가 발생했습니다",
-    "tryAgain": "다시 시도"
+    "continueWithGoogle": "Google로 계속"
   },
   "toolbar": {
     "sortBy": "정렬 기준",
@@ -350,7 +337,6 @@
     "previewImageWithName": "[이미지: {{name}}]",
     "previewFile": "[파일]",
     "previewFileWithName": "[파일: {{name}}]",
-    "imageAttachmentNameFallback": "첨부파일",
     "removeImage": "이미지 제거",
     "maxFilesAtOnce": "한 번에 최대 {{count}}개의 파일만 업로드할 수 있습니다",
     "fileExceedsLimit": "파일 {{filename}} 이(가) 20MB 제한을 초과했습니다",
@@ -367,9 +353,7 @@
       "all": "전체"
     },
     "loginRequired": {
-      "title": "로그인 필요",
-      "description": "이 프로젝트를 보려면 로그인하세요.",
-      "action": "로그인"
+      "description": "이 프로젝트를 보려면 로그인하세요."
     },
     "team": "Team",
     "personal": "Personal",
@@ -490,8 +474,7 @@
     "streamsAffected": "{{count}}개 스트림이 영향을 받음",
     "streamsAffected_other": "{{count}}개 스트림이 영향을 받음",
     "status": "(상태 {{status}})",
-    "refreshPage": "페이지 새로고침",
-    "remoteAuthUnavailable": "원격 인증을 일시적으로 사용할 수 없습니다. 복구될 때까지 일부 원격 기능이 작동하지 않을 수 있습니다."
+    "refreshPage": "페이지 새로고침"
   },
   "errors": {
     "generic": "An unexpected error occurred"

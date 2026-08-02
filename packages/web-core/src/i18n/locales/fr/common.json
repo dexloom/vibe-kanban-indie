@@ -71,28 +71,15 @@
     "currentDisabled": "Impossible de sélectionner la branche actuelle"
   },
   "orgSwitcher": {
-    "organizations": "Organisations",
-    "orgSettings": "Paramètres de l'organisation"
+    "organizations": "Organisations"
   },
   "ok": "OK",
   "error": "Erreur",
   "signIn": "Se connecter",
   "signOut": "Se déconnecter",
   "oauth": {
-    "title": "Se connecter à Vibe Kanban",
-    "description": "Connectez-vous pour rejoindre des organisations et partager des tâches avec votre équipe",
     "continueWithGitHub": "Continuer avec GitHub",
-    "continueWithGoogle": "Continuer avec Google",
-    "waitingTitle": "Terminer l'authentification",
-    "waitingDescription": "Une fenêtre popup a été ouverte pour l'authentification",
-    "waitingForAuth": "En attente de l'authentification...",
-    "popupInstructions": "Si la fenêtre popup ne s'est pas ouverte, veuillez vérifier les paramètres de votre bloqueur de popups.",
-    "back": "Retour",
-    "successTitle": "Authentification réussie !",
-    "welcomeBack": "Bienvenue, {{name}}",
-    "errorTitle": "Échec de l'authentification",
-    "errorDescription": "Un problème est survenu lors de l'authentification de votre compte",
-    "tryAgain": "Réessayer"
+    "continueWithGoogle": "Continuer avec Google"
   },
   "toolbar": {
     "sortBy": "Trier par",
@@ -367,9 +354,7 @@
       "all": "Tout"
     },
     "loginRequired": {
-      "title": "Connexion requise",
-      "description": "Veuillez vous connecter pour voir ce projet.",
-      "action": "Se connecter"
+      "description": "Veuillez vous connecter pour voir ce projet."
     },
     "team": "Team",
     "personal": "Personal",
@@ -490,8 +475,7 @@
     "streamsAffected": "{{count}} flux affecté",
     "streamsAffected_other": "{{count}} flux affectés",
     "status": "(statut {{status}})",
-    "refreshPage": "Actualiser la page",
-    "remoteAuthUnavailable": "L’authentification distante est temporairement indisponible. Certaines fonctionnalités distantes peuvent ne pas fonctionner jusqu’à son rétablissement."
+    "refreshPage": "Actualiser la page"
   },
   "errors": {
     "generic": "An unexpected error occurred"

@@ -90,15 +90,12 @@ impl Environment {
 pub struct UserSystemInfo {
     pub version: String,
     pub config: Config,
-    pub machine_id: String,
     pub login_status: LoginStatus,
-    pub remote_auth_degraded: Option<String>,
     #[serde(flatten)]
     pub profiles: ExecutorConfigs,
     pub environment: Environment,
     /// Capabilities supported per executor (e.g., { "CLAUDE_CODE": ["SESSION_FORK"] })
     pub capabilities: HashMap<String, Vec<BaseAgentCapability>>,
-    pub shared_api_base: Option<String>,
     pub preview_proxy_port: Option<u16>,
 }
 
@@ -113,9 +110,7 @@ async fn get_user_system_info(
     let user_system_info = UserSystemInfo {
         version: env!("CARGO_PKG_VERSION").to_string(),
         config,
-        machine_id: deployment.user_id().to_string(),
         login_status,
-        remote_auth_degraded: None,
         profiles: ExecutorConfigs::get_cached(),
         environment: Environment::new(),
         capabilities: {
@@ -128,7 +123,6 @@ async fn get_user_system_info(
             }
             caps
         },
-        shared_api_base: None,
         preview_proxy_port: deployment.client_info().get_preview_proxy_port(),
     };
 
@@ -149,7 +143,7 @@ async fn update_config(
     }
 
     // Get old config state before updating
-    let old_config = deployment.config().read().await.clone();
+    let _old_config = deployment.config().read().await.clone();
 
     match save_config_to_file(&new_config, &config_path).await {
         Ok(_) => {
@@ -158,43 +152,11 @@ async fn update_config(
             drop(config);
 
             // Track config events when fields transition from false → true and run side effects
-            handle_config_events(&deployment, &old_config, &new_config).await;
 
             ResponseJson(ApiResponse::success(new_config))
         }
         Err(e) => ResponseJson(ApiResponse::error(&format!("Failed to save config: {}", e))),
     }
-}
-
-/// Track config events when fields transition from false → true
-async fn track_config_events(deployment: &DeploymentImpl, old: &Config, new: &Config) {
-    let events = [
-        (
-            !old.disclaimer_acknowledged && new.disclaimer_acknowledged,
-            "onboarding_disclaimer_accepted",
-            serde_json::json!({}),
-        ),
-        (
-            !old.onboarding_acknowledged && new.onboarding_acknowledged,
-            "onboarding_completed",
-            serde_json::json!({
-                "profile": new.executor_profile,
-                "editor": new.editor
-            }),
-        ),
-    ];
-
-    for (should_track, event_name, properties) in events {
-        if should_track {
-            deployment
-                .track_if_analytics_allowed(event_name, properties)
-                .await;
-        }
-    }
-}
-
-async fn handle_config_events(deployment: &DeploymentImpl, old: &Config, new: &Config) {
-    track_config_events(deployment, old, new).await;
 }
 
 async fn get_sound(Path(sound): Path<SoundFile>) -> Result<Response, ApiError> {

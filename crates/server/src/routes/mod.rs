@@ -7,12 +7,11 @@ use tower_http::{compression::CompressionLayer, validate_request::ValidateReques
 use crate::{DeploymentImpl, middleware};
 
 pub mod approvals;
-pub mod config;
-pub mod filesystem;
-// pub mod github;
 pub mod attachments;
+pub mod config;
 pub mod events;
 pub mod execution_processes;
+pub mod filesystem;
 pub mod frontend;
 pub mod health;
 pub mod kanban;
@@ -27,7 +26,6 @@ pub mod search;
 pub mod sessions;
 pub mod spec_intake;
 pub mod speckit;
-pub mod ssh_session;
 pub mod tags;
 pub mod telegram;
 pub mod terminal;
@@ -56,7 +54,6 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .merge(spec_intake::router(&deployment))
         .merge(speckit::router(&deployment))
         .merge(terminal::router())
-        .route("/ssh-session", get(ssh_session::ssh_session_ws))
         .nest("/attachments", attachments::routes())
         .layer(ValidateRequestHeaderLayer::custom(
             middleware::validate_origin,

@@ -76,27 +76,14 @@
     "currentDisabled": "Cannot select the current branch"
   },
   "orgSwitcher": {
-    "organizations": "Organizations",
-    "orgSettings": "Organization settings"
+    "organizations": "Organizations"
   },
   "personal": "Personal",
   "signIn": "Sign in",
   "signOut": "Sign out",
   "oauth": {
-    "title": "Sign in to Vibe Kanban",
-    "description": "Sign in to join organizations and share tasks with your team",
     "continueWithGitHub": "Continue with GitHub",
-    "continueWithGoogle": "Continue with Google",
-    "waitingTitle": "Complete Authentication",
-    "waitingDescription": "A popup window has been opened for authentication",
-    "waitingForAuth": "Waiting for authentication...",
-    "popupInstructions": "If the popup window didn't open, please check your popup blocker settings.",
-    "back": "Back",
-    "successTitle": "Authentication Successful!",
-    "welcomeBack": "Welcome back, {{name}}",
-    "errorTitle": "Authentication Failed",
-    "errorDescription": "There was a problem authenticating your account",
-    "tryAgain": "Try Again"
+    "continueWithGoogle": "Continue with Google"
   },
   "toolbar": {
     "sortBy": "Sort by",
@@ -358,7 +345,6 @@
     "previewImageWithName": "[Image: {{name}}]",
     "previewFile": "[File]",
     "previewFileWithName": "[File: {{name}}]",
-    "imageAttachmentNameFallback": "Attachment",
     "removeImage": "Remove image",
     "maxFilesAtOnce": "Maximum {{count}} files at once",
     "fileExceedsLimit": "File {{filename}} exceeds 20MB limit",
@@ -375,9 +361,7 @@
       "all": "All"
     },
     "loginRequired": {
-      "title": "Sign in required",
-      "description": "Please sign in to view this project.",
-      "action": "Sign in"
+      "description": "Please sign in to view this project."
     },
     "team": "Team",
     "personal": "Personal",
@@ -498,8 +482,7 @@
     "streamsAffected": "{{count}} stream affected",
     "streamsAffected_other": "{{count}} streams affected",
     "status": "(status {{status}})",
-    "refreshPage": "Refresh Page",
-    "remoteAuthUnavailable": "Remote authentication is temporarily unavailable. Some remote features may not work until it recovers."
+    "refreshPage": "Refresh Page"
   },
   "askQuestion": {
     "title": "Agent is asking a question",

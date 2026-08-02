@@ -1149,7 +1149,9 @@ function AggregatedGroupEntry({ group }: { group: AggregatedPatchGroup }) {
   // the height swing is what made the viewport jump on workspace open.
   const firstEntryKey = group.entries[0]?.patchKey;
   const [expanded, toggle] = usePersistedExpanded(
-    (firstEntryKey ? `tool:${firstEntryKey}` : `tool:${group.patchKey}`) as PersistKey,
+    (firstEntryKey
+      ? `tool:${firstEntryKey}`
+      : `tool:${group.patchKey}`) as PersistKey,
     false
   );
   const [isHovered, setIsHovered] = useState(false);

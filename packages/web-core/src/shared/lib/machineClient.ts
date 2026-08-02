@@ -82,9 +82,7 @@ async function makeMachineRequest(
   });
 }
 
-export function createMachineClient(
-  target: MachineTarget
-): MachineClient {
+export function createMachineClient(target: MachineTarget): MachineClient {
   const queryScopeKey = ['machine', target.id] as const;
 
   return {
@@ -104,9 +102,7 @@ export function createMachineClient(
         })
       ),
     listRepos: async () =>
-      handleApiResponse<Repo[]>(
-        await makeMachineRequest(target, '/api/repos')
-      ),
+      handleApiResponse<Repo[]>(await makeMachineRequest(target, '/api/repos')),
     updateRepo: async (repoId, data) =>
       handleApiResponse<Repo>(
         await makeMachineRequest(target, `/api/repos/${repoId}`, {
@@ -129,10 +125,7 @@ export function createMachineClient(
       ),
     getRepoBranches: async (repoId) =>
       handleApiResponse<GitBranch[]>(
-        await makeMachineRequest(
-          target,
-          `/api/repos/${repoId}/branches`
-        )
+        await makeMachineRequest(target, `/api/repos/${repoId}/branches`)
       ),
     loadProfiles: async () =>
       handleApiResponse<{ content: string; path: string }>(
@@ -151,10 +144,7 @@ export function createMachineClient(
     loadMcpServers: async (query) => {
       const params = new URLSearchParams(query);
       return handleApiResponse<GetMcpServerResponse>(
-        await makeMachineRequest(
-          target,
-          `/api/mcp-config?${params.toString()}`
-        )
+        await makeMachineRequest(target, `/api/mcp-config?${params.toString()}`)
       );
     },
     saveMcpServers: async (query, data) => {

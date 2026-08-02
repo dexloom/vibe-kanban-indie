@@ -97,8 +97,7 @@ export function SettingsHostProvider({
   }, [availableHosts, initialHostId, runtime, selectedHostId]);
 
   const selectedHost = useMemo(
-    () =>
-      availableHosts.find((host) => host.id === resolvedHostId) ?? null,
+    () => availableHosts.find((host) => host.id === resolvedHostId) ?? null,
     [availableHosts, resolvedHostId]
   );
 

@@ -249,15 +249,6 @@ pub async fn merge_workspace(
         tracing::error!("Failed to archive workspace {}: {}", workspace.id, e);
     }
 
-    deployment
-        .track_if_analytics_allowed(
-            "task_attempt_merged",
-            serde_json::json!({
-                "workspace_id": workspace.id.to_string(),
-            }),
-        )
-        .await;
-
     Ok(ResponseJson(ApiResponse::success(())))
 }
 
@@ -320,18 +311,6 @@ pub async fn commit_workspace(
     );
 
     let committed = deployment.git().commit(&worktree_path, &commit_message)?;
-
-    if committed {
-        deployment
-            .track_if_analytics_allowed(
-                "task_attempt_committed",
-                serde_json::json!({
-                    "workspace_id": workspace.id.to_string(),
-                    "repo_id": request.repo_id.to_string(),
-                }),
-            )
-            .await;
-    }
 
     Ok(ResponseJson(ApiResponse::success(
         CommitWorkspaceResponse { committed },
@@ -578,16 +557,6 @@ pub async fn change_target_branch(
             .git()
             .get_branch_status(&repo.path, &workspace.branch, &new_target_branch)?;
 
-    deployment
-        .track_if_analytics_allowed(
-            "task_attempt_target_branch_changed",
-            serde_json::json!({
-                "repo_id": repo_id.to_string(),
-                "workspace_id": workspace.id.to_string(),
-            }),
-        )
-        .await;
-
     Ok(ResponseJson(ApiResponse::success(
         ChangeTargetBranchResponse {
             repo_id,
@@ -720,15 +689,6 @@ pub async fn rename_branch(
         );
     }
 
-    deployment
-        .track_if_analytics_allowed(
-            "task_attempt_branch_renamed",
-            serde_json::json!({
-                "updated_children": updated_children_count,
-            }),
-        )
-        .await;
-
     Ok(ResponseJson(ApiResponse::success(RenameBranchResponse {
         branch: new_branch_name.to_string(),
     })))
@@ -820,16 +780,6 @@ pub async fn rebase_workspace(
             other => Err(ApiError::GitService(other)),
         };
     }
-
-    deployment
-        .track_if_analytics_allowed(
-            "task_attempt_rebased",
-            serde_json::json!({
-                "workspace_id": workspace.id.to_string(),
-                "repo_id": payload.repo_id.to_string(),
-            }),
-        )
-        .await;
 
     Ok(ResponseJson(ApiResponse::success(())))
 }

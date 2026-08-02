@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use api_types::LoginStatus;
 use async_trait::async_trait;
 use client_info::ClientInfo;
-use db::{DBService, models::local_user::LOCAL_USER_ID};
+use db::DBService;
 use deployment::{Deployment, DeploymentError};
 use executors::profile::ExecutorConfigs;
 use git::GitService;
@@ -24,7 +24,6 @@ use services::services::{
 };
 use tokio::sync::{Notify, RwLock};
 use tokio_util::sync::CancellationToken;
-use trusted_key_auth::runtime::TrustedKeyAuthRuntime;
 use utils::{assets::config_path, msg_store::MsgStore};
 use workspace_manager::WorkspaceManager;
 use worktree_manager::WorktreeManager;
@@ -39,7 +38,6 @@ pub mod terminal;
 #[derive(Clone)]
 pub struct LocalDeployment {
     config: Arc<RwLock<Config>>,
-    user_id: String,
     db: DBService,
     workspace_manager: WorkspaceManager,
     container: LocalContainerService,
@@ -53,8 +51,6 @@ pub struct LocalDeployment {
     queued_message_service: QueuedMessageService,
     client_info: ClientInfo,
     preview_proxy: PreviewProxyService,
-    trusted_key_auth: TrustedKeyAuthRuntime,
-    ssh_config: Arc<russh::server::Config>,
     pty: PtyService,
     pr_sync_notify: Arc<Notify>,
 }
@@ -114,7 +110,6 @@ impl Deployment for LocalDeployment {
         }
 
         let config = Arc::new(RwLock::new(raw_config));
-        let user_id = LOCAL_USER_ID.to_string();
         let git = GitService::new();
         let repo = RepoService::new();
         let msg_stores = Arc::new(RwLock::new(HashMap::new()));
@@ -151,8 +146,6 @@ impl Deployment for LocalDeployment {
         let client_info = ClientInfo::new();
         let preview_proxy = PreviewProxyService::new();
 
-        let ssh_config = embedded_ssh::config::build_config(&utils::assets::ssh_host_key_path());
-
         let workspace_manager = WorkspaceManager::new(db.clone());
         let container = LocalContainerService::new(
             db.clone(),
@@ -171,7 +164,6 @@ impl Deployment for LocalDeployment {
         let file_search_cache = Arc::new(FileSearchCache::new());
 
         let pty = PtyService::new();
-        let trusted_key_auth = TrustedKeyAuthRuntime::new(utils::assets::trusted_keys_path());
         let pr_sync_notify = Arc::new(Notify::new());
         {
             let db = db.clone();
@@ -193,7 +185,6 @@ impl Deployment for LocalDeployment {
 
         let deployment = Self {
             config,
-            user_id,
             db,
             workspace_manager,
             container,
@@ -207,17 +198,11 @@ impl Deployment for LocalDeployment {
             queued_message_service,
             client_info,
             preview_proxy,
-            trusted_key_auth,
-            ssh_config,
             pty,
             pr_sync_notify,
         };
 
         Ok(deployment)
-    }
-
-    fn user_id(&self) -> &str {
-        &self.user_id
     }
 
     fn config(&self) -> &Arc<RwLock<Config>> {
@@ -271,10 +256,6 @@ impl Deployment for LocalDeployment {
     fn preview_proxy(&self) -> &PreviewProxyService {
         &self.preview_proxy
     }
-
-    fn trusted_key_auth(&self) -> &TrustedKeyAuthRuntime {
-        &self.trusted_key_auth
-    }
 }
 
 impl LocalDeployment {
@@ -290,10 +271,6 @@ impl LocalDeployment {
 
     pub fn pty(&self) -> &PtyService {
         &self.pty
-    }
-
-    pub fn ssh_config(&self) -> &Arc<russh::server::Config> {
-        &self.ssh_config
     }
 
     pub fn trigger_pr_sync(&self) {

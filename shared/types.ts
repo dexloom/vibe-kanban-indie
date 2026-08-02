@@ -262,13 +262,7 @@ export type DiffChangeKind = "added" | "deleted" | "modified" | "renamed" | "cop
 
 export type ApiResponse<T, E = T> = { success: boolean, data: T | null, error_data: E | null, message: string | null, };
 
-export type LoginStatus = { "status": "loggedout" } | { "status": "loggedin", profile: ProfileResponse | null, };
-
-export type ProfileResponse = { user_id: string, username: string | null, email: string, providers: Array<ProviderProfile>, };
-
-export type ProviderProfile = { provider: string, username: string | null, display_name: string | null, email: string | null, avatar_url: string | null, };
-
-export type StatusResponse = { logged_in: boolean, profile: ProfileResponse | null, degraded: boolean | null, };
+export type LoginStatus = { "status": "loggedout" } | { "status": "loggedin", user_id: string | null, };
 
 export enum MemberRole { ADMIN = "ADMIN", MEMBER = "MEMBER" }
 
@@ -346,11 +340,11 @@ config_path: string, };
 
 export type TelegramTestResponse = { ok: boolean, error: string | null, };
 
-export type UserSystemInfo = { version: string, config: Config, machine_id: string, login_status: LoginStatus, remote_auth_degraded: string | null, environment: Environment, 
+export type UserSystemInfo = { version: string, config: Config, login_status: LoginStatus, environment: Environment, 
 /**
  * Capabilities supported per executor (e.g., { "CLAUDE_CODE": ["SESSION_FORK"] })
  */
-capabilities: { [key in string]?: Array<BaseAgentCapability> }, shared_api_base: string | null, preview_proxy_port: number | null, executors: { [key in BaseCodingAgent]?: ExecutorProfile }, };
+capabilities: { [key in string]?: Array<BaseAgentCapability> }, preview_proxy_port: number | null, executors: { [key in BaseCodingAgent]?: ExecutorProfile }, };
 
 export type Environment = { os_type: string, os_version: string, os_architecture: string, bitness: string, };
 
@@ -438,10 +432,6 @@ export type PrError = { "type": "cli_not_installed", provider: ProviderKind, } |
 export type RunScriptError = { "type": "no_script_configured" } | { "type": "process_already_running" };
 
 export type AssociateWorkspaceAttachmentsRequest = { attachment_ids: Array<string>, };
-
-export type ImportIssueAttachmentsRequest = { issue_id: string, };
-
-export type ImportIssueAttachmentsResponse = { attachment_ids: Array<string>, };
 
 export type AttachPrResponse = { pr_attached: boolean, pr_url: string | null, pr_number: bigint | null, pr_status: MergeStatus | null, };
 

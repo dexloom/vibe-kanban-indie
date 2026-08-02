@@ -773,8 +773,6 @@ impl LocalContainerService {
                         }
                     }
                 }
-
-                // Analytics and remote sync are removed in the local-only fork.
             } // end: !ctx.workspace.ephemeral
         }
 

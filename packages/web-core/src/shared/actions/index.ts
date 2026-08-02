@@ -18,8 +18,6 @@ import {
   ChatsTeardropIcon,
   GitDiffIcon,
   TerminalIcon,
-  SignInIcon,
-  SignOutIcon,
   CaretDoubleUpIcon,
   CaretDoubleDownIcon,
   PlayIcon,
@@ -448,44 +446,6 @@ export const Actions = {
           projectId: ctx.kanbanProjectId,
         },
       });
-    },
-  } satisfies GlobalActionDefinition,
-
-  SignIn: {
-    id: 'sign-in',
-    label: 'Sign In',
-    icon: SignInIcon,
-    requiresTarget: ActionTargetType.NONE,
-    isVisible: (ctx) => !ctx.isSignedIn,
-    execute: async () => {
-      const { OAuthDialog } = await import(
-        '@/shared/dialogs/global/OAuthDialog'
-      );
-      await OAuthDialog.show({});
-    },
-  } satisfies GlobalActionDefinition,
-
-  SignOut: {
-    id: 'sign-out',
-    label: 'Sign Out',
-    icon: SignOutIcon,
-    requiresTarget: ActionTargetType.NONE,
-    isVisible: (ctx) => ctx.isSignedIn,
-    execute: async (ctx) => {
-      const { oauthApi } = await import('@/shared/lib/api');
-      const { useOrganizationStore } = await import(
-        '@/shared/stores/useOrganizationStore'
-      );
-      const { organizationKeys } = await import(
-        '@/shared/hooks/organizationKeys'
-      );
-
-      await oauthApi.logout();
-      useOrganizationStore.getState().clearSelectedOrgId();
-      ctx.queryClient.removeQueries({ queryKey: organizationKeys.all });
-      // Invalidate user-system query to update loginStatus/useAuth state
-      await ctx.queryClient.invalidateQueries({ queryKey: ['user-system'] });
-      ctx.appNavigation.goToWorkspaces();
     },
   } satisfies GlobalActionDefinition,
 

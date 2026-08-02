@@ -3,7 +3,6 @@ resolver = "3"
 members = [
     "crates/api-types",
     "crates/server",
-    "crates/trusted-key-auth",
     "crates/mcp",
     "crates/tui",
     "crates/telegram-bridge",
@@ -19,7 +18,6 @@ members = [
     "crates/local-deployment",
     "crates/deployment",
     "crates/review",
-    "crates/embedded-ssh",
     "crates/tauri-app",
     "crates/preview-proxy",
 ]
@@ -63,8 +61,6 @@ directories = "6.0.0"
 dirs = "5.0"
 dotenv = "0.15"
 dunce = "1.0"
-ed25519-dalek = { version = "2.2.0", features = ["rand_core"] }
-embedded-ssh = { path = "crates/embedded-ssh" }
 enum_dispatch = "0.3.13"
 eventsource-stream = "0.2"
 executors = { path = "crates/executors" }
@@ -123,7 +119,6 @@ shlex = "1.3.0"
 similar = "2"
 spake2 = { version = "0.5.0-pre.0", features = ["getrandom"] }
 sqlx = { version = "0.8.6", features = ["chrono", "derive", "postgres", "runtime-tokio", "sqlite", "sqlite-preupdate-hook", "tls-rustls-aws-lc-rs", "uuid"] }
-ssh-key = { version = "0.6", features = ["ed25519"] }
 strip-ansi-escapes = "0.2.1"
 strum = "0.27.2"
 strum_macros = "0.27.2"
@@ -147,7 +142,6 @@ tower-http = { version = "0.5", features = ["compression-br", "compression-gzip"
 tracing = "0.1.43"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "registry"] }
-trusted-key-auth = { path = "crates/trusted-key-auth" }
 ts-rs = { git = "https://github.com/xazukx/ts-rs.git", branch = "use-ts-enum", features = ["chrono-impl", "no-serde-warnings", "serde-json-impl", "uuid-impl"] }
 url = "2.5"
 utils = { path = "crates/utils" }

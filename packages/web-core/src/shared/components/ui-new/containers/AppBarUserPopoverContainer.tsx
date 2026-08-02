@@ -3,10 +3,7 @@ import type { OrganizationWithRole } from 'shared/types';
 import { AppBarUserPopover } from '@vibe/ui/components/AppBarUserPopover';
 import { SettingsDialog } from '@/shared/dialogs/settings/SettingsDialog';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
-import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
-import { useActions } from '@/shared/hooks/useActions';
-import { Actions } from '@/shared/actions';
 
 interface AppBarUserPopoverContainerProps {
   organizations: OrganizationWithRole[];
@@ -19,22 +16,10 @@ export function AppBarUserPopoverContainer({
   selectedOrgId,
   onOrgSelect,
 }: AppBarUserPopoverContainerProps) {
-  const { executeAction } = useActions();
   const { isSignedIn } = useAuth();
-  const { loginStatus } = useUserSystem();
   const setSelectedOrgId = useOrganizationStore((s) => s.setSelectedOrgId);
   const [open, setOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
-
-  // Extract avatar URL from first provider
-  const avatarUrl =
-    loginStatus?.status === 'loggedin'
-      ? (loginStatus.profile?.providers[0]?.avatar_url ?? null)
-      : null;
-
-  const handleSignIn = async () => {
-    await executeAction(Actions.SignIn);
-  };
 
   const handleOrgSettings = async (orgId: string) => {
     setSelectedOrgId(orgId);
@@ -49,7 +34,7 @@ export function AppBarUserPopoverContainer({
   return (
     <AppBarUserPopover
       isSignedIn={isSignedIn}
-      avatarUrl={avatarUrl}
+      avatarUrl={null}
       avatarError={avatarError}
       organizations={organizations}
       selectedOrgId={selectedOrgId}
@@ -57,7 +42,7 @@ export function AppBarUserPopoverContainer({
       onOpenChange={setOpen}
       onOrgSelect={onOrgSelect}
       onOrgSettings={handleOrgSettings}
-      onSignIn={handleSignIn}
+      onSignIn={() => {}}
       onAvatarError={() => setAvatarError(true)}
       onSettings={handleSettings}
     />

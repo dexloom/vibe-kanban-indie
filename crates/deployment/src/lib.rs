@@ -9,7 +9,6 @@ use executors::executors::ExecutorError;
 use futures::{StreamExt, TryStreamExt};
 use git::{GitService, GitServiceError};
 use preview_proxy::PreviewProxyService;
-use serde_json::Value;
 use services::services::{
     approvals::Approvals,
     config::{Config, ConfigError},
@@ -26,7 +25,6 @@ use sqlx::Error as SqlxError;
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
-use trusted_key_auth::runtime::TrustedKeyAuthRuntime;
 use worktree_manager::WorktreeError;
 
 #[derive(Debug, Error)]
@@ -63,8 +61,6 @@ pub enum DeploymentError {
 pub trait Deployment: Clone + Send + Sync + 'static {
     async fn new(shutdown: CancellationToken) -> Result<Self, DeploymentError>;
 
-    fn user_id(&self) -> &str;
-
     fn config(&self) -> &Arc<RwLock<Config>>;
 
     fn db(&self) -> &DBService;
@@ -90,10 +86,6 @@ pub trait Deployment: Clone + Send + Sync + 'static {
     fn client_info(&self) -> &ClientInfo;
 
     fn preview_proxy(&self) -> &PreviewProxyService;
-
-    fn trusted_key_auth(&self) -> &TrustedKeyAuthRuntime;
-
-    async fn track_if_analytics_allowed(&self, _event_name: &str, _properties: Value) {}
 
     async fn stream_events(
         &self,

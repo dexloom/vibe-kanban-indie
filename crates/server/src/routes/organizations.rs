@@ -16,7 +16,6 @@ use axum::{
 use chrono::Utc;
 use db::models::{local_user::LocalUser, project::LOCAL_ORGANIZATION_ID};
 use deployment::Deployment;
-use serde::Deserialize;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
@@ -70,9 +69,6 @@ async fn list_organizations(
     };
     Ok(ResponseJson(ApiResponse::success(response)))
 }
-
-#[derive(Debug, Deserialize)]
-struct EmptyOrgCreate;
 
 async fn create_organization(
     State(_deployment): State<DeploymentImpl>,
@@ -232,7 +228,3 @@ async fn update_member_role(
         "Member management is not supported in the local-only fork".to_string(),
     ))
 }
-
-// Touch the helper so the unused-import lint is satisfied.
-#[allow(dead_code)]
-fn _silence_unused(_: EmptyOrgCreate) {}

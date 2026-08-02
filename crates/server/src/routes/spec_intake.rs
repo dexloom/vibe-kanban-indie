@@ -8,9 +8,7 @@
 
 use std::{collections::HashSet, time::Duration};
 
-use axum::{
-    Json, Router, extract::State, http::HeaderMap, response::Json as ResponseJson, routing::post,
-};
+use axum::{Json, Router, extract::State, response::Json as ResponseJson, routing::post};
 use db::models::{
     execution_process::{ExecutionProcess, ExecutionProcessStatus},
     requests::{GenerateSpecRequest, GenerateSpecResponse},
@@ -56,19 +54,8 @@ fn headless_for_intake(mut config: ExecutorConfig) -> ExecutorConfig {
 
 pub async fn generate_spec(
     State(deployment): State<DeploymentImpl>,
-    headers: HeaderMap,
     Json(payload): Json<GenerateSpecRequest>,
 ) -> Result<ResponseJson<ApiResponse<GenerateSpecResponse>>, ApiError> {
-    // Reject relayed calls: generation can take 20-60s, well past the relay's
-    // 30s HTTP timeout. The WebRTC proxy and the relay-tunnel transport both
-    // inject a trusted `x-vk-relayed` marker (client-provided values are
-    // stripped first), so its presence reliably means "relayed".
-    if headers.contains_key("x-vk-relayed") {
-        return Err(ApiError::Forbidden(
-            "Spec generation isn't available over a remote relay connection (it can exceed the relay timeout). Run it from the local app.".to_string(),
-        ));
-    }
-
     let GenerateSpecRequest {
         project_id,
         brief,

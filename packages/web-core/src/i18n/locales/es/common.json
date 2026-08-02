@@ -71,28 +71,15 @@
     "loading": "Cargando..."
   },
   "orgSwitcher": {
-    "organizations": "Organizaciones",
-    "orgSettings": "Configuración de la organización"
+    "organizations": "Organizaciones"
   },
   "ok": "OK",
   "error": "Error",
   "signIn": "Iniciar sesión",
   "signOut": "Cerrar sesión",
   "oauth": {
-    "title": "Iniciar sesión en Vibe Kanban",
-    "description": "Inicia sesión para unirte a organizaciones y compartir tareas con tu equipo",
     "continueWithGitHub": "Continuar con GitHub",
-    "continueWithGoogle": "Continuar con Google",
-    "waitingTitle": "Completar Autenticación",
-    "waitingDescription": "Se ha abierto una ventana emergente para la autenticación",
-    "waitingForAuth": "Esperando autenticación...",
-    "popupInstructions": "Si la ventana emergente no se abrió, por favor revisa la configuración de bloqueo de ventanas emergentes.",
-    "back": "Atrás",
-    "successTitle": "¡Autenticación exitosa!",
-    "welcomeBack": "Bienvenido de nuevo, {{name}}",
-    "errorTitle": "Falló la autenticación",
-    "errorDescription": "Hubo un problema al autenticar tu cuenta",
-    "tryAgain": "Intentar de nuevo"
+    "continueWithGoogle": "Continuar con Google"
   },
   "toolbar": {
     "sortBy": "Ordenar por",
@@ -350,7 +337,6 @@
     "previewImageWithName": "[Imagen: {{name}}]",
     "previewFile": "[Archivo]",
     "previewFileWithName": "[Archivo: {{name}}]",
-    "imageAttachmentNameFallback": "Adjunto",
     "removeImage": "Eliminar imagen",
     "maxFilesAtOnce": "Máximo {{count}} archivos a la vez",
     "fileExceedsLimit": "El archivo {{filename}} supera el límite de 20MB",
@@ -367,9 +353,7 @@
       "all": "Todo"
     },
     "loginRequired": {
-      "title": "Se requiere iniciar sesión",
-      "description": "Por favor inicia sesión para ver este proyecto.",
-      "action": "Iniciar sesión"
+      "description": "Por favor inicia sesión para ver este proyecto."
     },
     "team": "Team",
     "personal": "Personal",
@@ -490,8 +474,7 @@
     "streamsAffected": "{{count}} flujo afectado",
     "streamsAffected_other": "{{count}} flujos afectados",
     "status": "(estado {{status}})",
-    "refreshPage": "Actualizar página",
-    "remoteAuthUnavailable": "La autenticación remota no está disponible temporalmente. Es posible que algunas funciones remotas no funcionen hasta que se recupere."
+    "refreshPage": "Actualizar página"
   },
   "errors": {
     "generic": "An unexpected error occurred"

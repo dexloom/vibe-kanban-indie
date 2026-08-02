@@ -40,7 +40,6 @@ import {
 } from '@/shared/stores/useUiPreferencesStore';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 
-
 export function WorkspacesLayout() {
   const appNavigation = useAppNavigation();
   const {

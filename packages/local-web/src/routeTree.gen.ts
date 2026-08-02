@@ -14,7 +14,6 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppWorkspacesRouteImport } from './routes/_app.workspaces'
 import { Route as AppNotificationsRouteImport } from './routes/_app.notifications'
-import { Route as AppExportRouteImport } from './routes/_app.export'
 import { Route as AppCommonTasksRouteImport } from './routes/_app.common-tasks'
 import { Route as WorkspacesWorkspaceIdVscodeRouteImport } from './routes/workspaces.$workspaceId.vscode'
 import { Route as AppWorkspacesCreateRouteImport } from './routes/_app.workspaces_.create'
@@ -55,11 +54,6 @@ const AppWorkspacesRoute = AppWorkspacesRouteImport.update({
 const AppNotificationsRoute = AppNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppExportRoute = AppExportRouteImport.update({
-  id: '/export',
-  path: '/export',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCommonTasksRoute = AppCommonTasksRouteImport.update({
@@ -170,7 +164,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/onboarding': typeof OnboardingRoute
   '/common-tasks': typeof AppCommonTasksRoute
-  '/export': typeof AppExportRoute
   '/notifications': typeof AppNotificationsRoute
   '/workspaces': typeof AppWorkspacesRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
@@ -194,7 +187,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/onboarding': typeof OnboardingRoute
   '/common-tasks': typeof AppCommonTasksRoute
-  '/export': typeof AppExportRoute
   '/notifications': typeof AppNotificationsRoute
   '/workspaces': typeof AppWorkspacesRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
@@ -220,7 +212,6 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/onboarding': typeof OnboardingRoute
   '/_app/common-tasks': typeof AppCommonTasksRoute
-  '/_app/export': typeof AppExportRoute
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/workspaces': typeof AppWorkspacesRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRoute
@@ -246,7 +237,6 @@ export interface FileRouteTypes {
     | '/'
     | '/onboarding'
     | '/common-tasks'
-    | '/export'
     | '/notifications'
     | '/workspaces'
     | '/projects/$projectId'
@@ -270,7 +260,6 @@ export interface FileRouteTypes {
     | '/'
     | '/onboarding'
     | '/common-tasks'
-    | '/export'
     | '/notifications'
     | '/workspaces'
     | '/projects/$projectId'
@@ -295,7 +284,6 @@ export interface FileRouteTypes {
     | '/_app'
     | '/onboarding'
     | '/_app/common-tasks'
-    | '/_app/export'
     | '/_app/notifications'
     | '/_app/workspaces'
     | '/_app/projects/$projectId'
@@ -359,13 +347,6 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/notifications'
       preLoaderRoute: typeof AppNotificationsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/export': {
-      id: '/_app/export'
-      path: '/export'
-      fullPath: '/export'
-      preLoaderRoute: typeof AppExportRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/common-tasks': {
@@ -492,7 +473,6 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppCommonTasksRoute: typeof AppCommonTasksRoute
-  AppExportRoute: typeof AppExportRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppWorkspacesRoute: typeof AppWorkspacesRoute
   AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRoute
@@ -513,7 +493,6 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppCommonTasksRoute: AppCommonTasksRoute,
-  AppExportRoute: AppExportRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppWorkspacesRoute: AppWorkspacesRoute,
   AppProjectsProjectIdRoute: AppProjectsProjectIdRoute,

@@ -506,13 +506,6 @@
       "failedToCreateWorkspace": "创建工作区失败"
     }
   },
-  "shareDialog": {
-    "loginRequired": {
-      "title": "Sign in required",
-      "description": "Sign in to access this feature.",
-      "action": "Sign in"
-    }
-  },
   "linkPrToIssue": {
     "title": "关联拉取请求",
     "description": "将现有的拉取请求关联到此问题。",

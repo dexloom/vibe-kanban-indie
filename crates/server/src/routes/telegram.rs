@@ -18,7 +18,6 @@ use axum::{
     routing::{get, post},
 };
 use chrono::{DateTime, Utc};
-use deployment::Deployment;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use utils::{
@@ -89,7 +88,7 @@ async fn get_status() -> Result<ResponseJson<ApiResponse<TelegramStatus>>, ApiEr
 }
 
 async fn send_test(
-    State(deployment): State<DeploymentImpl>,
+    State(_deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<ApiResponse<TelegramTestResponse>>, ApiError> {
     let cfg = telegram_config::load();
     let Some((token, _)) = telegram_config::resolve_bot_token(cfg.as_ref()) else {
@@ -113,13 +112,6 @@ async fn send_test(
     let telegram = Telegram::new(token, chat_id);
     let result = telegram
         .send_message("✅ vibe-kanban test message", thread)
-        .await;
-
-    deployment
-        .track_if_analytics_allowed(
-            "telegram_test_sent",
-            serde_json::json!({ "ok": result.is_ok() }),
-        )
         .await;
 
     let response = match result {

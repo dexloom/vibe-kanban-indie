@@ -226,9 +226,7 @@ export function IssueIntakeSection({
             <select
               value={effectiveExecutor ?? ''}
               disabled={disabled || isGenerating}
-              onChange={(e) =>
-                setExecutor(e.target.value as BaseCodingAgent)
-              }
+              onChange={(e) => setExecutor(e.target.value as BaseCodingAgent)}
               className="rounded-sm border bg-panel/40 px-half py-half text-sm text-high disabled:opacity-50"
             >
               {executorOptions.map((exec) => (
@@ -275,9 +273,7 @@ export function IssueIntakeSection({
                       onChange={() => toggleRepo(c.repoId)}
                     />
                     <span>{c.name}</span>
-                    <span className="text-xs text-low">
-                      ({c.targetBranch})
-                    </span>
+                    <span className="text-xs text-low">({c.targetBranch})</span>
                   </label>
                 ))}
               </div>

@@ -7,7 +7,6 @@ import {
 import type { ReactNode } from 'react';
 import {
   LayoutIcon,
-  DownloadSimpleIcon,
   ClockClockwiseIcon,
   LinkIcon,
   PlusIcon,
@@ -34,7 +33,6 @@ interface AppBarProps {
   onPairHostClick?: () => void;
   activeHostId?: string | null;
   onCreateProject: () => void;
-  onExportClick?: () => void;
   onCommonTasksClick?: () => void;
   onWorkspacesClick: () => void;
   onHostClick?: (hostId: string, status: AppBarHostStatus) => void;
@@ -43,7 +41,6 @@ interface AppBarProps {
   onProjectsDragEnd: (result: DropResult) => void;
   isSavingProjectOrder?: boolean;
   isWorkspacesActive: boolean;
-  isExportActive?: boolean;
   isCommonTasksActive?: boolean;
   activeProjectId: string | null;
   isSignedIn?: boolean;
@@ -188,7 +185,6 @@ export function AppBar({
   onPairHostClick,
   activeHostId = null,
   onCreateProject,
-  onExportClick,
   onCommonTasksClick,
   onWorkspacesClick,
   onHostClick,
@@ -197,7 +193,6 @@ export function AppBar({
   onProjectsDragEnd,
   isSavingProjectOrder,
   isWorkspacesActive,
-  isExportActive = false,
   isCommonTasksActive = false,
   activeProjectId,
   isSignedIn,
@@ -316,23 +311,6 @@ export function AppBar({
       key: 'projects',
       label: 'Projects',
       items: projectSectionItems,
-    });
-  }
-
-  if (isSignedIn && onExportClick) {
-    sections.push({
-      key: 'export',
-      label: 'Export',
-      items: [
-        {
-          key: 'export-data',
-          kind: 'icon-button',
-          label: 'Export data',
-          icon: DownloadSimpleIcon,
-          isActive: isExportActive,
-          onClick: onExportClick,
-        },
-      ],
     });
   }
 

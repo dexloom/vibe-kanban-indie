@@ -10,7 +10,6 @@ import { usePageTitle } from '@/shared/hooks/usePageTitle';
 import { KanbanContainer } from '@/features/kanban/ui/KanbanContainer';
 import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import { ProjectRightSidebarContainer } from './ProjectRightSidebarContainer';
-import { LoginRequiredPrompt } from '@/shared/dialogs/shared/LoginRequiredPrompt';
 import {
   PERSIST_KEYS,
   usePaneSize,
@@ -305,12 +304,7 @@ export function ProjectKanban() {
   if (!isSignedIn) {
     return (
       <div className="flex items-center justify-center h-full w-full p-base">
-        <LoginRequiredPrompt
-          className="max-w-md"
-          title={t('kanban.loginRequired.title')}
-          description={t('kanban.loginRequired.description')}
-          actionLabel={t('kanban.loginRequired.action')}
-        />
+        <p className="text-low">{t('kanban.loginRequired.description')}</p>
       </div>
     );
   }

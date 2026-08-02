@@ -50,44 +50,36 @@ impl SignedWsUpgrade {
     {
         self.ws.on_upgrade(move |socket| async move {
             callback(MaybeSignedWebSocket {
-                inner: WebSocketInner::Plain(Box::new(socket)),
+                inner: Box::new(socket),
             })
             .await;
         })
     }
 }
 
-enum WebSocketInner {
-    Plain(Box<WebSocket>),
-}
-
 pub struct MaybeSignedWebSocket {
-    inner: WebSocketInner,
+    inner: Box<WebSocket>,
 }
 
 impl MaybeSignedWebSocket {
     pub async fn send(&mut self, message: Message) -> anyhow::Result<()> {
-        match &mut self.inner {
-            WebSocketInner::Plain(ws) => SinkExt::send(ws, message)
-                .await
-                .map_err(anyhow::Error::from),
-        }
+        SinkExt::send(&mut self.inner, message)
+            .await
+            .map_err(anyhow::Error::from)
     }
 
     pub async fn recv(&mut self) -> anyhow::Result<Option<Message>> {
-        match &mut self.inner {
-            WebSocketInner::Plain(ws) => match ws.next().await {
-                Some(Ok(msg)) => Ok(Some(msg)),
-                Some(Err(e)) => Err(anyhow::Error::from(e)),
-                None => Ok(None),
-            },
+        match self.inner.next().await {
+            Some(Ok(msg)) => Ok(Some(msg)),
+            Some(Err(e)) => Err(anyhow::Error::from(e)),
+            None => Ok(None),
         }
     }
 
     pub async fn close(&mut self) -> anyhow::Result<()> {
-        match &mut self.inner {
-            WebSocketInner::Plain(ws) => SinkExt::close(ws).await.map_err(anyhow::Error::from),
-        }
+        SinkExt::close(&mut self.inner)
+            .await
+            .map_err(anyhow::Error::from)
     }
 }
 
@@ -96,11 +88,9 @@ impl Stream for MaybeSignedWebSocket {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
-        match &mut this.inner {
-            WebSocketInner::Plain(ws) => Pin::new(ws)
-                .poll_next(cx)
-                .map(|opt| opt.map(|r| r.map_err(anyhow::Error::from))),
-        }
+        Pin::new(&mut this.inner)
+            .poll_next(cx)
+            .map(|opt| opt.map(|r| r.map_err(anyhow::Error::from)))
     }
 }
 
@@ -109,29 +99,29 @@ impl Sink<Message> for MaybeSignedWebSocket {
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.get_mut();
-        match &mut this.inner {
-            WebSocketInner::Plain(ws) => Pin::new(ws).poll_ready(cx).map_err(anyhow::Error::from),
-        }
+        Pin::new(&mut this.inner)
+            .poll_ready(cx)
+            .map_err(anyhow::Error::from)
     }
 
     fn start_send(self: Pin<&mut Self>, item: Message) -> Result<(), Self::Error> {
         let this = self.get_mut();
-        match &mut this.inner {
-            WebSocketInner::Plain(ws) => Pin::new(ws).start_send(item).map_err(anyhow::Error::from),
-        }
+        Pin::new(&mut this.inner)
+            .start_send(item)
+            .map_err(anyhow::Error::from)
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.get_mut();
-        match &mut this.inner {
-            WebSocketInner::Plain(ws) => Pin::new(ws).poll_flush(cx).map_err(anyhow::Error::from),
-        }
+        Pin::new(&mut this.inner)
+            .poll_flush(cx)
+            .map_err(anyhow::Error::from)
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.get_mut();
-        match &mut this.inner {
-            WebSocketInner::Plain(ws) => Pin::new(ws).poll_close(cx).map_err(anyhow::Error::from),
-        }
+        Pin::new(&mut this.inner)
+            .poll_close(cx)
+            .map_err(anyhow::Error::from)
     }
 }
