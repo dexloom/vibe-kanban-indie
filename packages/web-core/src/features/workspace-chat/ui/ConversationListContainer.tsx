@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -177,6 +178,11 @@ export const ConversationList = forwardRef<
   // ensuring every frame reflects the latest data.
   const rafIdRef = useRef<number | null>(null);
   const planRevealSpacerRef = useRef<HTMLDivElement | null>(null);
+  // Set in the rAF entry-flush when a plan arrives while at the bottom; consumed
+  // by the post-commit layout effect below, which uses the tail-aware
+  // `scrollToAbsoluteIndex` to reveal the plan row (plans live in the
+  // unvirtualized tail, which the virtualizer hook can't address).
+  const pendingPlanRevealRef = useRef(false);
 
   // Use ref to access current repos without causing callback recreation
   const reposRef = useRef(repos);
@@ -279,6 +285,16 @@ export const ConversationList = forwardRef<
       pending.addType,
       pending.isInitialLoad
     );
+
+    // Defer plan reveal to the post-commit layout effect below. `scrollToAbsoluteIndex`
+    // targets the DOM by data-row-index (works for tail rows) and must run after
+    // React has committed the new row, so we only record the intent here.
+    if (
+      pending.addType === 'plan' &&
+      conversationVirtualizer.checkIsAtBottom()
+    ) {
+      pendingPlanRevealRef.current = true;
+    }
 
     if (loading) {
       setLoading(pending.loading);
@@ -457,6 +473,18 @@ export const ConversationList = forwardRef<
     },
     [conversationVirtualizer]
   );
+
+  // Plan reveal: deferred from the rAF entry-flush so it runs after React has
+  // committed the new plan row. `scrollToAbsoluteIndex` resolves the target by
+  // `data-row-index` directly against the DOM, so it reveals the plan whether
+  // it landed in the virtualized head or the unvirtualized tail, and the
+  // plan-reveal spacer handles tail rows that sit below the fold.
+  useLayoutEffect(() => {
+    if (!pendingPlanRevealRef.current) return;
+    if (conversationRows.length === 0) return;
+    pendingPlanRevealRef.current = false;
+    scrollToAbsoluteIndex(conversationRows.length - 1, 'start', 'auto');
+  }, [conversationRows.length, scrollToAbsoluteIndex]);
 
   // Determine if there are entries to show placeholders
   const hasEntries = conversationRows.length > 0;
