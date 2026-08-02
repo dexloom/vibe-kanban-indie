@@ -32,6 +32,7 @@ import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import {
   DEFAULT_THEME_VARIANT,
   type MobileFontScale,
+  useAnimateRunningOutline,
   useMobileFontScale,
   useThemeVariant,
 } from '@/shared/stores/useUiPreferencesStore';
@@ -64,6 +65,8 @@ export function GeneralSettingsSection() {
   const isMobile = useIsMobile();
   const [mobileFontScale, setMobileFontScale] = useMobileFontScale();
   const [themeVariant, setThemeVariant] = useThemeVariant();
+  const [animateRunningOutline, setAnimateRunningOutline] =
+    useAnimateRunningOutline();
   const { themes: themeVariantManifest } = useThemeManifest();
   const languageOptions = getLanguageOptions(
     t('language.browserDefault', {
@@ -335,6 +338,14 @@ export function GeneralSettingsSection() {
             />
           </SettingsField>
         )}
+
+        <SettingsCheckbox
+          id="animate-running-outline"
+          label="Animated border while working"
+          description="Show a shimmering border around the message box while the agent works. A subtle pulsating dot is always shown."
+          checked={animateRunningOutline}
+          onChange={setAnimateRunningOutline}
+        />
       </SettingsCard>
 
       {/* Editor */}

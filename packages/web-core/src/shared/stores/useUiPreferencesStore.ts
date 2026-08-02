@@ -15,12 +15,7 @@ export type RightMainPanelMode =
 export type LayoutMode = 'workspaces' | 'kanban';
 
 export type MobileTab =
-  | 'workspaces'
-  | 'chat'
-  | 'changes'
-  | 'logs'
-  | 'preview'
-  | 'git';
+  'workspaces' | 'chat' | 'changes' | 'logs' | 'preview' | 'git';
 
 export type MobileFontScale = 'default' | 'small' | 'smaller';
 export const DEFAULT_CREATE_DRAFT_WORKSPACE_BY_DEFAULT = false;
@@ -44,6 +39,20 @@ export type ThemeVariant = string;
 export const DEFAULT_THEME_VARIANT: ThemeVariant = 'default';
 
 const THEME_VARIANT_KEY = 'vk-theme-variant';
+
+// Animated (shimmering) border around the message box while the workspace is
+// working. A subtle pulsating dot always shows; this toggles the border on top.
+const ANIMATE_RUNNING_OUTLINE_KEY = 'vk-animate-running-outline';
+
+const loadAnimateRunningOutline = (): boolean => {
+  try {
+    const stored = localStorage.getItem(ANIMATE_RUNNING_OUTLINE_KEY);
+    if (stored !== null) return stored !== 'false';
+  } catch {
+    // localStorage may be unavailable
+  }
+  return true;
+};
 
 const loadThemeVariant = (): ThemeVariant => {
   try {
@@ -78,11 +87,7 @@ const DEFAULT_WORKSPACE_PANEL_STATE: WorkspacePanelState = {
 
 // Kanban filter state
 export type KanbanSortField =
-  | 'sort_order'
-  | 'priority'
-  | 'created_at'
-  | 'updated_at'
-  | 'title';
+  'sort_order' | 'priority' | 'created_at' | 'updated_at' | 'title';
 
 export type KanbanFilterState = {
   searchQuery: string;
@@ -374,6 +379,9 @@ type State = {
   // Theme variant ("skin"), applied on top of the light/dark mode
   themeVariant: ThemeVariant;
 
+  // Animated border around the working message box (toggleable in settings)
+  animateRunningOutline: boolean;
+
   // Last selected organization and project (persisted via scratch store)
   selectedOrgId: string | null;
   selectedProjectId: string | null;
@@ -465,6 +473,9 @@ type State = {
   // Theme variant actions
   setThemeVariant: (variant: ThemeVariant) => void;
 
+  // Animated running outline actions
+  setAnimateRunningOutline: (value: boolean) => void;
+
   // Last selected organization and project actions
   setSelectedOrgId: (orgId: string | null) => void;
   clearSelectedOrgId: () => void;
@@ -511,6 +522,9 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
 
   // Theme variant
   themeVariant: loadThemeVariant(),
+
+  // Animated running outline (default on)
+  animateRunningOutline: loadAnimateRunningOutline(),
 
   // Last selected organization and project
   selectedOrgId: null,
@@ -880,6 +894,20 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
     set({ themeVariant: variant });
   },
 
+  // Animated running outline actions
+  setAnimateRunningOutline: (value) => {
+    try {
+      if (value) {
+        localStorage.removeItem(ANIMATE_RUNNING_OUTLINE_KEY);
+      } else {
+        localStorage.setItem(ANIMATE_RUNNING_OUTLINE_KEY, 'false');
+      }
+    } catch {
+      // localStorage may be unavailable
+    }
+    set({ animateRunningOutline: value });
+  },
+
   // Last selected organization and project actions
   setSelectedOrgId: (orgId) => set({ selectedOrgId: orgId }),
   clearSelectedOrgId: () => set({ selectedOrgId: null }),
@@ -996,6 +1024,13 @@ export function useThemeVariant() {
   const variant = useUiPreferencesStore((s) => s.themeVariant);
   const set = useUiPreferencesStore((s) => s.setThemeVariant);
   return [variant, set] as const;
+}
+
+// Hook for the animated running outline toggle
+export function useAnimateRunningOutline() {
+  const value = useUiPreferencesStore((s) => s.animateRunningOutline);
+  const set = useUiPreferencesStore((s) => s.setAnimateRunningOutline);
+  return [value, set] as const;
 }
 
 // Hook for workspace-specific panel state

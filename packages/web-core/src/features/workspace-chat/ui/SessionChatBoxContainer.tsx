@@ -47,6 +47,7 @@ import { ModelSelectorContainer } from '@/shared/components/ModelSelectorContain
 import {
   useWorkspacePanelState,
   RIGHT_MAIN_PANEL_MODES,
+  useAnimateRunningOutline,
 } from '@/shared/stores/useUiPreferencesStore';
 import { useInspectModeStore } from '../model/store/useInspectModeStore';
 import { Actions } from '@/shared/actions';
@@ -137,9 +138,7 @@ interface PlaceholderProps extends SharedProps {
 }
 
 type SessionChatBoxContainerProps =
-  | ExistingSessionProps
-  | NewSessionProps
-  | PlaceholderProps;
+  ExistingSessionProps | NewSessionProps | PlaceholderProps;
 
 export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
   const {
@@ -173,6 +172,7 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
   const sessionId = session?.id;
   const queryClient = useQueryClient();
   const hostId = useHostId();
+  const [animateRunningOutline] = useAnimateRunningOutline();
 
   const handleRenameSession = useCallback(
     (targetSessionId: string, currentName: string) => {
@@ -1079,6 +1079,7 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
   return (
     <SessionChatBox<BaseCodingAgent>
       status={effectiveStatus}
+      animateRunningOutline={animateRunningOutline}
       disableContentInsert={!!headedLive}
       onViewCode={disableViewCode ? undefined : handleViewCode}
       onOpenWorkspace={
