@@ -1,13 +1,8 @@
 /**
  * Conversation Virtualizer Hook
  *
- * Owns the TanStack Virtual instance for the conversation list, the bottom-lock
- * autoscroll state, and all imperative scroll commands. The previous design
- * split this across three files (virtualizer + a scroll-intent state machine +
- * a command executor); that indirection is what let the bottom lock get
- * falsely released during streaming. Here everything lives in one place and
- * programmatic scrolls are guarded with a boolean flag instead of a wall-clock
- * deadline.
+ * Shared TanStack Virtual configuration for the conversation list.
+ * Owns the virtualizer instance, measurement, and imperative scroll helpers.
  */
 
 import {
@@ -30,29 +25,73 @@ import {
   estimateSizeForRow,
   findPreviousUserMessageIndex,
 } from './conversation-row-model';
-import type { AddEntryType } from '@/shared/hooks/useConversationHistory/types';
+import {
+  NEAR_BOTTOM_THRESHOLD_PX,
+  isNearBottom,
+} from './conversation-scroll-commands';
 
-/** Pixel distance from bottom within which the user is considered "at bottom". */
-const NEAR_BOTTOM_THRESHOLD_PX = 64;
-
+// TanStack Virtual's ScrollBehavior ('auto' | 'smooth' | 'instant') shadows
+// the DOM ScrollBehavior. Use a narrow type to avoid TS2322 mismatches.
 type ScrollToOptionsBehavior = 'auto' | 'smooth';
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Number of items to render beyond the visible area in each direction. */
 const OVERSCAN = 8;
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 export interface ConversationVirtualizerOptions {
+  /** The semantic row model driving the list (virtualized head only). */
   rows: ConversationRow[];
+
+  /**
+   * Total number of conversation rows (virtualized + unvirtualized tail).
+   * The bottom-lock correction must fire when ANY row is added — including
+   * unvirtualized tail rows that don't change `rows.length` or `totalSize`.
+   * Without this, streaming entries appended to the tail silently grow the
+   * scroll container while the correction never fires.
+   */
   totalRowCount: number;
+
+  /** Ref to the scrollable container element. */
   scrollContainerRef: RefObject<HTMLDivElement | null>;
+
+  /**
+   * Called when the at-bottom state changes. Shells use this to show/hide
+   * the scroll-to-bottom affordance.
+   */
   onAtBottomChange?: (atBottom: boolean) => void;
+
   shouldSuppressSizeAdjustment?: () => boolean;
 }
 
 export interface ConversationVirtualizerResult {
+  /** The TanStack Virtual virtualizer instance. */
   virtualizer: Virtualizer<HTMLDivElement, Element>;
+
+  /** Virtual items currently in the render window (including overscan). */
   virtualItems: VirtualItem[];
+
+  /** Total pixel size of all items (for the scroll spacer). */
   totalSize: number;
+
+  /**
+   * Ref callback for row DOM elements. Attach to each rendered row's
+   * container element alongside `data-index={virtualItem.index}`.
+   * TanStack Virtual uses this to measure real DOM heights and attach
+   * a ResizeObserver for automatic re-measurement on size changes.
+   */
   measureElement: (node: Element | null) => void;
+
+  /** Scroll to the absolute bottom of the list. */
   scrollToBottom: (behavior?: ScrollToOptionsBehavior) => void;
+
+  /** Scroll to a specific row index. */
   scrollToIndex: (
     index: number,
     options?: {
@@ -60,36 +99,52 @@ export interface ConversationVirtualizerResult {
       behavior?: ScrollToOptionsBehavior;
     }
   ) => void;
+
+  /**
+   * Scroll to the previous user message relative to the first visible item.
+   * Returns true if a target was found and scrolled to, false otherwise.
+   */
   scrollToPreviousUserMessage: () => boolean;
 
   /**
-   * Call after conversation entries change (from the shell's rAF flush). The
-   * hook decides whether to follow the bottom (only when the user is at/near
-   * it) or preserve the viewport.
+   * Whether the scroll container is currently near the bottom.
+   * Reactive — updates via scroll event listener, not just point-in-time.
    */
-  handleEntriesChanged: (addType: AddEntryType, isInitialLoad: boolean) => void;
   isAtBottom: boolean;
+
+  /** Point-in-time check (non-reactive). Reads DOM directly. */
   checkIsAtBottom: () => boolean;
+
+  /**
+   * Release the bottom-lock. Call when navigating away from the
+   * bottom (e.g., scrollToPreviousUserMessage).
+   */
   releaseBottomLock: () => void;
+
+  /**
+   * Look up the ConversationRow index for a given virtual item.
+   * Since our virtualizer uses identity mapping (no lane reordering),
+   * this is simply `virtualItem.index`.
+   */
   rowIndexForVirtualItem: (item: VirtualItem) => number;
+
+  /**
+   * Look up the ConversationRow for a given virtual item.
+   * Returns undefined if the index is out of bounds.
+   */
   rowForVirtualItem: (item: VirtualItem) => ConversationRow | undefined;
 }
 
-export function isNearBottom(
-  scrollTop: number,
-  clientHeight: number,
-  scrollHeight: number
-): boolean {
-  if (
-    !Number.isFinite(scrollTop) ||
-    !Number.isFinite(clientHeight) ||
-    !Number.isFinite(scrollHeight)
-  ) {
-    return true;
-  }
-  return scrollHeight - clientHeight - scrollTop <= NEAR_BOTTOM_THRESHOLD_PX;
-}
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
 
+/**
+ * Configure and return a TanStack Virtual virtualizer for the conversation list.
+ *
+ * This hook is the single source of virtualizer configuration. It is consumed
+ * by `ConversationListContainer` and must not be duplicated across shells.
+ */
 export function useConversationVirtualizer({
   rows,
   totalRowCount,
@@ -98,28 +153,16 @@ export function useConversationVirtualizer({
   shouldSuppressSizeAdjustment,
 }: ConversationVirtualizerOptions): ConversationVirtualizerResult {
   const bottomLockedRef = useRef(false);
-
-  // Guards the lock-release heuristic in the scroll handler. Any programmatic
-  // scrollTop mutation sets this flag until the next animation frame, so the
-  // scroll events it fires are not misread as a user-initiated upward scroll
-  // (which is what previously released the bottom lock mid-stream).
-  const isProgrammaticScrollRef = useRef(false);
-
-  const setScrollTopProgrammatic = useCallback(
-    (el: HTMLDivElement, top: number) => {
-      isProgrammaticScrollRef.current = true;
-      el.scrollTop = top;
-      requestAnimationFrame(() => {
-        isProgrammaticScrollRef.current = false;
-      });
-    },
-    []
-  );
+  const smoothScrollDeadlineRef = useRef(0);
 
   const isBottomScrollCorrectionActive = useCallback(
     () => bottomLockedRef.current,
     []
   );
+
+  // -------------------------------------------------------------------------
+  // Virtualizer instance
+  // -------------------------------------------------------------------------
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -139,9 +182,15 @@ export function useConversationVirtualizer({
     useAnimationFrameWithResizeObserver: false,
   });
 
+  // -------------------------------------------------------------------------
+  // shouldAdjustScrollPositionOnItemSizeChange
+  //
   // Preserve the reader's position only when a row fully above the viewport
-  // changes size. Suppressed during programmatic scrolls and interaction
-  // anchor corrections.
+  // changes size. Mid-list flicker happens when we compensate for rows that
+  // are still visible or below the viewport, because those corrections can
+  // move the render window and trigger another measurement pass.
+  // -------------------------------------------------------------------------
+
   useEffect(() => {
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (
       item,
@@ -158,14 +207,24 @@ export function useConversationVirtualizer({
       const remainingDistance =
         totalScrollableSize - (scrollOffset + viewportHeight);
       const isItemFullyAboveViewport = item.end <= scrollOffset;
+      const isBottomLocked = bottomLockedRef.current;
+      // Only compensate the item that sits at the top edge of the viewport.
+      // Without this band, a single measurement pass can cascade: compensating
+      // one resized row above shifts `scrollOffset`, which makes the next
+      // resized row above it look "at the edge" too, triggering another
+      // compensation in the same batch — the continuous scroll jumps during
+      // streaming. Compensating only the boundary row breaks the cascade: the
+      // rest measure silently and only move the viewport when the user scrolls.
+      const atViewportEdge = Math.abs(item.end - scrollOffset) < 120;
 
-      return (
-        !isProgrammaticScrollRef.current &&
-        !bottomLockedRef.current &&
+      const shouldAdjust =
+        !isBottomLocked &&
         !shouldSuppressSizeAdjustment?.() &&
         isItemFullyAboveViewport &&
-        remainingDistance > NEAR_BOTTOM_THRESHOLD_PX
-      );
+        atViewportEdge &&
+        remainingDistance > NEAR_BOTTOM_THRESHOLD_PX;
+
+      return shouldAdjust;
     };
 
     return () => {
@@ -213,13 +272,15 @@ export function useConversationVirtualizer({
     const handleScroll = () => {
       const currentScrollTop = el.scrollTop;
 
-      // Release the bottom lock only on a real user-initiated upward scroll,
-      // never on a programmatic one (guarded by isProgrammaticScrollRef) and
-      // never while an interaction anchor correction is in flight.
+      // Release bottom lock on any user-initiated upward scroll.
+      // Guards prevent false positives from programmatic scroll sources:
+      // - smoothScrollDeadlineRef: set during scrollToBottom('smooth')
+      // - shouldSuppressSizeAdjustment: set during interaction anchor corrections
+      // - 5px threshold: filters input-resize micro-adjustments
       if (
         bottomLockedRef.current &&
         prevScrollTopRef.current - currentScrollTop > 5 &&
-        !isProgrammaticScrollRef.current &&
+        performance.now() > smoothScrollDeadlineRef.current &&
         !shouldSuppressSizeAdjustment?.()
       ) {
         bottomLockedRef.current = false;
@@ -244,21 +305,18 @@ export function useConversationVirtualizer({
   const virtualItems = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
 
-  // Bottom-lock correction: after measurement, keep the viewport pinned to the
-  // bottom while locked. `totalRowCount` is the total including the
-  // unvirtualized streaming tail (which grows `scrollHeight` without changing
-  // `rows.length` or `totalSize`).
   useLayoutEffect(() => {
     syncIsAtBottom();
 
     if (!bottomLockedRef.current) return;
+    if (performance.now() < smoothScrollDeadlineRef.current) return;
 
     const el = scrollContainerRef.current;
     if (!el) return;
 
     const maxScroll = el.scrollHeight - el.clientHeight;
     if (maxScroll > 0 && Math.abs(maxScroll - el.scrollTop) > 1) {
-      setScrollTopProgrammatic(el, maxScroll);
+      el.scrollTop = maxScroll;
     }
   }, [
     rows.length,
@@ -266,11 +324,10 @@ export function useConversationVirtualizer({
     totalSize,
     syncIsAtBottom,
     scrollContainerRef,
-    setScrollTopProgrammatic,
   ]);
 
   // -------------------------------------------------------------------------
-  // Scroll commands
+  // Imperative helpers
   // -------------------------------------------------------------------------
 
   const scrollToBottom = useCallback(
@@ -280,17 +337,21 @@ export function useConversationVirtualizer({
 
       bottomLockedRef.current = true;
 
+      // Guard the follow-bottom scroll (and any immediate measurement
+      // correction that follows it) from being misread as a user-initiated
+      // upward scroll in the scroll handler, which would falsely release the
+      // bottom lock and leave the stream "stuck" mid-list. The deadline is set
+      // for BOTH behaviors — streaming uses 'auto', so it previously had no
+      // guard at all.
+      smoothScrollDeadlineRef.current = performance.now() + 500;
+
       if (behavior === 'smooth') {
-        isProgrammaticScrollRef.current = true;
         el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-        requestAnimationFrame(() => {
-          isProgrammaticScrollRef.current = false;
-        });
       } else {
-        setScrollTopProgrammatic(el, el.scrollHeight - el.clientHeight);
+        el.scrollTop = el.scrollHeight - el.clientHeight;
       }
     },
-    [scrollContainerRef, setScrollTopProgrammatic]
+    [scrollContainerRef, virtualizer]
   );
 
   const scrollToIndex = useCallback(
@@ -301,7 +362,10 @@ export function useConversationVirtualizer({
         behavior?: ScrollToOptionsBehavior;
       }
     ) => {
-      bottomLockedRef.current = false;
+      if (bottomLockedRef.current) {
+        bottomLockedRef.current = false;
+      }
+
       virtualizer.scrollToIndex(index, {
         align: options?.align ?? 'start',
         behavior: options?.behavior ?? 'smooth',
@@ -314,8 +378,6 @@ export function useConversationVirtualizer({
     const scrollEl = scrollContainerRef.current;
     const items = virtualizer.getVirtualItems();
     if (items.length === 0 || rows.length === 0 || !scrollEl) return false;
-
-    bottomLockedRef.current = false;
 
     const firstVisibleIndex =
       virtualizer.getVirtualItemForOffset(scrollEl.scrollTop)?.index ??
@@ -338,34 +400,9 @@ export function useConversationVirtualizer({
   }, [scrollContainerRef]);
 
   const releaseBottomLock = useCallback(() => {
+    if (!bottomLockedRef.current) return;
     bottomLockedRef.current = false;
   }, []);
-
-  // -------------------------------------------------------------------------
-  // Entry-change handling (replaces the old scroll-intent state machine)
-  // -------------------------------------------------------------------------
-
-  const handleEntriesChanged = useCallback(
-    (addType: AddEntryType, isInitialLoad: boolean) => {
-      if (isInitialLoad) {
-        scrollToBottom('auto');
-        return;
-      }
-
-      // Plan reveal is intentionally NOT handled here: the latest rows (where
-      // plans land) live in the unvirtualized tail, which this hook can't
-      // address. The shell owns plan reveal via its tail-aware
-      // `scrollToAbsoluteIndex`, deferred to a post-commit effect.
-
-      if (addType !== 'plan') {
-        const atBottom = checkIsAtBottom();
-        if (atBottom) {
-          scrollToBottom('auto');
-        }
-      }
-    },
-    [checkIsAtBottom, scrollToBottom]
-  );
 
   // -------------------------------------------------------------------------
   // Row ↔ VirtualItem mapping
@@ -388,6 +425,10 @@ export function useConversationVirtualizer({
     [virtualizer]
   );
 
+  // -------------------------------------------------------------------------
+  // Return
+  // -------------------------------------------------------------------------
+
   return {
     virtualizer,
     virtualItems,
@@ -396,7 +437,6 @@ export function useConversationVirtualizer({
     scrollToBottom,
     scrollToIndex,
     scrollToPreviousUserMessage,
-    handleEntriesChanged,
     isAtBottom: isAtBottomState,
     checkIsAtBottom,
     releaseBottomLock,

@@ -1142,8 +1142,14 @@ function ErrorMessageEntry({
  */
 function AggregatedGroupEntry({ group }: { group: AggregatedPatchGroup }) {
   const { viewToolContentInPanel } = useLogsPanelActions();
+  // Inherit the expansion key from the FIRST constituent entry (not the
+  // `agg:` key) so the persisted open/close state carries over when an
+  // individual entry aggregates into a group (and back). A changing key here
+  // resets the state to the default and collapses rows that were expanded —
+  // the height swing is what made the viewport jump on workspace open.
+  const firstEntryKey = group.entries[0]?.patchKey;
   const [expanded, toggle] = usePersistedExpanded(
-    `tool:${group.patchKey}`,
+    (firstEntryKey ? `tool:${firstEntryKey}` : `tool:${group.patchKey}`) as PersistKey,
     false
   );
   const [isHovered, setIsHovered] = useState(false);
@@ -1269,8 +1275,11 @@ function AggregatedThinkingGroupEntry({
   workspaceId: string | undefined;
   sessionId: string | undefined;
 }) {
+  const firstEntryKey = group.entries[0]?.patchKey;
   const [expanded, toggle] = usePersistedExpanded(
-    `entry:${group.patchKey}`,
+    (firstEntryKey
+      ? `entry:${firstEntryKey}`
+      : `entry:${group.patchKey}`) as PersistKey,
     false
   );
   const [isHovered, setIsHovered] = useState(false);
@@ -1318,8 +1327,13 @@ function AggregatedDiffGroupEntry({ group }: { group: AggregatedDiffGroup }) {
   const { theme } = useTheme();
   const actualTheme = getActualTheme(theme);
   const { viewFileInChanges, hasDiffPath } = useChangesViewActions();
+  // Inherit the expansion key from the first constituent entry so the open/
+  // close state survives aggregation (same rationale as AggregatedGroupEntry).
+  const firstEntryKey = group.entries[0]?.patchKey;
   const [expanded, toggle] = usePersistedExpanded(
-    `diff:${group.patchKey}`,
+    (firstEntryKey
+      ? `diff:${firstEntryKey}`
+      : `diff:${group.patchKey}`) as PersistKey,
     false
   );
   const [isHovered, setIsHovered] = useState(false);

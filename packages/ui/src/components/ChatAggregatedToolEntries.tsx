@@ -39,33 +39,6 @@ export function ChatAggregatedToolEntries({
 }: ChatAggregatedToolEntriesProps) {
   if (entries.length === 0) return null;
 
-  // If only one entry, don't aggregate
-  if (entries.length === 1) {
-    const entry = entries[0];
-    return (
-      <div
-        className={cn(
-          'flex items-center gap-base text-sm text-low',
-          onViewContent && 'cursor-pointer',
-          className
-        )}
-        onClick={onViewContent ? () => onViewContent(0) : undefined}
-        role={onViewContent ? 'button' : undefined}
-      >
-        <span className="relative shrink-0 pt-0.5">
-          <Icon className="size-icon-base" />
-          {entry.status && (
-            <ToolStatusDot
-              status={entry.status}
-              className="absolute -bottom-0.5 -left-0.5"
-            />
-          )}
-        </span>
-        <span className="truncate">{entry.summary}</span>
-      </div>
-    );
-  }
-
   // Get the worst status among all entries for the aggregate indicator
   const aggregateStatus = entries.reduce<ToolStatusLike | undefined>(
     (worst, entry) => {
@@ -89,6 +62,14 @@ export function ChatAggregatedToolEntries({
     },
     undefined
   );
+
+  // Always render the same header layout regardless of entries.length so the
+  // boundary crossing 1 → 2 during streaming (each new file_read / search the
+  // subagent makes re-aggregates here) doesn't swap the DOM subtree. The
+  // `min-w-0 flex-1` on the text span lets the flex row truncate the text
+  // instead of letting the growing count push siblings out, which was a
+  // source of layout shifts as the count grew mid-stream.
+  const countLabel = `${entries.length} ${entries.length === 1 ? unit : `${unit}s`}`;
 
   return (
     <div className={cn('flex flex-col', className)}>
@@ -120,8 +101,8 @@ export function ChatAggregatedToolEntries({
             />
           )}
         </span>
-        <span className="truncate">
-          {label} · {entries.length} {entries.length === 1 ? unit : `${unit}s`}
+        <span className="min-w-0 flex-1 truncate">
+          {label} · {countLabel}
         </span>
       </div>
 

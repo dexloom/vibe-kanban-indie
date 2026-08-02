@@ -5,6 +5,7 @@ use axum::{
 };
 use reqwest::{StatusCode, header};
 use rust_embed::RustEmbed;
+use std::path::Path;
 
 #[derive(RustEmbed)]
 #[folder = "../../packages/local-web/dist"]
@@ -19,7 +20,57 @@ pub(super) async fn serve_frontend_root() -> impl IntoResponse {
     serve_file("index.html").await
 }
 
+/// When `VK_FRONTEND_DIR` is set, the built web UI is served from that
+/// directory on disk instead of the copy compiled into the binary. The dev
+/// loop can then tweak the UI and rebuild only the frontend
+/// (`npm run build` in packages/local-web) without recompiling the heavy
+/// backend. Unset (default) keeps the embedded assets.
+fn frontend_dir() -> Option<std::path::PathBuf> {
+    std::env::var("VK_FRONTEND_DIR")
+        .ok()
+        .filter(|d| !d.trim().is_empty())
+        .map(std::path::PathBuf::from)
+}
+
+async fn serve_file_from_disk(dir: &Path, path: &str) -> Option<Response> {
+    // Never resolve outside the frontend dir (e.g. `../` traversal).
+    if path.split('/').any(|segment| segment == "..") {
+        return None;
+    }
+
+    let candidate = dir.join(path);
+    let file_path = if candidate.is_file() {
+        candidate
+    } else {
+        // SPA fallback: unknown routes serve index.html.
+        let index = dir.join("index.html");
+        if !index.is_file() {
+            return None;
+        }
+        index
+    };
+
+    let bytes = tokio::fs::read(&file_path).await.ok()?;
+    let mime = mime_guess::from_path(&file_path).first_or_octet_stream();
+    Some(
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(
+                header::CONTENT_TYPE,
+                HeaderValue::from_str(mime.as_ref()).unwrap(),
+            )
+            .body(Body::from(bytes))
+            .unwrap(),
+    )
+}
+
 async fn serve_file(path: &str) -> impl IntoResponse + use<> {
+    if let Some(dir) = frontend_dir() {
+        if let Some(response) = serve_file_from_disk(&dir, path).await {
+            return response;
+        }
+    }
+
     let file = Assets::get(path);
 
     match file {
