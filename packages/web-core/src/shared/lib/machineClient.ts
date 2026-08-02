@@ -8,7 +8,6 @@ import type {
   UpdateRepo,
   UserSystemInfo,
 } from 'shared/types';
-import type { AppRuntime } from '@/shared/hooks/useAppRuntime';
 import { handleApiResponse } from './api';
 import {
   makeLocalApiRequest,
@@ -52,16 +51,8 @@ export interface MachineClient {
 }
 
 function getMachineRequestOptions(
-  runtime: AppRuntime,
   target: MachineTarget
 ): LocalApiRequestOptions {
-  if (runtime === 'remote') {
-    return {
-      hostScope: 'none',
-      relayHostId: target.apiHostId,
-    };
-  }
-
   if (target.apiHostId) {
     return {
       hostScope: 'explicit',
@@ -75,7 +66,6 @@ function getMachineRequestOptions(
 }
 
 async function makeMachineRequest(
-  runtime: AppRuntime,
   target: MachineTarget,
   path: string,
   options: RequestInit = {}
@@ -88,12 +78,11 @@ async function makeMachineRequest(
   return makeLocalApiRequest(path, {
     ...options,
     headers,
-    ...getMachineRequestOptions(runtime, target),
+    ...getMachineRequestOptions(target),
   });
 }
 
 export function createMachineClient(
-  runtime: AppRuntime,
   target: MachineTarget
 ): MachineClient {
   const queryScopeKey = ['machine', target.id] as const;
@@ -103,37 +92,37 @@ export function createMachineClient(
     queryScopeKey,
     getConfig: async () =>
       handleApiResponse<UserSystemInfo>(
-        await makeMachineRequest(runtime, target, '/api/info', {
+        await makeMachineRequest(target, '/api/info', {
           cache: 'no-store',
         })
       ),
     saveConfig: async (config) =>
       handleApiResponse<Config>(
-        await makeMachineRequest(runtime, target, '/api/config', {
+        await makeMachineRequest(target, '/api/config', {
           method: 'PUT',
           body: JSON.stringify(config),
         })
       ),
     listRepos: async () =>
       handleApiResponse<Repo[]>(
-        await makeMachineRequest(runtime, target, '/api/repos')
+        await makeMachineRequest(target, '/api/repos')
       ),
     updateRepo: async (repoId, data) =>
       handleApiResponse<Repo>(
-        await makeMachineRequest(runtime, target, `/api/repos/${repoId}`, {
+        await makeMachineRequest(target, `/api/repos/${repoId}`, {
           method: 'PUT',
           body: JSON.stringify(data),
         })
       ),
     deleteRepo: async (repoId) =>
       handleApiResponse<void>(
-        await makeMachineRequest(runtime, target, `/api/repos/${repoId}`, {
+        await makeMachineRequest(target, `/api/repos/${repoId}`, {
           method: 'DELETE',
         })
       ),
     registerRepo: async (data) =>
       handleApiResponse<Repo>(
-        await makeMachineRequest(runtime, target, '/api/repos', {
+        await makeMachineRequest(target, '/api/repos', {
           method: 'POST',
           body: JSON.stringify(data),
         })
@@ -141,18 +130,17 @@ export function createMachineClient(
     getRepoBranches: async (repoId) =>
       handleApiResponse<GitBranch[]>(
         await makeMachineRequest(
-          runtime,
           target,
           `/api/repos/${repoId}/branches`
         )
       ),
     loadProfiles: async () =>
       handleApiResponse<{ content: string; path: string }>(
-        await makeMachineRequest(runtime, target, '/api/profiles')
+        await makeMachineRequest(target, '/api/profiles')
       ),
     saveProfiles: async (content) =>
       handleApiResponse<string>(
-        await makeMachineRequest(runtime, target, '/api/profiles', {
+        await makeMachineRequest(target, '/api/profiles', {
           method: 'PUT',
           body: content,
           headers: {
@@ -164,7 +152,6 @@ export function createMachineClient(
       const params = new URLSearchParams(query);
       return handleApiResponse<GetMcpServerResponse>(
         await makeMachineRequest(
-          runtime,
           target,
           `/api/mcp-config?${params.toString()}`
         )
@@ -174,7 +161,6 @@ export function createMachineClient(
       const params = new URLSearchParams(query);
       await handleApiResponse<void>(
         await makeMachineRequest(
-          runtime,
           target,
           `/api/mcp-config?${params.toString()}`,
           {

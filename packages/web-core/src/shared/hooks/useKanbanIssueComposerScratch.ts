@@ -42,7 +42,7 @@ function writeStoredComposerState(
 }
 
 /**
- * Syncs KanbanIssueComposerStore to localStorage on remote-web.
+ * Syncs KanbanIssueComposerStore to localStorage.
  * No-op on local runtime. Call once at the app root level.
  *
  * Hydration happens synchronously on first call (before any effects)

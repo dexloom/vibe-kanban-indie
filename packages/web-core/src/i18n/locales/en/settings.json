@@ -15,7 +15,6 @@
         "title": "Settings",
         "machineSettings": "Machine Settings",
         "accountSettings": "Account Settings",
-        "pairOtherMachines": "Pair other machines",
         "selectHost": "Select host",
         "general": "General",
         "generalDesc": "Theme, notifications, and preferences",
@@ -35,8 +34,6 @@
         "organizationsDesc": "Manage organization members and permissions",
         "remote-projects": "Projects",
         "remote-projectsDesc": "Manage projects",
-        "relay": "Remote Access",
-        "relayDesc": "Relay tunnel and enrollment",
         "telegram": "Telegram",
         "telegramDesc": "Agent escalations to Telegram"
       }
@@ -239,14 +236,6 @@
           "label": "Send message with",
           "helper": "Choose the keyboard shortcut to send messages.",
           "enterLabel": "Enter (Shift+Enter for new line)"
-        }
-      },
-      "privacy": {
-        "title": "Privacy",
-        "description": "Help improve Vibe-Kanban by sharing anonymous usage data.",
-        "telemetry": {
-          "label": "Enable Telemetry",
-          "helper": "Enables anonymous usage events tracking to help improve the application. No prompts or project information are collected."
         }
       },
       "taskTemplates": {
@@ -642,31 +631,6 @@
         "unsavedChanges": "You have unsaved changes",
         "discard": "Discard",
         "confirmSwitch": "You have unsaved changes. Are you sure you want to switch repositories? Your changes will be lost."
-      }
-    },
-    "relay": {
-      "title": "Remote Access",
-      "description": "Allow access to this instance from the web via relay tunnel.",
-      "overview": {
-        "available": "Available",
-        "unavailable": "Unavailable"
-      },
-      "enabled": {
-        "label": "Enable remote access",
-        "helper": "When enabled, this instance can be accessed remotely through a relay tunnel."
-      },
-      "enrollmentCode": {
-        "label": "Pairing Code",
-        "helper": "Enter this code in the browser to pair with this instance.",
-        "loginRequired": "Log in to generate a pairing code.",
-        "fetchError": "Failed to fetch pairing code.",
-        "show": "Show pairing code"
-      },
-      "host": {
-        "label": "Host"
-      },
-      "client": {
-        "label": "Client"
       }
     },
     "telegram": {

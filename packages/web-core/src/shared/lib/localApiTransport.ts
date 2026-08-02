@@ -5,13 +5,11 @@ export type LocalApiHostScope = 'current' | 'explicit' | 'none';
 export interface LocalApiRequestOptions extends RequestInit {
   hostScope?: LocalApiHostScope;
   hostId?: string | null;
-  relayHostId?: string | null;
 }
 
 export interface LocalApiWebSocketOptions {
   hostScope?: LocalApiHostScope;
   hostId?: string | null;
-  relayHostId?: string | null;
 }
 
 export interface LocalApiTransport {
@@ -25,11 +23,7 @@ export interface LocalApiTransport {
   ) => Promise<WebSocket> | WebSocket;
 }
 
-const LOCAL_ONLY_API_PREFIXES = [
-  '/api/open-remote-editor/',
-  '/api/relay-auth/server/',
-  '/api/relay-auth/client/',
-];
+const LOCAL_ONLY_API_PREFIXES = ['/api/open-remote-editor/'];
 
 function isAbsoluteUrl(pathOrUrl: string): boolean {
   return /^https?:\/\//i.test(pathOrUrl) || /^wss?:\/\//i.test(pathOrUrl);
@@ -90,12 +84,7 @@ function resolveScopedPath(
 
 const defaultTransport: LocalApiTransport = {
   request: (pathOrUrl, init = {}) => {
-    const {
-      hostScope: _hostScope,
-      hostId: _hostId,
-      relayHostId: _relayHostId,
-      ...requestInit
-    } = init;
+    const { hostScope: _hostScope, hostId: _hostId, ...requestInit } = init;
     return fetch(pathOrUrl, requestInit);
   },
   openWebSocket: (pathOrUrl, _options = {}) =>

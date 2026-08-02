@@ -123,7 +123,6 @@ endif
 
 check-frontend: ## lint / format / build / i18n (mirrors frontend-checks)
 	cd packages/local-web && npm run lint && npm run format:check && npm run build
-	cd packages/remote-web && npm run format:check && npm run build
 	cd packages/ui && npm run check && npm run lint && npm run format:check
 	cd packages/web-core && npm run check && npm run format:check
 	GITHUB_BASE_REF=main ./scripts/check-i18n.sh

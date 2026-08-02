@@ -182,11 +182,6 @@ async fn track_config_events(deployment: &DeploymentImpl, old: &Config, new: &Co
                 "editor": new.editor
             }),
         ),
-        (
-            !old.analytics_enabled && new.analytics_enabled,
-            "analytics_session_start",
-            serde_json::json!({}),
-        ),
     ];
 
     for (should_track, event_name, properties) in events {

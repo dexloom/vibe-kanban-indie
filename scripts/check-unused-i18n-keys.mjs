@@ -27,7 +27,6 @@ const namespaces = ['common', 'settings', 'projects', 'tasks', 'organization'];
 const srcDirs = [
   'packages/web-core/src',
   'packages/local-web/src',
-  'packages/remote-web/src',
   'packages/ui/src',
 ].map((d) => path.join(ROOT, d));
 

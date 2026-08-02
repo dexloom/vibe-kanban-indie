@@ -54,7 +54,7 @@ import {
   RIGHT_MAIN_PANEL_MODES,
 } from '@/shared/stores/useUiPreferencesStore';
 
-import { workspacesApi, relayApi, repoApi } from '@/shared/lib/api';
+import { workspacesApi, repoApi } from '@/shared/lib/api';
 import { bulkUpdateIssues } from '@/shared/lib/remoteApi';
 import { workspaceRecordKeys } from '@/shared/hooks/useWorkspaceRecord';
 import { workspaceRepoKeys } from '@/shared/hooks/useWorkspaceRepo';
@@ -71,7 +71,6 @@ import { CreatePRDialog } from '@/shared/dialogs/command-bar/CreatePRDialog';
 import { getIdeName } from '@/shared/lib/ideName';
 import { EditorSelectionDialog } from '@/shared/dialogs/command-bar/EditorSelectionDialog';
 import { StartReviewDialog } from '@/shared/dialogs/command-bar/StartReviewDialog';
-import posthog from 'posthog-js';
 import { WorkspacesGuideDialog } from '@/shared/dialogs/shared/WorkspacesGuideDialog';
 import { SettingsDialog } from '@/shared/dialogs/settings/SettingsDialog';
 import { CreateWorkspaceFromPrDialog } from '@/shared/dialogs/command-bar/CreateWorkspaceFromPrDialog';
@@ -498,7 +497,8 @@ export const Actions = {
     icon: MegaphoneIcon,
     requiresTarget: ActionTargetType.NONE,
     execute: () => {
-      posthog.displaySurvey('019bb6e8-3d36-0000-1806-7330cd3c727e');
+      // Feedback provider removed; this action is kept as a stub so the
+      // command bar still has a slot for it.
     },
   },
 
@@ -758,18 +758,13 @@ export const Actions = {
     execute: async (ctx) => {
       if (!ctx.currentWorkspaceId) return;
       try {
-        const response =
-          ctx.appRuntime === 'local' && ctx.currentHostId
-            ? await relayApi.openRemoteWorkspaceInEditor({
-                host_id: ctx.currentHostId,
-                workspace_id: ctx.currentWorkspaceId,
-                editor_type: null,
-                file_path: null,
-              })
-            : await workspacesApi.openEditor(ctx.currentWorkspaceId, {
-                editor_type: null,
-                file_path: null,
-              });
+        const response = await workspacesApi.openEditor(
+          ctx.currentWorkspaceId,
+          {
+            editor_type: null,
+            file_path: null,
+          }
+        );
         if (response.url) {
           window.open(response.url, '_blank');
         }

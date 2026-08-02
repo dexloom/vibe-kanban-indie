@@ -1,5 +1,4 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import { useUserContext } from '@/shared/hooks/useUserContext';
@@ -21,7 +20,6 @@ import {
 } from '@/shared/stores/useUiPreferencesStore';
 import type { Workspace } from '@/shared/hooks/useWorkspaces';
 import { CommandBarDialog } from '@/shared/dialogs/command-bar/CommandBarDialog';
-import { SettingsDialog } from '@/shared/dialogs/settings/SettingsDialog';
 import { SpawnOrchestratorDialog } from '@/shared/dialogs/orchestrator/SpawnOrchestratorDialog';
 import {
   WorkspacesSidebar,
@@ -53,7 +51,6 @@ import {
   SortDescendingIcon,
   XIcon,
 } from '@phosphor-icons/react';
-import { useRemoteCloudHostsAppBarModel } from '@/shared/hooks/useRemoteCloudHosts';
 
 export type WorkspaceLayoutMode = 'flat' | 'accordion';
 
@@ -266,8 +263,6 @@ export function WorkspacesSidebarContainer({
   } = useWorkspaceContext();
 
   const isMobile = useIsMobile();
-  const { hosts: remoteCloudHosts } = useRemoteCloudHostsAppBarModel();
-  const { hostId: routeHostId } = useParams({ strict: false });
   const setMobileActiveTab = useUiPreferencesStore((s) => s.setMobileActiveTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [showArchive, setShowArchive] = usePersistedExpanded(
@@ -667,21 +662,6 @@ export function WorkspacesSidebarContainer({
     </>
   );
 
-  const activeRemoteHost = useMemo(() => {
-    if (remoteCloudHosts.length === 0 || !routeHostId) {
-      return null;
-    }
-
-    return remoteCloudHosts.find((host) => host.id === routeHostId) ?? null;
-  }, [routeHostId, remoteCloudHosts]);
-
-  const handleOpenRemoteHostSettings = useCallback(() => {
-    void SettingsDialog.show({
-      initialSection: 'relay',
-      ...(routeHostId ? { initialState: { hostId: routeHostId } } : {}),
-    });
-  }, [routeHostId]);
-
   return (
     <WorkspacesSidebar
       workspaces={paginatedActiveWorkspaces}
@@ -707,8 +687,7 @@ export function WorkspacesSidebarContainer({
       searchControls={searchControls}
       onOpenWorkspaceActions={handleOpenWorkspaceActions}
       persistKeys={sidebarPersistKeys}
-      activeRemoteHost={activeRemoteHost}
-      onOpenRemoteHostSettings={handleOpenRemoteHostSettings}
+      activeRemoteHost={null}
     />
   );
 }

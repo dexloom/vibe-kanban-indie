@@ -34,8 +34,9 @@ interface AppBarUserPopoverProps {
   onOrgSettings?: (orgId: string) => void;
   onSettings?: () => void;
   onSignIn: () => void;
-  // Optional: render a "Sign out" item. The local-only indie app has nothing to
-  // sign out of and omits this; remote-web (which still has auth) passes it.
+  // Optional: render a "Sign out" item. The local-only indie app has nothing
+  // to sign out of and typically omits this; pass it when you need a logout
+  // entry in the popover.
   onLogout?: () => void;
   onAvatarError: () => void;
 }

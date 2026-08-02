@@ -33,7 +33,6 @@ jobs:
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
       backend: ${{ steps.filter.outputs.backend }}
-      backend-remote: ${{ steps.filter.outputs['backend-remote'] }}
       tauri: ${{ steps.filter.outputs.tauri }}
     steps:
       - uses: actions/checkout@v6
@@ -44,7 +43,6 @@ jobs:
             frontend:
               - 'packages/local-web/**'
               - 'packages/web-core/**'
-              - 'packages/remote-web/**'
               - 'packages/ui/**'
               - 'shared/**'
               - 'scripts/check-i18n.sh'
@@ -72,13 +70,10 @@ jobs:
               - 'crates/preview-proxy/**'
               - 'crates/relay-client/**'
               - 'crates/relay-control/**'
-              - 'crates/relay-hosts/**'
               - 'crates/relay-protocol/**'
               - 'crates/relay-tunnel-core/**'
               - 'crates/relay-types/**'
-              - 'crates/relay-webrtc/**'
               - 'crates/relay-ws/**'
-              - 'crates/remote-info/**'
               - 'crates/review/**'
               - 'crates/server/**'
               - 'crates/services/**'
@@ -98,24 +93,6 @@ jobs:
               - '.cargo/**'
               - '.github/workflows/test.yml'
               - '.github/actions/**'
-            backend-remote:
-              - 'crates/remote/**'
-              - 'crates/relay-tunnel/**'
-              - 'crates/relay-tunnel-core/**'
-              - 'crates/ws-bridge/**'
-              - 'crates/api-types/**'
-              - 'crates/relay-types/**'
-              - 'crates/utils/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'shared/**'
-              - 'rustfmt.toml'
-              - 'rust-toolchain.toml'
-              - '.cargo/**'
-              - 'pnpm-lock.yaml'
-              - 'package.json'
-              - '.github/workflows/test.yml'
-              - '.github/actions/**'
             tauri:
               - 'crates/tauri-app/**'
               - 'crates/api-types/**'
@@ -132,13 +109,10 @@ jobs:
               - 'crates/preview-proxy/**'
               - 'crates/relay-client/**'
               - 'crates/relay-control/**'
-              - 'crates/relay-hosts/**'
               - 'crates/relay-protocol/**'
               - 'crates/relay-tunnel-core/**'
               - 'crates/relay-types/**'
-              - 'crates/relay-webrtc/**'
               - 'crates/relay-ws/**'
-              - 'crates/remote-info/**'
               - 'crates/review/**'
               - 'crates/server/**'
               - 'crates/services/**'
@@ -178,13 +152,11 @@ jobs:
         run: |
           npx concurrently \
             --kill-others-on-fail \
-            --names "local:lint,local:fmt,local:build,remote:fmt,remote:build,ui:check,ui:lint,ui:fmt,core:check,core:fmt,i18n,i18n:unused,legacy" \
+            --names "local:lint,local:fmt,local:build,ui:check,ui:lint,ui:fmt,core:check,core:fmt,i18n,i18n:unused,legacy" \
             --timings \
             "cd packages/local-web && npm run lint" \
             "cd packages/local-web && npm run format:check" \
             "cd packages/local-web && npm run build" \
-            "cd packages/remote-web && npm run format:check" \
-            "cd packages/remote-web && npm run build" \
             "cd packages/ui && npm run check" \
             "cd packages/ui && npm run lint" \
             "cd packages/ui && npm run format:check" \
@@ -217,59 +189,6 @@ jobs:
 
       - name: Sqlx checks
         run: npm run prepare-db:check
-
-  backend-remote-checks:
-    # Disabled in the indie fork: crates/remote targets the upstream cloud and
-    # depends on private repos that need a VK_PRIVATE_DEPLOY_KEY secret we
-    # don't carry here. Re-enable by removing the literal `false &&` below if
-    # you wire the secret back up.
-    needs: changes
-    if: >-
-      false
-      && always()
-      && (needs.changes.outputs['backend-remote'] == 'true' || needs.changes.result == 'skipped')
-      && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: *runner_label
-    env:
-      SCCACHE_GHA_ENABLED: "true"
-      RUSTC_WRAPPER: "sccache"
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup Rust
-        uses: ./.github/actions/cargo-checks-common-setup
-        with:
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
-          components: rustfmt, clippy
-          cache-key: backend-remote-checks-${{ runner.os }}-${{ runner.arch }}-${{ env.RUNNER_LABEL }}
-          setup-node: 'true'
-          setup-sqlx-cli: 'true'
-
-      - name: Setup SSH Agent for private dependencies
-        uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387 # v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.VK_PRIVATE_DEPLOY_KEY }}
-
-      - name: Check remote Cargo.lock is consistent
-        run: |
-          cargo metadata --locked --format-version 1 --manifest-path crates/remote/Cargo.toml > /dev/null
-          cargo metadata --locked --format-version 1 --manifest-path crates/relay-tunnel/Cargo.toml > /dev/null
-
-      - name: Check formatting
-        run: |
-          cargo fmt --all --manifest-path crates/remote/Cargo.toml -- --check
-          cargo fmt --all --manifest-path crates/relay-tunnel/Cargo.toml -- --check
-
-      - name: Run Clippy
-        run: |
-          cargo clippy --all-targets --manifest-path crates/remote/Cargo.toml -- -D warnings
-          cargo clippy --all-targets --manifest-path crates/relay-tunnel/Cargo.toml -- -D warnings
-
-      - name: Check generated types
-        run: npm run remote:generate-types:check
-
-      - name: Sqlx checks
-        run: npm run remote:prepare-db:check
 
   backend-clippy:
     needs: changes

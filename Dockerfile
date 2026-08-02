@@ -72,10 +72,8 @@ COPY crates/git-host/Cargo.toml crates/git-host/Cargo.toml
 COPY crates/local-deployment/Cargo.toml crates/local-deployment/Cargo.toml
 COPY crates/mcp/Cargo.toml crates/mcp/Cargo.toml
 COPY crates/relay-control/Cargo.toml crates/relay-control/Cargo.toml
-COPY crates/relay-hosts/Cargo.toml crates/relay-hosts/Cargo.toml
 COPY crates/relay-protocol/Cargo.toml crates/relay-protocol/Cargo.toml
 COPY crates/relay-tunnel-core/Cargo.toml crates/relay-tunnel-core/Cargo.toml
-COPY crates/relay-webrtc/Cargo.toml crates/relay-webrtc/Cargo.toml
 COPY crates/relay-ws/Cargo.toml crates/relay-ws/Cargo.toml
 COPY crates/review/Cargo.toml crates/review/Cargo.toml
 COPY crates/server/Cargo.toml crates/server/Cargo.toml
@@ -97,10 +95,8 @@ COPY crates/git-host/ crates/git-host/
 COPY crates/local-deployment/ crates/local-deployment/
 COPY crates/mcp/ crates/mcp/
 COPY crates/relay-control/ crates/relay-control/
-COPY crates/relay-hosts/ crates/relay-hosts/
 COPY crates/relay-protocol/ crates/relay-protocol/
 COPY crates/relay-tunnel-core/ crates/relay-tunnel-core/
-COPY crates/relay-webrtc/ crates/relay-webrtc/
 COPY crates/relay-ws/ crates/relay-ws/
 COPY crates/review/ crates/review/
 COPY crates/server/ crates/server/

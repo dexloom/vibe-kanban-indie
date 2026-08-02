@@ -1,27 +1,17 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { listRelayHosts } from '@/shared/lib/remoteApi';
 import { useAppRuntime, type AppRuntime } from '@/shared/hooks/useAppRuntime';
-import { useAuth } from '@/shared/hooks/auth/useAuth';
-import { useHostId } from '@/shared/providers/HostIdProvider';
 import {
   createMachineClient,
   type MachineClient,
   type MachineTarget,
 } from '@/shared/lib/machineClient';
-import {
-  useRemoteCloudHostsState,
-  type RemoteCloudHost,
-} from '@/shared/hooks/useRemoteCloudHosts';
-import { listPairedRelayHosts } from '@/shared/lib/relayPairingStorage';
 
 export type SettingsHostTargetId = 'local' | string;
 
@@ -42,33 +32,27 @@ const SettingsHostContext = createContext<SettingsHostContextValue | null>(
   null
 );
 
+function getLocalHostTarget(
+  getLabel: (key: string, defaultValue: string) => string
+): SettingsHostTarget {
+  return {
+    id: 'local',
+    apiHostId: null,
+    label: getLabel('settings.hostPicker.thisMachine', 'This machine'),
+    description: getLabel('settings.hostPicker.localHost', 'Local host'),
+    kind: 'local',
+  };
+}
+
 function toLocalRuntimeTargets(
-  remoteHosts: RemoteCloudHost[],
   getLabel: (key: string, defaultValue: string) => string
 ): SettingsHostTarget[] {
-  return [
-    {
-      id: 'local',
-      apiHostId: null,
-      label: getLabel('settings.hostPicker.thisMachine', 'This machine'),
-      description: getLabel('settings.hostPicker.localHost', 'Local host'),
-      kind: 'local',
-    },
-    ...remoteHosts.map((host) => ({
-      id: host.id,
-      apiHostId: host.id,
-      label: host.name,
-      description: getLabel('settings.hostPicker.remoteHost', 'Remote host'),
-      status:
-        host.status === 'online' ? ('online' as const) : ('offline' as const),
-      kind: 'remote' as const,
-    })),
-  ];
+  return [getLocalHostTarget(getLabel)];
 }
 
 function getInitialHostId(
   hosts: SettingsHostTarget[],
-  runtime: AppRuntime,
+  _runtime: AppRuntime,
   routeHostId: string | null,
   initialHostId?: SettingsHostTargetId
 ): SettingsHostTargetId | null {
@@ -80,15 +64,7 @@ function getInitialHostId(
     return routeHostId;
   }
 
-  if (runtime === 'local') {
-    return (
-      hosts.find((host) => host.id === 'local')?.id ?? hosts[0]?.id ?? null
-    );
-  }
-
-  return (
-    hosts.find((host) => host.status === 'online')?.id ?? hosts[0]?.id ?? null
-  );
+  return hosts.find((host) => host.id === 'local')?.id ?? hosts[0]?.id ?? null;
 }
 
 export function SettingsHostProvider({
@@ -100,92 +76,41 @@ export function SettingsHostProvider({
 }) {
   const { t } = useTranslation('settings');
   const runtime = useAppRuntime();
-  const routeHostId = useHostId();
-  const { isSignedIn } = useAuth();
-  const { data: localRemoteHosts } = useRemoteCloudHostsState();
-  const { data: relayHosts = [], isLoading: relayHostsLoading } = useQuery({
-    queryKey: ['settings-dialog', 'relay-hosts'],
-    queryFn: listRelayHosts,
-    enabled: runtime === 'remote' && isSignedIn,
-    staleTime: 30_000,
-  });
-  const { data: pairedRelayHosts = [], isLoading: pairedRelayHostsLoading } =
-    useQuery({
-      queryKey: ['settings-dialog', 'paired-relay-hosts'],
-      queryFn: async () => {
-        try {
-          return await listPairedRelayHosts();
-        } catch {
-          return [];
-        }
-      },
-      enabled: runtime === 'remote' && isSignedIn,
-      staleTime: 5_000,
-    });
-  const hostsResolved = useMemo(() => {
-    if (runtime === 'local') {
-      return true;
-    }
 
-    if (!isSignedIn) {
-      return true;
-    }
-
-    return !relayHostsLoading && !pairedRelayHostsLoading;
-  }, [isSignedIn, pairedRelayHostsLoading, relayHostsLoading, runtime]);
-
-  const availableHosts = useMemo<SettingsHostTarget[]>(() => {
-    if (runtime === 'local') {
-      return toLocalRuntimeTargets(localRemoteHosts?.hosts ?? [], t);
-    }
-
-    const pairedHostIds = new Set(pairedRelayHosts.map((host) => host.host_id));
-    return relayHosts
-      .filter((host) => pairedHostIds.has(host.id))
-      .map((host) => ({
-        id: host.id,
-        apiHostId: host.id,
-        label: host.name,
-        description: t('settings.hostPicker.remoteHost', 'Remote host'),
-        status:
-          host.status === 'online' ? ('online' as const) : ('offline' as const),
-        kind: 'remote',
-      }));
-  }, [localRemoteHosts?.hosts, pairedRelayHosts, relayHosts, runtime, t]);
+  const availableHosts = useMemo<SettingsHostTarget[]>(
+    () => toLocalRuntimeTargets(t),
+    [t]
+  );
 
   const [selectedHostId, setSelectedHostId] =
     useState<SettingsHostTargetId | null>(null);
 
-  useEffect(() => {
-    const nextHostId = getInitialHostId(
-      availableHosts,
-      runtime,
-      routeHostId,
-      initialHostId
-    );
+  const resolvedHostId = useMemo(() => {
+    if (
+      selectedHostId &&
+      availableHosts.some((host) => host.id === selectedHostId)
+    ) {
+      return selectedHostId;
+    }
 
-    setSelectedHostId((current) => {
-      if (current && availableHosts.some((host) => host.id === current)) {
-        return current;
-      }
-      return nextHostId;
-    });
-  }, [availableHosts, initialHostId, routeHostId, runtime]);
+    return getInitialHostId(availableHosts, runtime, null, initialHostId);
+  }, [availableHosts, initialHostId, runtime, selectedHostId]);
 
   const selectedHost = useMemo(
-    () => availableHosts.find((host) => host.id === selectedHostId) ?? null,
-    [availableHosts, selectedHostId]
+    () =>
+      availableHosts.find((host) => host.id === resolvedHostId) ?? null,
+    [availableHosts, resolvedHostId]
   );
 
   const value = useMemo<SettingsHostContextValue>(
     () => ({
       availableHosts,
-      hostsResolved,
-      selectedHostId,
+      hostsResolved: true,
+      selectedHostId: resolvedHostId,
       selectedHost,
       setSelectedHostId,
     }),
-    [availableHosts, hostsResolved, selectedHost, selectedHostId]
+    [availableHosts, resolvedHostId, selectedHost]
   );
 
   return (
@@ -206,7 +131,6 @@ export function useSettingsHost() {
 }
 
 export function useSettingsMachineClient(): MachineClient | null {
-  const runtime = useAppRuntime();
   const { selectedHost } = useSettingsHost();
 
   return useMemo(() => {
@@ -214,6 +138,6 @@ export function useSettingsMachineClient(): MachineClient | null {
       return null;
     }
 
-    return createMachineClient(runtime, selectedHost);
-  }, [runtime, selectedHost]);
+    return createMachineClient(selectedHost);
+  }, [selectedHost]);
 }

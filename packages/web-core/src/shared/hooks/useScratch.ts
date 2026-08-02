@@ -39,7 +39,7 @@ export const useScratch = (
   const runtime = useAppRuntime();
   const isRemote = runtime === 'remote';
 
-  // --- localStorage path (remote-web) ---
+  // --- localStorage path (disabled on local runtime) ---
   const localResult = useLocalStorageScratch(scratchType, id, {
     enabled: isRemote && (options?.enabled ?? true),
   });

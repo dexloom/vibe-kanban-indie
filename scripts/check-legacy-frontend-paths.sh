@@ -14,7 +14,6 @@ NAVIGATION_FILES=(
   "packages/web-core/src/shared/lib/routes/appNavigation.ts"
   "packages/web-core/src/shared/hooks/useAppNavigation.ts"
   "packages/local-web/src/app/navigation/AppNavigation.ts"
-  "packages/remote-web/src/app/navigation/AppNavigation.ts"
 )
 
 echo "▶️  Checking for net-new files in legacy frontend paths..."

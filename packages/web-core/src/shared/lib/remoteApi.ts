@@ -6,14 +6,11 @@ import type {
   ConfirmUploadRequest,
   InitUploadRequest,
   InitUploadResponse,
-  ListRelayHostsResponse,
-  RelayHost,
   UpdateIssueRequest,
   UpdateProjectRequest,
   UpdateProjectStatusRequest,
 } from 'shared/remote-types';
 import { getAuthRuntime } from '@/shared/lib/auth/runtime';
-import { syncRelayApiBaseWithRemote } from '@/shared/lib/relayBackendApi';
 
 const BUILD_TIME_API_BASE = import.meta.env.VITE_VK_SHARED_API_BASE || '';
 
@@ -28,9 +25,6 @@ let _remoteApiBase: string = BUILD_TIME_API_BASE;
  */
 export function setRemoteApiBase(base: string | null | undefined) {
   _remoteApiBase = base || BUILD_TIME_API_BASE;
-  if (_remoteApiBase) {
-    syncRelayApiBaseWithRemote(_remoteApiBase);
-  }
 }
 
 /**
@@ -156,20 +150,6 @@ export async function bulkUpdateProjectStatuses(
     const error = await response.json();
     throw new Error(error.message || 'Failed to bulk update project statuses');
   }
-}
-
-// ---------------------------------------------------------------------------
-// Relay host API functions (served by remote backend)
-// ---------------------------------------------------------------------------
-
-export async function listRelayHosts(): Promise<RelayHost[]> {
-  const response = await makeRequest('/v1/hosts', { method: 'GET' });
-  if (!response.ok) {
-    throw await parseErrorResponse(response, 'Failed to list relay hosts');
-  }
-
-  const body = (await response.json()) as ListRelayHostsResponse;
-  return body.hosts;
 }
 
 // ---------------------------------------------------------------------------

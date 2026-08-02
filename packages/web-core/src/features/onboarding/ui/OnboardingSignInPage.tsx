@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CheckIcon, XIcon } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -7,7 +7,6 @@ import {
   OAuthDialog,
   type OAuthProvider,
 } from '@/shared/dialogs/global/OAuthDialog';
-import { usePostHog } from 'posthog-js/react';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { OAuthSignInButton } from '@vibe/ui/components/OAuthButtons';
@@ -45,16 +44,6 @@ const COMPARISON_ROWS = [
   },
 ];
 
-const REMOTE_ONBOARDING_EVENTS = {
-  STAGE_VIEWED: 'remote_onboarding_ui_stage_viewed',
-  STAGE_SUBMITTED: 'remote_onboarding_ui_stage_submitted',
-  STAGE_COMPLETED: 'remote_onboarding_ui_stage_completed',
-  STAGE_FAILED: 'remote_onboarding_ui_stage_failed',
-  PROVIDER_CLICKED: 'remote_onboarding_ui_sign_in_provider_clicked',
-  PROVIDER_RESULT: 'remote_onboarding_ui_sign_in_provider_result',
-  MORE_OPTIONS_OPENED: 'remote_onboarding_ui_sign_in_more_options_opened',
-} as const;
-
 type SignInCompletionMethod =
   | 'continue_logged_in'
   | 'skip_sign_in'
@@ -75,14 +64,12 @@ export function OnboardingSignInPage() {
   const appNavigation = useAppNavigation();
   const { t } = useTranslation('common');
   const { theme } = useTheme();
-  const posthog = usePostHog();
   const { config, loginStatus, loading, updateAndSaveConfig } = useUserSystem();
   const setSelectedOrgId = useOrganizationStore((s) => s.setSelectedOrgId);
 
   const [showComparison, setShowComparison] = useState(false);
   const [saving, setSaving] = useState(false);
   const isCompletingOnboardingRef = useRef(false);
-  const hasTrackedStageViewRef = useRef(false);
   const hasRedirectedToRootRef = useRef(false);
   const [pendingProvider, setPendingProvider] = useState<OAuthProvider | null>(
     null
@@ -101,33 +88,12 @@ export function OnboardingSignInPage() {
   const oauthProviders = authMethods?.oauth_providers ?? [];
   const hasOAuthProviders = oauthProviders.length > 0;
 
-  const trackRemoteOnboardingEvent = useCallback(
-    (eventName: string, properties: Record<string, unknown> = {}) => {
-      posthog?.capture(eventName, {
-        ...properties,
-        flow: 'remote_onboarding_ui',
-        source: 'frontend',
-      });
-    },
-    [posthog]
-  );
-
   const logoSrc =
     resolveTheme(theme) === 'dark'
       ? '/vibe-kanban-logo-dark.svg'
       : '/vibe-kanban-logo.svg';
 
   const isLoggedIn = loginStatus?.status === 'loggedin';
-
-  useEffect(() => {
-    if (loading || !config || hasTrackedStageViewRef.current) return;
-
-    trackRemoteOnboardingEvent(REMOTE_ONBOARDING_EVENTS.STAGE_VIEWED, {
-      stage: 'sign_in',
-      is_logged_in: isLoggedIn,
-    });
-    hasTrackedStageViewRef.current = true;
-  }, [config, isLoggedIn, loading, trackRemoteOnboardingEvent]);
 
   useEffect(() => {
     if (!config?.remote_onboarding_acknowledged) {
@@ -148,26 +114,16 @@ export function OnboardingSignInPage() {
       !firstProjectDestination ||
       firstProjectDestination.kind !== 'project'
     ) {
-      trackRemoteOnboardingEvent(REMOTE_ONBOARDING_EVENTS.STAGE_FAILED, {
-        stage: 'sign_in',
-        reason: 'destination_lookup_failed',
-      });
       return { kind: 'workspaces-create' };
     }
 
     return firstProjectDestination;
   };
 
-  const finishOnboarding = async (options: {
+  const finishOnboarding = async (_options: {
     method: SignInCompletionMethod;
   }) => {
     if (!config || saving || isCompletingOnboardingRef.current) return;
-
-    trackRemoteOnboardingEvent(REMOTE_ONBOARDING_EVENTS.STAGE_SUBMITTED, {
-      stage: 'sign_in',
-      method: options.method,
-      is_logged_in: isLoggedIn,
-    });
 
     isCompletingOnboardingRef.current = true;
     setSaving(true);
@@ -178,24 +134,12 @@ export function OnboardingSignInPage() {
     });
 
     if (!success) {
-      trackRemoteOnboardingEvent(REMOTE_ONBOARDING_EVENTS.STAGE_FAILED, {
-        stage: 'sign_in',
-        method: options.method,
-        reason: 'config_save_failed',
-      });
       isCompletingOnboardingRef.current = false;
       setSaving(false);
       return;
     }
 
     const destination = await getOnboardingDestination();
-    trackRemoteOnboardingEvent(REMOTE_ONBOARDING_EVENTS.STAGE_COMPLETED, {
-      stage: 'sign_in',
-      method: options.method,
-      destination_kind: destination.kind,
-      destination_project_id:
-        destination.kind === 'project' ? destination.projectId : null,
-    });
     switch (destination.kind) {
       case 'workspaces-create':
         appNavigation.goToWorkspacesCreate({ replace: true });
@@ -209,20 +153,9 @@ export function OnboardingSignInPage() {
   const handleProviderSignIn = async (provider: OAuthProvider) => {
     if (saving || pendingProvider) return;
 
-    trackRemoteOnboardingEvent(REMOTE_ONBOARDING_EVENTS.PROVIDER_CLICKED, {
-      stage: 'sign_in',
-      provider,
-    });
-
     setPendingProvider(provider);
     const didSignIn = await OAuthDialog.show({ initialProvider: provider });
     setPendingProvider(null);
-
-    trackRemoteOnboardingEvent(REMOTE_ONBOARDING_EVENTS.PROVIDER_RESULT, {
-      stage: 'sign_in',
-      provider,
-      result: didSignIn ? 'success' : 'cancelled',
-    });
 
     if (didSignIn) {
       await finishOnboarding({
@@ -359,14 +292,6 @@ export function OnboardingSignInPage() {
                   type="button"
                   className="text-sm text-low hover:text-normal underline underline-offset-2"
                   onClick={() => {
-                    if (!showComparison) {
-                      trackRemoteOnboardingEvent(
-                        REMOTE_ONBOARDING_EVENTS.MORE_OPTIONS_OPENED,
-                        {
-                          stage: 'sign_in',
-                        }
-                      );
-                    }
                     setShowComparison(true);
                   }}
                   disabled={saving || pendingProvider !== null}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { CaretLeftIcon, PlusIcon, XIcon } from '@phosphor-icons/react';
+import { CaretLeftIcon, XIcon } from '@phosphor-icons/react';
 import { create, useModal } from '@ebay/nice-modal-react';
 import { defineModal } from '@/shared/lib/modals';
 
@@ -71,10 +71,6 @@ function SettingsDialogNavigation({
       ? t('settings.hostPicker.pairMachineHint')
       : t('settings.hostPicker.selectMachineHint');
 
-  const handlePairOtherMachines = () => {
-    onSectionSelect('relay');
-  };
-
   const renderSectionButton = (sectionId: SettingsSectionType) => {
     const section = SETTINGS_SECTION_DEFINITIONS.find(
       (item) => item.id === sectionId
@@ -120,13 +116,6 @@ function SettingsDialogNavigation({
           <SettingsSelect
             value={selectedHostId ?? undefined}
             options={hostOptions}
-            actions={[
-              {
-                label: t('settings.layout.nav.pairOtherMachines'),
-                icon: PlusIcon,
-                onClick: handlePairOtherMachines,
-              },
-            ]}
             onChange={setSelectedHostId}
             placeholder={t('settings.layout.nav.selectHost')}
           />

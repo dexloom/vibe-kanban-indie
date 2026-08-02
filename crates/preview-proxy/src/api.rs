@@ -79,7 +79,7 @@ async fn forward_http(
         }
     };
 
-    relay_http_response(response)
+    proxy_http_response(response)
 }
 
 async fn forward_ws(
@@ -200,7 +200,7 @@ fn tungstenite_to_axum(msg: tungstenite::Message) -> Option<axum::extract::ws::M
     }
 }
 
-fn relay_http_response(response: reqwest::Response) -> Response {
+fn proxy_http_response(response: reqwest::Response) -> Response {
     let status = response.status();
     let response_headers = response.headers().clone();
     let body = Body::from_stream(response.bytes_stream());

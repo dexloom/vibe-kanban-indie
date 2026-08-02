@@ -250,11 +250,6 @@ function LinkPrToIssueContent({ issueId }: { issueId: string }) {
         target_branch_name: pr.base_branch,
       });
       await persisted;
-      await issuePrsApi.linkToIssue({
-        pr_url: pr.url,
-        pr_number: Number(pr.number),
-        base_branch: pr.base_branch,
-      });
       modal.hide();
     } catch (err) {
       setLinkError(

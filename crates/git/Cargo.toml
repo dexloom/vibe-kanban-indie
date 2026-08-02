@@ -3,10 +3,6 @@ name = "git"
 version.workspace = true
 edition.workspace = true
 
-[features]
-default = []
-cloud = []
-
 [dependencies]
 chrono.workspace = true
 dirs.workspace = true

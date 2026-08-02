@@ -65,8 +65,6 @@ import {
   CreateScratch,
   UpdateScratch,
   PushError,
-  TokenResponse,
-  CurrentUserResponse,
   QueueStatus,
   PrCommentsResponse,
   MergeWorkspaceRequest,
@@ -83,7 +81,6 @@ import {
   GitRemote,
   ListPrsError,
   PullRequestDetail,
-  LinkPrToIssueRequest,
   AttachExistingPrRequest,
   AttachPrResponse,
   CreateWorkspaceFromPrBody,
@@ -96,16 +93,6 @@ import {
   CloseOrchestratorResponse,
   GenerateSpecRequest,
   GenerateSpecResponse,
-  RelayPairedClient,
-  ListRelayPairedClientsResponse,
-  RemoveRelayPairedClientResponse,
-  PairRelayHostRequest,
-  PairRelayHostResponse,
-  RelayPairedHost,
-  ListRelayPairedHostsResponse,
-  RemoveRelayPairedHostResponse,
-  OpenRemoteWorkspaceInEditorRequest,
-  OpenRemoteEditorResponse,
   ProfileResponse,
   TelegramStatus,
   TelegramTestResponse,
@@ -1215,14 +1202,6 @@ export const issuePrsApi = {
     );
     return handleApiResponseAsResult<PullRequestDetail, ListPrsError>(response);
   },
-
-  linkToIssue: async (data: LinkPrToIssueRequest): Promise<void> => {
-    const response = await makeRequest('/api/remote/pull-requests/link', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    await handleApiResponse<void>(response);
-  },
 };
 
 // Config APIs (backwards compatible)
@@ -1650,18 +1629,18 @@ export const oauthApi = {
   },
 
   /** Returns the current access token for the remote server (auto-refreshes if needed) */
-  getToken: async (): Promise<TokenResponse> => {
+  getToken: async (): Promise<{ access_token: string }> => {
     const response = await makeRequest('/api/auth/token');
     if (response.status === 401) {
       throw new ApiError('Unauthorized', 401, response);
     }
-    return handleApiResponse<TokenResponse>(response);
+    return handleApiResponse<{ access_token: string }>(response);
   },
 
   /** Returns the user ID of the currently authenticated user */
-  getCurrentUser: async (): Promise<CurrentUserResponse> => {
+  getCurrentUser: async (): Promise<{ user_id: string }> => {
     const response = await makeRequest('/api/auth/user');
-    return handleApiResponse<CurrentUserResponse>(response);
+    return handleApiResponse<{ user_id: string }>(response);
   },
 };
 
@@ -1942,77 +1921,6 @@ export const queueApi = {
   getStatus: async (sessionId: string): Promise<QueueStatus> => {
     const response = await makeRequest(`/api/sessions/${sessionId}/queue`);
     return handleApiResponse<QueueStatus>(response);
-  },
-};
-
-// Relay API
-export const relayApi = {
-  getEnrollmentCode: async (): Promise<{ enrollment_code: string }> => {
-    const response = await makeRequest(
-      '/api/relay-auth/server/enrollment-code',
-      {
-        method: 'POST',
-      }
-    );
-    return handleApiResponse<{ enrollment_code: string }>(response);
-  },
-
-  listPairedClients: async (): Promise<RelayPairedClient[]> => {
-    const response = await makeRequest('/api/relay-auth/server/clients');
-    const body =
-      await handleApiResponse<ListRelayPairedClientsResponse>(response);
-    return body.clients;
-  },
-
-  removePairedClient: async (
-    clientId: string
-  ): Promise<RemoveRelayPairedClientResponse> => {
-    const response = await makeRequest(
-      `/api/relay-auth/server/clients/${encodeURIComponent(clientId)}`,
-      {
-        method: 'DELETE',
-      }
-    );
-    return handleApiResponse<RemoveRelayPairedClientResponse>(response);
-  },
-
-  pairRelayHost: async (
-    payload: PairRelayHostRequest
-  ): Promise<PairRelayHostResponse> => {
-    const response = await makeRequest('/api/relay-auth/client/pair', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    return handleApiResponse<PairRelayHostResponse>(response);
-  },
-
-  listPairedRelayHosts: async (): Promise<RelayPairedHost[]> => {
-    const response = await makeRequest('/api/relay-auth/client/hosts');
-    const body =
-      await handleApiResponse<ListRelayPairedHostsResponse>(response);
-    return body.hosts;
-  },
-
-  removePairedRelayHost: async (
-    hostId: string
-  ): Promise<RemoveRelayPairedHostResponse> => {
-    const response = await makeRequest(
-      `/api/relay-auth/client/hosts/${encodeURIComponent(hostId)}`,
-      {
-        method: 'DELETE',
-      }
-    );
-    return handleApiResponse<RemoveRelayPairedHostResponse>(response);
-  },
-
-  openRemoteWorkspaceInEditor: async (
-    payload: OpenRemoteWorkspaceInEditorRequest
-  ): Promise<OpenRemoteEditorResponse> => {
-    const response = await makeRequest('/api/open-remote-editor/workspace', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    return handleApiResponse<OpenRemoteEditorResponse>(response);
   },
 };
 

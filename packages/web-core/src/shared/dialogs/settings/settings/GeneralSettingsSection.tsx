@@ -843,20 +843,6 @@ export function GeneralSettingsSection() {
         </SettingsField>
       </SettingsCard>
 
-      {/* Privacy */}
-      <SettingsCard
-        title={t('settings.general.privacy.title')}
-        description={t('settings.general.privacy.description')}
-      >
-        <SettingsCheckbox
-          id="analytics-enabled"
-          label={t('settings.general.privacy.telemetry.label')}
-          description={t('settings.general.privacy.telemetry.helper')}
-          checked={draft?.analytics_enabled ?? false}
-          onChange={(checked) => updateDraft({ analytics_enabled: checked })}
-        />
-      </SettingsCard>
-
       {/* Task Templates */}
       <SettingsCard
         title={t('settings.general.taskTemplates.title')}

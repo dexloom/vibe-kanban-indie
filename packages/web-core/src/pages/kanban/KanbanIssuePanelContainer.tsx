@@ -131,17 +131,14 @@ function readPipelineProvenance(
 }
 
 /**
- * TODO(VIBE-47): `shared/remote-types.ts`'s generated `Workspace` type
- * (from `api_types::Workspace`, via `crates/remote/src/bin/
- * remote-generate-types.rs`) does not yet include `current_pipeline_stage` —
- * regenerating it requires building `crates/remote`, which was not possible
- * in the sandbox this was authored in (a private git dependency was
- * unreachable there). The Rust struct field already exists
- * (`crates/api-types/src/workspace.rs`) and every remote SQL site projects
- * it. Once `pnpm run remote:generate-types` runs somewhere with access, the
- * field lands on `Workspace` natively (as `bigint | null`, matching the
- * existing i64 convention e.g. `exit_code`) and this accessor should be
- * deleted in favor of reading `workspace.current_pipeline_stage` directly.
+ * TODO(VIBE-47): `shared/remote-types.ts`'s `Workspace` type does not yet
+ * include `current_pipeline_stage`. It was originally generated from
+ * `crates/remote`, which has been deleted — `shared/remote-types.ts` is now a
+ * hand-maintained contract. If the field is needed on the type, add
+ * `current_pipeline_stage: bigint | null` to `Workspace` in
+ * `shared/remote-types.ts` by hand (matching the existing i64 convention e.g.
+ * `exit_code`) and this accessor can be deleted in favor of reading
+ * `workspace.current_pipeline_stage` directly.
  */
 function readCurrentPipelineStage(workspace: Workspace | null): number | null {
   if (!workspace) return null;
@@ -736,7 +733,8 @@ export function KanbanIssuePanelContainer({
 
     if (mode === 'create') {
       // Check if the composer store has a saved draft (e.g., restored from
-      // localStorage on remote-web). Use it to seed the form instead of defaults.
+      // localStorage on a previous visit). Use it to seed the form instead of
+      // defaults.
       const composerDraft =
         useKanbanIssueComposerStore.getState().byKey[issueComposerKey]?.draft;
       const hasSavedDraft =

@@ -37,7 +37,6 @@ import {
   type CreateRemoteProjectResult,
 } from '@/shared/dialogs/org/CreateRemoteProjectDialog';
 import { OAuthDialog } from '@/shared/dialogs/global/OAuthDialog';
-import { SettingsDialog } from '@/shared/dialogs/settings/SettingsDialog';
 import { CommandBarDialog } from '@/shared/dialogs/command-bar/CommandBarDialog';
 import { useCommandBarShortcut } from '@/shared/hooks/useCommandBarShortcut';
 import { useWorkspaceSidebarPreviewController } from '@/shared/hooks/useWorkspaceSidebarPreviewController';
@@ -51,7 +50,6 @@ import {
 import { AppBarNotificationBellContainer } from '@/pages/workspaces/AppBarNotificationBellContainer';
 import { WorkspacesSidebarContainer } from '@/pages/workspaces/WorkspacesSidebarContainer';
 import { WorkspacesSidebarReopenTag } from '@vibe/ui/components/WorkspacesSidebar';
-import { useRemoteCloudHostsAppBarModel } from '@/shared/hooks/useRemoteCloudHosts';
 
 export function SharedAppLayout() {
   const appNavigation = useAppNavigation();
@@ -70,7 +68,6 @@ export function SharedAppLayout() {
   const { data: starCount } = useGitHubStars();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isAppBarHovered, setIsAppBarHovered] = useState(false);
-  const { hosts: remoteCloudHosts } = useRemoteCloudHostsAppBarModel();
   const { hostId: routeHostId } = useParams({ strict: false });
   const navigate = useNavigate();
 
@@ -272,13 +269,6 @@ export function SharedAppLayout() {
     }
   }, []);
 
-  const openRelaySettings = useCallback((hostId?: string) => {
-    void SettingsDialog.show({
-      initialSection: 'relay',
-      ...(hostId ? { initialState: { hostId } } : {}),
-    });
-  }, []);
-
   const handleHostClick = useCallback(
     (hostId: string, status: AppBarHostStatus) => {
       if (status === 'offline') {
@@ -292,10 +282,6 @@ export function SharedAppLayout() {
     },
     [navigate]
   );
-
-  const handlePairHostClick = useCallback(() => {
-    openRelaySettings();
-  }, [openRelaySettings]);
 
   return (
     <SyncErrorProvider>
@@ -323,14 +309,13 @@ export function SharedAppLayout() {
             {/* Desktop AppBar sidebar. */}
             <AppBar
               projects={orderedProjects}
-              hosts={remoteCloudHosts}
+              hosts={[]}
               activeHostId={activeHostId}
               onCreateProject={handleCreateProject}
               onExportClick={handleExportClick}
               onCommonTasksClick={handleCommonTasksClick}
               onWorkspacesClick={handleWorkspacesClick}
               onHostClick={handleHostClick}
-              onPairHostClick={handlePairHostClick}
               onProjectClick={handleProjectClick}
               onProjectsDragEnd={handleProjectsDragEnd}
               isSavingProjectOrder={isSavingProjectOrder}

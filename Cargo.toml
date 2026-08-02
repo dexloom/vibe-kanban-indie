@@ -23,12 +23,10 @@ members = [
     "crates/tauri-app",
     "crates/preview-proxy",
 ]
-exclude = ["crates/remote", "crates/relay-tunnel"]
 
 # Shared package metadata inherited by every member via `version.workspace = true`
 # / `edition.workspace = true`. Bumping the release version is a one-line change
-# here (the excluded `remote` / `relay-tunnel` crates are separate workspaces and
-# keep their own versions).
+# here.
 [workspace.package]
 version = "0.2.23"
 edition = "2024"

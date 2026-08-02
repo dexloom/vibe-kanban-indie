@@ -90,7 +90,7 @@ interface UseLocalStorageScratchOptions {
 }
 
 /**
- * localStorage-backed scratch storage for remote-web.
+ * localStorage-backed scratch storage.
  * Mirrors the same interface as the WebSocket-based `useScratch` hook
  * so consumers can swap between them transparently.
  */

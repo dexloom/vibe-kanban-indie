@@ -346,8 +346,6 @@ config_path: string, };
 
 export type TelegramTestResponse = { ok: boolean, error: string | null, };
 
-export type TokenResponse = { access_token: string, expires_at: string | null, };
-
 export type UserSystemInfo = { version: string, config: Config, machine_id: string, login_status: LoginStatus, remote_auth_degraded: string | null, environment: Environment, 
 /**
  * Capabilities supported per executor (e.g., { "CLAUDE_CODE": ["SESSION_FORK"] })
@@ -369,26 +367,6 @@ export type CheckEditorAvailabilityResponse = { available: boolean, };
 export type CheckAgentAvailabilityQuery = { executor: BaseCodingAgent, };
 
 export type AgentPresetOptionsQuery = { executor: BaseCodingAgent, variant: string | null, };
-
-export type CurrentUserResponse = { user_id: string, };
-
-export type StartSpake2EnrollmentRequest = { enrollment_code: string, client_message_b64: string, };
-
-export type FinishSpake2EnrollmentRequest = { enrollment_id: string, client_id: string, client_name: string, client_browser: string, client_os: string, client_device: string, public_key_b64: string, client_proof_b64: string, };
-
-export type StartSpake2EnrollmentResponse = { enrollment_id: string, server_message_b64: string, };
-
-export type FinishSpake2EnrollmentResponse = { signing_session_id: string, server_public_key_b64: string, server_proof_b64: string, };
-
-export type RelayPairedClient = { client_id: string, client_name: string, client_browser: string, client_os: string, client_device: string, };
-
-export type ListRelayPairedClientsResponse = { clients: Array<RelayPairedClient>, };
-
-export type RemoveRelayPairedClientResponse = { removed: boolean, };
-
-export type RefreshRelaySigningSessionRequest = { client_id: string, timestamp: bigint, nonce: string, signature_b64: string, };
-
-export type RefreshRelaySigningSessionResponse = { signing_session_id: string, };
 
 export type CreateFollowUpAttempt = { prompt: string, executor_config: ExecutorConfig, retry_process_id: string | null, force_when_dirty: boolean | null, perform_git_reset: boolean | null, };
 
@@ -426,20 +404,6 @@ export type ReviewError = { "type": "process_already_running" };
 export type OpenEditorRequest = { editor_type: string | null, file_path: string | null, };
 
 export type OpenEditorResponse = { url: string | null, };
-
-export type OpenRemoteEditorResponse = { url: string, local_port: number, ssh_alias: string, };
-
-export type OpenRemoteWorkspaceInEditorRequest = { host_id: string, workspace_id: string, editor_type: string | null, file_path: string | null, };
-
-export type PairRelayHostRequest = { host_id: string, host_name: string, enrollment_code: string, };
-
-export type PairRelayHostResponse = { paired: boolean, };
-
-export type RelayPairedHost = { host_id: string, host_name: string | null, paired_at: string | null, };
-
-export type ListRelayPairedHostsResponse = { hosts: Array<RelayPairedHost>, };
-
-export type RemoveRelayPairedHostResponse = { removed: boolean, };
 
 export type CreateWorkspaceApiRequest = { name: string | null, };
 
@@ -662,8 +626,6 @@ export type GitRemote = { name: string, url: string, };
 
 export type ListPrsError = { "type": "cli_not_installed", provider: ProviderKind, } | { "type": "auth_failed", message: string, } | { "type": "unsupported_provider" };
 
-export type LinkPrToIssueRequest = { pr_url: string, pr_number: number, base_branch: string, };
-
 export type CreateWorkspaceFromPrBody = { repo_id: string, pr_number: bigint, pr_title: string, pr_url: string, head_branch: string, base_branch: string, run_setup: boolean, remote_name: string | null, };
 
 export type CreateWorkspaceFromPrResponse = { workspace: Workspace, };
@@ -738,7 +700,7 @@ export type DirectoryListResponse = { entries: Array<DirectoryEntry>, current_pa
 
 export type SearchMode = "taskform" | "settings";
 
-export type Config = { config_version: string, theme: ThemeMode, executor_profile: ExecutorProfileId, disclaimer_acknowledged: boolean, onboarding_acknowledged: boolean, remote_onboarding_acknowledged: boolean, notifications: NotificationConfig, editor: EditorConfig, github: GitHubConfig, analytics_enabled: boolean, workspace_dir: string | null, last_app_version: string | null, show_release_notes: boolean, language: UiLanguage, git_branch_prefix: string, showcases: ShowcaseState, pr_auto_description_enabled: boolean, pr_auto_description_prompt: string | null, commit_reminder_enabled: boolean, commit_reminder_prompt: string | null, send_message_shortcut: SendMessageShortcut, relay_enabled: boolean, host_nickname: string | null, 
+export type Config = { config_version: string, theme: ThemeMode, executor_profile: ExecutorProfileId, disclaimer_acknowledged: boolean, onboarding_acknowledged: boolean, remote_onboarding_acknowledged: boolean, notifications: NotificationConfig, editor: EditorConfig, github: GitHubConfig, workspace_dir: string | null, last_app_version: string | null, show_release_notes: boolean, language: UiLanguage, git_branch_prefix: string, showcases: ShowcaseState, pr_auto_description_enabled: boolean, pr_auto_description_prompt: string | null, commit_reminder_enabled: boolean, commit_reminder_prompt: string | null, send_message_shortcut: SendMessageShortcut, host_nickname: string | null, 
 /**
  * Terminal emulator used to attach to interactive agent sessions.
  */
@@ -1243,80 +1205,6 @@ permissions: Array<PermissionPolicy>, };
 export type ExecutorDiscoveredOptions = { model_selector: ModelSelectorConfig, slash_commands: Array<SlashCommandDescription>, loading_models: boolean, loading_agents: boolean, loading_slash_commands: boolean, error: string | null, };
 
 export type JsonValue = number | string | boolean | Array<JsonValue> | { [key in string]?: JsonValue } | null;
-
-export type RelayWsMessageType = "text" | "binary" | "ping" | "pong" | "close";
-
-export type DataChannelMessage = { "type": "http_request" } & DataChannelRequest | { "type": "http_response" } & DataChannelResponse | { "type": "ws_open" } & WsOpen | { "type": "ws_opened" } & WsOpened | { "type": "ws_frame" } & WsFrame | { "type": "ws_close" } & WsClose | { "type": "ws_error" } & WsError;
-
-export type DataChannelRequest = { id: string, method: string, path: string, headers: { [key in string]?: Array<string> }, 
-/**
- * Base64-encoded request body, if any.
- */
-body_b64?: string | null, };
-
-export type DataChannelResponse = { id: string, status: number, headers: { [key in string]?: Array<string> }, 
-/**
- * Base64-encoded response body, if any.
- */
-body_b64?: string | null, };
-
-export type WsOpen = { 
-/**
- * Unique connection ID for multiplexing.
- */
-conn_id: string, 
-/**
- * Target path, e.g. `/api/sessions/abc/queue`.
- */
-path: string, 
-/**
- * Optional sub-protocol(s) to negotiate.
- */
-protocols?: string | null, };
-
-export type WsOpened = { conn_id: string, 
-/**
- * The sub-protocol selected by the server, if any.
- */
-selected_protocol?: string | null, };
-
-export type WsFrame = { conn_id: string, msg_type: RelayWsMessageType, 
-/**
- * Base64-encoded payload.
- */
-payload_b64?: string | null, };
-
-export type WsClose = { conn_id: string, 
-/**
- * Close code (RFC 6455 §7.4).
- */
-code?: number | null, 
-/**
- * Close reason.
- */
-reason?: string | null, };
-
-export type WsError = { conn_id: string, error: string, };
-
-export type SdpOffer = { 
-/**
- * The SDP string from the peer's `RTCPeerConnection.createOffer()`.
- */
-sdp: string, 
-/**
- * Caller-provided session identifier to correlate offer/answer/candidates.
- */
-session_id: string, };
-
-export type SdpAnswer = { 
-/**
- * The SDP string from `Rtc::direct_api().create_answer()`.
- */
-sdp: string, 
-/**
- * Echoed session identifier from the offer.
- */
-session_id: string, };
 
 export const DEFAULT_PR_DESCRIPTION_PROMPT = "Update the PR that was just created with a better title and description.\nThe PR number is #{pr_number} and the URL is {pr_url}.\n\nAnalyze the changes in this branch and write:\n1. A concise, descriptive title that summarizes the changes, postfixed with \"(Vibe Kanban)\"\n2. A detailed description that explains:\n   - What changes were made\n   - Why they were made (based on the task context)\n   - Any important implementation details\n   - At the end, include a note: \"This PR was written using [Vibe Kanban](https://vibekanban.com)\"\n\nUse the appropriate CLI tool to update the PR (gh pr edit for GitHub, az repos pr update for Azure DevOps).";
 
