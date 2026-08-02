@@ -11,11 +11,6 @@ import '@/shared/types/modals';
 import { queryClient } from '@/shared/lib/queryClient';
 import { isTauriApp } from '@/shared/lib/platform';
 import { initZoom, zoomIn, zoomOut, zoomReset } from '@/shared/lib/zoom';
-import { forceFallbackMode } from '@/shared/lib/electric/collections';
-
-// The local build has no ElectricSQL server; the kanban reads/writes via the
-// HTTP fallback endpoints (/v1/fallback/* + /v1/*) served from local SQLite.
-forceFallbackMode();
 
 // In the Tauri desktop app, implement custom zoom (Cmd/Ctrl + =/–/0) via root
 // font-size scaling and block trackpad/touchpad pinch-to-zoom.
@@ -52,7 +47,6 @@ if (isTauriApp()) {
 configureAuthRuntime({
   getToken: () => tokenManager.getToken(),
   triggerRefresh: () => tokenManager.triggerRefresh(),
-  registerShape: (shape) => tokenManager.registerShape(shape),
   getCurrentUser: () => oauthApi.getCurrentUser(),
 });
 

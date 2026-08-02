@@ -48,8 +48,6 @@ export function AppBarUserPopover({
   selectedOrgId,
   open,
   onOpenChange,
-  onOrgSelect: _onOrgSelect,
-  onOrgSettings: _onOrgSettings,
   onSettings,
   onSignIn,
   onLogout,

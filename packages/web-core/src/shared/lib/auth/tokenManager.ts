@@ -9,7 +9,6 @@ const RECOVERY_RETRY_BASE_DELAY_MS = 5_000;
 const RECOVERY_RETRY_MAX_DELAY_MS = 60_000;
 
 type RefreshStateCallback = (isRefreshing: boolean) => void;
-type PauseableShape = { pause: () => void; resume: () => void };
 
 type UserSystemCache = {
   login_status?: { status?: string };
@@ -50,14 +49,12 @@ class TokenManager {
   private isRefreshing = false;
   private refreshPromise: Promise<string | null> | null = null;
   private subscribers = new Set<RefreshStateCallback>();
-  private pauseableShapes = new Set<PauseableShape>();
   private recoveryTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private recoveryAttempt = 0;
 
   private handleTokenSuccess(token: string): string {
     this.clearRecoveryLoop();
     setRemoteAuthDegraded(null);
-    this.resumeShapes();
     return token;
   }
 
@@ -138,19 +135,6 @@ class TokenManager {
   }
 
   /**
-   * Register an Electric shape for pause/resume during token refresh.
-   * Returns an unsubscribe function.
-   */
-  registerShape(shape: PauseableShape): () => void {
-    this.pauseableShapes.add(shape);
-    // If currently refreshing, pause immediately
-    if (this.isRefreshing) {
-      shape.pause();
-    }
-    return () => this.pauseableShapes.delete(shape);
-  }
-
-  /**
    * Get the current refreshing state synchronously.
    */
   getRefreshingState(): boolean {
@@ -168,18 +152,15 @@ class TokenManager {
 
   private async doRefresh(): Promise<string | null> {
     // Skip refresh if user is already logged out — avoids unnecessary 401s
-    // from Electric shapes or other background requests after logout.
+    // from other background requests after logout.
     const cachedSystem = queryClient.getQueryData<{
       login_status?: { status: string };
     }>(['user-system']);
     if (cachedSystem && cachedSystem.login_status?.status !== 'loggedin') {
-      // Pause shapes so they stop making requests while logged out
-      this.pauseShapes();
       return null;
     }
 
     this.setRefreshing(true);
-    this.pauseShapes();
 
     try {
       // Invalidate the cache to force a fresh fetch
@@ -226,9 +207,6 @@ class TokenManager {
     }>(['user-system']);
     const wasLoggedIn = cachedSystem?.login_status?.status === 'loggedin';
 
-    // Pause shapes — session is invalid, prevent further 401s
-    this.pauseShapes();
-
     // Reload system state so the UI transitions to logged-out
     await queryClient.invalidateQueries({ queryKey: ['user-system'] });
 
@@ -246,18 +224,6 @@ class TokenManager {
   private setRefreshing(value: boolean): void {
     this.isRefreshing = value;
     this.subscribers.forEach((cb) => cb(value));
-  }
-
-  private pauseShapes(): void {
-    for (const shape of this.pauseableShapes) {
-      shape.pause();
-    }
-  }
-
-  private resumeShapes(): void {
-    for (const shape of this.pauseableShapes) {
-      shape.resume();
-    }
   }
 
   private shouldRecoverDegradedAuth(): boolean {

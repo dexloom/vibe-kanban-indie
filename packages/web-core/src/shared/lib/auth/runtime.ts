@@ -1,11 +1,8 @@
-type PauseableShape = { pause: () => void; resume: () => void };
-
 type CurrentUser = { user_id: string };
 
 export interface AuthRuntime {
   getToken: () => Promise<string | null>;
   triggerRefresh: () => Promise<string | null>;
-  registerShape: (shape: PauseableShape) => () => void;
   getCurrentUser: () => Promise<CurrentUser>;
 }
 
