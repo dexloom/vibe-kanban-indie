@@ -48,6 +48,12 @@ pub fn server_signing_key_path() -> std::path::PathBuf {
     asset_dir().join("server_ed25519_signing_key")
 }
 
+/// Persisted Ed25519 host key for the embedded SSH server. Reusing the same
+/// key across restarts avoids client "host key changed" warnings.
+pub fn ssh_host_key_path() -> std::path::PathBuf {
+    asset_dir().join("ssh_host_ed25519_key")
+}
+
 pub fn relay_host_credentials_path() -> std::path::PathBuf {
     asset_dir().join("relay_host_credentials.json")
 }

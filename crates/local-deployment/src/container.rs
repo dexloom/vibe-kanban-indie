@@ -562,7 +562,6 @@ impl LocalContainerService {
         status: ExecutionProcessStatus,
     ) {
         let db = &self.db;
-        let config = &self.config;
         let container = self;
 
         // Resolve any approvals still parked on this execution (e.g. a headed

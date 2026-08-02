@@ -21,6 +21,7 @@ use tokio::{
 
 use crate::sftp::SftpHandler;
 
+#[derive(Default)]
 pub struct SshSessionHandler {
     channels: HashMap<ChannelId, ChannelState>,
     tcpip_forwards: HashMap<(String, u32), tokio::task::JoinHandle<()>>,

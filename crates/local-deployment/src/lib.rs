@@ -1,12 +1,9 @@
-use std::{
-    collections::HashMap,
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use api_types::LoginStatus;
 use async_trait::async_trait;
 use client_info::ClientInfo;
-use db::DBService;
+use db::{DBService, models::local_user::LOCAL_USER_ID};
 use deployment::{Deployment, DeploymentError};
 use executors::profile::ExecutorConfigs;
 use git::GitService;
@@ -29,7 +26,6 @@ use tokio::sync::{Notify, RwLock};
 use tokio_util::sync::CancellationToken;
 use trusted_key_auth::runtime::TrustedKeyAuthRuntime;
 use utils::{assets::config_path, msg_store::MsgStore};
-use uuid::Uuid;
 use workspace_manager::WorkspaceManager;
 use worktree_manager::WorktreeManager;
 
@@ -65,7 +61,7 @@ pub struct LocalDeployment {
 
 #[async_trait]
 impl Deployment for LocalDeployment {
-    async fn new(shutdown: CancellationToken) -> Result<Self, DeploymentError> {
+    async fn new(_shutdown: CancellationToken) -> Result<Self, DeploymentError> {
         // Run one-time process logs migration from DB to filesystem
         services::services::execution_process::migrate_execution_logs_to_files()
             .await
@@ -118,7 +114,7 @@ impl Deployment for LocalDeployment {
         }
 
         let config = Arc::new(RwLock::new(raw_config));
-        let user_id = Uuid::new_v4().to_string();
+        let user_id = LOCAL_USER_ID.to_string();
         let git = GitService::new();
         let repo = RepoService::new();
         let msg_stores = Arc::new(RwLock::new(HashMap::new()));
@@ -155,7 +151,7 @@ impl Deployment for LocalDeployment {
         let client_info = ClientInfo::new();
         let preview_proxy = PreviewProxyService::new();
 
-        let ssh_config = embedded_ssh::config::build_config();
+        let ssh_config = embedded_ssh::config::build_config(&utils::assets::ssh_host_key_path());
 
         let workspace_manager = WorkspaceManager::new(db.clone());
         let container = LocalContainerService::new(
