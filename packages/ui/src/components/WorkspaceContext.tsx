@@ -19,9 +19,6 @@ export type LocalAttachmentMetadata = {
   size_bytes: number;
   format: string;
   mime_type: string;
-  is_pending?: boolean;
-  pending_status?: 'hashing' | 'uploading' | 'confirming';
-  upload_progress?: number;
 };
 
 export const LocalAttachmentsContext = createContext<LocalAttachmentMetadata[]>(

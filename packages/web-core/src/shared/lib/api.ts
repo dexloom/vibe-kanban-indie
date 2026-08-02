@@ -44,19 +44,9 @@ import {
   RunAgentSetupResponse,
   GhCliSetupError,
   RunScriptError,
-  StatusResponse,
-  CreateOrganizationRequest,
-  CreateOrganizationResponse,
   ListOrganizationsResponse,
   OrganizationMemberWithProfile,
   ListMembersResponse,
-  CreateInvitationRequest,
-  CreateInvitationResponse,
-  RevokeInvitationRequest,
-  UpdateMemberRoleRequest,
-  UpdateMemberRoleResponse,
-  Invitation,
-  ListInvitationsResponse,
   OpenEditorResponse,
   OpenEditorRequest,
   PrError,
@@ -93,7 +83,6 @@ import {
   CloseOrchestratorResponse,
   GenerateSpecRequest,
   GenerateSpecResponse,
-  ProfileResponse,
   TelegramStatus,
   TelegramTestResponse,
   SpecKitArtifacts,
@@ -191,31 +180,6 @@ export type Result<T, E> = Ok<T> | Err<E>;
 type ListRemoteProjectsResponse = {
   projects: RemoteProject[];
 };
-
-export type OrganizationBillingStatus =
-  | 'free'
-  | 'active'
-  | 'past_due'
-  | 'cancelled'
-  | 'requires_subscription';
-
-export interface OrganizationBillingStatusResponse {
-  status: OrganizationBillingStatus;
-  billing_enabled: boolean;
-  can_manage_billing: boolean;
-  seat_info: {
-    current_members: number;
-    free_seats: number;
-    requires_subscription: boolean;
-    subscription: {
-      status: string;
-      current_period_end: string;
-      cancel_at_period_end: boolean;
-      quantity: number;
-      unit_amount: number;
-    } | null;
-  } | null;
-}
 
 // Special handler for Result-returning endpoints
 const handleApiResponseAsResult = async <T, E>(
@@ -1478,34 +1442,6 @@ export const attachmentsApi = {
     return handleApiResponse<AttachmentResponse>(response);
   },
 
-  uploadForTask: async (
-    taskId: string,
-    attachment: File
-  ): Promise<AttachmentResponse> => {
-    const formData = new FormData();
-    formData.append('image', attachment);
-
-    const response = await makeLocalApiRequest(
-      `/api/attachments/task/${taskId}/upload`,
-      {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new ApiError(
-        `Failed to upload attachment: ${errorText}`,
-        response.status,
-        response
-      );
-    }
-
-    return handleApiResponse<AttachmentResponse>(response);
-  },
-
   uploadForAttempt: async (
     workspaceId: string,
     sessionId: string,
@@ -1535,16 +1471,50 @@ export const attachmentsApi = {
     return handleApiResponse<AttachmentResponse>(response);
   },
 
+  linkIssueAttachments: async (
+    issueId: string,
+    attachmentIds: string[]
+  ): Promise<void> => {
+    const response = await makeRequest(`/api/issues/${issueId}/attachments`, {
+      method: 'POST',
+      body: JSON.stringify({ attachment_ids: attachmentIds }),
+    });
+    if (!response.ok) {
+      throw new ApiError(
+        `Failed to link issue attachments: ${response.statusText}`,
+        response.status,
+        response
+      );
+    }
+    await handleApiResponse<void>(response);
+  },
+
+  linkCommentAttachments: async (
+    commentId: string,
+    attachmentIds: string[]
+  ): Promise<void> => {
+    const response = await makeRequest(
+      `/api/comments/${commentId}/attachments`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ attachment_ids: attachmentIds }),
+      }
+    );
+    if (!response.ok) {
+      throw new ApiError(
+        `Failed to link comment attachments: ${response.statusText}`,
+        response.status,
+        response
+      );
+    }
+    await handleApiResponse<void>(response);
+  },
+
   delete: async (attachmentId: string): Promise<void> => {
     const response = await makeRequest(`/api/attachments/${attachmentId}`, {
       method: 'DELETE',
     });
     return handleApiResponse<void>(response);
-  },
-
-  getTaskAttachments: async (taskId: string): Promise<AttachmentResponse[]> => {
-    const response = await makeRequest(`/api/attachments/task/${taskId}`);
-    return handleApiResponse<AttachmentResponse[]>(response);
   },
 
   getAttachmentUrl: (attachmentId: string): string => {
@@ -1569,90 +1539,6 @@ export const approvalsApi = {
     return handleApiResponse<ApprovalStatus>(res);
   },
 };
-
-// OAuth API
-export type AuthMethodsResponse = {
-  local_auth_enabled: boolean;
-  oauth_providers: string[];
-};
-
-export const oauthApi = {
-  authMethods: async (): Promise<AuthMethodsResponse> => {
-    const response = await makeRequest('/api/auth/methods', {
-      cache: 'no-store',
-    });
-    return handleApiResponse<AuthMethodsResponse>(response);
-  },
-
-  handoffInit: async (
-    provider: string,
-    returnTo: string
-  ): Promise<{ handoff_id: string; authorize_url: string }> => {
-    const response = await makeRequest('/api/auth/handoff/init', {
-      method: 'POST',
-      body: JSON.stringify({ provider, return_to: returnTo }),
-    });
-    return handleApiResponse<{ handoff_id: string; authorize_url: string }>(
-      response
-    );
-  },
-
-  status: async (): Promise<StatusResponse> => {
-    const response = await makeRequest('/api/auth/status', {
-      cache: 'no-store',
-    });
-    return handleApiResponse<StatusResponse>(response);
-  },
-
-  localLogin: async (
-    email: string,
-    password: string
-  ): Promise<ProfileResponse> => {
-    const response = await makeRequest('/api/auth/local/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-    return handleApiResponse<ProfileResponse>(response);
-  },
-
-  logout: async (): Promise<void> => {
-    const response = await makeRequest('/api/auth/logout', {
-      method: 'POST',
-    });
-    if (!response.ok) {
-      throw new ApiError(
-        `Logout failed with status ${response.status}`,
-        response.status,
-        response
-      );
-    }
-  },
-
-  /** Returns the current access token for the remote server (auto-refreshes if needed) */
-  getToken: async (): Promise<{ access_token: string }> => {
-    const response = await makeRequest('/api/auth/token');
-    if (response.status === 401) {
-      throw new ApiError('Unauthorized', 401, response);
-    }
-    return handleApiResponse<{ access_token: string }>(response);
-  },
-
-  /** Returns the user ID of the currently authenticated user */
-  getCurrentUser: async (): Promise<{ user_id: string }> => {
-    const response = await makeRequest('/api/auth/user');
-    return handleApiResponse<{ user_id: string }>(response);
-  },
-};
-
-/**
- * @deprecated Use `tokenManager.getToken()` from
- * `@/shared/lib/auth/tokenManager` instead.
- * This function does not handle 401 responses or token refresh coordination.
- */
-export async function getCachedToken(): Promise<string | null> {
-  const { tokenManager } = await import('@/shared/lib/auth/tokenManager');
-  return tokenManager.getToken();
-}
 
 const handleRemoteResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
@@ -1693,116 +1579,6 @@ export const organizationsApi = {
   getUserOrganizations: async (): Promise<ListOrganizationsResponse> => {
     const response = await makeRemoteRequest('/v1/organizations');
     return handleRemoteResponse<ListOrganizationsResponse>(response);
-  },
-
-  createOrganization: async (
-    data: CreateOrganizationRequest
-  ): Promise<CreateOrganizationResponse> => {
-    const response = await makeRemoteRequest('/v1/organizations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return handleRemoteResponse<CreateOrganizationResponse>(response);
-  },
-
-  createInvitation: async (
-    orgId: string,
-    data: CreateInvitationRequest
-  ): Promise<CreateInvitationResponse> => {
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/invitations`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      }
-    );
-    return handleRemoteResponse<CreateInvitationResponse>(response);
-  },
-
-  removeMember: async (orgId: string, userId: string): Promise<void> => {
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/members/${userId}`,
-      {
-        method: 'DELETE',
-      }
-    );
-    return handleRemoteResponse<void>(response);
-  },
-
-  updateMemberRole: async (
-    orgId: string,
-    userId: string,
-    data: UpdateMemberRoleRequest
-  ): Promise<UpdateMemberRoleResponse> => {
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/members/${userId}/role`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      }
-    );
-    return handleRemoteResponse<UpdateMemberRoleResponse>(response);
-  },
-
-  listInvitations: async (orgId: string): Promise<Invitation[]> => {
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/invitations`
-    );
-    const result =
-      await handleRemoteResponse<ListInvitationsResponse>(response);
-    return result.invitations;
-  },
-
-  revokeInvitation: async (
-    orgId: string,
-    invitationId: string
-  ): Promise<void> => {
-    const body: RevokeInvitationRequest = { invitation_id: invitationId };
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/invitations/revoke`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }
-    );
-    return handleRemoteResponse<void>(response);
-  },
-
-  getBillingStatus: async (
-    orgId: string
-  ): Promise<OrganizationBillingStatusResponse> => {
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/billing`
-    );
-    return handleRemoteResponse<OrganizationBillingStatusResponse>(response);
-  },
-
-  createPortalSession: async (
-    orgId: string,
-    returnUrl: string
-  ): Promise<{ url: string }> => {
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/billing/portal`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          return_url: returnUrl,
-        }),
-      }
-    );
-    return handleRemoteResponse<{ url: string }>(response);
-  },
-
-  deleteOrganization: async (orgId: string): Promise<void> => {
-    const response = await makeRemoteRequest(`/v1/organizations/${orgId}`, {
-      method: 'DELETE',
-    });
-    return handleRemoteResponse<void>(response);
   },
 };
 

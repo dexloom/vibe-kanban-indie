@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO issue_attachments (id, issue_id, attachment_id)\n                   SELECT $1, $2, $3\n                   WHERE NOT EXISTS (\n                       SELECT 1 FROM issue_attachments WHERE issue_id = $2 AND attachment_id = $3\n                   )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "56184c546a7abf5e6596790fcbe1533684864ed425d75a331419c54358f7fb4a"
+}

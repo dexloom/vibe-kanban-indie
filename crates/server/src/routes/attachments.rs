@@ -114,18 +114,6 @@ pub(crate) async fn process_file_upload(
                 .await?;
             }
 
-            deployment
-                .track_if_analytics_allowed(
-                    "file_uploaded",
-                    serde_json::json!({
-                        "file_id": file.id.to_string(),
-                        "size_bytes": file.size_bytes,
-                        "mime_type": file.mime_type,
-                        "workspace_id": link_workspace_id.map(|id| id.to_string()),
-                    }),
-                )
-                .await;
-
             return Ok(AttachmentResponse::from_file(file));
         }
     }

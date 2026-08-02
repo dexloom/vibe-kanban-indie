@@ -15,27 +15,12 @@ import {
   type DecoratorNodeConfig,
 } from './create-decorator-node';
 
-const ATTACHMENT_URL_STALE_TIME = 4 * 60 * 1000;
-
-type AttachmentType = 'file' | 'thumbnail';
-
-interface AttachmentUrlResult {
-  url: string | null;
-}
-
 interface AttachmentMetadataLike {
   exists: boolean;
   file_name?: string | null;
   size_bytes?: bigint | null;
   format?: string | null;
   proxy_url?: string | null;
-}
-
-export interface CreateAttachmentNodeOptions {
-  fetchAttachmentUrl: (
-    attachmentId: string,
-    type: AttachmentType
-  ) => Promise<string>;
 }
 
 export interface AttachmentData {
@@ -136,23 +121,7 @@ function useAttachmentMetadata(
   };
 }
 
-function useAttachmentFileUrl(
-  attachmentId: string | null,
-  fetchAttachmentUrl: CreateAttachmentNodeOptions['fetchAttachmentUrl']
-): AttachmentUrlResult {
-  const query = useQuery({
-    queryKey: ['attachment-url', attachmentId, 'file'],
-    queryFn: () => fetchAttachmentUrl(attachmentId as string, 'file'),
-    enabled: !!attachmentId,
-    staleTime: ATTACHMENT_URL_STALE_TIME,
-  });
-
-  return {
-    url: query.data ?? null,
-  };
-}
-
-export function createAttachmentNode(options: CreateAttachmentNodeOptions) {
+export function createAttachmentNode() {
   function AttachmentComponent({
     data,
     nodeKey,
@@ -170,17 +139,7 @@ export function createAttachmentNode(options: CreateAttachmentNodeOptions) {
     const [editor] = useLexicalComposerContext();
 
     const isWorkspaceAttachment = src.startsWith('.vibe-attachments/');
-    const isPendingAttachment = src.startsWith('pending-attachment://');
-    const isAttachment = isPendingAttachment || src.startsWith('attachment://');
-    const attachmentId =
-      !isPendingAttachment && isAttachment
-        ? src.replace('attachment://', '')
-        : null;
-
-    const { url: attachmentUrl } = useAttachmentFileUrl(
-      isAttachment && !isPendingAttachment ? attachmentId : null,
-      options.fetchAttachmentUrl
-    );
+    const isDirectAttachmentUrl = src.startsWith('/api/attachments/');
 
     const { data: metadata } = useAttachmentMetadata(
       workspaceId,
@@ -189,8 +148,6 @@ export function createAttachmentNode(options: CreateAttachmentNodeOptions) {
       localAttachments
     );
 
-    const resolvedUrl =
-      metadata?.proxy_url ?? (isAttachment ? attachmentUrl : null);
     const displayName = truncatePath(
       metadata?.file_name || label || src || t('kanban.previewFile')
     );
@@ -199,31 +156,27 @@ export function createAttachmentNode(options: CreateAttachmentNodeOptions) {
       metadata?.format
     );
     const sizeText = formatFileSize(metadata?.size_bytes);
-    const localAttachment = localAttachments.find(
-      (attachment) => attachment.path === src
-    );
-    const metadataLine = localAttachment?.is_pending
-      ? ['Uploading', sizeText].filter(Boolean).join(' · ')
-      : metadata?.exists
-        ? format && sizeText
-          ? `${format} · ${sizeText}`
-          : format || sizeText || null
-        : null;
+    const metadataLine = metadata?.exists
+      ? format && sizeText
+        ? `${format} · ${sizeText}`
+        : format || sizeText || null
+      : null;
 
     const openUrl = useCallback(
-      async (event: React.MouseEvent) => {
+      (event: React.MouseEvent) => {
         event.preventDefault();
         event.stopPropagation();
 
-        let nextUrl = resolvedUrl;
-        if (!nextUrl && attachmentId) {
-          nextUrl = await options.fetchAttachmentUrl(attachmentId, 'file');
+        if (isDirectAttachmentUrl) {
+          window.open(src, '_blank', 'noopener,noreferrer');
+          return;
         }
 
-        if (!nextUrl) return;
-        window.open(nextUrl, '_blank', 'noopener,noreferrer');
+        if (metadata?.proxy_url) {
+          window.open(metadata.proxy_url, '_blank', 'noopener,noreferrer');
+        }
       },
-      [attachmentId, resolvedUrl]
+      [isDirectAttachmentUrl, metadata?.proxy_url, src]
     );
 
     const handleDelete = useCallback(
@@ -245,15 +198,13 @@ export function createAttachmentNode(options: CreateAttachmentNodeOptions) {
 
     const handleDownload = useCallback(
       (event: React.MouseEvent) => {
-        openUrl(event).catch((error) => {
-          console.error('Failed to open attachment:', error);
-        });
+        openUrl(event);
       },
       [openUrl]
     );
 
     const icon =
-      isWorkspaceAttachment || isAttachment ? (
+      isWorkspaceAttachment || isDirectAttachmentUrl ? (
         <File className="w-5 h-5 text-muted-foreground" />
       ) : (
         <HelpCircle className="w-5 h-5 text-muted-foreground" />
@@ -263,9 +214,7 @@ export function createAttachmentNode(options: CreateAttachmentNodeOptions) {
       <span
         className="group relative inline-flex items-center gap-1.5 pl-1.5 pr-5 py-1 ml-0.5 mr-0.5 bg-muted rounded border cursor-pointer border-border hover:border-muted-foreground transition-colors align-bottom"
         onClick={(event) => {
-          openUrl(event).catch((error) => {
-            console.error('Failed to open attachment:', error);
-          });
+          openUrl(event);
         }}
         onDoubleClick={onDoubleClickEdit}
         role="button"
@@ -294,7 +243,7 @@ export function createAttachmentNode(options: CreateAttachmentNodeOptions) {
             <X className="w-2.5 h-2.5 text-background" />
           </button>
         )}
-        {resolvedUrl && (
+        {(isDirectAttachmentUrl || metadata?.proxy_url) && (
           <button
             onClick={handleDownload}
             className={
@@ -317,7 +266,7 @@ export function createAttachmentNode(options: CreateAttachmentNodeOptions) {
     serialization: {
       format: 'inline',
       pattern:
-        /(?<!!)\[([^\]]+)\]\((attachment:\/\/[^)]+|pending-attachment:\/\/[^)]+|\.vibe-attachments\/[^)]+)\)/,
+        /(?<!!)\[([^\]]+)\]\((\/api\/attachments\/[^)]+\/file|\.vibe-attachments\/[^)]+)\)/,
       trigger: ')',
       serialize: (data) => `[${data.label}](${data.src})`,
       deserialize: (match) => ({ src: match[2], label: match[1] }),

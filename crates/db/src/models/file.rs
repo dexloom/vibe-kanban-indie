@@ -155,7 +155,11 @@ impl File {
                       i.updated_at as "updated_at!: DateTime<Utc>"
                FROM attachments i
                LEFT JOIN workspace_attachments wa ON i.id = wa.attachment_id
-               WHERE wa.workspace_id IS NULL"#
+               LEFT JOIN issue_attachments ia      ON i.id = ia.attachment_id
+               LEFT JOIN comment_attachments ca    ON i.id = ca.attachment_id
+               WHERE wa.workspace_id IS NULL
+                 AND ia.issue_id IS NULL
+                 AND ca.comment_id IS NULL"#
         )
         .fetch_all(pool)
         .await
@@ -187,6 +191,72 @@ impl WorkspaceAttachment {
                    )"#,
                 id,
                 workspace_id,
+                attachment_id
+            )
+            .execute(pool)
+            .await?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct IssueAttachment {
+    pub id: Uuid,
+    pub issue_id: Uuid,
+    pub attachment_id: Uuid,
+    pub created_at: DateTime<Utc>,
+}
+
+impl IssueAttachment {
+    pub async fn associate_many_dedup(
+        pool: &SqlitePool,
+        issue_id: Uuid,
+        attachment_ids: &[Uuid],
+    ) -> Result<(), sqlx::Error> {
+        for &attachment_id in attachment_ids {
+            let id = Uuid::new_v4();
+            sqlx::query!(
+                r#"INSERT INTO issue_attachments (id, issue_id, attachment_id)
+                   SELECT $1, $2, $3
+                   WHERE NOT EXISTS (
+                       SELECT 1 FROM issue_attachments WHERE issue_id = $2 AND attachment_id = $3
+                   )"#,
+                id,
+                issue_id,
+                attachment_id
+            )
+            .execute(pool)
+            .await?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct CommentAttachment {
+    pub id: Uuid,
+    pub comment_id: Uuid,
+    pub attachment_id: Uuid,
+    pub created_at: DateTime<Utc>,
+}
+
+impl CommentAttachment {
+    pub async fn associate_many_dedup(
+        pool: &SqlitePool,
+        comment_id: Uuid,
+        attachment_ids: &[Uuid],
+    ) -> Result<(), sqlx::Error> {
+        for &attachment_id in attachment_ids {
+            let id = Uuid::new_v4();
+            sqlx::query!(
+                r#"INSERT INTO comment_attachments (id, comment_id, attachment_id)
+                   SELECT $1, $2, $3
+                   WHERE NOT EXISTS (
+                       SELECT 1 FROM comment_attachments WHERE comment_id = $2 AND attachment_id = $3
+                   )"#,
+                id,
+                comment_id,
                 attachment_id
             )
             .execute(pool)

@@ -33,6 +33,7 @@ use axum::{
 };
 use db::models::{
     execution_process::ExecutionProcess,
+    file::{CommentAttachment, IssueAttachment},
     issue::{Issue as DbIssue, NewIssue},
     issue_relationship::IssueRelationship as DbIssueRelationship,
     issue_workspace::IssueWorkspace,
@@ -810,6 +811,35 @@ async fn list_workspace_issue_links(
     Ok(ok(links))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AssociateAttachmentsRequest {
+    pub attachment_ids: Vec<Uuid>,
+}
+
+async fn link_issue_attachments(
+    State(deployment): State<DeploymentImpl>,
+    Path(issue_id): Path<Uuid>,
+    axum::Json(payload): axum::Json<AssociateAttachmentsRequest>,
+) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
+    IssueAttachment::associate_many_dedup(&deployment.db().pool, issue_id, &payload.attachment_ids)
+        .await?;
+    Ok(ok(()))
+}
+
+async fn link_comment_attachments(
+    State(deployment): State<DeploymentImpl>,
+    Path(comment_id): Path<Uuid>,
+    axum::Json(payload): axum::Json<AssociateAttachmentsRequest>,
+) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
+    CommentAttachment::associate_many_dedup(
+        &deployment.db().pool,
+        comment_id,
+        &payload.attachment_ids,
+    )
+    .await?;
+    Ok(ok(()))
+}
+
 pub fn router(_deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     Router::new()
         .route("/projects", get(list_projects))
@@ -826,6 +856,8 @@ pub fn router(_deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
             "/issues/{id}/dispatch-to-workspace",
             post(dispatch_issue_to_workspace),
         )
+        .route("/issues/{id}/attachments", post(link_issue_attachments))
+        .route("/comments/{id}/attachments", post(link_comment_attachments))
         .route("/issue-tags", get(list_issue_tags).post(create_issue_tag))
         .route("/issue-tags/{id}", delete(delete_issue_tag))
         .route(

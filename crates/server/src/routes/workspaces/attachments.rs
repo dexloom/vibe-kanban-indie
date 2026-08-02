@@ -47,16 +47,6 @@ pub struct AssociateWorkspaceAttachmentsRequest {
     pub attachment_ids: Vec<Uuid>,
 }
 
-#[derive(Debug, Deserialize, Serialize, TS)]
-pub struct ImportIssueAttachmentsRequest {
-    pub issue_id: Uuid,
-}
-
-#[derive(Debug, Serialize, TS)]
-pub struct ImportIssueAttachmentsResponse {
-    pub attachment_ids: Vec<Uuid>,
-}
-
 pub async fn get_workspace_files(
     Extension(workspace): Extension<Workspace>,
     State(deployment): State<DeploymentImpl>,
@@ -101,19 +91,6 @@ pub async fn associate_workspace_attachments(
         .await?;
 
     Ok(ResponseJson(ApiResponse::success(())))
-}
-
-pub async fn import_issue_attachments(
-    Extension(_workspace): Extension<Workspace>,
-    State(_deployment): State<DeploymentImpl>,
-    _axum_json: axum::Json<ImportIssueAttachmentsRequest>,
-) -> Result<ResponseJson<ApiResponse<ImportIssueAttachmentsResponse>>, ApiError> {
-    // Local-only fork: remote attachment import is not supported.
-    Ok(ResponseJson(ApiResponse::success(
-        ImportIssueAttachmentsResponse {
-            attachment_ids: Vec::new(),
-        },
-    )))
 }
 
 pub async fn get_attachment_metadata(
@@ -319,7 +296,6 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     let metadata_router = Router::new()
         .route("/", get(get_workspace_files))
         .route("/associate", post(associate_workspace_attachments))
-        .route("/import-issue-attachments", post(import_issue_attachments))
         .route("/metadata", get(get_attachment_metadata))
         .route(
             "/upload",

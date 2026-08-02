@@ -85,7 +85,6 @@ import {
   buildRepoSelectionPages,
   type RepoSelectionResult,
 } from '@/shared/dialogs/command-bar/selections/repoSelection';
-import { fetchAttachmentSasUrl } from '@/shared/lib/remoteApi';
 import { writeClipboardViaBridge } from '@/shared/lib/clipboard';
 import type { SendMessageShortcut } from 'shared/types';
 import type { BaseCodingAgent } from 'shared/types';
@@ -371,7 +370,6 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WysiwygProps>(
     const imageNodeDefinition = useMemo(
       () =>
         createImageNode({
-          fetchAttachmentUrl: fetchAttachmentSasUrl,
           openImagePreview: (options) => {
             ImagePreviewDialog.show(options);
           },
@@ -379,10 +377,7 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WysiwygProps>(
       []
     );
     const attachmentNodeDefinition = useMemo(
-      () =>
-        createAttachmentNode({
-          fetchAttachmentUrl: fetchAttachmentSasUrl,
-        }),
+      () => createAttachmentNode(),
       []
     );
     const { ImageNode, IMAGE_TRANSFORMER, $isImageNode } = imageNodeDefinition;
