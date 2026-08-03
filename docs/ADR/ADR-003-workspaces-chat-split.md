@@ -2,6 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-08-02
+- **Amended by**: ADR-005 (left sidebar — Projects outlined group + collapsible "chats" tree). The domain module, dashboard, smart redirect, and destination/predicate model remain canonical; ADR-005 changes how they are hosted (rail → tree-in-sidebar) and how labels/badges are presented.
 
 ## Context
 

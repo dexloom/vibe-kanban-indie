@@ -147,6 +147,9 @@
       "emptyRecentlyActive": "Aucune activité récente.",
       "emptyArchived": "Aucun espace de travail archivé.",
       "summary": "{{active}} actifs · {{archived}} archivés · {{running}} en cours · {{attention}} nécessitent attention"
+    },
+    "outliner": {
+      "active": "Actifs"
     }
   },
   "fileTree": {
@@ -538,11 +541,9 @@
     "errorCreateFailed": "Échec de la création du ticket. Veuillez réessayer."
   },
   "appBar": {
-    "chat": "Chat",
+    "projects": "Projets",
     "workspaces": "Espaces de travail",
-    "badges": {
-      "running": "{{count}} en cours",
-      "needsAttention": "{{count}} nécessitent attention"
-    }
+    "notifications": "Notifications",
+    "organizations": "Organisations"
   }
 }

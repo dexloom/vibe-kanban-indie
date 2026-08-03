@@ -116,7 +116,7 @@ export function WorkspacesDashboard() {
         />
         <WorkspaceSection
           title={t('workspaces.dashboard.sectionRecentlyActive')}
-          workspaces={categorized.recentlyActive}
+          workspaces={categorized.idle}
           emptyText={t('workspaces.dashboard.emptyRecentlyActive')}
           onOpen={openWorkspace}
         />

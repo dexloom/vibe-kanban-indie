@@ -147,6 +147,9 @@
       "emptyRecentlyActive": "최근 활동이 없습니다.",
       "emptyArchived": "보관된 워크스페이스가 없습니다.",
       "summary": "{{active}} 활성 · {{archived}} 보관됨 · {{running}} 실행 중 · {{attention}} 주의 필요"
+    },
+    "outliner": {
+      "active": "활성"
     }
   },
   "fileTree": {
@@ -537,11 +540,9 @@
     "errorCreateFailed": "이슈를 만들지 못했습니다. 다시 시도해 주세요."
   },
   "appBar": {
-    "chat": "채팅",
+    "projects": "프로젝트",
     "workspaces": "워크스페이스",
-    "badges": {
-      "running": "{{count}} 실행 중",
-      "needsAttention": "{{count}} 주의 필요"
-    }
+    "notifications": "알림",
+    "organizations": "조직"
   }
 }

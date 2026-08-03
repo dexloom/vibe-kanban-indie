@@ -5,6 +5,7 @@ import { categorizeWorkspacesForDashboard } from '@vibe/ui/lib/workspaceStatus';
 export type { WorkspaceStatusItem } from '@vibe/ui/lib/workspaceStatus';
 export {
   categorizeWorkspacesForDashboard,
+  categorizeWorkspacesForOutliner,
   compareWorkspaceDashboardRecency,
   computeWorkspaceBadgeCounts,
   isWorkspaceIdle,
@@ -19,7 +20,7 @@ export function pickChatDestination(
   const workspace =
     categorized.needsAttention[0] ??
     categorized.running[0] ??
-    categorized.recentlyActive[0];
+    categorized.idle[0];
   return workspace
     ? { kind: 'workspace', workspaceId: workspace.id }
     : { kind: 'workspaces-create' };

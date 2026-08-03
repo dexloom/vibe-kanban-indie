@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   categorizeWorkspacesForDashboard,
+  categorizeWorkspacesForOutliner,
   compareWorkspaceDashboardRecency,
   computeWorkspaceBadgeCounts,
   isWorkspaceIdle,
@@ -66,7 +67,7 @@ describe('workspace status', () => {
     const categories = categorizeWorkspacesForDashboard(items);
     expect(categories.needsAttention.map((x) => x.id)).toEqual(['attn']);
     expect(categories.running.map((x) => x.id)).toEqual(['run']);
-    expect(categories.recentlyActive.map((x) => x.id)).toEqual(['idle']);
+    expect(categories.idle.map((x) => x.id)).toEqual(['idle']);
     expect(pickChatDestination([])).toEqual({ kind: 'workspaces-create' });
     expect(pickChatDestination(items)).toEqual({ kind: 'workspace', workspaceId: 'attn' });
     expect(pickChatDestination(items.slice().reverse())).toEqual(pickChatDestination(items));
@@ -75,5 +76,52 @@ describe('workspace status', () => {
   it('computes badge counts from effective status', () => {
     expect(computeWorkspaceBadgeCounts([])).toEqual({ runningCount: 0, needsAttentionCount: 0 });
     expect(computeWorkspaceBadgeCounts([ws({ id: 'a', isRunning: true }), ws({ id: 'b', isRunning: true, hasPendingApproval: true })])).toEqual({ runningCount: 1, needsAttentionCount: 1 });
+  });
+
+  describe('categorizeWorkspacesForOutliner', () => {
+    it('returns empty buckets for empty input', () => {
+      const result = categorizeWorkspacesForOutliner([], []);
+      expect(result).toEqual({
+        attention: [],
+        running: [],
+        idle: [],
+        archived: [],
+      });
+    });
+
+    it('partitions the four buckets without overlap or loss', () => {
+      const attn = ws({ id: 'attn-1', hasPendingApproval: true });
+      const running = ws({ id: 'run-1', isRunning: true });
+      const idle = ws({ id: 'idle-1', latestProcessCompletedAt: '2024-01-05' });
+      const attn2 = ws({ id: 'attn-2', hasUnseenActivity: true });
+      const archivedA = ws({ id: 'arch-1' });
+      const archivedB = ws({ id: 'arch-2' });
+
+      const result = categorizeWorkspacesForOutliner(
+        [attn, running, idle, attn2],
+        [archivedA, archivedB]
+      );
+
+      expect(result.attention.map((w) => w.id)).toEqual(['attn-1', 'attn-2']);
+      expect(result.running.map((w) => w.id)).toEqual(['run-1']);
+      expect(result.idle.map((w) => w.id)).toEqual(['idle-1']);
+      expect(result.archived.map((w) => w.id)).toEqual(['arch-1', 'arch-2']);
+    });
+
+    it('preserves input order within each bucket', () => {
+      const items = [
+        ws({ id: 'attn-b', hasPendingApproval: true }),
+        ws({ id: 'attn-a', hasPendingApproval: true }),
+        ws({ id: 'attn-c', hasPendingApproval: true }),
+      ];
+      const result = categorizeWorkspacesForOutliner(items, []);
+      expect(result.attention.map((w) => w.id)).toEqual(['attn-b', 'attn-a', 'attn-c']);
+    });
+
+    it('passes archived workspaces through unchanged (no filter)', () => {
+      const runningArchived = ws({ id: 'arch-run', isRunning: true });
+      const result = categorizeWorkspacesForOutliner([], [runningArchived]);
+      expect(result.archived.map((w) => w.id)).toEqual(['arch-run']);
+    });
   });
 });

@@ -147,6 +147,9 @@
       "emptyRecentlyActive": "最近のアクティビティはありません。",
       "emptyArchived": "アーカイブ済みのワークスペースはありません。",
       "summary": "{{active}} アクティブ · {{archived}} アーカイブ済み · {{running}} 実行中 · {{attention}} 要対応"
+    },
+    "outliner": {
+      "active": "アクティブ"
     }
   },
   "fileTree": {
@@ -537,11 +540,9 @@
     "errorCreateFailed": "課題を作成できませんでした。もう一度お試しください。"
   },
   "appBar": {
-    "chat": "チャット",
+    "projects": "プロジェクト",
     "workspaces": "ワークスペース",
-    "badges": {
-      "running": "{{count}} 実行中",
-      "needsAttention": "{{count}} 要対応"
-    }
+    "notifications": "通知",
+    "organizations": "組織"
   }
 }

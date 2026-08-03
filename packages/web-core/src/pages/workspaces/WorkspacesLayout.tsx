@@ -21,7 +21,7 @@ import {
 } from '@/features/create-mode/model/createModeSeedStore';
 import { ReviewProvider } from '@/shared/hooks/ReviewProvider';
 import { ChangesViewProvider } from '@/shared/hooks/ChangesViewProvider';
-import { WorkspacesSidebarContainer } from './WorkspacesSidebarContainer';
+import { WorkspaceOutlinerContainer } from './WorkspaceOutlinerContainer';
 import { LogsContentContainer } from './LogsContentContainer';
 import {
   WorkspacesMainContainer,
@@ -192,8 +192,8 @@ export function WorkspacesLayout() {
                 mobileTab !== 'workspaces' && 'hidden'
               )}
             >
-              <WorkspacesSidebarContainer
-                onScrollToBottom={handleScrollToBottom}
+              <WorkspaceOutlinerContainer
+                onReselect={() => handleScrollToBottom()}
               />
             </div>
 
@@ -393,7 +393,9 @@ export function WorkspacesLayout() {
     <div className="flex flex-1 min-h-0 h-full">
       {isLeftSidebarVisible && (
         <div className="w-[300px] shrink-0 h-full overflow-hidden">
-          <WorkspacesSidebarContainer onScrollToBottom={handleScrollToBottom} />
+          <WorkspaceOutlinerContainer
+            onReselect={() => handleScrollToBottom()}
+          />
         </div>
       )}
 

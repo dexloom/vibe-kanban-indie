@@ -147,6 +147,9 @@
       "emptyRecentlyActive": "暫無近期活動。",
       "emptyArchived": "沒有已封存的工作區。",
       "summary": "{{active}} 活躍 · {{archived}} 已封存 · {{running}} 執行中 · {{attention}} 需要注意"
+    },
+    "outliner": {
+      "active": "活躍"
     }
   },
   "fileTree": {
@@ -538,11 +541,9 @@
     "errorCreateFailed": "建立議題失敗，請重試。"
   },
   "appBar": {
-    "chat": "聊天",
+    "projects": "專案",
     "workspaces": "工作區",
-    "badges": {
-      "running": "{{count}} 執行中",
-      "needsAttention": "{{count}} 需要注意"
-    }
+    "notifications": "通知",
+    "organizations": "組織"
   }
 }

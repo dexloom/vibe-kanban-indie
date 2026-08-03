@@ -235,40 +235,8 @@ export const resolveKanbanProjectState = (
   };
 };
 
-// Workspace sidebar filter state
-export type WorkspacePrFilter = 'all' | 'has_pr' | 'no_pr';
-export type WorkspaceSortBy = 'updated_at' | 'created_at';
-export type WorkspaceSortOrder = 'asc' | 'desc';
-
-export type WorkspaceFilterState = {
-  projectIds: string[]; // remote project IDs
-  prFilter: WorkspacePrFilter;
-};
-
-export type WorkspaceSortState = {
-  sortBy: WorkspaceSortBy;
-  sortOrder: WorkspaceSortOrder;
-};
-
-const DEFAULT_WORKSPACE_FILTER_STATE: WorkspaceFilterState = {
-  projectIds: [],
-  prFilter: 'all',
-};
-
-const DEFAULT_WORKSPACE_SORT_STATE: WorkspaceSortState = {
-  sortBy: 'updated_at',
-  sortOrder: 'desc',
-};
-
 // Centralized persist keys for type safety
 export const PERSIST_KEYS = {
-  // Sidebar sections
-  workspacesSidebarArchived: 'workspaces-sidebar-archived',
-  // v2 key forces accordion default to true for all users
-  workspacesSidebarAccordionLayout: 'workspaces-sidebar-accordion-layout-v2',
-  workspacesSidebarRaisedHand: 'workspaces-sidebar-raised-hand',
-  workspacesSidebarNotRunning: 'workspaces-sidebar-not-running',
-  workspacesSidebarRunning: 'workspaces-sidebar-running',
   // Right panel sections
   gitAdvancedSettings: 'git-advanced-settings',
   gitPanelRepositories: 'git-panel-repositories',
@@ -305,11 +273,6 @@ export const PERSIST_KEYS = {
 const isWideScreen = () => window.innerWidth > 2048;
 
 export type PersistKey =
-  | typeof PERSIST_KEYS.workspacesSidebarArchived
-  | typeof PERSIST_KEYS.workspacesSidebarAccordionLayout
-  | typeof PERSIST_KEYS.workspacesSidebarRaisedHand
-  | typeof PERSIST_KEYS.workspacesSidebarNotRunning
-  | typeof PERSIST_KEYS.workspacesSidebarRunning
   | typeof PERSIST_KEYS.gitAdvancedSettings
   | typeof PERSIST_KEYS.gitPanelRepositories
   | typeof PERSIST_KEYS.gitPanelProject
@@ -370,10 +333,6 @@ type State = {
     string,
     Record<string, KanbanProjectViewPreferences>
   >;
-
-  // Workspace sidebar filter state
-  workspaceFilters: WorkspaceFilterState;
-  workspaceSort: WorkspaceSortState;
 
   // Kanban view mode state
   kanbanViewMode: KanbanViewMode;
@@ -462,13 +421,6 @@ type State = {
     viewId: string
   ) => void;
 
-  // Workspace sidebar filter actions
-  setWorkspaceProjectFilter: (projectIds: string[]) => void;
-  setWorkspacePrFilter: (prFilter: WorkspacePrFilter) => void;
-  clearWorkspaceFilters: () => void;
-  setWorkspaceSortBy: (sortBy: WorkspaceSortBy) => void;
-  setWorkspaceSortOrder: (sortOrder: WorkspaceSortOrder) => void;
-
   // Kanban view mode actions
   setKanbanViewMode: (mode: KanbanViewMode) => void;
   setListViewStatusFilter: (statusId: string | null) => void;
@@ -514,10 +466,6 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
   // Kanban per-project view selection
   kanbanProjectViewSelections: {},
   kanbanProjectViewPreferences: {},
-
-  // Workspace sidebar filter state
-  workspaceFilters: DEFAULT_WORKSPACE_FILTER_STATE,
-  workspaceSort: DEFAULT_WORKSPACE_SORT_STATE,
 
   // Kanban view mode state
   kanbanViewMode: 'kanban' as KanbanViewMode,
@@ -841,30 +789,6 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
       };
     });
   },
-
-  // Workspace sidebar filter actions
-  setWorkspaceProjectFilter: (projectIds) =>
-    set((s) => ({
-      workspaceFilters: { ...s.workspaceFilters, projectIds },
-    })),
-
-  setWorkspacePrFilter: (prFilter) =>
-    set((s) => ({
-      workspaceFilters: { ...s.workspaceFilters, prFilter },
-    })),
-
-  clearWorkspaceFilters: () =>
-    set({ workspaceFilters: DEFAULT_WORKSPACE_FILTER_STATE }),
-
-  setWorkspaceSortBy: (sortBy) =>
-    set((s) => ({
-      workspaceSort: { ...s.workspaceSort, sortBy },
-    })),
-
-  setWorkspaceSortOrder: (sortOrder) =>
-    set((s) => ({
-      workspaceSort: { ...s.workspaceSort, sortOrder },
-    })),
 
   // Kanban view mode actions
   setKanbanViewMode: (mode) => set({ kanbanViewMode: mode }),

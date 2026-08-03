@@ -294,13 +294,8 @@ export function NavbarContainer({
   // Build user popover slot for mobile mode
   const userPopoverSlot = useMemo(() => {
     if (!mobileMode) return undefined;
-    return (
-      <AppBarUserPopoverContainer
-        organizations={orgsData?.organizations ?? []}
-        selectedOrgId={selectedOrgId ?? ''}
-      />
-    );
-  }, [mobileMode, orgsData?.organizations, selectedOrgId]);
+    return <AppBarUserPopoverContainer />;
+  }, [mobileMode]);
 
   const syncErrors = useMemo(() => {
     return syncErrorContext?.errors ? [...syncErrorContext.errors] : [];

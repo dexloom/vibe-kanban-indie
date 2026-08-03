@@ -56,7 +56,12 @@ export function compareWorkspaceDashboardRecency(
 export interface CategorizedWorkspaces<T extends WorkspaceStatusItem> {
   needsAttention: T[];
   running: T[];
-  recentlyActive: T[];
+  /**
+   * Idle / recently-active workspaces. Renamed from `recentlyActive` — the new
+   * name is shorter and matches the bucket UI label; the field continues to
+   * hold the same set of workspaces ordered by dashboard recency.
+   */
+  idle: T[];
 }
 
 export function categorizeWorkspacesForDashboard<
@@ -66,10 +71,36 @@ export function categorizeWorkspacesForDashboard<
     .filter(isWorkspaceNeedsAttention)
     .sort(compareCreated);
   const running = active.filter(isWorkspaceRunning).sort(compareCreated);
-  const recentlyActive = active
-    .filter(isWorkspaceIdle)
-    .sort(compareWorkspaceDashboardRecency);
-  return { needsAttention, running, recentlyActive };
+  const idle = active.filter(isWorkspaceIdle).sort(compareWorkspaceDashboardRecency);
+  return { needsAttention, running, idle };
+}
+
+/**
+ * Outliner-friendly partition: three "active" buckets plus a passthrough
+ * `archived` bucket fed from a separate source. The result keeps the input
+ * ordering within each bucket (callers sort beforehand if they need a specific
+ * order) and is shaped so an outliner can render buckets left-to-right in a
+ * stable sequence.
+ */
+export interface CategorizedOutlinerWorkspaces<T extends WorkspaceStatusItem> {
+  attention: T[];
+  running: T[];
+  idle: T[];
+  archived: T[];
+}
+
+export function categorizeWorkspacesForOutliner<
+  T extends WorkspaceStatusItem,
+>(
+  active: readonly T[],
+  archived: readonly T[]
+): CategorizedOutlinerWorkspaces<T> {
+  return {
+    attention: active.filter(isWorkspaceNeedsAttention),
+    running: active.filter(isWorkspaceRunning),
+    idle: active.filter(isWorkspaceIdle),
+    archived: [...archived],
+  };
 }
 
 export interface WorkspaceBadgeCounts {

@@ -147,6 +147,9 @@
       "emptyRecentlyActive": "Sin actividad reciente.",
       "emptyArchived": "No hay espacios de trabajo archivados.",
       "summary": "{{active}} activos · {{archived}} archivados · {{running}} en ejecución · {{attention}} necesitan atención"
+    },
+    "outliner": {
+      "active": "Activos"
     }
   },
   "fileTree": {
@@ -537,11 +540,9 @@
     "errorCreateFailed": "No se pudo crear la incidencia. Inténtalo de nuevo."
   },
   "appBar": {
-    "chat": "Chat",
+    "projects": "Proyectos",
     "workspaces": "Espacios de trabajo",
-    "badges": {
-      "running": "{{count}} en ejecución",
-      "needsAttention": "{{count}} necesitan atención"
-    }
+    "notifications": "Notificaciones",
+    "organizations": "Organizaciones"
   }
 }

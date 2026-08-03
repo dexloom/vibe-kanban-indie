@@ -147,6 +147,9 @@
       "emptyRecentlyActive": "暂无近期活动。",
       "emptyArchived": "没有已归档的工作区。",
       "summary": "{{active}} 活跃 · {{archived}} 已归档 · {{running}} 运行中 · {{attention}} 需要注意"
+    },
+    "outliner": {
+      "active": "活跃"
     }
   },
   "fileTree": {
@@ -538,11 +541,9 @@
     "errorCreateFailed": "创建议题失败，请重试。"
   },
   "appBar": {
-    "chat": "聊天",
+    "projects": "项目",
     "workspaces": "工作区",
-    "badges": {
-      "running": "{{count}} 运行中",
-      "needsAttention": "{{count}} 需要注意"
-    }
+    "notifications": "通知",
+    "organizations": "组织"
   }
 }

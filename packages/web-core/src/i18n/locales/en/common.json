@@ -153,6 +153,9 @@
       "emptyRecentlyActive": "No recent activity.",
       "emptyArchived": "No archived workspaces.",
       "summary": "{{active}} active · {{archived}} archived · {{running}} running · {{attention}} need attention"
+    },
+    "outliner": {
+      "active": "Active"
     }
   },
   "fileTree": {
@@ -541,11 +544,9 @@
     "errorCreateFailed": "Failed to create the issue. Please try again."
   },
   "appBar": {
-    "chat": "Chat",
+    "projects": "Projects",
     "workspaces": "Workspaces",
-    "badges": {
-      "running": "{{count}} running",
-      "needsAttention": "{{count}} need attention"
-    }
+    "notifications": "Notifications",
+    "organizations": "Organizations"
   }
 }
