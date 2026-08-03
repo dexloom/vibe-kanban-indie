@@ -1,9 +1,9 @@
 import { useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../lib/cn';
-import { Tooltip } from './Tooltip';
-import { SidebarSectionHeader } from './SidebarSectionHeader';
+import { SidebarBar } from './SidebarBar';
 import { SidebarBucketBar } from './SidebarBucketBar';
+import { SidebarSectionHeader } from './SidebarSectionHeader';
 import { SidebarProjectTree } from './SidebarProjectTree';
 import type { SidebarProject } from './outliner/types';
 import type {
@@ -33,15 +33,11 @@ interface SidebarProps {
   onSelectWorkspace: (id: string) => void;
   onSelectProject: (id: string) => void;
 
-  notificationBell?: ReactNode;
-  organizationsSwitcher?: ReactNode;
-  userPopover?: ReactNode;
   /** Right-aligned actions for the Projects section header (e.g. create-project button). */
   headerActions?: ReactNode;
-  appVersion?: string | null;
-  updateVersion?: string | null;
-  onUpdateClick?: () => void;
-
+  /** Bottom bar content (e.g. Notifications / Settings buttons), rendered in
+   *  a shared SidebarBar pinned to the bottom. */
+  bottomActions?: ReactNode;
   className?: string;
 }
 
@@ -57,13 +53,8 @@ export function Sidebar({
   onProjectsReorder,
   onSelectWorkspace,
   onSelectProject,
-  notificationBell,
-  organizationsSwitcher,
-  userPopover,
   headerActions,
-  appVersion,
-  updateVersion,
-  onUpdateClick,
+  bottomActions,
   className,
 }: SidebarProps) {
   const { t } = useTranslation('common');
@@ -73,14 +64,10 @@ export function Sidebar({
       aria-label="Primary sidebar"
       className={cn(
         'flex h-full w-[256px] shrink-0 flex-col gap-2 overflow-hidden',
-        'border-r border-border bg-secondary p-2',
+        'border-r border-border bg-secondary px-2 pb-2',
         className,
       )}
     >
-      {/* Tauri drag strip — Windows/Linux only. On macOS the Navbar drag region
-          covers the top; keeping the strip small and inert is harmless. */}
-      <div data-tauri-drag-region className="h-7 shrink-0" aria-hidden="true" />
-
       <SidebarBucketBar
         workspaces={workspaces}
         activeWorkspaceId={activeWorkspaceId}
@@ -107,34 +94,14 @@ export function Sidebar({
         ariaLabelledBy={titleId}
       />
 
-      <div className="mt-auto flex flex-row items-center gap-1 pt-2">
-        {notificationBell}
-        {organizationsSwitcher}
-        {userPopover}
-        {updateVersion ? (
-          <Tooltip content={`Update to v${updateVersion}`} side="right">
-            <button
-              type="button"
-              onClick={onUpdateClick}
-              className={cn(
-                'flex items-center justify-center rounded-md px-2 py-1 text-xs',
-                'bg-brand text-on-brand hover:bg-brand-hover cursor-pointer transition-colors',
-              )}
-            >
-              Update
-            </button>
-          </Tooltip>
-        ) : (
-          appVersion && (
-            <p
-              className="text-2xs font-mono text-low text-center ml-auto"
-              title={`v${appVersion}`}
-            >
-              v{appVersion}
-            </p>
-          )
-        )}
-      </div>
+      {bottomActions && (
+        <SidebarBar
+          aria-label={t('sidebar.bottomBarLabel')}
+          className="mt-auto pt-2"
+        >
+          {bottomActions}
+        </SidebarBar>
+      )}
     </aside>
   );
 }

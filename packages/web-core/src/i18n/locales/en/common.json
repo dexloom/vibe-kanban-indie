@@ -554,6 +554,9 @@
     "workspacesSection": "Workspaces",
     "unassigned": "Unassigned",
     "openProjectKanban": "Open project kanban",
-    "createProject": "Create project"
+    "createProject": "Create project",
+    "notifications": "Notifications",
+    "settings": "Settings",
+    "bottomBarLabel": "Sidebar actions"
   }
 }

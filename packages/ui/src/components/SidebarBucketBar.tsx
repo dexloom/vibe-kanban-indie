@@ -1,4 +1,4 @@
-import { useMemo, type ComponentType } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -14,7 +14,8 @@ import {
   type BarBucketMeta,
 } from '../lib/workspaceBuckets';
 import { cn } from '../lib/cn';
-import { CountBadge } from './CountBadge';
+import { SidebarBar } from './SidebarBar';
+import { SidebarBarButton } from './SidebarBarButton';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,10 +80,9 @@ export function SidebarBucketBar({
   }, [workspaces]);
 
   return (
-    <div
-      role="toolbar"
+    <SidebarBar
       aria-label={t('workspaces.bucketBarLabel')}
-      className={cn('flex shrink-0 items-center gap-1', className)}
+      className={className}
     >
       {BAR_BUCKET_ORDER.map((id) => (
         <BucketButton
@@ -94,7 +94,7 @@ export function SidebarBucketBar({
           emptyLabel={t('workspaces.bucketEmpty')}
         />
       ))}
-    </div>
+    </SidebarBar>
   );
 }
 
@@ -114,10 +114,6 @@ function BucketButton({
   emptyLabel,
 }: BucketButtonProps) {
   const { t } = useTranslation('common');
-  const Icon = meta.icon as ComponentType<{
-    className?: string;
-    weight?: BarBucketMeta['iconWeight'];
-  }>;
   const count = items.length;
   const label = t(meta.labelKey);
   const showBadge = !meta.hideBadge && count > 0;
@@ -125,29 +121,14 @@ function BucketButton({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label={showBadge ? `${label} — ${count}` : undefined}
-          className={cn(
-            'relative flex flex-1 flex-col items-center justify-center gap-0.5 rounded-sm',
-            'h-10 px-1 cursor-pointer transition-colors',
-            'text-normal hover:bg-accent hover:text-high',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand',
-          )}
-        >
-          <span className="relative">
-            <Icon
-              className={cn('size-4 shrink-0', meta.iconClass)}
-              weight={meta.iconWeight}
-            />
-            {showBadge && (
-              <CountBadge size="sm" count={count} className={meta.badgeClass} />
-            )}
-          </span>
-          <span className="max-w-full truncate text-2xs font-medium leading-none text-low">
-            {label}
-          </span>
-        </button>
+        <SidebarBarButton
+          className="flex-1"
+          label={label}
+          icon={meta.icon}
+          iconClass={meta.iconClass}
+          badgeCount={showBadge ? count : undefined}
+          badgeClass={meta.badgeClass}
+        />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         side="bottom"

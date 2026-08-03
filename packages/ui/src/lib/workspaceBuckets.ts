@@ -1,6 +1,5 @@
 import {
   type Icon as PhosphorIcon,
-  type IconWeight,
   ClockIcon,
   MoonIcon,
   WarningIcon,
@@ -30,8 +29,6 @@ export interface BarBucketMeta {
   /** i18n key under common.json. Reuses existing outliner labels. */
   labelKey: string;
   icon: PhosphorIcon;
-  /** Phosphor weight. `fill` for running so the play triangle reads solid. */
-  iconWeight?: IconWeight;
   /** Tailwind text-color token applied to the icon only. */
   iconClass: string;
   /** Tailwind classes for the count badge (bg + text). Per-bucket colored
@@ -47,7 +44,6 @@ export const BAR_BUCKETS: Record<BarBucketId, BarBucketMeta> = {
     id: 'attention',
     labelKey: 'workspaces.outliner.attention',
     icon: WarningIcon,
-    iconWeight: 'bold',
     iconClass: 'text-warning',
     badgeClass: 'bg-warning text-white',
   },
@@ -55,7 +51,6 @@ export const BAR_BUCKETS: Record<BarBucketId, BarBucketMeta> = {
     id: 'running',
     labelKey: 'workspaces.running',
     icon: ClockIcon,
-    iconWeight: 'bold',
     iconClass: 'text-success',
     badgeClass: 'bg-success text-white',
   },
@@ -63,7 +58,6 @@ export const BAR_BUCKETS: Record<BarBucketId, BarBucketMeta> = {
     id: 'idle',
     labelKey: 'workspaces.idle',
     icon: MoonIcon,
-    iconWeight: 'bold',
     iconClass: 'text-low',
     badgeClass: 'bg-tertiary text-white',
     hideBadge: true,

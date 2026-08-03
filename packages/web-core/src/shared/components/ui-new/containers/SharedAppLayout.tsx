@@ -9,13 +9,11 @@ import { cn } from '@/shared/lib/utils';
 import { NavbarContainer } from './NavbarContainer';
 import { Sidebar } from '@vibe/ui/components/Sidebar';
 import { MobileDrawer } from '@vibe/ui/components/MobileDrawer';
-import { AppBarUserPopoverContainer } from './AppBarUserPopoverContainer';
-import { OrganizationSwitcherButton } from './OrganizationSwitcherButton';
+import { SidebarBottomActions } from './SidebarBottomActions';
 import { useUserOrganizations } from '@/shared/hooks/useUserOrganizations';
 import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
 
-import { useAppUpdateStore } from '@/shared/stores/useAppUpdateStore';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentAppDestination } from '@/shared/hooks/useCurrentAppDestination';
 import { getProjectDestination } from '@/shared/lib/routes/appNavigation';
@@ -33,7 +31,6 @@ import {
   PROJECTS_SHAPE,
   type Project as RemoteProject,
 } from 'shared/remote-types';
-import { AppBarNotificationBellContainer } from '@/pages/workspaces/AppBarNotificationBellContainer';
 import { useWorkspaceProjectMembership } from '@/shared/hooks/useWorkspaceProjectMembership';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import type { SidebarWorkspace } from '@/shared/hooks/useWorkspaces';
@@ -45,11 +42,6 @@ export function SharedAppLayout() {
   const isMobile = useIsMobile();
   const mobileFontScale = useUiPreferencesStore((s) => s.mobileFontScale);
   const { isSignedIn } = useAuth();
-  // Display the build-time product version (bumped by the release process in
-  // package.json), not the backend crate version which is tracked separately.
-  const appVersion = __APP_VERSION__;
-  const updateVersion = useAppUpdateStore((s) => s.updateVersion);
-  const restartForUpdate = useAppUpdateStore((s) => s.restart);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   // Register CMD+K shortcut globally for all routes under SharedAppLayout
   useCommandBarShortcut(() => CommandBarDialog.show());
@@ -285,14 +277,7 @@ export function SharedAppLayout() {
               onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
               onSelectProject={handleProjectClick}
               headerActions={<CreateProjectButton onClick={handleCreateProject} />}
-              notificationBell={
-                isSignedIn ? <AppBarNotificationBellContainer /> : undefined
-              }
-              organizationsSwitcher={<OrganizationSwitcherButton />}
-              userPopover={<AppBarUserPopoverContainer />}
-              appVersion={appVersion}
-              updateVersion={updateVersion}
-              onUpdateClick={restartForUpdate ?? undefined}
+              bottomActions={<SidebarBottomActions />}
             />
             {/* Content column: Navbar on top, Outlet below. */}
             <div className="flex flex-col min-h-0 min-w-0">
@@ -356,11 +341,7 @@ export function SharedAppLayout() {
                   setIsDrawerOpen(false);
                 }}
                 headerActions={<CreateProjectButton onClick={handleCreateProject} />}
-                organizationsSwitcher={<OrganizationSwitcherButton />}
-                userPopover={<AppBarUserPopoverContainer />}
-                appVersion={appVersion}
-                updateVersion={updateVersion}
-                onUpdateClick={restartForUpdate ?? undefined}
+                bottomActions={<SidebarBottomActions />}
               />
             </div>
 
