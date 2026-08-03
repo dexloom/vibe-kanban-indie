@@ -155,7 +155,7 @@
       "summary": "{{active}} active · {{archived}} archived · {{running}} running · {{attention}} need attention"
     },
     "outliner": {
-      "active": "Active"
+      "attention": "Attention"
     }
   },
   "fileTree": {

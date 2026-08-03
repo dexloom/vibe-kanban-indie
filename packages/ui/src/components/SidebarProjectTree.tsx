@@ -74,7 +74,7 @@ function buildTreeData({
       archived: archivedBucket,
     } = categorizeWorkspacesForOutliner(active, archived);
     const labels = {
-      attention: t('workspaces.outliner.active'),
+      attention: t('workspaces.outliner.attention'),
       running: t('workspaces.running'),
       idle: t('workspaces.idle'),
       archived: t('workspaces.archived'),
