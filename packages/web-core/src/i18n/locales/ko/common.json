@@ -547,6 +547,7 @@
   "sidebar": {
     "workspacesSection": "워크스페이스",
     "unassigned": "미할당",
-    "openProjectKanban": "프로젝트 칸반 열기"
+    "openProjectKanban": "프로젝트 칸반 열기",
+    "createProject": "프로젝트 만들기"
   }
 }

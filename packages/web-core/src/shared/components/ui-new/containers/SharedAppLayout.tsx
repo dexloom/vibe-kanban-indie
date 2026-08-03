@@ -20,6 +20,11 @@ import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentAppDestination } from '@/shared/hooks/useCurrentAppDestination';
 import { getProjectDestination } from '@/shared/lib/routes/appNavigation';
 import { CommandBarDialog } from '@/shared/dialogs/command-bar/CommandBarDialog';
+import {
+  CreateRemoteProjectDialog,
+  type CreateRemoteProjectResult,
+} from '@/shared/dialogs/org/CreateRemoteProjectDialog';
+import { CreateProjectButton } from './CreateProjectButton';
 import { useCommandBarShortcut } from '@/shared/hooks/useCommandBarShortcut';
 import { useShape } from '@/shared/integrations/electric/hooks';
 import { sortProjectsByOrder } from '@/shared/lib/projectOrder';
@@ -139,6 +144,21 @@ export function SharedAppLayout() {
     },
     [appNavigation]
   );
+
+  const handleCreateProject = useCallback(async () => {
+    if (!selectedOrgId) return;
+
+    try {
+      const result: CreateRemoteProjectResult =
+        await CreateRemoteProjectDialog.show({ organizationId: selectedOrgId });
+
+      if (result.action === 'created' && result.project) {
+        appNavigation.goToProject(result.project.id);
+      }
+    } catch {
+      // Dialog cancelled — no-op.
+    }
+  }, [selectedOrgId, appNavigation]);
 
   // ADR-007: react-arborist hands us a project-id array (Unassigned is
   // filtered out upstream by the tree). Persist the same way we did for
@@ -264,6 +284,7 @@ export function SharedAppLayout() {
               onProjectsReorder={handleProjectsReorder}
               onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
               onSelectProject={handleProjectClick}
+              headerActions={<CreateProjectButton onClick={handleCreateProject} />}
               notificationBell={
                 isSignedIn ? <AppBarNotificationBellContainer /> : undefined
               }
@@ -334,6 +355,7 @@ export function SharedAppLayout() {
                   handleProjectClick(id);
                   setIsDrawerOpen(false);
                 }}
+                headerActions={<CreateProjectButton onClick={handleCreateProject} />}
                 organizationsSwitcher={<OrganizationSwitcherButton />}
                 userPopover={<AppBarUserPopoverContainer />}
                 appVersion={appVersion}

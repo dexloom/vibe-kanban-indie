@@ -34,6 +34,8 @@ interface SidebarProjectTreeProps {
   onSelectWorkspace: (id: string) => void;
   onSelectProject: (id: string) => void;
   onProjectsReorder: (reorderedProjectIds: string[]) => void;
+  /** Id of the external <h2> that labels this section. Replaces the old aria-label. */
+  ariaLabelledBy?: string;
   width?: number;
   className?: string;
 }
@@ -150,6 +152,7 @@ export function SidebarProjectTree({
   onSelectWorkspace,
   onSelectProject,
   onProjectsReorder,
+  ariaLabelledBy,
   width = 256,
   className,
 }: SidebarProjectTreeProps) {
@@ -368,7 +371,7 @@ export function SidebarProjectTree({
 
   return (
     <section
-      aria-label={t('appBar.projects')}
+      aria-labelledby={ariaLabelledBy}
       className={cn('flex min-h-0 flex-1 flex-col', className)}
     >
       {isLoading ? (
@@ -406,7 +409,7 @@ export function SidebarProjectTree({
               onActivate={handleActivate}
               onToggle={handleToggle}
               onMove={handleMove}
-              aria-label={t('appBar.projects')}
+              aria-labelledby={ariaLabelledBy}
             >
               {(props) => (
                 <TreeNodeRouter

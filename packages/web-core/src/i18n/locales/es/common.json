@@ -547,6 +547,7 @@
   "sidebar": {
     "workspacesSection": "Espacios de trabajo",
     "unassigned": "Sin asignar",
-    "openProjectKanban": "Abrir kanban del proyecto"
+    "openProjectKanban": "Abrir kanban del proyecto",
+    "createProject": "Crear proyecto"
   }
 }

@@ -548,6 +548,7 @@
   "sidebar": {
     "workspacesSection": "工作區",
     "unassigned": "未指派",
-    "openProjectKanban": "開啟專案看板"
+    "openProjectKanban": "開啟專案看板",
+    "createProject": "建立專案"
   }
 }

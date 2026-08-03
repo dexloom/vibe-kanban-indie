@@ -1,6 +1,8 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '../lib/cn';
 import { Tooltip } from './Tooltip';
+import { SidebarSectionHeader } from './SidebarSectionHeader';
 import {
   SidebarProjectTree,
 } from './SidebarProjectTree';
@@ -35,6 +37,8 @@ interface SidebarProps {
   notificationBell?: ReactNode;
   organizationsSwitcher?: ReactNode;
   userPopover?: ReactNode;
+  /** Right-aligned actions for the Projects section header (e.g. create-project button). */
+  headerActions?: ReactNode;
   appVersion?: string | null;
   updateVersion?: string | null;
   onUpdateClick?: () => void;
@@ -57,11 +61,14 @@ export function Sidebar({
   notificationBell,
   organizationsSwitcher,
   userPopover,
+  headerActions,
   appVersion,
   updateVersion,
   onUpdateClick,
   className,
 }: SidebarProps) {
+  const { t } = useTranslation('common');
+  const titleId = useId();
   return (
     <aside
       aria-label="Primary sidebar"
@@ -75,6 +82,12 @@ export function Sidebar({
           covers the top; keeping the strip small and inert is harmless. */}
       <div data-tauri-drag-region className="h-7 shrink-0" aria-hidden="true" />
 
+      <SidebarSectionHeader
+        title={t('appBar.projects')}
+        titleId={titleId}
+        actions={headerActions}
+      />
+
       <SidebarProjectTree
         projects={projects}
         activeProjectId={activeProjectId}
@@ -86,6 +99,7 @@ export function Sidebar({
         onSelectWorkspace={onSelectWorkspace}
         onSelectProject={onSelectProject}
         onProjectsReorder={onProjectsReorder}
+        ariaLabelledBy={titleId}
       />
 
       <div className="mt-auto flex flex-row items-center gap-1 pt-2">
