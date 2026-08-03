@@ -31,7 +31,6 @@ export function CardNodeRow({
       )}
     >
       <div className="flex min-w-0 items-center gap-1">
-        <span className="shrink-0 font-mono text-2xs text-low">{issue.simpleId}</span>
         <span className="truncate">{issue.title}</span>
       </div>
     </TreeRow>

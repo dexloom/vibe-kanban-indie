@@ -88,7 +88,6 @@ describe('TreeNodeRouter task routing', () => {
     expect(screen.getByText('Todo')).toBeTruthy();
     statusRender.unmount();
     renderNode(card);
-    expect(screen.getByText('PROJ-1')).toBeTruthy();
     expect(screen.getByText('Fix auth')).toBeTruthy();
   });
 });

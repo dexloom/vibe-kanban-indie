@@ -38,13 +38,13 @@ function cardNode(
 }
 
 describe('CardNodeRow', () => {
-  it('renders simpleId and title in order', () => {
+  it('renders the issue title', () => {
     const { container } = render(
       <CardNodeRow node={cardNode().node} style={{ paddingLeft: 36 }} />,
     );
 
-    expect(container.textContent).toBe('PROJ-1Fix auth');
-    expect(screen.getByText('PROJ-1').className).toContain('font-mono');
+    expect(container.textContent).toBe('Fix auth');
+    expect(screen.getByText('Fix auth')).toBeTruthy();
   });
 
   it('marks the active issue as the current page with semibold text', () => {
