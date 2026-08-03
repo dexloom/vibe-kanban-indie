@@ -156,7 +156,9 @@
     },
     "outliner": {
       "attention": "Attention"
-    }
+    },
+    "bucketEmpty": "No workspaces",
+    "bucketBarLabel": "Workspace buckets"
   },
   "fileTree": {
     "searchPlaceholder": "Search files...",

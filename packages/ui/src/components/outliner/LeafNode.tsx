@@ -1,4 +1,5 @@
 import { cn } from '../../lib/cn';
+import { WorkspaceActivityText } from '../WorkspaceActivityText';
 import { TREE_LAYOUT } from './layout';
 import {
   formatRelativeElapsed,
@@ -22,10 +23,6 @@ export function OutlinerLeafNode({
   const ws = node.data.workspace;
   const isActive = ws.id === activeWorkspaceId;
   const elapsed = formatRelativeElapsed(ws.latestProcessCompletedAt);
-  const hasStats =
-    ws.filesChanged != null ||
-    (ws.linesAdded != null && ws.linesAdded > 0) ||
-    (ws.linesRemoved != null && ws.linesRemoved > 0);
 
   // Geometry for the dotted guide: it must grow from the parent bucket's
   // caret, not the leaf's own left edge. arborist gives every node
@@ -79,17 +76,11 @@ export function OutlinerLeafNode({
             <span className="shrink-0 text-xs text-low">{elapsed}</span>
           )}
         </span>
-        {hasStats && (
-          <span className="flex items-center gap-1.5 text-2xs text-muted">
-            {ws.filesChanged != null && <span>{ws.filesChanged}</span>}
-            {ws.linesAdded != null && ws.linesAdded > 0 && (
-              <span className="text-success">+{ws.linesAdded}</span>
-            )}
-            {ws.linesRemoved != null && ws.linesRemoved > 0 && (
-              <span className="text-error">−{ws.linesRemoved}</span>
-            )}
-          </span>
-        )}
+        <WorkspaceActivityText
+          filesChanged={ws.filesChanged}
+          linesAdded={ws.linesAdded}
+          linesRemoved={ws.linesRemoved}
+        />
       </div>
     </div>
   );

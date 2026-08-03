@@ -147,6 +147,7 @@ module.exports = {
         'brand-secondary': 'hsl(var(--brand-secondary))',
         error: 'hsl(var(--error))',
         success: 'hsl(var(--success))',
+        warning: 'hsl(var(--warning))',
         merged: 'hsl(var(--merged))',
         // Text on accent
         'on-brand': 'hsl(var(--text-on-brand))',

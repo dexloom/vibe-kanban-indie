@@ -3,9 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '../lib/cn';
 import { Tooltip } from './Tooltip';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
-import {
-  SidebarProjectTree,
-} from './SidebarProjectTree';
+import { SidebarBucketBar } from './SidebarBucketBar';
+import { SidebarProjectTree } from './SidebarProjectTree';
 import type { SidebarProject } from './outliner/types';
 import type {
   OutlinerWorkspace,
@@ -81,6 +80,12 @@ export function Sidebar({
       {/* Tauri drag strip — Windows/Linux only. On macOS the Navbar drag region
           covers the top; keeping the strip small and inert is harmless. */}
       <div data-tauri-drag-region className="h-7 shrink-0" aria-hidden="true" />
+
+      <SidebarBucketBar
+        workspaces={workspaces}
+        activeWorkspaceId={activeWorkspaceId}
+        onSelectWorkspace={onSelectWorkspace}
+      />
 
       <SidebarSectionHeader
         title={t('appBar.projects')}

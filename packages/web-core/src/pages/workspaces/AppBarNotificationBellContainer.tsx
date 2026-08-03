@@ -1,5 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { BellIcon } from '@phosphor-icons/react';
+import { CountBadge } from '@vibe/ui/components/CountBadge';
 import { cn } from '@vibe/ui/lib/cn';
 import { Tooltip } from '@vibe/ui/components/Tooltip';
 import { useNotifications } from '@/shared/hooks/useNotifications';
@@ -24,11 +25,10 @@ export function AppBarNotificationBellContainer() {
         aria-label="Notifications"
       >
         <BellIcon className="w-5 h-5" weight="bold" />
-        {unseenCount > 0 && (
-          <span className="absolute -top-2 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-brand-secondary text-2xs font-medium text-white">
-            {unseenCount > 99 ? '99+' : unseenCount}
-          </span>
-        )}
+        <CountBadge
+          count={unseenCount}
+          className="bg-brand-secondary text-white"
+        />
       </button>
     </Tooltip>
   );
