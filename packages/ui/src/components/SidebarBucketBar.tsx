@@ -12,7 +12,7 @@ import {
   BAR_BUCKET_ORDER,
   type BarBucketId,
   type BarBucketMeta,
-} from '../lib/workspaceBuckets';
+} from '../lib/buckets';
 import { cn } from '../lib/cn';
 import { SidebarBar } from './SidebarBar';
 import { SidebarBarButton } from './SidebarBarButton';
@@ -24,10 +24,8 @@ import {
   DropdownMenuTrigger,
 } from './DropdownMenu';
 import { WorkspaceActivityText } from './WorkspaceActivityText';
-import {
-  formatRelativeElapsed,
-  type OutlinerWorkspace,
-} from './outliner/types';
+import { formatRelativeElapsed } from './outliner/format';
+import type { OutlinerWorkspace } from './outliner/types';
 
 interface SidebarBucketBarProps {
   /** All active (non-archived) workspaces. */

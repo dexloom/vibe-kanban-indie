@@ -2,13 +2,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   BUCKET_ORDER,
   LEGACY_BUCKET_PERSIST_KEYS,
-  UNASSIGNED_PROJECT_ID,
+} from '../../lib/buckets';
+import { UNASSIGNED_PROJECT_ID, type SidebarTreeNode } from './types';
+import {
   buildSidebarTreeInitialOpenState,
   pendingOpenStatusCardIds,
   readOpenTasksProjectIds,
   writeSidebarTreeOpenState,
-  type SidebarTreeNode,
-} from './types';
+} from './openState';
 
 // vitest's default jsdom environment ships `localStorage` as an empty stub
 // object (no Storage methods). Polyfill with an in-memory map so the

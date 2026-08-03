@@ -1,11 +1,8 @@
 import { cn } from '../../lib/cn';
 import { WorkspaceActivityText } from '../WorkspaceActivityText';
 import { TreeRow } from './TreeRow';
-import {
-  formatRelativeElapsed,
-  type LeafNode,
-  type TreeNodeRenderProps,
-} from './types';
+import { formatRelativeElapsed } from './format';
+import type { LeafNode, TreeNodeRenderProps } from './types';
 
 /**
  * Gmail-style workspace leaf: name + relative-elapsed on the first line,

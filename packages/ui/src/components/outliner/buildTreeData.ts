@@ -1,7 +1,7 @@
 import type { Issue } from 'shared/remote-types';
 import { categorizeWorkspacesForOutliner } from '../../lib/workspaceStatus';
+import { BUCKET_ORDER } from '../../lib/buckets';
 import {
-  BUCKET_ORDER,
   UNASSIGNED_PROJECT_ID,
   makeCardNodeId,
   makeStatusNodeId,

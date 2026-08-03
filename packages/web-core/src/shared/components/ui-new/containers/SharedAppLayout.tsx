@@ -38,7 +38,7 @@ import { useWorkspaceProjectMembership } from '@/shared/hooks/useWorkspaceProjec
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import type { SidebarWorkspace } from '@/shared/hooks/useWorkspaces';
 import type { OutlinerWorkspace } from '@vibe/ui/components/outliner/types';
-import { readOpenTasksProjectIds } from '@vibe/ui/components/outliner/types';
+import { readOpenTasksProjectIds } from '@vibe/ui/components/outliner/openState';
 
 export function SharedAppLayout() {
   const appNavigation = useAppNavigation();

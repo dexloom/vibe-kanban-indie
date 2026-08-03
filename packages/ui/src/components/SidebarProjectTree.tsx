@@ -4,17 +4,19 @@ import { SpinnerIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../lib/cn';
 import {
-  buildSidebarTreeInitialOpenState,
   makeWorkspacesSectionId,
-  pendingOpenStatusCardIds,
-  readSidebarTreeOpenState,
-  writeSidebarTreeOpenState,
   type OutlinerWorkspace,
   type ProjectNode,
   type SidebarProject,
   type SidebarTreeNode,
   type WorkspaceProjectMembership,
 } from './outliner/types';
+import {
+  buildSidebarTreeInitialOpenState,
+  pendingOpenStatusCardIds,
+  readSidebarTreeOpenState,
+  writeSidebarTreeOpenState,
+} from './outliner/openState';
 import { buildTreeData } from './outliner/buildTreeData';
 import type { ProjectTasksData } from './outliner/types';
 import { TREE_LAYOUT } from './outliner/layout';
