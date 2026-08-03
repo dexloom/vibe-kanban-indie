@@ -35,7 +35,7 @@ function ProjectTreeNode(
   props: TreeNodeRenderProps<ProjectNode> & {
     onSelectProject: (id: string) => void;
     activeProjectId: string | null;
-  },
+  }
 ) {
   const { node, style, dragHandle, onSelectProject, activeProjectId } = props;
   const { t } = useTranslation('common');
@@ -51,14 +51,14 @@ function ProjectTreeNode(
       onRowClick={() => node.toggle()}
       rowClassName={cn(
         'rounded-md text-base transition-colors',
-        isActive ? 'text-high font-bold' : 'text-normal hover:bg-tertiary',
+        isActive ? 'text-high font-bold' : 'text-normal hover:bg-tertiary'
       )}
     >
       <div className="flex items-center gap-1">
         <span
           className={cn(
             'flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-2xs font-medium',
-            isUnassigned && 'opacity-70',
+            isUnassigned && 'opacity-70'
           )}
           style={{
             color: `hsl(${project.color})`,
@@ -78,7 +78,7 @@ function ProjectTreeNode(
           className={cn(
             'pointer-events-auto ml-auto shrink-0 rounded-sm p-0.5',
             'text-low hover:text-high hover:bg-tertiary',
-            'transition-opacity focus:outline-none',
+            'transition-opacity focus:outline-none'
           )}
         >
           <ArrowSquareOutIcon className="size-4.5" weight="bold" />
@@ -89,7 +89,7 @@ function ProjectTreeNode(
 }
 
 function SectionTreeNode(
-  props: TreeNodeRenderProps<Extract<SectionNode, { kind: 'workspaces' }>>,
+  props: TreeNodeRenderProps<Extract<SectionNode, { kind: 'workspaces' }>>
 ) {
   const { node, style, dragHandle } = props;
   return (
@@ -112,7 +112,10 @@ export function TreeNodeRouter(
     activeWorkspaceId: string | null;
     onSelectIssue?: (projectId: string, issueId: string) => void;
     activeIssueId?: string | null;
-  },
+    /** Mirrors KanbanCard's `dragDisabled={isMultiSelectActive}` — tree card
+     * drag is disabled while the kanban's bulk-select mode is on (PLAN §7.5). */
+    isMultiSelectActive?: boolean;
+  }
 ) {
   const {
     node,
@@ -122,6 +125,7 @@ export function TreeNodeRouter(
     activeProjectId,
     activeWorkspaceId,
     activeIssueId,
+    isMultiSelectActive,
   } = props;
   switch (node.data.type) {
     case 'project':
@@ -180,6 +184,7 @@ export function TreeNodeRouter(
           style={style}
           dragHandle={dragHandle}
           activeIssueId={activeIssueId}
+          isMultiSelectActive={isMultiSelectActive}
         />
       );
   }

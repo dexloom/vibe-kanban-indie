@@ -9,10 +9,8 @@ import {
 } from './RadixTooltip';
 import { cn } from '../lib/cn';
 import {
-  DragDropContext,
   Droppable,
   Draggable,
-  type DropResult,
   type DraggableProvided,
   type DraggableStateSnapshot,
   type DroppableProvided,
@@ -28,6 +26,9 @@ import { useTranslation } from 'react-i18next';
 import { DotsSixVerticalIcon, PlusIcon } from '@phosphor-icons/react';
 import { Button } from './Button';
 
+// Re-exported so existing imports keep compiling — leaf components below use
+// Droppable/Draggable directly, and downstream consumers reference the type
+// via `@vibe/ui`.
 export type { DropResult } from '@hello-pangea/dnd';
 
 export type Status = {
@@ -252,30 +253,32 @@ export const KanbanHeader = (props: KanbanHeaderProps) => {
 };
 
 // =============================================================================
-// Kanban Provider (DragDropContext)
+// Kanban Provider (layout-only — DragDropContext lives in SharedAppLayout)
 // =============================================================================
+//
+// `DragDropContext` was lifted to `SharedAppLayout` (PLAN §6.1) so a single
+// context spans the sidebar tree AND the kanban board. `KanbanProvider` here
+// stays for its layout-only grid; the leaf `<Draggable>`/`<Droppable>`
+// components below connect to the nearest ancestor `DragDropContext`, so they
+// keep working unchanged.
 
 export type KanbanProviderProps = {
   children: ReactNode;
-  onDragEnd: (result: DropResult) => void;
   className?: string;
 };
 
 export const KanbanProvider = ({
   children,
-  onDragEnd,
   className,
 }: KanbanProviderProps) => {
   return (
-    <DragDropContext onDragEnd={onDragEnd}>
-      <div
-        className={cn(
-          'inline-grid grid-flow-col auto-cols-[minmax(200px,400px)] divide-x border-x items-stretch min-h-full',
-          className
-        )}
-      >
-        {children}
-      </div>
-    </DragDropContext>
+    <div
+      className={cn(
+        'inline-grid grid-flow-col auto-cols-[minmax(200px,400px)] divide-x border-x items-stretch min-h-full',
+        className
+      )}
+    >
+      {children}
+    </div>
   );
 };

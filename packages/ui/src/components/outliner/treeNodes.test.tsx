@@ -1,12 +1,18 @@
 import { cleanup, render, screen } from '@testing-library/react';
+import { DragDropContext } from '@hello-pangea/dnd';
 import type { NodeApi, NodeRendererProps } from 'react-arborist';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TreeNodeRouter } from './treeNodes';
-import type {
-  CardNode,
-  SidebarTreeNode,
-  StatusNode,
-  TasksSectionNode,
+import {
+  makeCardNodeId,
+  makeStatusNodeId,
+  type BucketNode,
+  type CardNode,
+  type LeafNode,
+  type ProjectNode,
+  type SidebarTreeNode,
+  type StatusNode,
+  type TasksSectionNode,
 } from './types';
 
 vi.mock('react-i18next', () => ({
@@ -15,13 +21,24 @@ vi.mock('react-i18next', () => ({
 
 afterEach(cleanup);
 
-function renderNode(data: SidebarTreeNode) {
+// hello-pangea Draggable/Droppable components require a DragDropContext
+// ancestor (useRequiredContext inside the package). Every render in this
+// file is wrapped in one.
+function withDnd(node: React.ReactNode) {
+  return <DragDropContext onDragEnd={() => {}}>{node}</DragDropContext>;
+}
+
+function renderNode(
+  data: SidebarTreeNode,
+  overrides: Record<string, unknown> = {}
+) {
   const node = {
     data,
     isOpen: false,
     toggle: vi.fn(),
     activate: vi.fn(),
     tree: { indent: 12 },
+    ...overrides,
   } as unknown as NodeApi<SidebarTreeNode>;
   const props = {
     node,
@@ -41,7 +58,7 @@ function renderNode(data: SidebarTreeNode) {
     activeIssueId: string | null;
     onSelectIssue: (projectId: string, issueId: string) => void;
   };
-  return render(<TreeNodeRouter {...props} />);
+  return render(withDnd(<TreeNodeRouter {...props} />));
 }
 
 describe('TreeNodeRouter task routing', () => {
@@ -61,7 +78,7 @@ describe('TreeNodeRouter task routing', () => {
 
   it('routes status and card node types', () => {
     const status = {
-      id: 'project-1:status:todo',
+      id: makeStatusNodeId('project-1', 'todo'),
       type: 'status',
       projectId: 'project-1',
       statusId: 'todo',
@@ -70,7 +87,7 @@ describe('TreeNodeRouter task routing', () => {
       children: [],
     } satisfies StatusNode;
     const card = {
-      id: 'issue-1',
+      id: makeCardNodeId('project-1', 'issue-1'),
       type: 'card',
       issue: {
         id: 'issue-1',
@@ -88,5 +105,93 @@ describe('TreeNodeRouter task routing', () => {
     statusRender.unmount();
     renderNode(card);
     expect(screen.getByText('Fix auth')).toBeTruthy();
+  });
+});
+
+describe('TreeNodeRouter cross-surface DnD wrapping', () => {
+  it('CardNodeRow renders a hello-pangea Draggable with draggableId issue:<id>', () => {
+    const card = {
+      id: makeCardNodeId('project-1', '00000000-0000-4000-8000-000000000001'),
+      type: 'card',
+      issue: {
+        id: '00000000-0000-4000-8000-000000000001',
+        title: 'Fix auth',
+        priority: null,
+        statusId: '00000000-0000-4000-8000-000000000010',
+        projectId: 'project-1',
+        parentIssueId: null,
+      },
+      children: [],
+    } satisfies CardNode;
+    const { container } = renderNode(card);
+    expect(
+      container.querySelector(
+        '[data-rfd-draggable-id="issue:00000000-0000-4000-8000-000000000001"]'
+      )
+    ).toBeTruthy();
+    // Each card is also its own Droppable (per-card droppableId = issue.id).
+    expect(
+      container.querySelector(
+        '[data-rfd-droppable-id="00000000-0000-4000-8000-000000000001"]'
+      )
+    ).toBeTruthy();
+  });
+
+  it('StatusNodeRow renders a hello-pangea Droppable with id <projectId>:status:<statusId>', () => {
+    const status = {
+      id: makeStatusNodeId('project-1', '00000000-0000-4000-8000-000000000010'),
+      type: 'status',
+      projectId: 'project-1',
+      statusId: '00000000-0000-4000-8000-000000000010',
+      name: 'Todo',
+      color: '210 50% 50%',
+      children: [],
+    } satisfies StatusNode;
+    const { container } = renderNode(status);
+    expect(
+      container.querySelector(
+        '[data-rfd-droppable-id="project-1:status:00000000-0000-4000-8000-000000000010"]'
+      )
+    ).toBeTruthy();
+  });
+
+  it('ProjectTreeNode does NOT render a hello-pangea Draggable/Droppable', () => {
+    const project = {
+      id: 'project-1',
+      type: 'project',
+      name: 'Demo',
+      color: '210 50% 50%',
+      children: [],
+    } satisfies ProjectNode;
+    const { container } = renderNode(project);
+    expect(container.querySelector('[data-rfd-draggable-id]')).toBeNull();
+    expect(container.querySelector('[data-rfd-droppable-id]')).toBeNull();
+  });
+
+  it('BucketNode / LeafNode do NOT render a hello-pangea Draggable/Droppable', () => {
+    const bucket = {
+      id: 'project-1:bucket:attention',
+      type: 'bucket',
+      bucketId: 'attention',
+      name: 'Needs attention',
+      children: [],
+    } satisfies BucketNode;
+    const { container: c1, unmount: u1 } = renderNode(bucket);
+    expect(c1.querySelector('[data-rfd-draggable-id]')).toBeNull();
+    expect(c1.querySelector('[data-rfd-droppable-id]')).toBeNull();
+    u1();
+
+    const leaf = {
+      id: 'workspace-leaf-1',
+      type: 'leaf',
+      workspace: {
+        id: 'workspace-leaf-1',
+        name: 'ws-leaf',
+        createdAt: '2025-01-01T00:00:00Z',
+      },
+    } satisfies LeafNode;
+    const { container: c2 } = renderNode(leaf);
+    expect(c2.querySelector('[data-rfd-draggable-id]')).toBeNull();
+    expect(c2.querySelector('[data-rfd-droppable-id]')).toBeNull();
   });
 });

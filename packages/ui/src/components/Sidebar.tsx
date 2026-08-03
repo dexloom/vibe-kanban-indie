@@ -38,6 +38,10 @@ interface SidebarProps {
   onSelectWorkspace: (id: string) => void;
   onSelectProject: (id: string) => void;
 
+  /** When >1 issues are selected, disable card drag-and-drop in the tree.
+   * Mirrors KanbanCard's `dragDisabled={isMultiSelectActive}` (PLAN §7.5). */
+  isMultiSelectActive?: boolean;
+
   /** Right-aligned actions for the Projects section header (e.g. create-project button). */
   headerActions?: ReactNode;
   /** Bottom bar content (e.g. Notifications / Settings buttons), rendered in
@@ -62,6 +66,7 @@ export function Sidebar({
   isLoadingWorkspaces,
   onSelectWorkspace,
   onSelectProject,
+  isMultiSelectActive,
   headerActions,
   bottomActions,
   className,
@@ -74,7 +79,7 @@ export function Sidebar({
       className={cn(
         'flex h-full w-[256px] shrink-0 flex-col gap-2 overflow-hidden',
         'border-r border-border bg-secondary px-2 pt-2 pb-2',
-        className,
+        className
       )}
     >
       <SidebarBucketBar
@@ -106,6 +111,7 @@ export function Sidebar({
         isLoading={isLoadingProjects || isLoadingWorkspaces}
         onSelectWorkspace={onSelectWorkspace}
         onSelectProject={onSelectProject}
+        isMultiSelectActive={isMultiSelectActive}
         ariaLabelledBy={titleId}
       />
 

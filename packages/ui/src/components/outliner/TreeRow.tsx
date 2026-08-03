@@ -1,5 +1,5 @@
 import { CaretRightIcon } from '@phosphor-icons/react';
-import type { CSSProperties, ReactNode, Ref } from 'react';
+import type { CSSProperties, HTMLAttributes, ReactNode, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NodeApi } from 'react-arborist';
 import { cn } from '../../lib/cn';
@@ -16,6 +16,14 @@ interface TreeRowProps {
   /** Override caret visibility. Default: shown when !node.isLeaf. Cards pass children>0. */
   showCaret?: boolean;
   rowClassName?: string;
+  /** Extra attributes spread onto the outer row div. Used by CardNodeRow /
+   * StatusNodeRow to inject hello-pangea Draggable/Droppable refs + props
+   * (PLAN §6.3). */
+  outerProps?: HTMLAttributes<HTMLDivElement>;
+  /** When set, takes precedence over `dragHandle` and is set as the outer
+   * div's `ref`. Lets CardNodeRow merge react-arborist's `dragHandle` with
+   * hello-pangea's `provided.innerRef` into a single callback ref. */
+  outerRef?: Ref<HTMLDivElement>;
   children: ReactNode;
 }
 
@@ -24,6 +32,10 @@ interface TreeRowProps {
  * content slot) so per-type renderers only supply label content. TreeRow is
  * blind to node type. Childless rows get a bullet in the caret column;
  * expandable rows get a caret button.
+ *
+ * The cross-surface DnD feature (PLAN §6) reuses this shell by passing
+ * `outerProps` (hello-pangea `draggableProps` / `droppableProps`) and
+ * `outerRef` (merged with `dragHandle`) — see CardNodeRow / StatusNodeRow.
  */
 export function TreeRow({
   node,
@@ -33,22 +45,30 @@ export function TreeRow({
   onRowClick,
   showCaret,
   rowClassName,
+  outerProps,
+  outerRef,
   children,
 }: TreeRowProps) {
   const { t } = useTranslation('common');
   const hasCaret = showCaret ?? !node.isLeaf;
+  // `style` is already supplied directly via the `style` prop above; drop
+  // it from `outerProps` so callers don't double-set it.
+  const { style: _ignoredStyle, ...passthroughProps } = outerProps ?? {};
+  void _ignoredStyle;
+  const ref = outerRef ?? dragHandle;
 
   return (
     <div
       style={style}
-      ref={dragHandle}
+      ref={ref}
       aria-current={isActive ? 'page' : undefined}
       onClick={onRowClick}
       className={cn(
         'relative flex w-full cursor-pointer items-center gap-1 overflow-hidden pr-1.5 text-left',
         'focus:outline-none',
-        rowClassName,
+        rowClassName
       )}
+      {...passthroughProps}
     >
       {hasCaret ? (
         <button
@@ -64,7 +84,7 @@ export function TreeRow({
           <CaretRightIcon
             className={cn(
               'size-2.5 transition-transform duration-150',
-              node.isOpen && 'rotate-90',
+              node.isOpen && 'rotate-90'
             )}
             weight="bold"
           />

@@ -78,6 +78,10 @@ import { refreshShapeSource } from '@/shared/lib/electric/collections';
 import { useIssueMultiSelect } from '@/shared/hooks/useIssueMultiSelect';
 import { useIssueSelectionStore } from '@/shared/stores/useIssueSelectionStore';
 import { BulkActionBarContainer } from './BulkActionBarContainer';
+import {
+  useKanbanDragHandler,
+  type KanbanDragHandler,
+} from '@/shared/components/ui-new/containers/KanbanDragHandlerContext';
 
 const areStringSetsEqual = (left: string[], right: string[]): boolean => {
   if (left.length !== right.length) {
@@ -798,6 +802,17 @@ export function KanbanContainer() {
     [kanbanFilters.sortField, calculateSortOrder]
   );
 
+  // Register the existing in-kanban handler with the SharedAppLayout
+  // bridge so the layout-level <DragDropContext> can delegate kanban-internal
+  // drops back here (PLAN §6.2). The setter is stable; the handler closes
+  // over `kanbanFilters.sortField` + `calculateSortOrder` and is re-registered
+  // when those change.
+  const { registerHandler: registerKanbanHandler } = useKanbanDragHandler();
+  useEffect(() => {
+    const handler: KanbanDragHandler = (result) => handleDragEnd(result);
+    return registerKanbanHandler(handler);
+  }, [registerKanbanHandler, handleDragEnd]);
+
   // Multi-select support
   const {
     selectedIssueIds,
@@ -1030,7 +1045,7 @@ export function KanbanContainer() {
           </div>
         ) : (
           <div className="flex-1 overflow-x-auto px-double">
-            <KanbanProvider onDragEnd={handleDragEnd}>
+            <KanbanProvider>
               {visibleStatuses.map((status) => {
                 const issueIds = items[status.id] ?? [];
 
@@ -1190,7 +1205,7 @@ export function KanbanContainer() {
         )
       ) : (
         <div className="flex-1 overflow-y-auto px-double">
-          <KanbanProvider onDragEnd={handleDragEnd} className="!block !w-full">
+          <KanbanProvider className="!block !w-full">
             <IssueListView
               statuses={listViewStatuses}
               items={items}

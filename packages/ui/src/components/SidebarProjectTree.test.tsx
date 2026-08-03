@@ -5,6 +5,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
+import { DragDropContext } from '@hello-pangea/dnd';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Issue, ProjectStatus } from 'shared/remote-types';
 import type { SidebarProject } from './outliner/types';
@@ -146,34 +147,38 @@ function renderTree(
     onTasksExpansionChange?: (projectId: string, isOpen: boolean) => void;
     onSelectIssue?: (projectId: string, issueId: string) => void;
     onSelectProject?: (id: string) => void;
-  } = {},
+  } = {}
 ) {
   return render(
-    <SidebarProjectTree
-      projects={overrides.projects ?? [projectOne]}
-      activeProjectId={null}
-      workspaces={[]}
-      membership={new Map()}
-      activeWorkspaceId={null}
-      onSelectWorkspace={vi.fn()}
-      onSelectProject={overrides.onSelectProject ?? vi.fn()}
-      tasksByProject={
-        overrides.tasksByProject ??
-        new Map([
-          [
-            'project-1',
-            {
-              statuses: [statusTodo, statusReview],
-              issues: [issue, subIssue],
-            },
-          ],
-        ])
-      }
-      loadingTasksProjectIds={new Set()}
-      activeIssueId={null}
-      onTasksExpansionChange={overrides.onTasksExpansionChange}
-      onSelectIssue={overrides.onSelectIssue}
-    />,
+    // hello-pangea Droppables (now wrapping every card row + status row)
+    // need a DragDropContext ancestor.
+    <DragDropContext onDragEnd={() => {}}>
+      <SidebarProjectTree
+        projects={overrides.projects ?? [projectOne]}
+        activeProjectId={null}
+        workspaces={[]}
+        membership={new Map()}
+        activeWorkspaceId={null}
+        onSelectWorkspace={vi.fn()}
+        onSelectProject={overrides.onSelectProject ?? vi.fn()}
+        tasksByProject={
+          overrides.tasksByProject ??
+          new Map([
+            [
+              'project-1',
+              {
+                statuses: [statusTodo, statusReview],
+                issues: [issue, subIssue],
+              },
+            ],
+          ])
+        }
+        loadingTasksProjectIds={new Set()}
+        activeIssueId={null}
+        onTasksExpansionChange={overrides.onTasksExpansionChange}
+        onSelectIssue={overrides.onSelectIssue}
+      />
+    </DragDropContext>
   );
 }
 
@@ -197,7 +202,7 @@ describe('SidebarProjectTree tasks integration', () => {
     const workspaces = screen.getByText('Workspaces');
     expect(
       tasks.compareDocumentPosition(workspaces) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
+        Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
     expect(container.textContent).not.toContain('Must not render in sidebar');
   });
@@ -208,18 +213,15 @@ describe('SidebarProjectTree tasks integration', () => {
 
     fireEvent.click(rowForText('Tasks'));
     await waitFor(() =>
-      expect(onTasksExpansionChange).toHaveBeenLastCalledWith(
-        'project-1',
-        true,
-      ),
+      expect(onTasksExpansionChange).toHaveBeenLastCalledWith('project-1', true)
     );
 
     fireEvent.click(rowForText('Tasks'));
     await waitFor(() =>
       expect(onTasksExpansionChange).toHaveBeenLastCalledWith(
         'project-1',
-        false,
-      ),
+        false
+      )
     );
   });
 
@@ -232,7 +234,7 @@ describe('SidebarProjectTree tasks integration', () => {
     fireEvent.click(await screen.findByText('Fix auth'));
 
     await waitFor(() =>
-      expect(onSelectIssue).toHaveBeenCalledWith('project-1', 'issue-1'),
+      expect(onSelectIssue).toHaveBeenCalledWith('project-1', 'issue-1')
     );
   });
 
@@ -280,14 +282,12 @@ describe('SidebarProjectTree open-state persistence', () => {
     // Tasks section seeded open; replay opens the status, which reveals the
     // parent card, whose own open state reveals the sub-issue.
     await waitFor(() =>
-      expect(outerRowForText('Todo').getAttribute('aria-expanded')).toBe(
-        'true',
-      ),
+      expect(outerRowForText('Todo').getAttribute('aria-expanded')).toBe('true')
     );
     await waitFor(() =>
       expect(outerRowForText('Fix auth').getAttribute('aria-expanded')).toBe(
-        'true',
-      ),
+        'true'
+      )
     );
     expect(await screen.findByText('Sub issue')).toBeTruthy();
 
@@ -296,9 +296,7 @@ describe('SidebarProjectTree open-state persistence', () => {
     renderTree();
 
     await waitFor(() =>
-      expect(outerRowForText('Todo').getAttribute('aria-expanded')).toBe(
-        'true',
-      ),
+      expect(outerRowForText('Todo').getAttribute('aria-expanded')).toBe('true')
     );
     expect(await screen.findByText('Sub issue')).toBeTruthy();
   });
@@ -314,9 +312,7 @@ describe('SidebarProjectTree open-state persistence', () => {
 
     const { unmount } = renderTree();
     await waitFor(() =>
-      expect(outerRowForText('Todo').getAttribute('aria-expanded')).toBe(
-        'true',
-      ),
+      expect(outerRowForText('Todo').getAttribute('aria-expanded')).toBe('true')
     );
 
     // User collapses the status; the replay guard must not re-open it on the
@@ -324,8 +320,8 @@ describe('SidebarProjectTree open-state persistence', () => {
     fireEvent.click(rowForText('Todo'));
     await waitFor(() =>
       expect(outerRowForText('Todo').getAttribute('aria-expanded')).toBe(
-        'false',
-      ),
+        'false'
+      )
     );
 
     unmount();
@@ -333,8 +329,8 @@ describe('SidebarProjectTree open-state persistence', () => {
 
     await waitFor(() =>
       expect(outerRowForText('Todo').getAttribute('aria-expanded')).toBe(
-        'false',
-      ),
+        'false'
+      )
     );
   });
 
@@ -356,13 +352,13 @@ describe('SidebarProjectTree open-state persistence', () => {
         }
         loadingTasksProjectIds={new Set()}
         activeIssueId={null}
-      />,
+      />
     );
 
     // New project + its Workspaces section auto-opened → a second Workspaces
     // row is now visible.
     await waitFor(() =>
-      expect(screen.getAllByText('Workspaces')).toHaveLength(2),
+      expect(screen.getAllByText('Workspaces')).toHaveLength(2)
     );
     // Tasks was NOT auto-opened for the new project: its section header row
     // is visible (parent is open) but collapsed. Rows are in document order,
@@ -370,9 +366,9 @@ describe('SidebarProjectTree open-state persistence', () => {
     const tasksRows = screen.getAllByText('Tasks');
     expect(tasksRows).toHaveLength(2);
     expect(
-      (tasksRows[1] as HTMLElement).closest('[role="treeitem"]')?.getAttribute(
-        'aria-expanded',
-      ),
+      (tasksRows[1] as HTMLElement)
+        .closest('[role="treeitem"]')
+        ?.getAttribute('aria-expanded')
     ).toBe('false');
   });
 
@@ -381,9 +377,7 @@ describe('SidebarProjectTree open-state persistence', () => {
 
     // Open the Tasks section so a project-scoped key lands in the blob.
     fireEvent.click(rowForText('Tasks'));
-    await waitFor(() =>
-      expect(readBlob()['project-1:tasks']).toBe(true),
-    );
+    await waitFor(() => expect(readBlob()['project-1:tasks']).toBe(true));
 
     // Remove the only project → prune effect drops all its keys.
     rerender(
@@ -398,11 +392,9 @@ describe('SidebarProjectTree open-state persistence', () => {
         tasksByProject={new Map()}
         loadingTasksProjectIds={new Set()}
         activeIssueId={null}
-      />,
+      />
     );
 
-    await waitFor(() =>
-      expect(Object.keys(readBlob())).toHaveLength(0),
-    );
+    await waitFor(() => expect(Object.keys(readBlob())).toHaveLength(0));
   });
 });
