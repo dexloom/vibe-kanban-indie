@@ -40,6 +40,7 @@ import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import type { SidebarWorkspace } from '@/shared/hooks/useWorkspaces';
 import type { OutlinerWorkspace } from '@vibe/ui/components/outliner/types';
 import { readOpenTasksProjectIds } from '@vibe/ui/components/outliner/openState';
+import { DragActiveProvider } from '@vibe/ui/components/outliner/dragState';
 import { DragDropContext } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
 import { resolveDragEnd } from '@/shared/lib/resolveDragEnd';
@@ -58,6 +59,9 @@ export function SharedAppLayout() {
   const mobileFontScale = useUiPreferencesStore((s) => s.mobileFontScale);
   const { isSignedIn } = useAuth();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  // True while a hello-pangea drag is in flight — feeds DragActiveProvider so
+  // tree status/card droppables can outline possible drop targets.
+  const [isDragActive, setIsDragActive] = useState(false);
   // `selectedIssueIds.size > 1` matches `useIssueMultiSelect`'s
   // `isMultiSelectActive` definition (PLAN §7.5). We don't call the hook
   // from web-core here because it lives in web-core already — we just need
@@ -386,7 +390,14 @@ export function SharedAppLayout() {
 
   return (
     <SyncErrorProvider>
-      <DragDropContext onDragEnd={handleCrossSurfaceDragEnd}>
+      <DragActiveProvider value={isDragActive}>
+        <DragDropContext
+          onDragStart={() => setIsDragActive(true)}
+          onDragEnd={(result) => {
+            setIsDragActive(false);
+            handleCrossSurfaceDragEnd(result);
+          }}
+        >
         <KanbanDragHandlerProvider value={providerValue}>
           <SidebarProjectTasksRegistry
             projectIds={realProjectIds}
@@ -535,7 +546,8 @@ export function SharedAppLayout() {
             </MobileDrawer>
           </div>
         </KanbanDragHandlerProvider>
-      </DragDropContext>
+        </DragDropContext>
+      </DragActiveProvider>
     </SyncErrorProvider>
   );
 }

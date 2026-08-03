@@ -15,6 +15,7 @@
     "./components/*": "./src/components/*.tsx",
     "./components/outliner/types": "./src/components/outliner/types.ts",
     "./components/outliner/openState": "./src/components/outliner/openState.ts",
+    "./components/outliner/dragState": "./src/components/outliner/dragState.ts",
     "./components/outliner/useContainerHeight": "./src/components/outliner/useContainerHeight.ts",
     "./components/outliner/LeafNode": "./src/components/outliner/LeafNode.tsx",
     "./components/outliner/BucketNode": "./src/components/outliner/BucketNode.tsx",

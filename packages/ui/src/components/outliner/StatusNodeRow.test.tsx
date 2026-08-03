@@ -3,12 +3,21 @@ import { DragDropContext } from '@hello-pangea/dnd';
 import type { NodeApi } from 'react-arborist';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { StatusNodeRow } from './StatusNodeRow';
+import { DragActiveProvider } from './dragState';
 import { makeStatusNodeId, type StatusNode } from './types';
 
 afterEach(cleanup);
 
 function withDnd(node: React.ReactNode) {
   return <DragDropContext onDragEnd={() => {}}>{node}</DragDropContext>;
+}
+
+function withDragActive(node: React.ReactNode, isDragActive: boolean) {
+  return (
+    <DragActiveProvider value={isDragActive}>
+      {withDnd(node)}
+    </DragActiveProvider>
+  );
 }
 
 function statusNode(): NodeApi<StatusNode> {
@@ -68,5 +77,21 @@ describe('StatusNodeRow', () => {
       `[data-rfd-droppable-id="${expectedId}"]`
     );
     expect(droppable).toBeTruthy();
+  });
+
+  it('outlines the status row as a drop target while a drag is active', () => {
+    const { container } = render(
+      withDragActive(<StatusNodeRow node={statusNode()} style={{}} />, true)
+    );
+    const row = container.querySelector('.ring-1');
+    expect(row).toBeTruthy();
+  });
+
+  it('renders no drop-target outline when no drag is active', () => {
+    const { container } = render(
+      withDragActive(<StatusNodeRow node={statusNode()} style={{}} />, false)
+    );
+    expect(container.querySelector('.ring-1')).toBeNull();
+    expect(container.querySelector('.ring-2')).toBeNull();
   });
 });
