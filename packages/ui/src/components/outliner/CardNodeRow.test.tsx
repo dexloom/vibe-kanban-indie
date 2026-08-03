@@ -19,7 +19,6 @@ function cardNode(
       type: 'card',
       issue: {
         id: 'issue-1',
-        simpleId: 'PROJ-1',
         title: 'Fix auth',
         priority: null,
         statusId: 'todo',
@@ -48,45 +47,51 @@ describe('CardNodeRow', () => {
   });
 
   it('marks the active issue as the current page with semibold text', () => {
-    render(
+    const { container } = render(
       <CardNodeRow node={cardNode().node} style={{}} activeIssueId="issue-1" />,
     );
 
-    const row = screen.getByRole('treeitem');
+    const row = container.firstElementChild as HTMLElement;
     expect(row.getAttribute('aria-current')).toBe('page');
     expect(row.className).toContain('font-semibold');
   });
 
-  it('activates a leaf card when its row is clicked', () => {
-    const { node, activate } = cardNode();
-    render(<CardNodeRow node={node} style={{}} />);
+  it('does not toggle or activate when a leaf card row is clicked', () => {
+    // Navigation happens on react-arborist's OUTER row (handleActivate); the
+    // inner row must not double-fire it.
+    const { node, activate, toggle } = cardNode();
+    const { container } = render(<CardNodeRow node={node} style={{}} />);
 
-    fireEvent.click(screen.getByRole('treeitem'));
+    fireEvent.click(container.firstElementChild as HTMLElement);
 
-    expect(activate).toHaveBeenCalledTimes(1);
+    expect(activate).not.toHaveBeenCalled();
+    expect(toggle).not.toHaveBeenCalled();
   });
 
   it('shows an isolated caret toggle for cards with sub-issues', () => {
-    const child = cardNode({ id: 'issue-2', simpleId: 'PROJ-2' }).node.data;
+    const child = cardNode({ id: 'issue-2' }).node.data;
     const { node, activate, toggle } = cardNode({}, [child], true);
     const { container } = render(<CardNodeRow node={node} style={{}} />);
 
-    const row = screen.getByRole('treeitem');
-    expect(row.getAttribute('aria-expanded')).toBe('true');
-    fireEvent.click(container.querySelector('button') as HTMLButtonElement);
+    const caret = container.querySelector('button') as HTMLButtonElement;
+    expect(caret.getAttribute('aria-expanded')).toBe('true');
+    expect(caret.getAttribute('aria-label')).toBe('Collapse');
+    fireEvent.click(caret);
 
     expect(toggle).toHaveBeenCalledTimes(1);
     expect(activate).not.toHaveBeenCalled();
   });
 
   it('renders leaf cards without a caret or aria-expanded', () => {
-    const { node, activate } = cardNode();
+    const { node, activate, toggle } = cardNode();
     const { container } = render(<CardNodeRow node={node} style={{}} />);
 
-    const row = screen.getByRole('treeitem');
     expect(container.querySelector('button')).toBeNull();
-    expect(row.hasAttribute('aria-expanded')).toBe(false);
-    fireEvent.click(row);
-    expect(activate).toHaveBeenCalledTimes(1);
+    expect(container.firstElementChild?.hasAttribute('aria-expanded')).toBe(
+      false,
+    );
+    fireEvent.click(container.firstElementChild as HTMLElement);
+    expect(activate).not.toHaveBeenCalled();
+    expect(toggle).not.toHaveBeenCalled();
   });
 });

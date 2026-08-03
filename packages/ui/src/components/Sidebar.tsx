@@ -35,8 +35,6 @@ interface SidebarProps {
   onSelectIssue?: (projectId: string, issueId: string) => void;
   isLoadingProjects?: boolean;
   isLoadingWorkspaces?: boolean;
-  /** Called after the user successfully reorders projects. */
-  onProjectsReorder: (reorderedProjectIds: string[]) => void;
   onSelectWorkspace: (id: string) => void;
   onSelectProject: (id: string) => void;
 
@@ -62,7 +60,6 @@ export function Sidebar({
   onSelectIssue,
   isLoadingProjects,
   isLoadingWorkspaces,
-  onProjectsReorder,
   onSelectWorkspace,
   onSelectProject,
   headerActions,
@@ -109,7 +106,6 @@ export function Sidebar({
         isLoading={isLoadingProjects || isLoadingWorkspaces}
         onSelectWorkspace={onSelectWorkspace}
         onSelectProject={onSelectProject}
-        onProjectsReorder={onProjectsReorder}
         ariaLabelledBy={titleId}
       />
 

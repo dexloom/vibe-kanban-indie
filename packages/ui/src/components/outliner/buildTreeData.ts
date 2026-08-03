@@ -3,6 +3,7 @@ import { categorizeWorkspacesForOutliner } from '../../lib/workspaceStatus';
 import {
   BUCKET_ORDER,
   UNASSIGNED_PROJECT_ID,
+  makeCardNodeId,
   makeStatusNodeId,
   makeTasksSectionId,
   makeWorkspacesSectionId,
@@ -202,7 +203,6 @@ function buildCardForest(issues: readonly Issue[]): CardNode[] {
 
   const toIssuePayload = (issue: Issue): CardNode['issue'] => ({
     id: issue.id,
-    simpleId: issue.simple_id,
     title: issue.title,
     priority: issue.priority,
     statusId: issue.status_id,
@@ -220,7 +220,9 @@ function buildCardForest(issues: readonly Issue[]): CardNode[] {
     if (placed.has(issue.id)) return null; // cycle → truncate here
     placed.add(issue.id);
     return {
-      id: issue.id,
+      // Project-scoped id so the open-state blob's read-time GC (which
+      // derives projectId from the first ':' segment) keeps card entries.
+      id: makeCardNodeId(issue.project_id, issue.id),
       type: 'card',
       issue: toIssuePayload(issue),
       children: (childrenByParent.get(issue.id) ?? [])

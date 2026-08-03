@@ -112,7 +112,6 @@ function renderTree(
       activeWorkspaceId={null}
       onSelectWorkspace={vi.fn()}
       onSelectProject={vi.fn()}
-      onProjectsReorder={vi.fn()}
       tasksByProject={
         new Map([['project-1', { statuses: [status], issues: [issue] }]])
       }
@@ -125,9 +124,9 @@ function renderTree(
 }
 
 function rowForText(text: string): HTMLElement {
-  const row = screen.getByText(text).closest('[role="treeitem"]');
-  if (!row) throw new Error(`Missing tree row for ${text}`);
-  return row as HTMLElement;
+  // Click the label itself so the event bubbles through TreeRow's toggle to
+  // react-arborist's outer row (which handles select+activate).
+  return screen.getByText(text);
 }
 
 describe('SidebarProjectTree tasks integration', () => {

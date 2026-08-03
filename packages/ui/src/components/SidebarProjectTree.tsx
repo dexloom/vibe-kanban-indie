@@ -4,7 +4,6 @@ import { SpinnerIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../lib/cn';
 import {
-  UNASSIGNED_PROJECT_ID,
   buildSidebarTreeInitialOpenState,
   makeWorkspacesSectionId,
   pendingOpenStatusCardIds,
@@ -37,14 +36,12 @@ interface SidebarProjectTreeProps {
   isLoading?: boolean;
   onSelectWorkspace: (id: string) => void;
   onSelectProject: (id: string) => void;
-  onProjectsReorder: (reorderedProjectIds: string[]) => void;
   /** Id of the external <h2> that labels this section. Replaces the old aria-label. */
   ariaLabelledBy?: string;
   width?: number;
   className?: string;
 }
 
-const ROOT_PARENT_ID: string | null = null;
 const EMPTY_TASKS_BY_PROJECT: ReadonlyMap<string, ProjectTasksData> = new Map();
 const EMPTY_LOADING_TASKS_PROJECT_IDS: ReadonlySet<string> = new Set();
 
@@ -63,7 +60,6 @@ export function SidebarProjectTree({
   isLoading = false,
   onSelectWorkspace,
   onSelectProject,
-  onProjectsReorder,
   ariaLabelledBy,
   width = 256,
   className,
@@ -256,6 +252,26 @@ export function SidebarProjectTree({
     }
   }, [treeData, height]);
 
+  // Prune persisted entries for projects that no longer exist (deleted /
+  // no longer visible). The read-time GC only filters on next load; without
+  // this, deleted projects' `:tasks`/`:status:`/`:card:`/`:bucket:` keys
+  // accumulate in localStorage forever.
+  useEffect(() => {
+    const live = new Set(projectKey ? projectKey.split(',') : []);
+    const entries = Object.entries(openStateRef.current);
+    let changed = false;
+    const pruned: Record<string, boolean> = {};
+    for (const [key, open] of entries) {
+      const separatorIndex = key.indexOf(':');
+      const projectId = separatorIndex === -1 ? key : key.slice(0, separatorIndex);
+      if (live.has(projectId)) pruned[key] = open;
+      else changed = true;
+    }
+    if (!changed) return;
+    openStateRef.current = pruned;
+    scheduleOpenStateWrite();
+  }, [projectKey, scheduleOpenStateWrite]);
+
   const handleActivate = useCallback(
     (node: NodeApi<SidebarTreeNode>) => {
       const data = node.data;
@@ -290,76 +306,6 @@ export function SidebarProjectTree({
       }
     },
     [scheduleOpenStateWrite, onTasksExpansionChange],
-  );
-
-  const handleMove = useCallback(
-    (args: {
-      dragIds: string[];
-      dragNodes: NodeApi<SidebarTreeNode>[];
-      parentId: string | null;
-      parentNode: NodeApi<SidebarTreeNode> | null;
-      index: number;
-    }) => {
-      const { dragIds, dragNodes, parentId, index } = args;
-      // ADR-007: only allow reordering projects at the root, and only when
-      // the dragged node is a project row. Everything else (sections,
-      // buckets, leaves) is rejected — react-arborist will snap them back.
-      if (parentId !== ROOT_PARENT_ID) return;
-      if (dragNodes.length === 0) return;
-      const first = dragNodes[0];
-      if (!first || first.data.type !== 'project') return;
-      // The Unassigned pseudo-project is not user-reorderable — it always
-      // sits at the bottom of the tree.
-      if (dragIds.includes(UNASSIGNED_PROJECT_ID)) return;
-
-      const visibleProjects = treeData
-        .filter((n): n is ProjectNode => n.type === 'project')
-        .map((n) => n.id);
-      const unassignedPresent = visibleProjects.includes(UNASSIGNED_PROJECT_ID);
-      const reorderableProjects = visibleProjects.filter(
-        (id) => id !== UNASSIGNED_PROJECT_ID,
-      );
-
-      const dragId = dragIds[0];
-      if (!dragId) return;
-
-      const fromIndex = reorderableProjects.indexOf(dragId);
-      if (fromIndex === -1) return;
-
-      const next = reorderableProjects.slice();
-      next.splice(fromIndex, 1);
-      const insertAt = Math.max(0, Math.min(index, next.length));
-      next.splice(insertAt, 0, dragId);
-
-      if (unassignedPresent) next.push(UNASSIGNED_PROJECT_ID);
-      const reordered = next.filter((id) => id !== UNASSIGNED_PROJECT_ID);
-      if (reordered.length === 0) return;
-      onProjectsReorder(reordered);
-    },
-    [treeData, onProjectsReorder],
-  );
-
-  // BoolFunc signature for disableDrag.
-  const isProjectDragDisabled = useCallback(
-    (data: SidebarTreeNode) => data.type !== 'project',
-    [],
-  );
-
-  // disableDrop has a richer signature (parentNode + dragNodes + index) so
-  // sections/buckets/leaves cannot be dropped onto.
-  const isProjectDropDisabled = useCallback(
-    (args: {
-      parentNode: NodeApi<SidebarTreeNode>;
-      dragNodes: NodeApi<SidebarTreeNode>[];
-      index: number;
-    }) => {
-      if (args.parentNode.data.type !== 'project') return true;
-      // Only allow dropping at root between project rows. Dragging a
-      // section/bucket/leaf onto a project is rejected.
-      if (args.dragNodes.some((n) => n.data.type !== 'project')) return true;
-      return false;
-    },
-    [],
   );
 
   const hasAnyContent =
@@ -404,11 +350,10 @@ export function SidebarProjectTree({
               padding={TREE_LAYOUT.padding}
               disableEdit
               disableMultiSelection
-              disableDrop={isProjectDropDisabled}
-              disableDrag={isProjectDragDisabled}
+              disableDrop
+              disableDrag
               onActivate={handleActivate}
               onToggle={handleToggle}
-              onMove={handleMove}
               aria-labelledby={ariaLabelledBy}
             >
               {(props) => (

@@ -436,7 +436,6 @@ describe('buildTreeData', () => {
           id: 'i1',
           status_id: 's1',
           priority: 'high',
-          simple_id: 'PROJ-1',
         }),
       ],
     };
@@ -449,19 +448,18 @@ describe('buildTreeData', () => {
     const card = tasksSection.children[0]!.children[0]!;
     expect(card.issue).toEqual({
       id: 'i1',
-      simpleId: 'PROJ-1',
       title: 'i1',
       priority: 'high',
       statusId: 's1',
       projectId: 'p1',
       parentIssueId: null,
     });
+    expect(card.id).toBe('p1:card:i1');
     expect(Object.keys(card.issue).sort()).toEqual([
       'id',
       'parentIssueId',
       'priority',
       'projectId',
-      'simpleId',
       'statusId',
       'title',
     ]);

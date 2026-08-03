@@ -10,9 +10,9 @@ import {
 /**
  * Gmail-style workspace leaf: name + relative-elapsed on the first line,
  * file/diff stats on a second small line so long names don't crowd the
- * right edge of a narrow sidebar. Framed by dotted guide lines so the
- * bucket outline is legible. Visuals (bold active, dotted guides, color
- * tokens) are intentionally identical to the ADR-006 WorkspaceOutliner leaf.
+ * right edge of a narrow sidebar. Visuals (bold active, muted secondary
+ * line, color tokens) are intentionally identical to the ADR-006
+ * WorkspaceOutliner leaf.
  *
  * TreeRow owns geometry; we only supply the 2-line content. The taller
  * rowHeight (40px) lets TreeRow's items-center vertically center the
@@ -34,7 +34,6 @@ export function OutlinerLeafNode({
       style={style}
       dragHandle={dragHandle}
       isActive={isActive}
-      onRowClick={() => node.activate()}
       rowClassName={cn(
         'text-sm leading-tight',
         isActive ? 'text-high font-semibold' : 'text-normal font-light hover:text-high',

@@ -23,7 +23,6 @@ export function CardNodeRow({
       style={style}
       dragHandle={dragHandle}
       isActive={isActive}
-      onRowClick={() => node.activate()}
       showCaret={hasChildren}
       rowClassName={cn(
         'text-sm leading-tight',

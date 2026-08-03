@@ -48,10 +48,7 @@ function ProjectTreeNode(
       style={style}
       dragHandle={dragHandle}
       isActive={isActive}
-      onRowClick={() => {
-        node.toggle();
-        onSelectProject(project.id);
-      }}
+      onRowClick={() => node.toggle()}
       rowClassName={cn(
         'rounded-md text-base transition-colors',
         isActive ? 'text-high font-bold' : 'text-normal hover:bg-tertiary',

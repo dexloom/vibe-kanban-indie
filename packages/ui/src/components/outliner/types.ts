@@ -163,11 +163,10 @@ export interface StatusNode {
  * card as `children`. Trimmed payload — only what the sidebar card needs.
  */
 export interface CardNode {
-  id: string; // issue.id (stable across reorders, globally unique)
+  id: string; // `${projectId}:card:${issueId}` (project-scoped so open-state GC keeps it)
   type: 'card';
   issue: {
     id: string;
-    simpleId: string;
     title: string;
     priority: IssuePriority | null;
     statusId: string;
@@ -189,6 +188,8 @@ export const makeTasksSectionId = (projectId: string): TasksSectionId =>
   `${projectId}:tasks`;
 export const makeStatusNodeId = (projectId: string, statusId: string): string =>
   `${projectId}:status:${statusId}`;
+export const makeCardNodeId = (projectId: string, issueId: string): string =>
+  `${projectId}:card:${issueId}`;
 
 /**
  * Read persisted open/closed state for each bucket from localStorage. Falls

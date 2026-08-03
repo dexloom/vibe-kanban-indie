@@ -1,6 +1,6 @@
 # ADR-008: Sidebar section header — reusable label + actions row
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Date**: 2026-08-03
 - **Relates to**: ADR-007 (project-scoped workspace tree in the global sidebar),
   ADR-005 (global sidebar), ADR-002 (centralized theme), ADR-001 (modal system)

@@ -21,7 +21,6 @@ function statusNode(): NodeApi<StatusNode> {
           type: 'card',
           issue: {
             id: 'issue-1',
-            simpleId: 'PROJ-1',
             title: 'Fix auth',
             priority: null,
             statusId: 'todo',

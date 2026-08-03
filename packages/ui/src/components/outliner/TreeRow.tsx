@@ -8,8 +8,10 @@ interface TreeRowProps {
   style: CSSProperties;
   dragHandle?: Ref<HTMLDivElement>;
   isActive?: boolean;
-  /** Row click handler. Required — semantics differ per type (toggle vs navigate). */
-  onRowClick: () => void;
+  /** Row click handler. Navigation/activation is handled by react-arborist's
+   *  outer row (DefaultRow → node.handleClick → onActivate); this prop is for
+   *  expand/collapse only. Omit for rows that navigate (cards, leaves). */
+  onRowClick?: () => void;
   /** Override caret visibility. Default: shown when !node.isLeaf. Cards pass children>0. */
   showCaret?: boolean;
   rowClassName?: string;
@@ -38,10 +40,7 @@ export function TreeRow({
     <div
       style={style}
       ref={dragHandle}
-      role="treeitem"
-      aria-selected={isActive}
       aria-current={isActive ? 'page' : undefined}
-      aria-expanded={hasCaret ? node.isOpen : undefined}
       onClick={onRowClick}
       className={cn(
         'relative flex w-full cursor-pointer items-center gap-1 overflow-hidden pr-1.5 text-left',

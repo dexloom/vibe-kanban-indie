@@ -98,7 +98,6 @@ export function SharedAppLayout() {
   const {
     data: orgProjects = [],
     isLoading,
-    updateMany: updateManyProjects,
   } = useShape(PROJECTS_SHAPE, projectParams, {
     enabled: isSignedIn && !!selectedOrgId,
     mutation: PROJECT_MUTATION,
@@ -109,7 +108,6 @@ export function SharedAppLayout() {
   );
   const [orderedProjects, setOrderedProjects] =
     useState<RemoteProject[]>(sortedProjects);
-  const [isSavingProjectOrder, setIsSavingProjectOrder] = useState(false);
   // Hydrate the "Tasks open" gate from the persisted open-state blob so a
   // Tasks section left open survives a reload (otherwise the section renders
   // open from initialOpenState but the registry never enables its loader).
@@ -124,11 +122,8 @@ export function SharedAppLayout() {
   >(() => new Set());
 
   useEffect(() => {
-    if (isSavingProjectOrder) {
-      return;
-    }
     setOrderedProjects(sortedProjects);
-  }, [isSavingProjectOrder, sortedProjects]);
+  }, [sortedProjects]);
 
   // Navigation state for the left sidebar.
   const projectDestination = useMemo(
@@ -195,51 +190,8 @@ export function SharedAppLayout() {
     }
   }, [selectedOrgId, appNavigation]);
 
-  // ADR-007: react-arborist hands us a project-id array (Unassigned is
-  // filtered out upstream by the tree). Persist the same way we did for
-  // the @hello-pangea/dnd flow — optimistic reorder with rollback on
-  // persistence failure.
-  const handleProjectsReorder = useCallback(
-    async (reorderedProjectIds: string[]) => {
-      if (isSavingProjectOrder) {
-        return;
-      }
-
-      // Build the new ordering by mapping ids back to full project rows,
-      // then appending any project rows that weren't part of the reorder
-      // (defensive — should not happen in practice).
-      const byId = new Map(orderedProjects.map((p) => [p.id, p]));
-      const reordered: RemoteProject[] = [];
-      for (const id of reorderedProjectIds) {
-        const project = byId.get(id);
-        if (project) reordered.push(project);
-      }
-      for (const project of orderedProjects) {
-        if (!reorderedProjectIds.includes(project.id)) {
-          reordered.push(project);
-        }
-      }
-
-      const previousOrder = orderedProjects;
-      setOrderedProjects(reordered);
-      setIsSavingProjectOrder(true);
-
-      try {
-        await updateManyProjects(
-          reordered.map((project, index) => ({
-            id: project.id,
-            changes: { sort_order: index },
-          }))
-        ).persisted;
-      } catch (error) {
-        console.error('Failed to reorder projects:', error);
-        setOrderedProjects(previousOrder);
-      } finally {
-        setIsSavingProjectOrder(false);
-      }
-    },
-    [isSavingProjectOrder, orderedProjects, updateManyProjects]
-  );
+  // ADR-007: project reorder is disabled tree-wide (see PLAN-sidebar-kanban-cross-dnd);
+  // project order is set by the sorted-projects effect below only.
 
   const handleSignIn = useCallback(async () => {
     // Local-only fork: no OAuth flow.
@@ -331,7 +283,6 @@ export function SharedAppLayout() {
               membership={membership}
               isLoadingProjects={isLoading}
               isLoadingWorkspaces={isWorkspacesListLoading}
-              onProjectsReorder={handleProjectsReorder}
               onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
               onSelectProject={handleProjectClick}
               headerActions={
@@ -399,7 +350,6 @@ export function SharedAppLayout() {
                 membership={membership}
                 isLoadingProjects={isLoading}
                 isLoadingWorkspaces={isWorkspacesListLoading}
-                onProjectsReorder={handleProjectsReorder}
                 onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
                 onSelectProject={(id) => {
                   handleProjectClick(id);

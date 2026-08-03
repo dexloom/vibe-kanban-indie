@@ -56,7 +56,7 @@ describe('TreeNodeRouter task routing', () => {
     } satisfies TasksSectionNode);
 
     expect(screen.getByText('Tasks')).toBeTruthy();
-    expect(screen.getByText('0')).toBeTruthy();
+    expect(screen.getByText('sidebar.tasksEmpty')).toBeTruthy();
   });
 
   it('routes status and card node types', () => {
@@ -74,7 +74,6 @@ describe('TreeNodeRouter task routing', () => {
       type: 'card',
       issue: {
         id: 'issue-1',
-        simpleId: 'PROJ-1',
         title: 'Fix auth',
         priority: null,
         statusId: 'todo',
