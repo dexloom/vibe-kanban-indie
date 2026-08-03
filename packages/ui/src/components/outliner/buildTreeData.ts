@@ -1,6 +1,6 @@
 import type { Issue } from 'shared/remote-types';
 import { categorizeWorkspacesForOutliner } from '../../lib/workspaceStatus';
-import { BUCKET_ORDER } from '../../lib/buckets';
+import { BUCKETS, BUCKET_ORDER } from '../../lib/buckets';
 import {
   UNASSIGNED_PROJECT_ID,
   makeCardNodeId,
@@ -141,17 +141,11 @@ function buildWorkspacesSection(
     idle,
     archived: archivedBucket,
   } = categorizeWorkspacesForOutliner(active, archived);
-  const labels = {
-    attention: t('workspaces.outliner.attention'),
-    running: t('workspaces.running'),
-    idle: t('workspaces.idle'),
-    archived: t('workspaces.archived'),
-  };
   const buckets: BucketNode[] = BUCKET_ORDER.map((bucketId) => ({
     id: `${projectId}:bucket:${bucketId}`,
     type: 'bucket',
     bucketId,
-    name: labels[bucketId],
+    name: t(BUCKETS[bucketId].labelKey),
     children: (bucketId === 'attention'
       ? attention
       : bucketId === 'running'

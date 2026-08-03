@@ -49,8 +49,8 @@ export function readLegacyBucketOpenState(): Record<BucketId, boolean> {
 // redux store owns open state. This module only seeds the initial map and
 // mirrors user toggles back to localStorage.
 
-export const SIDEBAR_TREE_OPEN_STATE_KEY = 'vibe.ui.sidebarTree.openState';
-export const SIDEBAR_TREE_OPEN_STATE_VERSION = 1;
+const SIDEBAR_TREE_OPEN_STATE_KEY = 'vibe.ui.sidebarTree.openState';
+const SIDEBAR_TREE_OPEN_STATE_VERSION = 1;
 
 /** Read the persisted open-state blob (or {} on miss / corruption). */
 export function readSidebarTreeOpenState(

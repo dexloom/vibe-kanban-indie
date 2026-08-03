@@ -38,7 +38,7 @@ token bridged into tailwind from the existing `--warning` CSS var),
 
 ## Decision
 
-### Single-source bucket config — `packages/ui/src/lib/workspaceBuckets.ts`
+### Single-source bucket config — `packages/ui/src/lib/buckets.ts`
 
 Pure, framework-free config mapping each bar bucket to its presentation
 (`BarBucketId = Exclude<BucketId, 'archived'>`, `BAR_BUCKET_ORDER`, and
@@ -102,7 +102,7 @@ workspaces only; Archived is intentionally not accepted (excluded by design).
 ## Consequences
 
 - Positive: a global, always-visible status surface above the project tree;
-  one config (`workspaceBuckets.ts`) is the single source of bucket
+  one config (`lib/buckets.ts`) is the single source of bucket
   presentation; the bar reuses the domain predicates, recency comparator, and
   dropdown primitive — no duplicated categorization, sorting, or menu logic;
   the `WorkspaceActivityText` / `CountBadge` extractions remove duplicated
@@ -110,4 +110,4 @@ workspaces only; Archived is intentionally not accepted (excluded by design).
 - Negative: three more buttons on an already-dense 256px sidebar (icon +
   micro-label; labels truncate at narrow widths but stay in `aria-label`).
 - Ongoing: if the dashboard or command bar ever surfaces buckets, they import
-  `workspaceBuckets.ts` + the shared primitives rather than re-deriving them.
+  `lib/buckets.ts` + the shared primitives rather than re-deriving them.
