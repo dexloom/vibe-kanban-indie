@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useUserContext } from '@/shared/hooks/useUserContext';
+import type { WorkspaceProjectMembership } from '@vibe/ui/components/outliner/types';
 
 /**
  * Map of `local_workspace_id` → `Set<projectId>`. ADR-007: the sidebar's
@@ -19,7 +20,7 @@ import { useUserContext } from '@/shared/hooks/useUserContext';
  *
  * Callers should treat a missing key as "unassigned".
  */
-export type WorkspaceProjectMembership = Map<string, Set<string>>;
+export type { WorkspaceProjectMembership } from '@vibe/ui/components/outliner/types';
 
 export function useWorkspaceProjectMembership(): WorkspaceProjectMembership {
   const { workspaces } = useUserContext();

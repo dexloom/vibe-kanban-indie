@@ -1,4 +1,5 @@
 import { cn } from '../../lib/cn';
+import { TREE_LAYOUT } from './layout';
 import {
   formatRelativeElapsed,
   type LeafNode,
@@ -32,7 +33,7 @@ export function OutlinerLeafNode({
   // `(level-1)*indent + caretW/2` from the row left. Since the leaf div's
   // left edge IS row x=0, the guide x equals that caret center.
   const indent = node.tree.indent;
-  const caretHalf = 5; // Phosphor `size-2.5` caret = 10px wide
+  const caretHalf = TREE_LAYOUT.caretHalf; // Phosphor `size-2.5` caret = 10px wide
   const paddingLeft = (style.paddingLeft as number | undefined) ?? 0;
   const guideX = paddingLeft - indent + caretHalf;
   const tickWidth = Math.max(0, indent - caretHalf);
@@ -50,7 +51,7 @@ export function OutlinerLeafNode({
         'text-sm leading-tight focus:outline-none',
         isActive
           ? 'text-high font-semibold'
-          : 'text-normal font-light hover:text-high'
+          : 'text-normal font-light hover:text-high',
       )}
     >
       {/* Tree guide: vertical dotted line down the bucket + horizontal dotted
@@ -68,7 +69,10 @@ export function OutlinerLeafNode({
       {/* Inner wrapper owns the +10px content offset (owner request). arborist's
           style is passed through untouched on the outer div; the offset lives
           here as Tailwind pl so it composes cleanly with the dotted guides. */}
-      <div className="flex min-w-0 flex-col justify-center gap-0 pl-[10px]">
+      <div
+        className="flex min-w-0 flex-col justify-center gap-0"
+        style={{ paddingLeft: TREE_LAYOUT.leafContentOffset }}
+      >
         <span className="flex min-w-0 items-baseline gap-1.5">
           <span className="truncate">{ws.name}</span>
           {elapsed && (

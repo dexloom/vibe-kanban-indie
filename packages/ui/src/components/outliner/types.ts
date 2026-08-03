@@ -26,15 +26,20 @@ export interface OutlinerWorkspace extends WorkspaceStatusItem {
   prStatus?: 'open' | 'merged' | 'closed' | 'unknown';
 }
 
-export const PERSIST_KEYS = {
+/**
+ * ADR-006 migration-only keys for first-run bucket open-state seeding.
+ */
+export const LEGACY_BUCKET_PERSIST_KEYS = {
   attention: 'workspaces-outliner-attention',
   running: 'workspaces-outliner-running',
   idle: 'workspaces-outliner-idle',
   archived: 'workspaces-outliner-archived',
 } as const;
 
+export type WorkspaceProjectMembership = Map<string, Set<string>>;
+
 /** Semantic bucket id (storage key suffix, NOT a react-arborist node id). */
-export type BucketId = keyof typeof PERSIST_KEYS;
+export type BucketId = keyof typeof LEGACY_BUCKET_PERSIST_KEYS;
 
 export const BUCKET_ORDER: readonly BucketId[] = [
   'attention',
@@ -71,17 +76,59 @@ export interface LeafNode {
 
 export type OutlinerData = BucketNode | LeafNode;
 
+// --- Sidebar tree node model ---------------------------------------------
+//
+// The 4-level node union of the global sidebar tree (ADR-007). Lives here
+// (not in SidebarProjectTree.tsx) so the node renderers in treeNodes.tsx can
+// import it without a runtime circular dependency on the tree component.
+
+/** Stable id for the pseudo-project that holds workspaces with no project link. */
+export const UNASSIGNED_PROJECT_ID = 'unassigned';
+
+/** Per-project workspaces section id (e.g. `${projectId}:workspaces`). */
+export type WorkspacesSectionId = `${string}:workspaces`;
+
+/**
+ * Sidebar project record (a trimmed shape — only what the tree needs to
+ * render a project row).
+ */
+export interface SidebarProject {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export type SidebarTreeNode = ProjectNode | SectionNode | BucketNode | LeafNode;
+
+export interface ProjectNode {
+  id: string;
+  type: 'project';
+  name: string;
+  color: string;
+  children: SectionNode[];
+}
+
+export interface SectionNode {
+  id: WorkspacesSectionId;
+  type: 'section';
+  label: string;
+  children: BucketNode[];
+}
+
 /**
  * Read persisted open/closed state for each bucket from localStorage. Falls
  * back to the bucket defaults when nothing is stored yet (or storage is
  * unavailable). Safe to call during render.
  */
-export function readInitialOpenState(): Record<BucketId, boolean> {
+export function readLegacyBucketOpenState(): Record<BucketId, boolean> {
   const out = { ...BUCKET_DEFAULT_OPEN };
+  if (typeof window === 'undefined') return out;
   try {
-    for (const bucketId of Object.keys(PERSIST_KEYS) as BucketId[]) {
+    for (const bucketId of Object.keys(
+      LEGACY_BUCKET_PERSIST_KEYS,
+    ) as BucketId[]) {
       const raw = window.localStorage.getItem(
-        `vibe.ui.collapsible.${PERSIST_KEYS[bucketId]}`
+        `vibe.ui.collapsible.${LEGACY_BUCKET_PERSIST_KEYS[bucketId]}`,
       );
       if (raw != null) {
         out[bucketId] = raw === 'true';
@@ -110,8 +157,9 @@ const SIDEBAR_TREE_OPEN_STATE_VERSION = 1;
 
 /** Read the persisted open-state blob (or {} on miss / corruption). */
 export function readSidebarTreeOpenState(
-  liveProjectIds?: ReadonlySet<string>
+  liveProjectIds?: ReadonlySet<string>,
 ): Record<string, boolean> {
+  if (typeof window === 'undefined') return {};
   try {
     const raw = window.localStorage.getItem(SIDEBAR_TREE_OPEN_STATE_KEY);
     if (!raw) return {};
@@ -143,7 +191,7 @@ export function readSidebarTreeOpenState(
         const projectId =
           separatorIndex === -1 ? key : key.slice(0, separatorIndex);
         return liveProjectIds.has(projectId);
-      })
+      }),
     );
   } catch {
     // corrupt JSON | private mode | quota — fall through
@@ -153,10 +201,11 @@ export function readSidebarTreeOpenState(
 
 /** Write the open-state blob. Ignores storage failures. */
 export function writeSidebarTreeOpenState(map: Record<string, boolean>): void {
+  if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(
       SIDEBAR_TREE_OPEN_STATE_KEY,
-      JSON.stringify({ v: SIDEBAR_TREE_OPEN_STATE_VERSION, state: map })
+      JSON.stringify({ v: SIDEBAR_TREE_OPEN_STATE_VERSION, state: map }),
     );
   } catch {
     // quota | unavailable — in-memory mirror still authoritative for session
@@ -174,12 +223,12 @@ export function writeSidebarTreeOpenState(map: Record<string, boolean>): void {
  * (Tree ignores the prop then).
  */
 export function buildSidebarTreeInitialOpenState(
-  projectIds: readonly string[]
+  projectIds: readonly string[],
 ): Record<string, boolean> {
   const stored = readSidebarTreeOpenState(new Set(projectIds));
   const useLegacy = Object.keys(stored).length === 0;
   const legacy: Partial<Record<BucketId, boolean>> = useLegacy
-    ? readInitialOpenState()
+    ? readLegacyBucketOpenState()
     : {};
   const out: Record<string, boolean> = {};
   for (const projectId of projectIds) {

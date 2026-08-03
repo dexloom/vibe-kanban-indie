@@ -1,11 +1,16 @@
 import type { ReactNode } from 'react';
 import { cn } from '../lib/cn';
 import { Tooltip } from './Tooltip';
-import { SidebarProjectTree, type SidebarProject } from './SidebarProjectTree';
-import type { OutlinerWorkspace } from './outliner/types';
+import {
+  SidebarProjectTree,
+} from './SidebarProjectTree';
+import type { SidebarProject } from './outliner/types';
+import type {
+  OutlinerWorkspace,
+  WorkspaceProjectMembership,
+} from './outliner/types';
 
-/** Sidebar-local alias for the membership map shape. */
-export type SidebarMembership = Map<string, Set<string>>;
+export type { WorkspaceProjectMembership } from './outliner/types';
 
 interface SidebarProps {
   /** All projects to render at the root of the tree. */
@@ -17,7 +22,7 @@ interface SidebarProps {
   /** Archived workspaces. */
   archivedWorkspaces?: OutlinerWorkspace[];
   /** local_workspace_id → set of project ids (for tree grouping). */
-  membership: SidebarMembership;
+  membership: WorkspaceProjectMembership;
   /** Workspace id whose destination the user is currently on, if any. */
   activeWorkspaceId: string | null;
   isLoadingProjects?: boolean;
@@ -63,7 +68,7 @@ export function Sidebar({
       className={cn(
         'flex h-full w-[256px] shrink-0 flex-col gap-2 overflow-hidden',
         'border-r border-border bg-secondary p-2',
-        className
+        className,
       )}
     >
       {/* Tauri drag strip — Windows/Linux only. On macOS the Navbar drag region
@@ -94,7 +99,7 @@ export function Sidebar({
               onClick={onUpdateClick}
               className={cn(
                 'flex items-center justify-center rounded-md px-2 py-1 text-xs',
-                'bg-brand text-on-brand hover:bg-brand-hover cursor-pointer transition-colors'
+                'bg-brand text-on-brand hover:bg-brand-hover cursor-pointer transition-colors',
               )}
             >
               Update
