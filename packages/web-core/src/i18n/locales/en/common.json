@@ -555,6 +555,8 @@
     "tasksSection": "Tasks",
     "tasksLoading": "Loading tasks…",
     "tasksEmpty": "No statuses yet",
+    "collapse": "Collapse",
+    "expand": "Expand",
     "unassigned": "Unassigned",
     "openProjectKanban": "Open project kanban",
     "createProject": "Create project",

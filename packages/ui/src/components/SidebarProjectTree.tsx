@@ -187,10 +187,11 @@ export function SidebarProjectTree({
   const openStateRef = useRef<Record<string, boolean>>(
     readSidebarTreeOpenState(liveProjectIds),
   );
-  // Mount-time snapshot of persisted open state. Status/card ids were unknown
-  // when initialOpenState was seeded, so we replay their stored-open values
-  // onto nodes as they lazily appear (restore effect below).
-  const mountOpenRef = useRef<Record<string, boolean>>(openStateRef.current);
+  // Snapshot of the PERSISTED open state used as the replay source for
+  // lazily-loaded status/card ids (their ids are unknown when initialOpenState
+  // was seeded). Frozen at mount, but refreshed when a new project appears
+  // mid-session (auto-open effect) so its stored-open values replay too.
+  const persistedOpenRef = useRef<Record<string, boolean>>(openStateRef.current);
   const appliedOpenRef = useRef<Set<string>>(new Set());
   const writeScheduled = useRef(false);
 
@@ -237,7 +238,7 @@ export function SidebarProjectTree({
       // New project appeared mid-session (e.g. created in another tab). Its
       // persisted status/card open-state lives in the blob but not in the
       // mount-time snapshot, so refresh the replay source to include it.
-      mountOpenRef.current = readSidebarTreeOpenState(currentProjectIds);
+      persistedOpenRef.current = readSidebarTreeOpenState(currentProjectIds);
       scheduleOpenStateWrite();
     }
   }, [projectKey, height, scheduleOpenStateWrite]);
@@ -253,7 +254,7 @@ export function SidebarProjectTree({
     const api = treeRef.current;
     if (!api) return;
     const ids = pendingOpenStatusCardIds(
-      mountOpenRef.current,
+      persistedOpenRef.current,
       appliedOpenRef.current,
       (id) => findTreeNodeById(treeData, id),
     );

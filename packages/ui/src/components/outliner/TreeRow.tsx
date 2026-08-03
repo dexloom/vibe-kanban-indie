@@ -1,5 +1,6 @@
 import { CaretRightIcon } from '@phosphor-icons/react';
 import type { CSSProperties, ReactNode, Ref } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { NodeApi } from 'react-arborist';
 import { cn } from '../../lib/cn';
 
@@ -34,6 +35,7 @@ export function TreeRow({
   rowClassName,
   children,
 }: TreeRowProps) {
+  const { t } = useTranslation('common');
   const hasCaret = showCaret ?? !node.isLeaf;
 
   return (
@@ -51,7 +53,7 @@ export function TreeRow({
       {hasCaret ? (
         <button
           type="button"
-          aria-label={node.isOpen ? 'Collapse' : 'Expand'}
+          aria-label={node.isOpen ? t('sidebar.collapse') : t('sidebar.expand')}
           aria-expanded={node.isOpen}
           onClick={(event) => {
             event.stopPropagation();

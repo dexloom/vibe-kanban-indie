@@ -75,7 +75,7 @@ describe('CardNodeRow', () => {
 
     const caret = container.querySelector('button') as HTMLButtonElement;
     expect(caret.getAttribute('aria-expanded')).toBe('true');
-    expect(caret.getAttribute('aria-label')).toBe('Collapse');
+    expect(caret.getAttribute('aria-label')).toBe('sidebar.collapse');
     fireEvent.click(caret);
 
     expect(toggle).toHaveBeenCalledTimes(1);
