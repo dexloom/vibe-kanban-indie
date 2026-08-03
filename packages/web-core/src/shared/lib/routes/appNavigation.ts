@@ -2,6 +2,7 @@ export type AppDestination =
   | { kind: 'root' }
   | { kind: 'onboarding' }
   | { kind: 'workspaces'; hostId?: string }
+  | { kind: 'chat' }
   | { kind: 'workspaces-create'; hostId?: string }
   | { kind: 'workspace'; workspaceId: string; hostId?: string }
   | { kind: 'workspace-vscode'; workspaceId: string; hostId?: string }
@@ -42,6 +43,7 @@ export interface AppNavigation {
   goToRoot(transition?: NavigationTransition): void;
   goToOnboarding(transition?: NavigationTransition): void;
   goToWorkspaces(transition?: NavigationTransition): void;
+  goToChat(transition?: NavigationTransition): void;
   goToWorkspacesCreate(transition?: NavigationTransition): void;
   goToWorkspace(workspaceId: string, transition?: NavigationTransition): void;
   goToWorkspaceVsCode(
@@ -163,6 +165,17 @@ export function isWorkspacesDestination(
   }
 }
 
+export function isWorkspacesDashboardDestination(
+  destination: AppDestination | null
+): boolean {
+  return destination?.kind === 'workspaces';
+}
+
+export function isWorkspaceChatDestination(
+  destination: AppDestination | null
+): boolean {
+  return destination?.kind === 'chat' || destination?.kind === 'workspace';
+}
 export function isLocalWorkspacesDestination(
   destination: AppDestination | null
 ): destination is WorkspaceDestination {

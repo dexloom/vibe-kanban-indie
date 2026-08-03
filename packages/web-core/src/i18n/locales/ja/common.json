@@ -135,7 +135,19 @@
       "cannotDeleteOpenPr": "PRがオープン中はブランチを削除できません",
       "unlinkFromIssueLabel": "イシューからもリンク解除する"
     },
-    "linkError": "Failed to link workspace"
+    "linkError": "Failed to link workspace",
+    "dashboard": {
+      "title": "ワークスペース",
+      "sectionNeedsAttention": "要対応",
+      "sectionRunning": "実行中",
+      "sectionRecentlyActive": "最近のアクティブ",
+      "sectionArchived": "アーカイブ済み",
+      "emptyNeedsAttention": "対応が必要なものはありません。",
+      "emptyRunning": "実行中のワークスペースはありません。",
+      "emptyRecentlyActive": "最近のアクティビティはありません。",
+      "emptyArchived": "アーカイブ済みのワークスペースはありません。",
+      "summary": "{{active}} アクティブ · {{archived}} アーカイブ済み · {{running}} 実行中 · {{attention}} 要対応"
+    }
   },
   "fileTree": {
     "searchPlaceholder": "ファイルを検索...",
@@ -523,5 +535,13 @@
     "cancel": "キャンセル",
     "parentHint": "親: {{id}}",
     "errorCreateFailed": "課題を作成できませんでした。もう一度お試しください。"
+  },
+  "appBar": {
+    "chat": "チャット",
+    "workspaces": "ワークスペース",
+    "badges": {
+      "running": "{{count}} 実行中",
+      "needsAttention": "{{count}} 要対応"
+    }
   }
 }

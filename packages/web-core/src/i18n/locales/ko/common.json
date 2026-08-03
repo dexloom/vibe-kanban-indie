@@ -135,7 +135,19 @@
       "cannotDeleteOpenPr": "PR이 열려 있는 동안에는 브랜치를 삭제할 수 없습니다",
       "unlinkFromIssueLabel": "이슈에서도 연결 해제"
     },
-    "linkError": "Failed to link workspace"
+    "linkError": "Failed to link workspace",
+    "dashboard": {
+      "title": "워크스페이스",
+      "sectionNeedsAttention": "주의 필요",
+      "sectionRunning": "실행 중",
+      "sectionRecentlyActive": "최근 활동",
+      "sectionArchived": "보관됨",
+      "emptyNeedsAttention": "주의가 필요한 항목이 없습니다.",
+      "emptyRunning": "실행 중인 워크스페이스가 없습니다.",
+      "emptyRecentlyActive": "최근 활동이 없습니다.",
+      "emptyArchived": "보관된 워크스페이스가 없습니다.",
+      "summary": "{{active}} 활성 · {{archived}} 보관됨 · {{running}} 실행 중 · {{attention}} 주의 필요"
+    }
   },
   "fileTree": {
     "searchPlaceholder": "파일 검색...",
@@ -523,5 +535,13 @@
     "cancel": "취소",
     "parentHint": "상위: {{id}}",
     "errorCreateFailed": "이슈를 만들지 못했습니다. 다시 시도해 주세요."
+  },
+  "appBar": {
+    "chat": "채팅",
+    "workspaces": "워크스페이스",
+    "badges": {
+      "running": "{{count}} 실행 중",
+      "needsAttention": "{{count}} 주의 필요"
+    }
   }
 }

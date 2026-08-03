@@ -6,6 +6,7 @@ import {
   PlusIcon,
   LayoutIcon,
   KanbanIcon,
+  ChatCircleIcon,
   ClockClockwiseIcon,
 } from '@phosphor-icons/react';
 import { SyncErrorProvider } from '@/shared/providers/SyncErrorProvider';
@@ -13,6 +14,7 @@ import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import { useUiPreferencesStore } from '@/shared/stores/useUiPreferencesStore';
 import { cn } from '@/shared/lib/utils';
 import { isTauriMac } from '@/shared/lib/platform';
+import { useTranslation } from 'react-i18next';
 
 import { NavbarContainer } from './NavbarContainer';
 import { AppBar, type AppBarHostStatus } from '@vibe/ui/components/AppBar';
@@ -28,8 +30,12 @@ import { useCurrentAppDestination } from '@/shared/hooks/useCurrentAppDestinatio
 import {
   getDestinationHostId,
   getProjectDestination,
-  isLocalWorkspacesDestination,
+  isWorkspacesDashboardDestination,
+  isWorkspaceChatDestination,
 } from '@/shared/lib/routes/appNavigation';
+import { computeWorkspaceBadgeCounts } from '@/shared/lib/workspaceStatus/workspaceStatus';
+import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
+import type { AppBarBadge } from '@vibe/ui/components/AppBar';
 import {
   CreateRemoteProjectDialog,
   type CreateRemoteProjectResult,
@@ -49,6 +55,7 @@ import { WorkspacesSidebarContainer } from '@/pages/workspaces/WorkspacesSidebar
 import { WorkspacesSidebarReopenTag } from '@vibe/ui/components/WorkspacesSidebar';
 
 export function SharedAppLayout() {
+  const { t } = useTranslation('common');
   const appNavigation = useAppNavigation();
   const currentDestination = useCurrentAppDestination();
   const isMobile = useIsMobile();
@@ -161,10 +168,40 @@ export function SharedAppLayout() {
     () => getProjectDestination(currentDestination),
     [currentDestination]
   );
-  const isWorkspacesActive = isLocalWorkspacesDestination(currentDestination);
+  const isWorkspacesDashboardActive = isWorkspacesDashboardDestination(
+    currentDestination
+  );
+  const isChatActive = isWorkspaceChatDestination(currentDestination);
   const isCommonTasksActive = currentDestination?.kind === 'common-tasks';
   const isWorkspaceSidebarPreviewEnabled =
-    !isMobile && isWorkspacesActive && !isLeftSidebarVisible;
+    !isMobile && isChatActive && !isLeftSidebarVisible;
+  const { activeWorkspaces } = useWorkspaceContext();
+  const badgeCounts = useMemo(
+    () => computeWorkspaceBadgeCounts(activeWorkspaces),
+    [activeWorkspaces]
+  );
+  const workspacesBadges = useMemo<AppBarBadge[] | undefined>(() => {
+    if (badgeCounts.runningCount <= 0) return undefined;
+    return [
+      {
+        tone: 'success',
+        count: badgeCounts.runningCount,
+        label: t('appBar.badges.running', { count: badgeCounts.runningCount }),
+      },
+    ];
+  }, [badgeCounts.runningCount, t]);
+  const chatBadges = useMemo<AppBarBadge[] | undefined>(() => {
+    if (badgeCounts.needsAttentionCount <= 0) return undefined;
+    return [
+      {
+        tone: 'danger',
+        count: badgeCounts.needsAttentionCount,
+        label: t('appBar.badges.needsAttention', {
+          count: badgeCounts.needsAttentionCount,
+        }),
+      },
+    ];
+  }, [badgeCounts.needsAttentionCount, t]);
   const activeProjectId = projectDestination?.projectId ?? null;
   const activeHostId =
     getDestinationHostId(currentDestination) ?? routeHostId ?? null;
@@ -186,6 +223,10 @@ export function SharedAppLayout() {
   const handleWorkspacesClick = useCallback(() => {
     void navigate({ to: '/workspaces' });
   }, [navigate]);
+
+  const handleChatClick = useCallback(() => {
+    void appNavigation.goToChat();
+  }, [appNavigation]);
 
   const handleCommonTasksClick = useCallback(() => {
     appNavigation.goToCommonTasks();
@@ -297,11 +338,15 @@ export function SharedAppLayout() {
               onCreateProject={handleCreateProject}
               onCommonTasksClick={handleCommonTasksClick}
               onWorkspacesClick={handleWorkspacesClick}
+              onChatClick={handleChatClick}
               onHostClick={handleHostClick}
               onProjectClick={handleProjectClick}
               onProjectsDragEnd={handleProjectsDragEnd}
               isSavingProjectOrder={isSavingProjectOrder}
-              isWorkspacesActive={isWorkspacesActive}
+              isWorkspacesActive={isWorkspacesDashboardActive}
+              isChatActive={isChatActive}
+              workspacesBadges={workspacesBadges}
+              chatBadges={chatBadges}
               isCommonTasksActive={isCommonTasksActive}
               activeProjectId={activeProjectId}
               isSignedIn={isSignedIn}
@@ -400,6 +445,19 @@ export function SharedAppLayout() {
             >
               <LayoutIcon className="h-4 w-4" />
               Workspaces
+            </button>
+
+            {/* Chat link */}
+            <button
+              type="button"
+              onClick={() => {
+                handleChatClick();
+                setIsDrawerOpen(false);
+              }}
+              className="flex items-center gap-2 px-4 py-3 text-sm text-normal hover:bg-secondary cursor-pointer"
+            >
+              <ChatCircleIcon className="h-4 w-4" />
+              Chat
             </button>
 
             {/* Common Tasks link */}

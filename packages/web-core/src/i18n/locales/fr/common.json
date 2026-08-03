@@ -135,7 +135,19 @@
       "cannotDeleteOpenPr": "Impossible de supprimer la branche tant que la PR est ouverte",
       "unlinkFromIssueLabel": "Également dissocier du ticket"
     },
-    "linkError": "Failed to link workspace"
+    "linkError": "Failed to link workspace",
+    "dashboard": {
+      "title": "Espaces de travail",
+      "sectionNeedsAttention": "Nécessite attention",
+      "sectionRunning": "En cours",
+      "sectionRecentlyActive": "Récents actifs",
+      "sectionArchived": "Archivés",
+      "emptyNeedsAttention": "Rien ne nécessite votre attention.",
+      "emptyRunning": "Aucun espace de travail en cours.",
+      "emptyRecentlyActive": "Aucune activité récente.",
+      "emptyArchived": "Aucun espace de travail archivé.",
+      "summary": "{{active}} actifs · {{archived}} archivés · {{running}} en cours · {{attention}} nécessitent attention"
+    }
   },
   "fileTree": {
     "searchPlaceholder": "Rechercher des fichiers...",
@@ -524,5 +536,13 @@
     "cancel": "Annuler",
     "parentHint": "Parent : {{id}}",
     "errorCreateFailed": "Échec de la création du ticket. Veuillez réessayer."
+  },
+  "appBar": {
+    "chat": "Chat",
+    "workspaces": "Espaces de travail",
+    "badges": {
+      "running": "{{count}} en cours",
+      "needsAttention": "{{count}} nécessitent attention"
+    }
   }
 }

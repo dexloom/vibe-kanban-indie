@@ -141,6 +141,18 @@
       "deleteBranchLabel": "Delete branch",
       "cannotDeleteOpenPr": "Cannot delete branch while PR is open",
       "unlinkFromIssueLabel": "Also unlink from issue"
+    },
+    "dashboard": {
+      "title": "Workspaces",
+      "sectionNeedsAttention": "Needs Attention",
+      "sectionRunning": "Running",
+      "sectionRecentlyActive": "Recently Active",
+      "sectionArchived": "Archived",
+      "emptyNeedsAttention": "Nothing needs your attention.",
+      "emptyRunning": "No workspaces running.",
+      "emptyRecentlyActive": "No recent activity.",
+      "emptyArchived": "No archived workspaces.",
+      "summary": "{{active}} active · {{archived}} archived · {{running}} running · {{attention}} need attention"
     }
   },
   "fileTree": {
@@ -527,5 +539,13 @@
     "cancel": "Cancel",
     "parentHint": "Parent: {{id}}",
     "errorCreateFailed": "Failed to create the issue. Please try again."
+  },
+  "appBar": {
+    "chat": "Chat",
+    "workspaces": "Workspaces",
+    "badges": {
+      "running": "{{count}} running",
+      "needsAttention": "{{count}} need attention"
+    }
   }
 }

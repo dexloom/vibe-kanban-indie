@@ -135,7 +135,19 @@
       "cannotDeleteOpenPr": "PR 開啟時無法刪除分支",
       "unlinkFromIssueLabel": "同時取消與議題的關聯"
     },
-    "linkError": "Failed to link workspace"
+    "linkError": "Failed to link workspace",
+    "dashboard": {
+      "title": "工作區",
+      "sectionNeedsAttention": "需要注意",
+      "sectionRunning": "執行中",
+      "sectionRecentlyActive": "最近活躍",
+      "sectionArchived": "已封存",
+      "emptyNeedsAttention": "暫無需要注意的內容。",
+      "emptyRunning": "沒有執行中的工作區。",
+      "emptyRecentlyActive": "暫無近期活動。",
+      "emptyArchived": "沒有已封存的工作區。",
+      "summary": "{{active}} 活躍 · {{archived}} 已封存 · {{running}} 執行中 · {{attention}} 需要注意"
+    }
   },
   "fileTree": {
     "searchPlaceholder": "搜尋檔案...",
@@ -524,5 +536,13 @@
     "cancel": "取消",
     "parentHint": "父議題：{{id}}",
     "errorCreateFailed": "建立議題失敗，請重試。"
+  },
+  "appBar": {
+    "chat": "聊天",
+    "workspaces": "工作區",
+    "badges": {
+      "running": "{{count}} 執行中",
+      "needsAttention": "{{count}} 需要注意"
+    }
   }
 }

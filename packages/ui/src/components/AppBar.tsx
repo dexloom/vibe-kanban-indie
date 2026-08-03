@@ -4,9 +4,10 @@ import {
   Droppable,
   type DropResult,
 } from '@hello-pangea/dnd';
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import {
   LayoutIcon,
+  ChatCircleIcon,
   ClockClockwiseIcon,
   LinkIcon,
   PlusIcon,
@@ -27,6 +28,14 @@ function getProjectInitials(name: string): string {
   return trimmed.slice(0, 2).toUpperCase();
 }
 
+export type AppBarBadgeTone = 'success' | 'danger' | 'brand';
+
+export interface AppBarBadge {
+  tone: AppBarBadgeTone;
+  count: number;
+  label: string;
+}
+
 interface AppBarProps {
   projects: AppBarProject[];
   hosts?: AppBarHost[];
@@ -35,12 +44,16 @@ interface AppBarProps {
   onCreateProject: () => void;
   onCommonTasksClick?: () => void;
   onWorkspacesClick: () => void;
+  onChatClick?: () => void;
   onHostClick?: (hostId: string, status: AppBarHostStatus) => void;
   showWorkspacesButton?: boolean;
   onProjectClick: (projectId: string) => void;
   onProjectsDragEnd: (result: DropResult) => void;
   isSavingProjectOrder?: boolean;
   isWorkspacesActive: boolean;
+  isChatActive?: boolean;
+  workspacesBadges?: AppBarBadge[];
+  chatBadges?: AppBarBadge[];
   isCommonTasksActive?: boolean;
   activeProjectId: string | null;
   isSignedIn?: boolean;
@@ -80,9 +93,20 @@ function getHostStatusIndicatorClass(status: AppBarHostStatus): string {
   return 'bg-white border-warning';
 }
 
+function getBadgeToneClassName(tone: AppBarBadgeTone): string {
+  switch (tone) {
+    case 'success':
+      return 'bg-success';
+    case 'danger':
+      return 'bg-error';
+    case 'brand':
+      return 'bg-brand';
+  }
+}
+
 function AppBarSectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="w-full text-center text-micro font-medium leading-none tracking-wide text-low">
+    <p className="w-full text-center text-xs font-medium leading-none tracking-wide text-low">
       {children}
     </p>
   );
@@ -112,6 +136,7 @@ type AppBarSection = {
   key: 'local' | 'remote' | 'projects' | 'export' | 'common-tasks';
   label: string;
   items: AppBarSectionItem[];
+  dividerAfter?: boolean;
 };
 
 type AppBarSectionItem =
@@ -124,6 +149,7 @@ type AppBarSectionItem =
       onClick?: () => void;
       className?: string;
       wrapperClassName?: string;
+      badges?: AppBarBadge[];
     }
   | {
       key: string;
@@ -193,12 +219,16 @@ export function AppBar({
   onCreateProject,
   onCommonTasksClick,
   onWorkspacesClick,
+  onChatClick,
   onHostClick,
   showWorkspacesButton = true,
   onProjectClick,
   onProjectsDragEnd,
   isSavingProjectOrder,
   isWorkspacesActive,
+  isChatActive = false,
+  workspacesBadges,
+  chatBadges,
   isCommonTasksActive = false,
   activeProjectId,
   isSignedIn,
@@ -213,18 +243,67 @@ export function AppBar({
 }: AppBarProps) {
   const sections: AppBarSection[] = [];
 
+  const projectSectionItems: AppBarSectionItem[] = [];
+
+  if (isLoadingProjects) {
+    projectSectionItems.push({ key: 'projects-loading', kind: 'loading' });
+  }
+
+  if (projects.length > 0) {
+    projectSectionItems.push({
+      key: 'project-list',
+      kind: 'project-list',
+      projects,
+      activeProjectId,
+      isSavingProjectOrder,
+      onProjectClick,
+      onProjectsDragEnd,
+    });
+  }
+
+  if (isSignedIn) {
+    projectSectionItems.push({
+      key: 'create-project',
+      kind: 'icon-button',
+      label: 'Create project',
+      icon: PlusIcon,
+      onClick: onCreateProject,
+      className: 'bg-primary text-muted hover:text-normal hover:bg-surface',
+      wrapperClassName: 'pt-base',
+    });
+  }
+
+  if (projectSectionItems.length > 0) {
+    sections.push({
+      key: 'projects',
+      label: 'Projects',
+      items: projectSectionItems,
+      dividerAfter: true,
+    });
+  }
+
   if (showWorkspacesButton) {
     sections.push({
       key: 'local',
-      label: 'Local',
+      label: 'Chat',
       items: [
         {
           key: 'local-workspaces',
           kind: 'icon-button',
-          label: 'Local workspaces',
+          label: 'Workspaces',
           icon: LayoutIcon,
           isActive: isWorkspacesActive,
           onClick: onWorkspacesClick,
+          badges: workspacesBadges,
+        },
+        {
+          key: 'local-chat',
+          kind: 'icon-button',
+          label: 'Chat',
+          icon: ChatCircleIcon,
+          isActive: isChatActive,
+          onClick: onChatClick,
+          badges: chatBadges,
         },
       ],
     });
@@ -282,44 +361,6 @@ export function AppBar({
     });
   }
 
-  const projectSectionItems: AppBarSectionItem[] = [];
-
-  if (isLoadingProjects) {
-    projectSectionItems.push({ key: 'projects-loading', kind: 'loading' });
-  }
-
-  if (projects.length > 0) {
-    projectSectionItems.push({
-      key: 'project-list',
-      kind: 'project-list',
-      projects,
-      activeProjectId,
-      isSavingProjectOrder,
-      onProjectClick,
-      onProjectsDragEnd,
-    });
-  }
-
-  if (isSignedIn) {
-    projectSectionItems.push({
-      key: 'create-project',
-      kind: 'icon-button',
-      label: 'Create project',
-      icon: PlusIcon,
-      onClick: onCreateProject,
-      className: 'bg-primary text-muted hover:text-normal hover:bg-surface',
-      wrapperClassName: 'pt-base',
-    });
-  }
-
-  if (projectSectionItems.length > 0) {
-    sections.push({
-      key: 'projects',
-      label: 'Projects',
-      items: projectSectionItems,
-    });
-  }
-
   function renderSectionItem(item: AppBarSectionItem): ReactNode {
     switch (item.kind) {
       case 'icon-button':
@@ -328,13 +369,39 @@ export function AppBar({
             <button
               type="button"
               onClick={item.onClick}
-              className={getStandardAppBarButtonClassName({
-                isActive: item.isActive,
-                className: item.className,
-              })}
-              aria-label={item.label}
+              className={cn(
+                getStandardAppBarButtonClassName({
+                  isActive: item.isActive,
+                  className: item.className,
+                }),
+                'relative'
+              )}
+              aria-label={
+                item.badges?.length
+                  ? `${item.label} (${item.badges.map((b) => b.label).join(', ')})`
+                  : item.label
+              }
             >
               <item.icon className="size-icon-base" weight="bold" />
+              {item.badges && item.badges.some((b) => b.count > 0) && (
+                <span className="absolute -top-2 -right-1 z-10 flex gap-0.5">
+                  {item.badges
+                    .filter((b) => b.count > 0)
+                    .map((b, i) => (
+                      <span
+                        key={i}
+                        className={cn(
+                          'min-w-[18px] h-[18px] px-1 rounded-full',
+                          'text-2xs font-medium text-white border border-secondary',
+                          'flex items-center justify-center',
+                          getBadgeToneClassName(b.tone)
+                        )}
+                      >
+                        {b.count}
+                      </span>
+                    ))}
+                </span>
+              )}
             </button>
           </Tooltip>
         );
@@ -455,18 +522,23 @@ export function AppBar({
       )}
     >
       {sections.map((section) => (
-        <AppBarSection key={section.key} label={section.label}>
-          {section.items.map((item) => (
-            <div
-              key={item.key}
-              className={
-                'wrapperClassName' in item ? item.wrapperClassName : undefined
-              }
-            >
-              {renderSectionItem(item)}
-            </div>
-          ))}
-        </AppBarSection>
+        <Fragment key={section.key}>
+          <AppBarSection label={section.label}>
+            {section.items.map((item) => (
+              <div
+                key={item.key}
+                className={
+                  'wrapperClassName' in item ? item.wrapperClassName : undefined
+                }
+              >
+                {renderSectionItem(item)}
+              </div>
+            ))}
+          </AppBarSection>
+          {section.dividerAfter && (
+            <div className="h-px w-8 bg-border my-1" aria-hidden="true" />
+          )}
+        </Fragment>
       ))}
 
       {/* Bottom section: Notifications + User popover */}

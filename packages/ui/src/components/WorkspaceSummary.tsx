@@ -1,18 +1,12 @@
 import {
-  PushPinIcon,
-  HandIcon,
-  TriangleIcon,
-  PlayIcon,
   FileIcon,
-  CircleIcon,
-  GitPullRequestIcon,
   DotsThreeIcon,
   RobotIcon,
 } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import type { WorkspaceKind } from 'shared/types';
 import { cn } from '../lib/cn';
-import { RunningDots } from './RunningDots';
+import { WorkspaceStatusIcons } from './WorkspaceStatusIcons';
 
 const formatRelativeElapsed = (dateString: string): string => {
   const date = new Date(dateString);
@@ -78,8 +72,6 @@ export function WorkspaceSummary({
 }: WorkspaceSummaryProps) {
   const { t } = useTranslation('common');
   const hasChanges = filesChanged !== undefined && filesChanged > 0;
-  const isFailed =
-    latestProcessStatus === 'failed' || latestProcessStatus === 'killed';
 
   const handleOpenCommandBar = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -134,62 +126,16 @@ export function WorkspaceSummary({
         </div>
         {(!summary || isActive) && (
           <div className="flex w-full items-center gap-base text-sm h-5">
-            {/* Dev server running - leftmost */}
-            {hasRunningDevServer && (
-              <PlayIcon
-                className="size-icon-xs text-brand shrink-0"
-                weight="fill"
-              />
-            )}
-
-            {/* Failed/killed status (only when not running) */}
-            {!isRunning && isFailed && (
-              <TriangleIcon
-                className="size-icon-xs text-error shrink-0"
-                weight="fill"
-              />
-            )}
-
-            {/* Running dots OR hand icon for pending approval */}
-            {isRunning &&
-              (hasPendingApproval ? (
-                <HandIcon
-                  className="size-icon-xs text-brand shrink-0"
-                  weight="fill"
-                />
-              ) : (
-                <RunningDots />
-              ))}
-
-            {/* Unseen activity indicator (only when not running and not failed) */}
-            {hasUnseenActivity && !isRunning && !isFailed && (
-              <CircleIcon
-                className="size-icon-xs text-brand shrink-0"
-                weight="fill"
-              />
-            )}
-
-            {/* PR status icon */}
-            {prStatus === 'open' && (
-              <GitPullRequestIcon
-                className="size-icon-xs text-success shrink-0"
-                weight="fill"
-              />
-            )}
-            {prStatus === 'merged' && (
-              <GitPullRequestIcon
-                className="size-icon-xs text-merged shrink-0"
-                weight="fill"
-              />
-            )}
-
-            {/* Pin icon */}
-            {isPinned && (
-              <PushPinIcon
-                className="size-icon-xs text-brand shrink-0"
-                weight="fill"
-              />
-            )}
+            <WorkspaceStatusIcons
+              isRunning={isRunning}
+              isPinned={isPinned}
+              hasPendingApproval={hasPendingApproval}
+              hasRunningDevServer={hasRunningDevServer}
+              hasUnseenActivity={hasUnseenActivity}
+              latestProcessStatus={latestProcessStatus}
+              prStatus={prStatus}
+              size="compact"
+            />
 
             {/* Time elapsed OR "Draft" label (when not running) */}
             {!isRunning &&

@@ -135,7 +135,19 @@
       "cannotDeleteOpenPr": "No se puede eliminar la rama mientras el PR está abierto",
       "unlinkFromIssueLabel": "También desvincular del issue"
     },
-    "linkError": "Failed to link workspace"
+    "linkError": "Failed to link workspace",
+    "dashboard": {
+      "title": "Espacios de trabajo",
+      "sectionNeedsAttention": "Necesita atención",
+      "sectionRunning": "En ejecución",
+      "sectionRecentlyActive": "Activos recientemente",
+      "sectionArchived": "Archivados",
+      "emptyNeedsAttention": "Nada necesita tu atención.",
+      "emptyRunning": "No hay espacios de trabajo en ejecución.",
+      "emptyRecentlyActive": "Sin actividad reciente.",
+      "emptyArchived": "No hay espacios de trabajo archivados.",
+      "summary": "{{active}} activos · {{archived}} archivados · {{running}} en ejecución · {{attention}} necesitan atención"
+    }
   },
   "fileTree": {
     "searchPlaceholder": "Buscar archivos...",
@@ -523,5 +535,13 @@
     "cancel": "Cancelar",
     "parentHint": "Padre: {{id}}",
     "errorCreateFailed": "No se pudo crear la incidencia. Inténtalo de nuevo."
+  },
+  "appBar": {
+    "chat": "Chat",
+    "workspaces": "Espacios de trabajo",
+    "badges": {
+      "running": "{{count}} en ejecución",
+      "needsAttention": "{{count}} necesitan atención"
+    }
   }
 }

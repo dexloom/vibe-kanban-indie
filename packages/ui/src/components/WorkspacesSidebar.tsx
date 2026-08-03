@@ -11,6 +11,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import type { WorkspaceKind } from 'shared/types';
 import { cn } from '../lib/cn';
+import { isWorkspaceNeedsAttention } from '../lib/workspaceStatus';
 import { InputField } from './InputField';
 import { WorkspaceSummary } from './WorkspaceSummary';
 import type { AppBarHostStatus } from './AppBar';
@@ -229,7 +230,7 @@ export function WorkspacesSidebar({
     useMemo(() => {
       // Running workspaces should stay in the "Running" section even if unseen.
       const needsAttention = (ws: WorkspacesSidebarWorkspace) =>
-        ws.hasPendingApproval || (ws.hasUnseenActivity && !ws.isRunning);
+        isWorkspaceNeedsAttention(ws);
 
       return {
         raisedHandWorkspaces: workspaces.filter((ws) => needsAttention(ws)),

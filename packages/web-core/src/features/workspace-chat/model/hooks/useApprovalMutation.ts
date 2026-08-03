@@ -1,5 +1,6 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { approvalsApi } from '@/shared/lib/api';
+import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
 import type { QuestionAnswer } from 'shared/types';
 
 interface ApproveParams {
@@ -16,6 +17,10 @@ interface AnswerParams extends ApproveParams {
 }
 
 export function useApprovalMutation() {
+  const queryClient = useQueryClient();
+  const invalidateSummaries = () =>
+    queryClient.invalidateQueries({ queryKey: workspaceSummaryKeys.all });
+
   const approveMutation = useMutation({
     mutationFn: ({ approvalId, executionProcessId }: ApproveParams) =>
       approvalsApi.respond(approvalId, {
@@ -25,6 +30,7 @@ export function useApprovalMutation() {
     onError: (err) => {
       console.error('Failed to approve:', err);
     },
+    onSettled: invalidateSummaries,
   });
 
   const denyMutation = useMutation({
@@ -39,6 +45,7 @@ export function useApprovalMutation() {
     onError: (err) => {
       console.error('Failed to deny:', err);
     },
+    onSettled: invalidateSummaries,
   });
 
   const answerMutation = useMutation({
@@ -50,6 +57,7 @@ export function useApprovalMutation() {
     onError: (err) => {
       console.error('Failed to answer:', err);
     },
+    onSettled: invalidateSummaries,
   });
 
   return {
