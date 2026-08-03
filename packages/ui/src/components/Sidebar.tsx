@@ -6,6 +6,7 @@ import { SidebarBucketBar } from './SidebarBucketBar';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
 import { SidebarSeparator } from './SidebarSeparator';
 import { SidebarProjectTree } from './SidebarProjectTree';
+import type { ProjectTasksData } from './outliner/types';
 import type { SidebarProject } from './outliner/types';
 import type {
   OutlinerWorkspace,
@@ -27,6 +28,11 @@ interface SidebarProps {
   membership: WorkspaceProjectMembership;
   /** Workspace id whose destination the user is currently on, if any. */
   activeWorkspaceId: string | null;
+  tasksByProject?: ReadonlyMap<string, ProjectTasksData>;
+  loadingTasksProjectIds?: ReadonlySet<string>;
+  activeIssueId?: string | null;
+  onTasksExpansionChange?: (projectId: string, isOpen: boolean) => void;
+  onSelectIssue?: (projectId: string, issueId: string) => void;
   isLoadingProjects?: boolean;
   isLoadingWorkspaces?: boolean;
   /** Called after the user successfully reorders projects. */
@@ -49,6 +55,11 @@ export function Sidebar({
   archivedWorkspaces = [],
   membership,
   activeWorkspaceId,
+  tasksByProject,
+  loadingTasksProjectIds,
+  activeIssueId,
+  onTasksExpansionChange,
+  onSelectIssue,
   isLoadingProjects,
   isLoadingWorkspaces,
   onProjectsReorder,
@@ -90,6 +101,11 @@ export function Sidebar({
         archivedWorkspaces={archivedWorkspaces}
         membership={membership}
         activeWorkspaceId={activeWorkspaceId}
+        tasksByProject={tasksByProject}
+        loadingTasksProjectIds={loadingTasksProjectIds}
+        activeIssueId={activeIssueId}
+        onTasksExpansionChange={onTasksExpansionChange}
+        onSelectIssue={onSelectIssue}
         isLoading={isLoadingProjects || isLoadingWorkspaces}
         onSelectWorkspace={onSelectWorkspace}
         onSelectProject={onSelectProject}

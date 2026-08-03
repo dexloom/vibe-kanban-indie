@@ -3,14 +3,19 @@ import { ArrowSquareOutIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/cn';
 import { OutlinerBucketNode } from './BucketNode';
+import { CardNodeRow } from './CardNodeRow';
 import { OutlinerLeafNode } from './LeafNode';
+import { StatusNodeRow } from './StatusNodeRow';
+import { TasksSectionNode } from './TasksSectionNode';
 import { TreeCaretRow } from './TreeCaretRow';
 import type {
   BucketNode,
+  CardNode,
   LeafNode,
   ProjectNode,
   SectionNode,
   SidebarTreeNode,
+  StatusNode,
   TreeNodeRenderProps,
 } from './types';
 import { UNASSIGNED_PROJECT_ID } from './types';
@@ -94,7 +99,9 @@ function ProjectTreeNode(
   );
 }
 
-function SectionTreeNode(props: TreeNodeRenderProps<SectionNode>) {
+function SectionTreeNode(
+  props: TreeNodeRenderProps<Extract<SectionNode, { kind: 'workspaces' }>>,
+) {
   const { node, style, dragHandle } = props;
   return (
     <TreeCaretRow
@@ -113,6 +120,8 @@ export function TreeNodeRouter(
     onSelectProject: (id: string) => void;
     activeProjectId: string | null;
     activeWorkspaceId: string | null;
+    onSelectIssue?: (projectId: string, issueId: string) => void;
+    activeIssueId?: string | null;
   },
 ) {
   const {
@@ -122,6 +131,7 @@ export function TreeNodeRouter(
     onSelectProject,
     activeProjectId,
     activeWorkspaceId,
+    activeIssueId,
   } = props;
   switch (node.data.type) {
     case 'project':
@@ -135,9 +145,15 @@ export function TreeNodeRouter(
         />
       );
     case 'section':
-      return (
+      return node.data.kind === 'tasks' ? (
+        <TasksSectionNode
+          node={node as NodeApi<Extract<SectionNode, { kind: 'tasks' }>>}
+          style={style}
+          dragHandle={dragHandle}
+        />
+      ) : (
         <SectionTreeNode
-          node={node as NodeApi<SectionNode>}
+          node={node as NodeApi<Extract<SectionNode, { kind: 'workspaces' }>>}
           style={style}
           dragHandle={dragHandle}
         />
@@ -157,6 +173,23 @@ export function TreeNodeRouter(
           style={style}
           dragHandle={dragHandle}
           activeWorkspaceId={activeWorkspaceId}
+        />
+      );
+    case 'status':
+      return (
+        <StatusNodeRow
+          node={node as NodeApi<StatusNode>}
+          style={style}
+          dragHandle={dragHandle}
+        />
+      );
+    case 'card':
+      return (
+        <CardNodeRow
+          node={node as NodeApi<CardNode>}
+          style={style}
+          dragHandle={dragHandle}
+          activeIssueId={activeIssueId}
         />
       );
   }

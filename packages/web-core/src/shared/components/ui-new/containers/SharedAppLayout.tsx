@@ -10,12 +10,15 @@ import { NavbarContainer } from './NavbarContainer';
 import { Sidebar } from '@vibe/ui/components/Sidebar';
 import { MobileDrawer } from '@vibe/ui/components/MobileDrawer';
 import { SidebarBottomActions } from './SidebarBottomActions';
+import { SidebarProjectTasksRegistry } from '@/shared/components/sidebar/SidebarProjectTasksRegistry';
 import { useUserOrganizations } from '@/shared/hooks/useUserOrganizations';
 import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
 
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentAppDestination } from '@/shared/hooks/useCurrentAppDestination';
+import { useCurrentKanbanRouteState } from '@/shared/hooks/useCurrentKanbanRouteState';
+import type { ProjectTasksData } from '@vibe/ui/components/outliner/types';
 import { getProjectDestination } from '@/shared/lib/routes/appNavigation';
 import { CommandBarDialog } from '@/shared/dialogs/command-bar/CommandBarDialog';
 import {
@@ -35,10 +38,12 @@ import { useWorkspaceProjectMembership } from '@/shared/hooks/useWorkspaceProjec
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import type { SidebarWorkspace } from '@/shared/hooks/useWorkspaces';
 import type { OutlinerWorkspace } from '@vibe/ui/components/outliner/types';
+import { readOpenTasksProjectIds } from '@vibe/ui/components/outliner/types';
 
 export function SharedAppLayout() {
   const appNavigation = useAppNavigation();
   const currentDestination = useCurrentAppDestination();
+  const { issueId: activeIssueId } = useCurrentKanbanRouteState();
   const isMobile = useIsMobile();
   const mobileFontScale = useUiPreferencesStore((s) => s.mobileFontScale);
   const { isSignedIn } = useAuth();
@@ -105,6 +110,18 @@ export function SharedAppLayout() {
   const [orderedProjects, setOrderedProjects] =
     useState<RemoteProject[]>(sortedProjects);
   const [isSavingProjectOrder, setIsSavingProjectOrder] = useState(false);
+  // Hydrate the "Tasks open" gate from the persisted open-state blob so a
+  // Tasks section left open survives a reload (otherwise the section renders
+  // open from initialOpenState but the registry never enables its loader).
+  const [openTasksProjectIds, setOpenTasksProjectIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set(readOpenTasksProjectIds()));
+  const [tasksByProject, setTasksByProject] = useState<
+    ReadonlyMap<string, ProjectTasksData>
+  >(() => new Map());
+  const [loadingTasksProjectIds, setLoadingTasksProjectIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
 
   useEffect(() => {
     if (isSavingProjectOrder) {
@@ -129,6 +146,32 @@ export function SharedAppLayout() {
       setSelectedProjectId(activeProjectId);
     }
   }, [activeProjectId, setSelectedProjectId]);
+
+  const handleTasksByProject = useCallback(
+    (map: ReadonlyMap<string, ProjectTasksData>) => setTasksByProject(map),
+    []
+  );
+  const handleLoadingTasks = useCallback(
+    (projectIds: ReadonlySet<string>) => setLoadingTasksProjectIds(projectIds),
+    []
+  );
+  const handleTasksExpansionChange = useCallback(
+    (projectId: string, isOpen: boolean) => {
+      setOpenTasksProjectIds((previous) => {
+        const next = new Set(previous);
+        if (isOpen) next.add(projectId);
+        else next.delete(projectId);
+        return next;
+      });
+    },
+    []
+  );
+  const handleSelectIssue = useCallback(
+    (projectId: string, issueId: string) => {
+      appNavigation.goToProjectIssue(projectId, issueId);
+    },
+    [appNavigation]
+  );
 
   const handleProjectClick = useCallback(
     (projectId: string) => {
@@ -218,6 +261,10 @@ export function SharedAppLayout() {
       orderedProjects.map((p) => ({ id: p.id, name: p.name, color: p.color })),
     [orderedProjects]
   );
+  const realProjectIds = useMemo(
+    () => sidebarProjects.map((project) => project.id),
+    [sidebarProjects]
+  );
 
   // Single mapper used by both active and archived OutlinerWorkspace memos.
   // SidebarWorkspace is the union element type for both source arrays.
@@ -251,6 +298,12 @@ export function SharedAppLayout() {
 
   return (
     <SyncErrorProvider>
+      <SidebarProjectTasksRegistry
+        projectIds={realProjectIds}
+        openTasksProjectIds={openTasksProjectIds}
+        onTasksByProject={handleTasksByProject}
+        onLoadingTasksProjectIds={handleLoadingTasks}
+      />
       <div
         className={cn(
           'bg-primary',
@@ -268,6 +321,11 @@ export function SharedAppLayout() {
               projects={sidebarProjects}
               activeProjectId={activeProjectId}
               activeWorkspaceId={workspaceId ?? null}
+              activeIssueId={activeIssueId}
+              tasksByProject={tasksByProject}
+              loadingTasksProjectIds={loadingTasksProjectIds}
+              onTasksExpansionChange={handleTasksExpansionChange}
+              onSelectIssue={handleSelectIssue}
               workspaces={outlinerWorkspaces}
               archivedWorkspaces={outlinerArchivedWorkspaces}
               membership={membership}
@@ -276,7 +334,9 @@ export function SharedAppLayout() {
               onProjectsReorder={handleProjectsReorder}
               onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
               onSelectProject={handleProjectClick}
-              headerActions={<CreateProjectButton onClick={handleCreateProject} />}
+              headerActions={
+                <CreateProjectButton onClick={handleCreateProject} />
+              }
               bottomActions={<SidebarBottomActions />}
             />
             {/* Content column: Navbar on top, Outlet below. */}
@@ -329,6 +389,11 @@ export function SharedAppLayout() {
                 projects={sidebarProjects}
                 activeProjectId={activeProjectId}
                 activeWorkspaceId={workspaceId ?? null}
+                activeIssueId={activeIssueId}
+                tasksByProject={tasksByProject}
+                loadingTasksProjectIds={loadingTasksProjectIds}
+                onTasksExpansionChange={handleTasksExpansionChange}
+                onSelectIssue={handleSelectIssue}
                 workspaces={outlinerWorkspaces}
                 archivedWorkspaces={outlinerArchivedWorkspaces}
                 membership={membership}
@@ -340,7 +405,9 @@ export function SharedAppLayout() {
                   handleProjectClick(id);
                   setIsDrawerOpen(false);
                 }}
-                headerActions={<CreateProjectButton onClick={handleCreateProject} />}
+                headerActions={
+                  <CreateProjectButton onClick={handleCreateProject} />
+                }
                 bottomActions={<SidebarBottomActions />}
               />
             </div>

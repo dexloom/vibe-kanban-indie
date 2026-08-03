@@ -1,5 +1,6 @@
 import type { CSSProperties, Ref } from 'react';
 import type { NodeApi } from 'react-arborist';
+import type { Issue, IssuePriority, ProjectStatus } from 'shared/remote-types';
 import type { WorkspaceKind } from 'shared/types';
 import type { WorkspaceStatusItem } from '@vibe/ui/lib/workspaceStatus';
 
@@ -8,6 +9,16 @@ export interface TreeNodeRenderProps<T extends { id: string }> {
   node: NodeApi<T>;
   style: CSSProperties;
   dragHandle?: Ref<HTMLDivElement>;
+}
+
+/**
+ * Kanban data for one project's Tasks section (ADR-011). Single source of
+ * truth shared by the pure tree builder (packages/ui) and the lazy loader
+ * hook (packages/web-core imports this from @vibe/ui — never the reverse).
+ */
+export interface ProjectTasksData {
+  statuses: readonly ProjectStatus[];
+  issues: readonly Issue[];
 }
 
 /** A single workspace rendered as a leaf in a workspaces tree. */
@@ -88,6 +99,9 @@ export const UNASSIGNED_PROJECT_ID = 'unassigned';
 /** Per-project workspaces section id (e.g. `${projectId}:workspaces`). */
 export type WorkspacesSectionId = `${string}:workspaces`;
 
+/** Per-project Tasks section id (e.g. `${projectId}:tasks`). */
+export type TasksSectionId = `${string}:tasks`;
+
 /**
  * Sidebar project record (a trimmed shape — only what the tree needs to
  * render a project row).
@@ -98,8 +112,6 @@ export interface SidebarProject {
   color: string;
 }
 
-export type SidebarTreeNode = ProjectNode | SectionNode | BucketNode | LeafNode;
-
 export interface ProjectNode {
   id: string;
   type: 'project';
@@ -108,12 +120,75 @@ export interface ProjectNode {
   children: SectionNode[];
 }
 
-export interface SectionNode {
+/**
+ * Section nodes carry a `kind` so the router can split Tasks vs Workspaces
+ * (Phase 2). The `type` discriminator stays `'section'` for both.
+ */
+export interface WorkspacesSectionNode {
   id: WorkspacesSectionId;
   type: 'section';
+  kind: 'workspaces';
   label: string;
   children: BucketNode[];
 }
+
+export interface TasksSectionNode {
+  id: TasksSectionId;
+  type: 'section';
+  kind: 'tasks';
+  /** Project id echoed so the renderer can fire onTasksExpansionChange(id, open)
+   *  without walking to the parent. */
+  projectId: string;
+  label: string;
+  /** True on first open, while statuses+issues are still loading. */
+  isLoading?: boolean;
+  children: StatusNode[];
+}
+
+/** Discriminate sections by `kind` (NOT by `type`, which stays 'section'). */
+export type SectionNode = WorkspacesSectionNode | TasksSectionNode;
+
+export interface StatusNode {
+  id: string; // `${projectId}:status:${statusId}`
+  type: 'status';
+  projectId: string;
+  statusId: string;
+  name: string;
+  color: string; // hsl triple string from ProjectStatus.color
+  children: CardNode[];
+}
+
+/**
+ * Issue card. Recursive: sub-issues (parent_issue_id) nest under their parent
+ * card as `children`. Trimmed payload — only what the sidebar card needs.
+ */
+export interface CardNode {
+  id: string; // issue.id (stable across reorders, globally unique)
+  type: 'card';
+  issue: {
+    id: string;
+    simpleId: string;
+    title: string;
+    priority: IssuePriority | null;
+    statusId: string;
+    projectId: string;
+    parentIssueId: string | null;
+  };
+  children: CardNode[];
+}
+
+export type SidebarTreeNode =
+  ProjectNode | SectionNode | BucketNode | StatusNode | CardNode | LeafNode;
+
+// --- id factories (moved here from SidebarProjectTree.tsx so the open-state
+//     builder in this same file can use them) ---
+export const makeWorkspacesSectionId = (
+  projectId: string
+): WorkspacesSectionId => `${projectId}:workspaces`;
+export const makeTasksSectionId = (projectId: string): TasksSectionId =>
+  `${projectId}:tasks`;
+export const makeStatusNodeId = (projectId: string, statusId: string): string =>
+  `${projectId}:status:${statusId}`;
 
 /**
  * Read persisted open/closed state for each bucket from localStorage. Falls
@@ -125,10 +200,10 @@ export function readLegacyBucketOpenState(): Record<BucketId, boolean> {
   if (typeof window === 'undefined') return out;
   try {
     for (const bucketId of Object.keys(
-      LEGACY_BUCKET_PERSIST_KEYS,
+      LEGACY_BUCKET_PERSIST_KEYS
     ) as BucketId[]) {
       const raw = window.localStorage.getItem(
-        `vibe.ui.collapsible.${LEGACY_BUCKET_PERSIST_KEYS[bucketId]}`,
+        `vibe.ui.collapsible.${LEGACY_BUCKET_PERSIST_KEYS[bucketId]}`
       );
       if (raw != null) {
         out[bucketId] = raw === 'true';
@@ -157,7 +232,7 @@ const SIDEBAR_TREE_OPEN_STATE_VERSION = 1;
 
 /** Read the persisted open-state blob (or {} on miss / corruption). */
 export function readSidebarTreeOpenState(
-  liveProjectIds?: ReadonlySet<string>,
+  liveProjectIds?: ReadonlySet<string>
 ): Record<string, boolean> {
   if (typeof window === 'undefined') return {};
   try {
@@ -191,7 +266,7 @@ export function readSidebarTreeOpenState(
         const projectId =
           separatorIndex === -1 ? key : key.slice(0, separatorIndex);
         return liveProjectIds.has(projectId);
-      }),
+      })
     );
   } catch {
     // corrupt JSON | private mode | quota — fall through
@@ -205,7 +280,7 @@ export function writeSidebarTreeOpenState(map: Record<string, boolean>): void {
   try {
     window.localStorage.setItem(
       SIDEBAR_TREE_OPEN_STATE_KEY,
-      JSON.stringify({ v: SIDEBAR_TREE_OPEN_STATE_VERSION, state: map }),
+      JSON.stringify({ v: SIDEBAR_TREE_OPEN_STATE_VERSION, state: map })
     );
   } catch {
     // quota | unavailable — in-memory mirror still authoritative for session
@@ -213,31 +288,71 @@ export function writeSidebarTreeOpenState(map: Record<string, boolean>): void {
 }
 
 /**
+ * Project ids whose Tasks section is persisted OPEN (from the blob or from an
+ * explicit map). The lazy-loader gate (web-core) hydrates from this so a Tasks
+ * section left open survives a reload — otherwise it renders open from
+ * initialOpenState while the gate never enables its loader (ADR-011 bugfix).
+ */
+export function readOpenTasksProjectIds(
+  stored?: Readonly<Record<string, boolean>>
+): string[] {
+  const map = stored ?? readSidebarTreeOpenState();
+  return Object.entries(map)
+    .filter(([key, open]) => open && key.endsWith(':tasks'))
+    .map(([key]) => key.slice(0, -':tasks'.length));
+}
+
+/**
  * Build the `initialOpenState` map for <Tree>. Per-node resolution:
  *   1. value persisted in the sidebar-tree blob
  *   2. legacy per-bucket value (buckets only, first-run migration)
- *   3. default: project & section = open; attention/running/idle = open;
- *      archived = closed (BUCKET_DEFAULT_OPEN).
+ *   3. default: project & Workspaces section & attention/running/idle buckets
+ *      OPEN; archived bucket CLOSED; **Tasks section CLOSED**.
  *
- * Only the value at Tree mount is consumed. Recomputing later is harmless
- * (Tree ignores the prop then).
+ * Status nodes are INTENTIONALLY NOT seeded: their ids are unknown at mount
+ * (tasks load lazily once the Tasks section is opened). With
+ * `openByDefault={false}`, un-seeded ids default CLOSED — exactly the desired
+ * first-open behavior. Seeding them here would be impossible (ids unknown) and
+ * pointless. See ADR-011.
+ *
+ * As before, only the value at Tree mount is consumed; the prop is ignored
+ * post-mount (verified: react-arborist `state/initial.js` seeds once inside
+ * `useRef(createStore(...))`).
  */
 export function buildSidebarTreeInitialOpenState(
-  projectIds: readonly string[],
+  tree: readonly SidebarTreeNode[]
 ): Record<string, boolean> {
-  const stored = readSidebarTreeOpenState(new Set(projectIds));
+  const projectNodes = tree.filter(
+    (n): n is ProjectNode => n.type === 'project'
+  );
+  const liveProjectIds = new Set(projectNodes.map((p) => p.id));
+  const stored = readSidebarTreeOpenState(liveProjectIds);
   const useLegacy = Object.keys(stored).length === 0;
   const legacy: Partial<Record<BucketId, boolean>> = useLegacy
     ? readLegacyBucketOpenState()
     : {};
+
   const out: Record<string, boolean> = {};
-  for (const projectId of projectIds) {
+  for (const project of projectNodes) {
+    const projectId = project.id;
+    const isUnassigned = projectId === UNASSIGNED_PROJECT_ID;
     out[projectId] = stored[projectId] ?? true;
-    out[`${projectId}:workspaces`] = stored[`${projectId}:workspaces`] ?? true;
+
+    const wsId = makeWorkspacesSectionId(projectId);
+    out[wsId] = stored[wsId] ?? true;
+
     for (const bucketId of BUCKET_ORDER) {
       const nodeId = `${projectId}:bucket:${bucketId}`;
       out[nodeId] =
         stored[nodeId] ?? legacy[bucketId] ?? BUCKET_DEFAULT_OPEN[bucketId];
+    }
+
+    // Tasks section: real projects only, default CLOSED. Unassigned never has
+    // a Tasks section, so do not emit an id for it (keeps the map clean and
+    // prevents a phantom persisted key).
+    if (!isUnassigned) {
+      const tasksId = makeTasksSectionId(projectId);
+      out[tasksId] = stored[tasksId] ?? false;
     }
   }
   return out;

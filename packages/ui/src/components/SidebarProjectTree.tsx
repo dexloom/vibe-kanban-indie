@@ -1,24 +1,22 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Tree, type NodeApi, type TreeApi } from 'react-arborist';
 import { SpinnerIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../lib/cn';
-import { categorizeWorkspacesForOutliner } from '../lib/workspaceStatus';
 import {
-  BUCKET_ORDER,
   UNASSIGNED_PROJECT_ID,
   buildSidebarTreeInitialOpenState,
+  makeWorkspacesSectionId,
   readSidebarTreeOpenState,
   writeSidebarTreeOpenState,
-  type BucketNode,
-  type LeafNode,
   type OutlinerWorkspace,
   type ProjectNode,
   type SidebarProject,
   type SidebarTreeNode,
-  type WorkspacesSectionId,
   type WorkspaceProjectMembership,
 } from './outliner/types';
+import { buildTreeData } from './outliner/buildTreeData';
+import type { ProjectTasksData } from './outliner/types';
 import { TREE_LAYOUT } from './outliner/layout';
 import { TreeNodeRouter } from './outliner/treeNodes';
 import { useContainerHeight } from './outliner/useContainerHeight';
@@ -30,6 +28,11 @@ interface SidebarProjectTreeProps {
   archivedWorkspaces?: OutlinerWorkspace[];
   membership: WorkspaceProjectMembership;
   activeWorkspaceId: string | null;
+  tasksByProject?: ReadonlyMap<string, ProjectTasksData>;
+  loadingTasksProjectIds?: ReadonlySet<string>;
+  activeIssueId?: string | null;
+  onTasksExpansionChange?: (projectId: string, isOpen: boolean) => void;
+  onSelectIssue?: (projectId: string, issueId: string) => void;
   isLoading?: boolean;
   onSelectWorkspace: (id: string) => void;
   onSelectProject: (id: string) => void;
@@ -41,105 +44,8 @@ interface SidebarProjectTreeProps {
 }
 
 const ROOT_PARENT_ID: string | null = null;
-
-const makeWorkspacesSectionId = (projectId: string): WorkspacesSectionId =>
-  `${projectId}:workspaces`;
-
-interface BuildTreeDataOptions {
-  projects: readonly SidebarProject[];
-  workspacesByProject: Map<string, OutlinerWorkspace[]>;
-  archivedWorkspacesByProject: Map<string, OutlinerWorkspace[]>;
-  unassignedActive: OutlinerWorkspace[];
-  unassignedArchived: OutlinerWorkspace[];
-  t: (key: string) => string;
-}
-
-function buildTreeData({
-  projects,
-  workspacesByProject,
-  archivedWorkspacesByProject,
-  unassignedActive,
-  unassignedArchived,
-  t,
-}: BuildTreeDataOptions): SidebarTreeNode[] {
-  const makeBuckets = (
-    projectId: string,
-    active: readonly OutlinerWorkspace[],
-    archived: readonly OutlinerWorkspace[],
-  ): BucketNode[] => {
-    const {
-      attention,
-      running,
-      idle,
-      archived: archivedBucket,
-    } = categorizeWorkspacesForOutliner(active, archived);
-    const labels = {
-      attention: t('workspaces.outliner.attention'),
-      running: t('workspaces.running'),
-      idle: t('workspaces.idle'),
-      archived: t('workspaces.archived'),
-    };
-    return BUCKET_ORDER.map((bucketId) => ({
-      id: `${projectId}:bucket:${bucketId}`,
-      type: 'bucket' as const,
-      bucketId,
-      name: labels[bucketId],
-      children: (bucketId === 'attention'
-        ? attention
-        : bucketId === 'running'
-          ? running
-          : bucketId === 'idle'
-            ? idle
-            : archivedBucket
-      ).map((workspace): LeafNode => ({
-        id: workspace.id,
-        type: 'leaf',
-        workspace,
-      })),
-    }));
-  };
-
-  const projectNodes: ProjectNode[] = projects.map((project) => ({
-    id: project.id,
-    type: 'project',
-    name: project.name,
-    color: project.color,
-    children: [
-      {
-        id: makeWorkspacesSectionId(project.id),
-        type: 'section',
-        label: t('sidebar.workspacesSection'),
-        children: makeBuckets(
-          project.id,
-          workspacesByProject.get(project.id) ?? [],
-          archivedWorkspacesByProject.get(project.id) ?? [],
-        ),
-      },
-    ],
-  }));
-
-  if (unassignedActive.length > 0 || unassignedArchived.length > 0) {
-    projectNodes.push({
-      id: UNASSIGNED_PROJECT_ID,
-      type: 'project',
-      name: t('sidebar.unassigned'),
-      color: '0 0% 60%',
-      children: [
-        {
-          id: makeWorkspacesSectionId(UNASSIGNED_PROJECT_ID),
-          type: 'section',
-          label: t('sidebar.workspacesSection'),
-          children: makeBuckets(
-            UNASSIGNED_PROJECT_ID,
-            unassignedActive,
-            unassignedArchived,
-          ),
-        },
-      ],
-    });
-  }
-  return projectNodes;
-}
+const EMPTY_TASKS_BY_PROJECT: ReadonlyMap<string, ProjectTasksData> = new Map();
+const EMPTY_LOADING_TASKS_PROJECT_IDS: ReadonlySet<string> = new Set();
 
 export function SidebarProjectTree({
   projects,
@@ -148,6 +54,11 @@ export function SidebarProjectTree({
   archivedWorkspaces = [],
   membership,
   activeWorkspaceId,
+  tasksByProject = EMPTY_TASKS_BY_PROJECT,
+  loadingTasksProjectIds = EMPTY_LOADING_TASKS_PROJECT_IDS,
+  activeIssueId = null,
+  onTasksExpansionChange,
+  onSelectIssue,
   isLoading = false,
   onSelectWorkspace,
   onSelectProject,
@@ -222,6 +133,8 @@ export function SidebarProjectTree({
         archivedWorkspacesByProject,
         unassignedActive,
         unassignedArchived,
+        tasksByProject,
+        loadingTasksProjectIds,
         t,
       }),
     [
@@ -230,26 +143,49 @@ export function SidebarProjectTree({
       archivedWorkspacesByProject,
       unassignedActive,
       unassignedArchived,
+      tasksByProject,
+      loadingTasksProjectIds,
       t,
     ],
   );
 
-  const projectIds = useMemo(() => treeData.map((n) => n.id), [treeData]);
+  const liveProjectIds = useMemo(
+    () =>
+      new Set(
+        treeData
+          .filter((n): n is ProjectNode => n.type === 'project')
+          .map((n) => n.id),
+      ),
+    [treeData],
+  );
 
-  // Seed the open-state map from persistence + defaults. Recomputed when the
-  // project set changes, but react-arborist only consumes this value at Tree
-  // mount (provider.js: createStore inside useRef). Post-mount the Tree's
-  // in-memory store owns open state; this prop is ignored.
+  // Stable key of the live project set. initialOpenState and the new-project
+  // auto-open effect depend on THIS (not the whole treeData), so Electric
+  // updates to task data don't re-read localStorage or re-iterate projects.
+  const projectKey = useMemo(
+    () =>
+      treeData
+        .filter((node): node is ProjectNode => node.type === 'project')
+        .map((node) => node.id)
+        .join(','),
+    [treeData],
+  );
+
+  // Seed the open-state map from persistence + defaults. Recomputed only when
+  // the project set changes; react-arborist consumes it exactly once at Tree
+  // mount (provider.js: createStore inside useRef). Status/card ids are NOT
+  // seeded — they load lazily after mount and default closed via
+  // openByDefault={false}.
   const initialOpenState = useMemo(
-    () => buildSidebarTreeInitialOpenState(projectIds),
-    [projectIds],
+    () => buildSidebarTreeInitialOpenState(treeData),
+    [projectKey],
   );
 
   // In-memory mirror of persisted open state. Kept in a ref so toggles don't
   // trigger re-renders — the Tree re-renders itself via its store
   // subscription; we only persist on the side.
   const openStateRef = useRef<Record<string, boolean>>(
-    readSidebarTreeOpenState(new Set(projectIds)),
+    readSidebarTreeOpenState(liveProjectIds),
   );
   const writeScheduled = useRef(false);
 
@@ -265,7 +201,35 @@ export function SidebarProjectTree({
   }, []);
 
   const treeRef = useRef<TreeApi<SidebarTreeNode> | null>(null);
+  const seenProjectIdsRef = useRef<Set<string> | null>(null);
   const { containerRef, width: containerWidth, height } = useContainerHeight();
+
+  useEffect(() => {
+    const api = treeRef.current;
+    if (!api) return;
+
+    const currentProjectIds = new Set(projectKey ? projectKey.split(',') : []);
+    if (seenProjectIdsRef.current === null) {
+      seenProjectIdsRef.current = currentProjectIds;
+      return;
+    }
+
+    let addedProject = false;
+    for (const projectId of currentProjectIds) {
+      if (seenProjectIdsRef.current.has(projectId)) continue;
+      seenProjectIdsRef.current.add(projectId);
+      api.open(projectId);
+      api.open(makeWorkspacesSectionId(projectId));
+      openStateRef.current = {
+        ...openStateRef.current,
+        [projectId]: true,
+        [makeWorkspacesSectionId(projectId)]: true,
+      };
+      addedProject = true;
+    }
+
+    if (addedProject) scheduleOpenStateWrite();
+  }, [projectKey, height, scheduleOpenStateWrite]);
 
   const handleActivate = useCallback(
     (node: NodeApi<SidebarTreeNode>) => {
@@ -274,24 +238,32 @@ export function SidebarProjectTree({
         onSelectWorkspace(data.workspace.id);
       } else if (data.type === 'project') {
         onSelectProject(data.id);
+      } else if (data.type === 'card') {
+        onSelectIssue?.(data.issue.projectId, data.issue.id);
       }
     },
-    [onSelectWorkspace, onSelectProject],
+    [onSelectWorkspace, onSelectProject, onSelectIssue],
   );
 
   const handleToggle = useCallback(
     (id: string) => {
-      // onToggle fires for every node (project | section | bucket). Persist
-      // all three by node id — ids are already project-scoped, so per-project
-      // state is isolated. (Tree has already updated its store by the time
-      // onToggle fires: tree-api dispatches visibility.open/close BEFORE
-      // safeRun(onToggle, id).)
+      // onToggle fires for every node. Only project/section/bucket open-state
+      // is persisted — status/card ids load lazily after mount and are never
+      // seeded into initialOpenState, so persisting them would be a lie (they
+      // always reset to closed on reload). The Tasks section is a `section`
+      // node, so its expansion also drives the lazy loader gate.
       const node = treeRef.current?.get(id);
       if (!node) return;
-      openStateRef.current = { ...openStateRef.current, [id]: node.isOpen };
-      scheduleOpenStateWrite();
+      const type = node.data.type;
+      if (type === 'project' || type === 'section' || type === 'bucket') {
+        openStateRef.current = { ...openStateRef.current, [id]: node.isOpen };
+        scheduleOpenStateWrite();
+      }
+      if (type === 'section' && node.data.kind === 'tasks') {
+        onTasksExpansionChange?.(node.data.projectId, node.isOpen);
+      }
     },
-    [scheduleOpenStateWrite],
+    [scheduleOpenStateWrite, onTasksExpansionChange],
   );
 
   const handleMove = useCallback(
@@ -388,7 +360,7 @@ export function SidebarProjectTree({
             <Tree<SidebarTreeNode>
               ref={treeRef}
               data={treeData}
-              openByDefault
+              openByDefault={false}
               initialOpenState={initialOpenState}
               width={containerWidth || width}
               height={height}
@@ -396,6 +368,8 @@ export function SidebarProjectTree({
               rowHeight={(node) => {
                 if (node.data.type === 'leaf')
                   return TREE_LAYOUT.rowHeight.leaf;
+                if (node.data.type === 'card')
+                  return TREE_LAYOUT.rowHeight.card;
                 if (node.data.type === 'project')
                   return TREE_LAYOUT.rowHeight.project;
                 return TREE_LAYOUT.rowHeight.default;
@@ -417,6 +391,8 @@ export function SidebarProjectTree({
                   onSelectProject={onSelectProject}
                   activeProjectId={activeProjectId}
                   activeWorkspaceId={activeWorkspaceId}
+                  activeIssueId={activeIssueId}
+                  onSelectIssue={onSelectIssue}
                 />
               )}
             </Tree>

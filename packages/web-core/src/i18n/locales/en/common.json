@@ -552,6 +552,9 @@
   },
   "sidebar": {
     "workspacesSection": "Workspaces",
+    "tasksSection": "Tasks",
+    "tasksLoading": "Loading tasks…",
+    "tasksEmpty": "No statuses yet",
     "unassigned": "Unassigned",
     "openProjectKanban": "Open project kanban",
     "createProject": "Create project",
