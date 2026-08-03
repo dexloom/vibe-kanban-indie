@@ -46,7 +46,7 @@ function NotificationMessage({
             <UserAvatar
               key={i}
               user={member}
-              className="inline-flex h-5 w-5 align-text-bottom text-[10px]"
+              className="inline-flex h-5 w-5 align-text-bottom text-2xs"
             />
           );
         }

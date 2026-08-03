@@ -109,11 +109,11 @@ export const KanbanCard = ({
         return (
           <Card
             className={cn(
-              'p-base outline-none flex-col border -mt-[1px] -mx-[1px] bg-primary',
+              'p-base outline-none flex-col rounded-md border -mt-[1px] -mx-[1px] bg-surface',
               snapshot.isDragging && 'cursor-grabbing shadow-lg',
               isSelected
                 ? 'ring-2 ring-accent ring-inset bg-accent/5'
-                : isOpen && 'ring-2 ring-secondary-foreground ring-inset',
+                : isOpen && 'ring-2 ring-brand ring-inset',
               className
             )}
             ref={setRefs}

@@ -16,7 +16,7 @@ const STORAGE_KEY = `vibe.ui.collapsible.${PERSIST_KEYS.sessionSection}`;
 // icon (open-in-terminal on each row + the folder's terminal/Finder buttons).
 const ICON_BTN =
   'w-[26px] h-6 inline-flex items-center justify-center border border-brand/40 ' +
-  'rounded-[5px] text-brand text-[11px] font-bold tracking-tighter shrink-0 ' +
+  'rounded-[5px] text-brand text-2xs font-bold tracking-tighter shrink-0 ' +
   'hover:border-brand hover:shadow-[0_0_6px_hsl(var(--_primary)/0.45)] ' +
   'transition-colors disabled:opacity-50';
 
@@ -181,16 +181,16 @@ export function HeadedSessionIds({
       >
         <span
           className={cn(
-            'text-[10px] text-low transition-transform',
+            'text-2xs text-low transition-transform',
             collapsed && '-rotate-90'
           )}
         >
           ▾
         </span>
-        <span className="text-[11px] tracking-[1.5px] uppercase font-bold text-normal">
+        <span className="text-2xs tracking-[1.5px] uppercase font-bold text-normal">
           Sessions
         </span>
-        <span className="text-[11px] text-brand">[2]</span>
+        <span className="text-2xs text-brand">[2]</span>
         <span className="flex-1" />
       </button>
 
@@ -198,18 +198,18 @@ export function HeadedSessionIds({
         <div className="flex flex-col">
           {/* Workspace folder row */}
           <div className="flex items-center gap-2 pl-2.5 pr-2 py-[7px] border rounded-md bg-panel">
-            <span className="text-brand text-[13px] shrink-0">▣</span>
+            <span className="text-brand text-sm shrink-0">▣</span>
             <CopyText
               text="cd"
               copyValue={`cd ${folderPath}`}
               title={`Copy: cd ${folderPath}`}
-              className="text-[11px] text-normal shrink-0"
+              className="text-2xs text-normal shrink-0"
             />
             <CopyText
               text={folderName}
               copyValue={folderPath}
               title={folderPath}
-              className="text-[11px] text-low truncate flex-1 min-w-0"
+              className="text-2xs text-low truncate flex-1 min-w-0"
             />
             <IconButton
               glyph=">_"

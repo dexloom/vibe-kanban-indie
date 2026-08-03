@@ -54,17 +54,17 @@ export function BrandWordmark({ className }: { className?: string }) {
     >
       <span
         data-brand-word="vibe"
-        className="text-[21px] font-extrabold leading-none tracking-[0.14em] text-high"
+        className="text-xl font-extrabold leading-none tracking-[0.14em] text-high"
       >
         VIBE
       </span>
       <span
         data-brand-word="kanban"
-        className="text-[21px] font-extrabold leading-none tracking-[0.14em] text-brand"
+        className="text-xl font-extrabold leading-none tracking-[0.14em] text-brand"
       >
         KANBAN
       </span>
-      <span className="self-center rounded-[3px] border border-border px-1.5 py-0.5 text-[9px] font-semibold leading-none tracking-[0.3em] text-low">
+      <span className="self-center rounded-[3px] border border-border px-1.5 py-0.5 text-micro font-semibold leading-none tracking-[0.3em] text-low">
         INDIE
       </span>
     </span>

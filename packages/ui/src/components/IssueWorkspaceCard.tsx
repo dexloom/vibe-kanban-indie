@@ -174,7 +174,7 @@ export function IssueWorkspaceCard({
           {showOwner && workspace.owner && (
             <UserAvatar
               user={workspace.owner}
-              className="h-5 w-5 text-[10px] border-2 border-panel"
+              className="h-5 w-5 text-2xs border-2 border-panel"
             />
           )}
           {(onRunIssue || onUnlink || onDelete) && (

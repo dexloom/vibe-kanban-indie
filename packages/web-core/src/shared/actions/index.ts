@@ -153,7 +153,9 @@ function getNextWorkspaceId(
   return null;
 }
 
-// Helper to navigate to create-issue form for a sub-issue, carrying over parent assignees
+// Helper to open the create-issue modal for a sub-issue, carrying over parent
+// assignees. The modal opens the bridge component handles navigation after
+// the issue is created.
 function navigateToCreateSubIssue(
   ctx: ActionExecutorContext,
   parentIssueId: string
@@ -161,7 +163,7 @@ function navigateToCreateSubIssue(
   const assigneeIds = ctx.projectMutations
     ?.getAssigneesForIssue(parentIssueId)
     .map((a) => a.user_id);
-  ctx.navigateToCreateIssue({
+  void ctx.createIssue({
     statusId: ctx.defaultCreateStatusId,
     parentIssueId,
     assigneeIds: assigneeIds?.length ? assigneeIds : undefined,
@@ -1194,7 +1196,7 @@ export const Actions = {
     requiresTarget: ActionTargetType.NONE,
     isVisible: (ctx) => ctx.layoutMode === 'kanban' && !ctx.isCreatingIssue,
     execute: (ctx) => {
-      ctx.navigateToCreateIssue({ statusId: ctx.defaultCreateStatusId });
+      void ctx.createIssue({ statusId: ctx.defaultCreateStatusId });
     },
   } satisfies GlobalActionDefinition,
 

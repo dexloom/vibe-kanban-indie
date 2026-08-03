@@ -501,5 +501,28 @@
     "progressHeader": "Étape {{n}} sur {{total}} — {{label}}",
     "progressNotStarted": "{{total}} étapes, pas encore commencé",
     "heavyBadge": "lourde"
+  },
+  "createIssueDialog": {
+    "title": "Créer un ticket",
+    "titlePlaceholder": "Titre du ticket",
+    "descriptionPlaceholder": "Ajouter une description (facultatif)",
+    "statusLabel": "Statut",
+    "priorityLabel": "Priorité",
+    "workspaceLabel": "Espace de travail",
+    "workspaceNone": "Aucun",
+    "workspaceCreateNew": "Créer un nouvel espace de travail",
+    "workspaceWillCreate": "Un nouvel espace de travail sera créé après l'ajout du ticket.",
+    "workspaceClearSelection": "Effacer",
+    "workspaceArchived": "archivé",
+    "priority": {
+      "urgent": "Urgent",
+      "high": "Haute",
+      "medium": "Moyenne",
+      "low": "Basse"
+    },
+    "create": "Créer",
+    "cancel": "Annuler",
+    "parentHint": "Parent : {{id}}",
+    "errorCreateFailed": "Échec de la création du ticket. Veuillez réessayer."
   }
 }

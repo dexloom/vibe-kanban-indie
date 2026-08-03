@@ -486,7 +486,7 @@
   },
   "cardPipeline": {
     "title": "Pipeline",
-    "description": "Elige las etapas por las que debe pasar esta tarjeta. Las etapas seleccionadas se añaden a la descripción de la tarjeta para que el agente las siga.",
+    "description": "Selecciona las etapas por las que debe pasar esta tarjeta. Las etapas elegidas se añaden a la descripción de la tarjeta para que el agente las siga.",
     "noSteps": "No hay etapas de pipeline configuradas. Añade algunas en Configuración → Pipeline.",
     "agentLabel": "Agente de ejecución",
     "agentDefault": "Predeterminado (decide el orquestador)",
@@ -500,5 +500,28 @@
     "progressHeader": "Etapa {{n}} de {{total}} — {{label}}",
     "progressNotStarted": "{{total}} etapas, aún sin empezar",
     "heavyBadge": "pesada"
+  },
+  "createIssueDialog": {
+    "title": "Crear incidencia",
+    "titlePlaceholder": "Título de la incidencia",
+    "descriptionPlaceholder": "Añade una descripción (opcional)",
+    "statusLabel": "Estado",
+    "priorityLabel": "Prioridad",
+    "workspaceLabel": "Espacio de trabajo",
+    "workspaceNone": "Ninguno",
+    "workspaceCreateNew": "Crear nuevo espacio de trabajo",
+    "workspaceWillCreate": "Se creará un nuevo espacio de trabajo después de añadir la incidencia.",
+    "workspaceClearSelection": "Limpiar",
+    "workspaceArchived": "archivado",
+    "priority": {
+      "urgent": "Urgente",
+      "high": "Alta",
+      "medium": "Media",
+      "low": "Baja"
+    },
+    "create": "Crear",
+    "cancel": "Cancelar",
+    "parentHint": "Padre: {{id}}",
+    "errorCreateFailed": "No se pudo crear la incidencia. Inténtalo de nuevo."
   }
 }

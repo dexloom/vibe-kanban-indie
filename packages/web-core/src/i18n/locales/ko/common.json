@@ -486,7 +486,7 @@
   },
   "cardPipeline": {
     "title": "파이프라인",
-    "description": "이 카드가 거쳐야 할 단계를 선택하세요. 선택한 단계는 에이전트가 따를 수 있도록 카드 설명에 추가됩니다.",
+    "description": "이 카드가 거칠 단계를 선택하세요. 선택한 단계는 카드 설명에 추가되어 에이전트가 따릅니다.",
     "noSteps": "구성된 파이프라인 단계가 없습니다. 설정 → 파이프라인에서 추가하세요.",
     "agentLabel": "실행 에이전트",
     "agentDefault": "기본값 (오케스트레이터가 결정)",
@@ -500,5 +500,28 @@
     "progressHeader": "{{total}}단계 중 {{n}}단계 — {{label}}",
     "progressNotStarted": "{{total}}단계, 아직 시작하지 않음",
     "heavyBadge": "무거움"
+  },
+  "createIssueDialog": {
+    "title": "이슈 만들기",
+    "titlePlaceholder": "이슈 제목",
+    "descriptionPlaceholder": "설명 추가 (선택 사항)",
+    "statusLabel": "상태",
+    "priorityLabel": "우선순위",
+    "workspaceLabel": "워크스페이스",
+    "workspaceNone": "없음",
+    "workspaceCreateNew": "새 워크스페이스 만들기",
+    "workspaceWillCreate": "이슈가 추가된 후 새 워크스페이스가 만들어집니다.",
+    "workspaceClearSelection": "지우기",
+    "workspaceArchived": "보관됨",
+    "priority": {
+      "urgent": "긴급",
+      "high": "높음",
+      "medium": "보통",
+      "low": "낮음"
+    },
+    "create": "만들기",
+    "cancel": "취소",
+    "parentHint": "상위: {{id}}",
+    "errorCreateFailed": "이슈를 만들지 못했습니다. 다시 시도해 주세요."
   }
 }

@@ -25,7 +25,7 @@ export function AppBarNotificationBellContainer() {
       >
         <BellIcon className="w-5 h-5" weight="bold" />
         {unseenCount > 0 && (
-          <span className="absolute -top-2 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-brand-secondary text-[10px] font-medium text-white">
+          <span className="absolute -top-2 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-brand-secondary text-2xs font-medium text-white">
             {unseenCount > 99 ? '99+' : unseenCount}
           </span>
         )}

@@ -149,7 +149,7 @@ function AssigneeSelectionContent({
       searchValue: `${user.user_id} ${getUserDisplayName(user)} ${user.email ?? ''}`,
       renderOption: () => (
         <div className="flex items-center gap-base">
-          <UserAvatar user={user} className="h-5 w-5 text-[10px]" />
+          <UserAvatar user={user} className="h-5 w-5 text-2xs" />
           <span>{getUserDisplayName(user)}</span>
         </div>
       ),

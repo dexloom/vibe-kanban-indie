@@ -37,7 +37,6 @@ import { Actions } from '@/shared/actions';
 import {
   buildKanbanIssueComposerKey,
   closeKanbanIssueComposer,
-  openKanbanIssueComposer,
   type ProjectIssueCreateOptions,
   useKanbanIssueComposer,
 } from '@/shared/stores/useKanbanIssueComposerStore';
@@ -194,20 +193,20 @@ export function KanbanContainer() {
     },
     [appNavigation, projectId]
   );
-  const startCreate = useCallback(
-    (options?: ProjectIssueCreateOptions) => {
-      openKanbanIssueComposer(issueComposerKey, options);
-    },
-    [issueComposerKey]
-  );
-
   // Get setter and executor from ActionsContext
   const {
     setDefaultCreateStatusId,
     executeAction,
     openPrioritySelection,
     openAssigneeSelection,
+    createIssue,
   } = useActions();
+  const startCreate = useCallback(
+    (options?: ProjectIssueCreateOptions) => {
+      void createIssue(options);
+    },
+    [createIssue]
+  );
   const openProjectsGuide = useCallback(() => {
     executeAction(Actions.ProjectsGuide);
   }, [executeAction]);

@@ -1,6 +1,7 @@
 import { useContext } from 'react';
 import { createHmrContext } from '@/shared/lib/hmrContext';
 import type { Workspace } from 'shared/types';
+import type { ProjectIssueCreateOptions } from '@/shared/stores/useKanbanIssueComposerStore';
 import type {
   ActionDefinition,
   ActionExecutorContext,
@@ -59,6 +60,12 @@ export interface ActionsContextValue {
     relationshipType: 'blocking' | 'related' | 'has_duplicate',
     direction: 'forward' | 'reverse'
   ) => Promise<void>;
+
+  // Open the create-issue modal for the current project. Resolves with the
+  // new issue id or null if cancelled. Delegates to the registered
+  // ProjectMutations.createIssue (mounted inside ProjectProvider); returns
+  // Promise<null> when no project is active.
+  createIssue: (options?: ProjectIssueCreateOptions) => Promise<string | null>;
 
   // Set default status for issue creation based on current kanban tab
   setDefaultCreateStatusId: (statusId: string | undefined) => void;

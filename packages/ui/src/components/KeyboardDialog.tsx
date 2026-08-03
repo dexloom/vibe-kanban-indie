@@ -143,7 +143,7 @@ const Dialog = React.forwardRef<
       <div
         ref={setDialogRef}
         className={cn(
-          'relative z-[10000] flex flex-col w-full max-w-xl gap-4 bg-primary p-6 shadow-lg duration-200 sm:rounded-lg my-8',
+          'relative z-[10000] flex flex-col w-full max-w-xl gap-4 bg-overlay border border-border rounded-lg p-6 shadow-xl duration-200 my-8',
           className
         )}
         {...props}
@@ -186,7 +186,7 @@ const DialogTitle = React.forwardRef<
   <h3
     ref={ref}
     className={cn(
-      'text-lg font-semibold leading-none tracking-tight',
+      'text-xl font-semibold leading-tight tracking-tight',
       className
     )}
     {...props}
@@ -198,11 +198,7 @@ const DialogDescription = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, ...props }, ref) => (
-  <p
-    ref={ref}
-    className={cn('text-sm text-muted-foreground', className)}
-    {...props}
-  />
+  <p ref={ref} className={cn('text-sm text-muted', className)} {...props} />
 ));
 DialogDescription.displayName = 'DialogDescription';
 

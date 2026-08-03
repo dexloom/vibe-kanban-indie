@@ -228,7 +228,7 @@ export function createAttachmentNode() {
             {displayName}
           </span>
           {metadataLine && (
-            <span className="text-[10px] text-muted-foreground/70 truncate max-w-[120px]">
+            <span className="text-2xs text-muted-foreground/70 truncate max-w-[120px]">
               {metadataLine}
             </span>
           )}

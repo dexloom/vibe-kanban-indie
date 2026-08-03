@@ -3,7 +3,8 @@ import { create, useModal } from '@ebay/nice-modal-react';
 import { useTranslation } from 'react-i18next';
 import { GitBranchIcon, PlusIcon } from '@phosphor-icons/react';
 import { defineModal } from '@/shared/lib/modals';
-import { ApiError, workspacesApi } from '@/shared/lib/api';
+import { workspacesApi } from '@/shared/lib/api';
+import { getLinkWorkspaceErrorMessage } from '@/shared/lib/workspaces';
 import { getWorkspaceDefaults } from '@/shared/lib/workspaceDefaults';
 import { ErrorDialog } from '@vibe/ui/components/ErrorDialog';
 import { useProjectWorkspaceCreateDraft } from '@/shared/hooks/useProjectWorkspaceCreateDraft';
@@ -34,25 +35,6 @@ export interface WorkspaceSelectionDialogProps {
 }
 
 const PAGE_SIZE = 50;
-
-function getLinkWorkspaceErrorMessage(error: unknown): string | null {
-  if (error instanceof ApiError && error.status === 409) {
-    return 'This workspace is already linked to an issue.';
-  }
-
-  if (error instanceof Error) {
-    const normalizedMessage = error.message.toLowerCase();
-    if (
-      normalizedMessage.includes('already exists') ||
-      normalizedMessage.includes('already linked')
-    ) {
-      return 'This workspace is already linked to an issue.';
-    }
-    return error.message;
-  }
-
-  return null;
-}
 
 /** Inner component that uses contexts to render the selection UI */
 function WorkspaceSelectionContent({

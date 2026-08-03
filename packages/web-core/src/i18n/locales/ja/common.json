@@ -486,7 +486,7 @@
   },
   "cardPipeline": {
     "title": "パイプライン",
-    "description": "このカードが通過するステージを選択します。選択したステージはカードの説明に追記され、エージェントがそれに従います。",
+    "description": "このカードが通過するステージを選択してください。選択したステージはカードの説明に追記され、エージェントがそれに従います。",
     "noSteps": "パイプラインのステップが設定されていません。設定 → パイプライン で追加してください。",
     "agentLabel": "実行エージェント",
     "agentDefault": "デフォルト（オーケストレーターが決定）",
@@ -500,5 +500,28 @@
     "progressHeader": "ステージ {{n}}/{{total}} — {{label}}",
     "progressNotStarted": "{{total}} ステージ、未開始",
     "heavyBadge": "重い"
+  },
+  "createIssueDialog": {
+    "title": "課題を作成",
+    "titlePlaceholder": "課題のタイトル",
+    "descriptionPlaceholder": "説明を追加（任意）",
+    "statusLabel": "ステータス",
+    "priorityLabel": "優先度",
+    "workspaceLabel": "ワークスペース",
+    "workspaceNone": "なし",
+    "workspaceCreateNew": "新しいワークスペースを作成",
+    "workspaceWillCreate": "課題の追加後に新しいワークスペースが作成されます。",
+    "workspaceClearSelection": "クリア",
+    "workspaceArchived": "アーカイブ済み",
+    "priority": {
+      "urgent": "緊急",
+      "high": "高",
+      "medium": "中",
+      "low": "低"
+    },
+    "create": "作成",
+    "cancel": "キャンセル",
+    "parentHint": "親: {{id}}",
+    "errorCreateFailed": "課題を作成できませんでした。もう一度お試しください。"
   }
 }

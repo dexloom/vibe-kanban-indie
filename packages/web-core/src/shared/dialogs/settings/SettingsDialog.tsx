@@ -108,7 +108,7 @@ function SettingsDialogNavigation({
     <nav className="flex-1 p-2 flex flex-col gap-4 overflow-y-auto">
       <div className="space-y-2">
         <div className="px-3 pt-1">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-low">
+          <div className="text-2xs font-semibold uppercase tracking-[0.08em] text-low">
             {t('settings.layout.nav.machineSettings')}
           </div>
         </div>
@@ -129,7 +129,7 @@ function SettingsDialogNavigation({
       </div>
       <div className="space-y-2">
         <div className="px-3 pt-1">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-low">
+          <div className="text-2xs font-semibold uppercase tracking-[0.08em] text-low">
             {t('settings.layout.nav.accountSettings')}
           </div>
         </div>

@@ -7,9 +7,6 @@
 /* Disable macOS elastic overscroll bounce (visible in Tauri desktop app) */
 html {
   overscroll-behavior: none;
-  /* App-wide text scale: shrink all rem-based type/spacing for a denser UI.
-     Fixed-px elements (e.g. the brand logo) keep their original size. */
-  font-size: 87.5%;
 }
 
 /* 1) THEME TOKENS */
@@ -80,6 +77,7 @@ html {
     /* Accent (light) */
     --brand: 25 82% 54%;
     --brand-hover: 25 75% 62%;
+    --brand-active: var(--brand-secondary);
     --brand-secondary: 25 82% 37%;
     --error: 0 59% 57%;
     --success: 117 38% 50%;
@@ -139,6 +137,7 @@ html {
     /* Accent (dark) */
     --brand: 25 82% 54%;
     --brand-hover: 25 75% 62%;
+    --brand-active: var(--brand-secondary);
     --brand-secondary: 25 82% 37%;
     --error: 0 59% 57%;
     --success: 117 38% 50%;
@@ -208,6 +207,18 @@ html {
     --input: var(--vscode-input-background, var(--_input));
     --ring: var(--vscode-focusBorder, var(--_ring));
 
+    /* Surface and text namespace */
+    --bg-canvas: var(--background);
+    --bg-surface: var(--bg-secondary);
+    --bg-sunken: var(--bg-panel);
+    --bg-overlay: var(--bg-primary);
+    --fg-strong: var(--text-high);
+    --fg-default: var(--text-normal);
+    --fg-muted: var(--text-low);
+    --fg-subtle: var(--text-low);
+    --border-strong: var(--text-low);
+    --tertiary: var(--bg-panel);
+
     --radius: var(--_radius);
 
     /* Status */
@@ -258,6 +269,19 @@ html {
     /* Allotment */
     --separator-border: hsl(var(--border));
     --focus-border: hsl(var(--brand));
+  }
+
+  .dark {
+    --bg-canvas: var(--background);
+    --bg-surface: var(--bg-secondary);
+    --bg-sunken: var(--bg-secondary);
+    --bg-overlay: var(--bg-primary);
+    --fg-strong: var(--text-high);
+    --fg-default: var(--text-normal);
+    --fg-muted: var(--text-low);
+    --fg-subtle: var(--text-low);
+    --border-strong: var(--text-low);
+    --tertiary: var(--bg-panel);
   }
 }
 

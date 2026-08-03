@@ -69,7 +69,7 @@ function ReasoningDropdown({
           type="button"
           className={cn(
             'inline-flex items-center gap-1 rounded-sm border border-border',
-            'bg-secondary/60 px-1.5 py-0.5 text-[10px] font-semibold text-low',
+            'bg-secondary/60 px-1.5 py-0.5 text-2xs font-semibold text-low',
             'hover:border-brand/40 hover:text-normal transition-colors',
             'focus:outline-none focus-visible:ring-1 focus-visible:ring-brand'
           )}

@@ -501,5 +501,28 @@
     "progressHeader": "第 {{n}}/{{total}} 階段 — {{label}}",
     "progressNotStarted": "共 {{total}} 個階段，尚未開始",
     "heavyBadge": "高負載"
+  },
+  "createIssueDialog": {
+    "title": "新增議題",
+    "titlePlaceholder": "議題標題",
+    "descriptionPlaceholder": "新增描述（選填）",
+    "statusLabel": "狀態",
+    "priorityLabel": "優先順序",
+    "workspaceLabel": "工作區",
+    "workspaceNone": "無",
+    "workspaceCreateNew": "建立新工作區",
+    "workspaceWillCreate": "新增議題後將建立新的工作區。",
+    "workspaceClearSelection": "清除",
+    "workspaceArchived": "已封存",
+    "priority": {
+      "urgent": "緊急",
+      "high": "高",
+      "medium": "中",
+      "low": "低"
+    },
+    "create": "新增",
+    "cancel": "取消",
+    "parentHint": "父議題：{{id}}",
+    "errorCreateFailed": "建立議題失敗，請重試。"
   }
 }

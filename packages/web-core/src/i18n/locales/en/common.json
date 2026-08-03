@@ -504,5 +504,28 @@
     "progressHeader": "Stage {{n}} of {{total}} — {{label}}",
     "progressNotStarted": "{{total}} stages, not started yet",
     "heavyBadge": "heavy"
+  },
+  "createIssueDialog": {
+    "title": "Create Issue",
+    "titlePlaceholder": "Issue title",
+    "descriptionPlaceholder": "Add a description (optional)",
+    "statusLabel": "Status",
+    "priorityLabel": "Priority",
+    "workspaceLabel": "Workspace",
+    "workspaceNone": "None",
+    "workspaceCreateNew": "Create new workspace",
+    "workspaceWillCreate": "A new workspace will be created after the issue is added.",
+    "workspaceClearSelection": "Clear",
+    "workspaceArchived": "archived",
+    "priority": {
+      "urgent": "Urgent",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "create": "Create",
+    "cancel": "Cancel",
+    "parentHint": "Parent: {{id}}",
+    "errorCreateFailed": "Failed to create the issue. Please try again."
   }
 }

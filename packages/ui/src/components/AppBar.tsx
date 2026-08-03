@@ -82,7 +82,7 @@ function getHostStatusIndicatorClass(status: AppBarHostStatus): string {
 
 function AppBarSectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="w-full text-center text-[9px] font-medium leading-none tracking-wide text-low">
+    <p className="w-full text-center text-micro font-medium leading-none tracking-wide text-low">
       {children}
     </p>
   );
@@ -90,7 +90,13 @@ function AppBarSectionLabel({ children }: { children: ReactNode }) {
 
 // A nav group: its icons on top, the group label BELOW them, wrapped in a
 // subtle rounded border so adjacent groups read as separate blocks.
-function AppBarSection({ label, children }: { label: string; children: ReactNode }) {
+function AppBarSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
     <div className="flex w-full flex-col items-center gap-1 rounded-lg border border-border bg-primary/40 px-1 py-2">
       {children}
@@ -268,7 +274,7 @@ export function AppBar({
                 icon: LinkIcon,
                 onClick: onPairHostClick,
                 className:
-                  'bg-primary text-muted hover:text-normal hover:bg-tertiary',
+                  'bg-primary text-muted hover:text-normal hover:bg-surface',
               },
             ]
           : []),
@@ -301,7 +307,7 @@ export function AppBar({
       label: 'Create project',
       icon: PlusIcon,
       onClick: onCreateProject,
-      className: 'bg-primary text-muted hover:text-normal hover:bg-tertiary',
+      className: 'bg-primary text-muted hover:text-normal hover:bg-surface',
       wrapperClassName: 'pt-base',
     });
   }
@@ -474,7 +480,7 @@ export function AppBar({
               onClick={onUpdateClick}
               className={cn(
                 'flex items-center justify-center py-1 rounded-md w-10',
-                'text-[9px] font-ibm-plex-mono font-medium leading-none',
+                'text-micro font-ibm-plex-mono font-medium leading-none',
                 'bg-brand text-on-brand hover:bg-brand-hover',
                 'transition-colors cursor-pointer'
               )}
@@ -485,7 +491,7 @@ export function AppBar({
         ) : (
           appVersion && (
             <p
-              className="text-[9px] font-ibm-plex-mono text-low leading-none w-10 text-center"
+              className="text-micro font-ibm-plex-mono text-low leading-none w-10 text-center"
               title={`v${appVersion}`}
             >
               v{appVersion}
