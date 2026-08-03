@@ -141,7 +141,7 @@ function BucketButton({
               weight={meta.iconWeight}
             />
             {showBadge && (
-              <CountBadge count={count} className={meta.badgeClass} />
+              <CountBadge size="sm" count={count} className={meta.badgeClass} />
             )}
           </span>
           <span className="max-w-full truncate text-2xs font-medium leading-none text-low">
