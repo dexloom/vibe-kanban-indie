@@ -232,7 +232,13 @@ export function SidebarProjectTree({
       addedProject = true;
     }
 
-    if (addedProject) scheduleOpenStateWrite();
+    if (addedProject) {
+      // New project appeared mid-session (e.g. created in another tab). Its
+      // persisted status/card open-state lives in the blob but not in the
+      // mount-time snapshot, so refresh the replay source to include it.
+      mountOpenRef.current = readSidebarTreeOpenState(currentProjectIds);
+      scheduleOpenStateWrite();
+    }
   }, [projectKey, height, scheduleOpenStateWrite]);
 
   // Replay persisted status/card open state onto lazily-loaded nodes. Statuses

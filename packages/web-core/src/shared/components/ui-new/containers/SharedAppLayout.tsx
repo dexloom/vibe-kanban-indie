@@ -218,6 +218,23 @@ export function SharedAppLayout() {
     [sidebarProjects]
   );
 
+  // Prune the Tasks gate to live projects once the project list is known.
+  // The mount-time hydration reads the blob unfiltered (projects load
+  // asynchronously, so filtering at init would drop every persisted-open
+  // section), so stale ids for deleted projects are dropped here instead.
+  useEffect(() => {
+    const live = new Set(realProjectIds);
+    setOpenTasksProjectIds((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (live.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [realProjectIds]);
+
   // Single mapper used by both active and archived OutlinerWorkspace memos.
   // SidebarWorkspace is the union element type for both source arrays.
   const toOutlinerWorkspace = (ws: SidebarWorkspace): OutlinerWorkspace => ({

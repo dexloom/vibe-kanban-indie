@@ -14,6 +14,7 @@ export function StatusNodeRow({
       style={style}
       dragHandle={dragHandle}
       onRowClick={() => node.toggle()}
+      showCaret={status.children.length > 0}
       rowClassName="text-xs font-medium uppercase tracking-wide text-low"
     >
       <div className="flex items-center gap-1">
