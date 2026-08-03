@@ -4,6 +4,7 @@ import { cn } from '../lib/cn';
 import { SidebarBar } from './SidebarBar';
 import { SidebarBucketBar } from './SidebarBucketBar';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
+import { SidebarSeparator } from './SidebarSeparator';
 import { SidebarProjectTree } from './SidebarProjectTree';
 import type { SidebarProject } from './outliner/types';
 import type {
@@ -64,7 +65,7 @@ export function Sidebar({
       aria-label="Primary sidebar"
       className={cn(
         'flex h-full w-[256px] shrink-0 flex-col gap-2 overflow-hidden',
-        'border-r border-border bg-secondary px-2 pb-2',
+        'border-r border-border bg-secondary px-2 pt-2 pb-2',
         className,
       )}
     >
@@ -73,6 +74,8 @@ export function Sidebar({
         activeWorkspaceId={activeWorkspaceId}
         onSelectWorkspace={onSelectWorkspace}
       />
+
+      <SidebarSeparator />
 
       <SidebarSectionHeader
         title={t('appBar.projects')}
