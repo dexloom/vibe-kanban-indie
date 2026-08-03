@@ -49,7 +49,7 @@ export const BAR_BUCKETS: Record<BarBucketId, BarBucketMeta> = {
     icon: WarningIcon,
     iconWeight: 'bold',
     iconClass: 'text-warning',
-    badgeClass: 'bg-warning/15 text-warning',
+    badgeClass: 'bg-warning text-white',
   },
   running: {
     id: 'running',
@@ -57,7 +57,7 @@ export const BAR_BUCKETS: Record<BarBucketId, BarBucketMeta> = {
     icon: ClockIcon,
     iconWeight: 'bold',
     iconClass: 'text-success',
-    badgeClass: 'bg-success/15 text-success',
+    badgeClass: 'bg-success text-white',
   },
   idle: {
     id: 'idle',
@@ -65,7 +65,7 @@ export const BAR_BUCKETS: Record<BarBucketId, BarBucketMeta> = {
     icon: MoonIcon,
     iconWeight: 'bold',
     iconClass: 'text-low',
-    badgeClass: 'bg-tertiary text-low',
+    badgeClass: 'bg-tertiary text-white',
     hideBadge: true,
   },
 };

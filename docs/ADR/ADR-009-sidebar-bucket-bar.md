@@ -27,11 +27,13 @@ bucket:
 
 Owner decisions (final, iterated): buttons show a **small text label under the
 icon** (so a first-run user understands them), **no badge on Idle** (it can
-hold hundreds — the count is noise), **per-bucket colored badges** (attention
-`bg-warning/15 text-warning`, running `bg-success/15 text-success`), **no
-background on the bar row** (consistent with ADR-008's no-outline aesthetic).
-Icons: **Attention = `WarningIcon`** (triangle, `text-warning` — a new
-`warning` token bridged into tailwind from the existing `--warning` CSS var),
+hold hundreds — the count is noise), **solid per-bucket colored badges**
+(attention `bg-warning text-white`, running `bg-success text-white` —
+translucent variants blended into the icon and were dropped; `CountBadge`
+sits `-top-2 -right-2`, clearly above-and-right of the icon), **no background
+on the bar row** (consistent with ADR-008's no-outline aesthetic). Icons:
+**Attention = `WarningIcon`** (triangle, `text-warning` — a new `warning`
+token bridged into tailwind from the existing `--warning` CSS var),
 **Running = `ClockIcon`** (`text-success`), **Idle = `MoonIcon`** (`text-low`).
 
 ## Decision
@@ -105,10 +107,7 @@ workspaces only; Archived is intentionally not accepted (excluded by design).
   dropdown primitive — no duplicated categorization, sorting, or menu logic;
   the `WorkspaceActivityText` / `CountBadge` extractions remove duplicated
   markup from the tree leaf and the notification bell.
-- Negative: three more buttons on an already-dense 256px sidebar (icon-only,
-  no labels — mitigated by `aria-label` + dropdown header + tooltip-less
-  self-evidence); per-bucket badge colors depend on the alpha modifier working
-  (`bg-error/15`) — if the ADR-002 limitation bites, solid-color fallback per
-  bucket.
+- Negative: three more buttons on an already-dense 256px sidebar (icon +
+  micro-label; labels truncate at narrow widths but stay in `aria-label`).
 - Ongoing: if the dashboard or command bar ever surfaces buckets, they import
   `workspaceBuckets.ts` + the shared primitives rather than re-deriving them.

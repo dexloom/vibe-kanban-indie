@@ -23,7 +23,7 @@ export function CountBadge({ count, cap = 99, className }: CountBadgeProps) {
     <span
       aria-hidden="true"
       className={cn(
-        'absolute -top-2 -right-1 flex h-[18px] min-w-[18px] items-center',
+        'absolute -top-2 -right-2 flex h-[18px] min-w-[18px] items-center',
         'justify-center rounded-full px-1 text-2xs font-medium',
         className,
       )}
