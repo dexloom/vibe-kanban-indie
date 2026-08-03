@@ -4,13 +4,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CardNodeRow } from './CardNodeRow';
 import type { CardNode } from './types';
 
-const PRIORITY_CLASSES = {
-  urgent: 'bg-error',
-  high: 'bg-warning',
-  medium: 'bg-brand',
-  low: 'bg-tertiary',
-} as const;
-
 afterEach(cleanup);
 
 function cardNode(
@@ -45,42 +38,13 @@ function cardNode(
 }
 
 describe('CardNodeRow', () => {
-  it('renders only simpleId, title, and optional priority content in order', () => {
+  it('renders simpleId and title in order', () => {
     const { container } = render(
       <CardNodeRow node={cardNode().node} style={{ paddingLeft: 36 }} />,
     );
 
     expect(container.textContent).toBe('PROJ-1Fix auth');
     expect(screen.getByText('PROJ-1').className).toContain('font-mono');
-  });
-
-  it.each(Object.entries(PRIORITY_CLASSES))(
-    'maps %s priority to %s',
-    (priority, className) => {
-      const { container } = render(
-        <CardNodeRow
-          node={
-            cardNode({ priority: priority as keyof typeof PRIORITY_CLASSES })
-              .node
-          }
-          style={{}}
-        />,
-      );
-
-      expect(container.querySelector(`.${className}`)).toBeTruthy();
-    },
-  );
-
-  it('omits the priority dot for null priority', () => {
-    const { container } = render(
-      <CardNodeRow node={cardNode().node} style={{}} />,
-    );
-
-    expect(
-      Object.values(PRIORITY_CLASSES).some((className) =>
-        container.querySelector(`.${className}`),
-      ),
-    ).toBe(false);
   });
 
   it('marks the active issue as the current page with semibold text', () => {

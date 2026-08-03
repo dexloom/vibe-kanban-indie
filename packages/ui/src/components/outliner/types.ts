@@ -319,6 +319,27 @@ export function readOpenTasksProjectIds(
  * post-mount (verified: react-arborist `state/initial.js` seeds once inside
  * `useRef(createStore(...))`).
  */
+/**
+ * Status/card ids persisted OPEN that are present in the current tree and have
+ * not been applied yet. Unlike project/section/bucket state (seeded into
+ * initialOpenState at mount), status/card nodes load lazily AFTER the Tree
+ * consumed its initial map, so their persisted open state must be applied
+ * incrementally as data arrives — see SidebarProjectTree restore effect.
+ */
+export function pendingOpenStatusCardIds(
+  stored: Readonly<Record<string, boolean>>,
+  applied: ReadonlySet<string>,
+  node: (id: string) => { type: string } | null | undefined,
+): string[] {
+  const out: string[] = [];
+  for (const [id, open] of Object.entries(stored)) {
+    if (open !== true || applied.has(id)) continue;
+    const n = node(id);
+    if (n && (n.type === 'status' || n.type === 'card')) out.push(id);
+  }
+  return out;
+}
+
 export function buildSidebarTreeInitialOpenState(
   tree: readonly SidebarTreeNode[]
 ): Record<string, boolean> {

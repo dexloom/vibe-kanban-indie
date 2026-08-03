@@ -1,30 +1,32 @@
-import { TreeCaretRow } from './TreeCaretRow';
+import { TreeRow } from './TreeRow';
 import type { StatusNode, TreeNodeRenderProps } from './types';
 
-/** Status column header: color dot, name, and direct child count. */
+/** Status column header: name, color dot (after name), and direct child count. */
 export function StatusNodeRow({
   node,
   style,
   dragHandle,
 }: TreeNodeRenderProps<StatusNode>) {
   const status = node.data;
-
   return (
-    <TreeCaretRow
+    <TreeRow
       node={node}
       style={style}
       dragHandle={dragHandle}
-      className="text-xs font-medium uppercase tracking-wide text-low"
+      onRowClick={() => node.toggle()}
+      rowClassName="text-xs font-medium uppercase tracking-wide text-low"
     >
-      <span
-        aria-hidden="true"
-        className="size-2 shrink-0 rounded-full"
-        style={{ backgroundColor: `hsl(${status.color})` }}
-      />
-      <span className="truncate">{status.name}</span>
-      <span className="ml-auto text-2xs font-normal normal-case text-low opacity-70">
-        {status.children.length}
-      </span>
-    </TreeCaretRow>
+      <div className="flex items-center gap-1">
+        <span className="truncate">{status.name}</span>
+        <span
+          aria-hidden="true"
+          className="size-2 shrink-0 rounded-full"
+          style={{ backgroundColor: `hsl(${status.color})` }}
+        />
+        <span className="ml-auto text-2xs font-normal normal-case text-low opacity-70">
+          {status.children.length}
+        </span>
+      </div>
+    </TreeRow>
   );
 }

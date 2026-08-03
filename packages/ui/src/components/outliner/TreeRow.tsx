@@ -1,0 +1,82 @@
+import { CaretRightIcon } from '@phosphor-icons/react';
+import type { CSSProperties, ReactNode, Ref } from 'react';
+import type { NodeApi } from 'react-arborist';
+import { cn } from '../../lib/cn';
+
+interface TreeRowProps {
+  node: NodeApi<any>;
+  style: CSSProperties;
+  dragHandle?: Ref<HTMLDivElement>;
+  isActive?: boolean;
+  /** Row click handler. Required — semantics differ per type (toggle vs navigate). */
+  onRowClick: () => void;
+  /** Override caret visibility. Default: shown when !node.isLeaf. Cards pass children>0. */
+  showCaret?: boolean;
+  rowClassName?: string;
+  children: ReactNode;
+}
+
+/**
+ * Universal tree row shell. Owns ALL geometry (tree indent, caret/spacer,
+ * content slot) so per-type renderers only supply label content. TreeRow is
+ * blind to node type. Childless rows get a bullet in the caret column;
+ * expandable rows get a caret button.
+ */
+export function TreeRow({
+  node,
+  style,
+  dragHandle,
+  isActive = false,
+  onRowClick,
+  showCaret,
+  rowClassName,
+  children,
+}: TreeRowProps) {
+  const hasCaret = showCaret ?? !node.isLeaf;
+
+  return (
+    <div
+      style={style}
+      ref={dragHandle}
+      role="treeitem"
+      aria-selected={isActive}
+      aria-current={isActive ? 'page' : undefined}
+      aria-expanded={hasCaret ? node.isOpen : undefined}
+      onClick={onRowClick}
+      className={cn(
+        'relative flex w-full cursor-pointer items-center gap-1 overflow-hidden pr-1.5 text-left',
+        'focus:outline-none',
+        rowClassName,
+      )}
+    >
+      {hasCaret ? (
+        <button
+          type="button"
+          aria-label={node.isOpen ? 'Collapse' : 'Expand'}
+          aria-expanded={node.isOpen}
+          onClick={(event) => {
+            event.stopPropagation();
+            node.toggle();
+          }}
+          className="relative flex size-2.5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-low after:absolute after:-inset-1.5 after:content-[''] hover:bg-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          <CaretRightIcon
+            className={cn(
+              'size-2.5 transition-transform duration-150',
+              node.isOpen && 'rotate-90',
+            )}
+            weight="bold"
+          />
+        </button>
+      ) : (
+        <span
+          aria-hidden="true"
+          className="flex size-2.5 shrink-0 items-center justify-center text-low"
+        >
+          <span className="size-1 rounded-full bg-current opacity-60" />
+        </span>
+      )}
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}

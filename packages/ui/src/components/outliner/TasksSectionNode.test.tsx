@@ -36,6 +36,9 @@ function node(isLoading: boolean): NodeApi<TasksSectionNodeData> {
     },
     isOpen: false,
     toggle: vi.fn(),
+    isLeaf: false,
+    level: 2,
+    tree: { indent: 12 },
   } as unknown as NodeApi<TasksSectionNodeData>;
 }
 

@@ -7,6 +7,7 @@ import {
   UNASSIGNED_PROJECT_ID,
   buildSidebarTreeInitialOpenState,
   makeWorkspacesSectionId,
+  pendingOpenStatusCardIds,
   readSidebarTreeOpenState,
   writeSidebarTreeOpenState,
   type OutlinerWorkspace,
@@ -187,6 +188,11 @@ export function SidebarProjectTree({
   const openStateRef = useRef<Record<string, boolean>>(
     readSidebarTreeOpenState(liveProjectIds),
   );
+  // Mount-time snapshot of persisted open state. Status/card ids were unknown
+  // when initialOpenState was seeded, so we replay their stored-open values
+  // onto nodes as they lazily appear (restore effect below).
+  const mountOpenRef = useRef<Record<string, boolean>>(openStateRef.current);
+  const appliedOpenRef = useRef<Set<string>>(new Set());
   const writeScheduled = useRef(false);
 
   // Coalesce a burst of synchronous toggles into one localStorage write.
@@ -231,6 +237,25 @@ export function SidebarProjectTree({
     if (addedProject) scheduleOpenStateWrite();
   }, [projectKey, height, scheduleOpenStateWrite]);
 
+  // Replay persisted status/card open state onto lazily-loaded nodes. Statuses
+  // only mount after the Tasks section opens (lazy gate), so their ids are not
+  // in initialOpenState; each time tree data changes we open any stored-open
+  // status/card that just appeared. `appliedOpenRef` guards against reopening
+  // a node the user collapsed after it was first restored.
+  useEffect(() => {
+    const api = treeRef.current;
+    if (!api) return;
+    const ids = pendingOpenStatusCardIds(
+      mountOpenRef.current,
+      appliedOpenRef.current,
+      (id) => api.get(id)?.data ?? null,
+    );
+    for (const id of ids) {
+      api.open(id);
+      appliedOpenRef.current.add(id);
+    }
+  }, [treeData, height]);
+
   const handleActivate = useCallback(
     (node: NodeApi<SidebarTreeNode>) => {
       const data = node.data;
@@ -247,15 +272,16 @@ export function SidebarProjectTree({
 
   const handleToggle = useCallback(
     (id: string) => {
-      // onToggle fires for every node. Only project/section/bucket open-state
-      // is persisted — status/card ids load lazily after mount and are never
-      // seeded into initialOpenState, so persisting them would be a lie (they
-      // always reset to closed on reload). The Tasks section is a `section`
-      // node, so its expansion also drives the lazy loader gate.
+      // onToggle fires for every node. Persist open state for every togglable
+      // type — project/section/bucket ids are seeded into initialOpenState;
+      // status/card ids load lazily after mount and are restored by the
+      // replay effect above (persisting them is only a lie when nothing ever
+      // restores them). The Tasks section is a `section` node, so its
+      // expansion also drives the lazy loader gate.
       const node = treeRef.current?.get(id);
       if (!node) return;
       const type = node.data.type;
-      if (type === 'project' || type === 'section' || type === 'bucket') {
+      if (type !== 'leaf') {
         openStateRef.current = { ...openStateRef.current, [id]: node.isOpen };
         scheduleOpenStateWrite();
       }

@@ -1,6 +1,6 @@
 import { cn } from '../../lib/cn';
 import { WorkspaceActivityText } from '../WorkspaceActivityText';
-import { TREE_LAYOUT } from './layout';
+import { TreeRow } from './TreeRow';
 import {
   formatRelativeElapsed,
   type LeafNode,
@@ -13,6 +13,10 @@ import {
  * right edge of a narrow sidebar. Framed by dotted guide lines so the
  * bucket outline is legible. Visuals (bold active, dotted guides, color
  * tokens) are intentionally identical to the ADR-006 WorkspaceOutliner leaf.
+ *
+ * TreeRow owns geometry; we only supply the 2-line content. The taller
+ * rowHeight (40px) lets TreeRow's items-center vertically center the
+ * column.
  */
 export function OutlinerLeafNode({
   node,
@@ -24,57 +28,22 @@ export function OutlinerLeafNode({
   const isActive = ws.id === activeWorkspaceId;
   const elapsed = formatRelativeElapsed(ws.latestProcessCompletedAt);
 
-  // Geometry for the dotted guide: it must grow from the parent bucket's
-  // caret, not the leaf's own left edge. arborist gives every node
-  // `style.paddingLeft = indent * level`, and the parent caret sits at
-  // `(level-1)*indent + caretW/2` from the row left. Since the leaf div's
-  // left edge IS row x=0, the guide x equals that caret center.
-  const indent = node.tree.indent;
-  const caretHalf = TREE_LAYOUT.caretHalf; // Phosphor `size-2.5` caret = 10px wide
-  const paddingLeft = (style.paddingLeft as number | undefined) ?? 0;
-  const guideX = paddingLeft - indent + caretHalf;
-  const tickWidth = Math.max(0, indent - caretHalf);
-
   return (
-    <div
+    <TreeRow
+      node={node}
       style={style}
-      ref={dragHandle}
-      role="treeitem"
-      aria-selected={isActive}
-      aria-current={isActive ? 'page' : undefined}
-      onClick={() => node.activate()}
-      className={cn(
-        'relative flex w-full cursor-pointer flex-col justify-center gap-0 overflow-hidden pr-1.5 text-left',
-        'text-sm leading-tight focus:outline-none',
-        isActive
-          ? 'text-high font-semibold'
-          : 'text-normal font-light hover:text-high',
+      dragHandle={dragHandle}
+      isActive={isActive}
+      onRowClick={() => node.activate()}
+      rowClassName={cn(
+        'text-sm leading-tight',
+        isActive ? 'text-high font-semibold' : 'text-normal font-light hover:text-high',
       )}
     >
-      {/* Tree guide: vertical dotted line down the bucket + horizontal dotted
-          tick connecting the guide to this leaf. Pure visual orientation. */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute top-0 h-full w-px border-l-2 border-dotted border-border-strong/80"
-        style={{ left: guideX }}
-      />
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 h-px border-t-2 border-dotted border-border-strong/80"
-        style={{ left: guideX, width: tickWidth }}
-      />
-      {/* Inner wrapper owns the +10px content offset (owner request). arborist's
-          style is passed through untouched on the outer div; the offset lives
-          here as Tailwind pl so it composes cleanly with the dotted guides. */}
-      <div
-        className="flex min-w-0 flex-col justify-center gap-0"
-        style={{ paddingLeft: TREE_LAYOUT.leafContentOffset }}
-      >
+      <div className="flex min-w-0 flex-col justify-center gap-0">
         <span className="flex min-w-0 items-baseline gap-1.5">
           <span className="truncate">{ws.name}</span>
-          {elapsed && (
-            <span className="shrink-0 text-xs text-low">{elapsed}</span>
-          )}
+          {elapsed && <span className="shrink-0 text-xs text-low">{elapsed}</span>}
         </span>
         <WorkspaceActivityText
           filesChanged={ws.filesChanged}
@@ -82,6 +51,6 @@ export function OutlinerLeafNode({
           linesRemoved={ws.linesRemoved}
         />
       </div>
-    </div>
+    </TreeRow>
   );
 }

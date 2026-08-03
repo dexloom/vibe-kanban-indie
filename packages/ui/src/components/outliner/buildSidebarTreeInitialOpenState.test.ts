@@ -4,6 +4,7 @@ import {
   LEGACY_BUCKET_PERSIST_KEYS,
   UNASSIGNED_PROJECT_ID,
   buildSidebarTreeInitialOpenState,
+  pendingOpenStatusCardIds,
   readOpenTasksProjectIds,
   writeSidebarTreeOpenState,
   type SidebarTreeNode,
@@ -138,5 +139,41 @@ describe('buildSidebarTreeInitialOpenState', () => {
       readOpenTasksProjectIds({ 'p1:tasks': true, 'p2:tasks': false })
     ).toEqual(['p1']);
     expect(readOpenTasksProjectIds({})).toEqual([]);
+  });
+});
+
+describe('pendingOpenStatusCardIds', () => {
+  const node = (id: string): { type: string } | null => {
+    if (id === 'p1:status:s1') return { type: 'status' };
+    if (id === 'p1:card:c1') return { type: 'card' };
+    if (id === 'p1') return { type: 'project' };
+    if (id === 'p1:tasks') return { type: 'section' };
+    return null;
+  };
+
+  it('returns stored-open status/card ids that are present and unapplied', () => {
+    const stored = {
+      'p1': true,
+      'p1:tasks': true,
+      'p1:status:s1': true,
+      'p1:card:c1': true,
+    };
+    expect(pendingOpenStatusCardIds(stored, new Set(), node).sort()).toEqual([
+      'p1:card:c1',
+      'p1:status:s1',
+    ]);
+  });
+
+  it('skips closed, non-status/card, absent, and already-applied ids', () => {
+    const stored = {
+      'p1:status:s1': false,
+      'p1:card:c1': true,
+      'p1': true,
+      'p1:tasks': true,
+      'p1:status:ghost': true,
+    };
+    expect(
+      pendingOpenStatusCardIds(stored, new Set(['p1:card:c1']), node)
+    ).toEqual([]);
   });
 });

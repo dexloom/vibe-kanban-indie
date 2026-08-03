@@ -34,6 +34,9 @@ function statusNode(): NodeApi<StatusNode> {
     },
     isOpen: false,
     toggle: vi.fn(),
+    isLeaf: false,
+    level: 3,
+    tree: { indent: 12 },
   } as unknown as NodeApi<StatusNode>;
 }
 

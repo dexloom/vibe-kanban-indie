@@ -1,6 +1,6 @@
 import { SpinnerIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
-import { TreeCaretRow } from './TreeCaretRow';
+import { TreeRow } from './TreeRow';
 import type {
   TasksSectionNode as TasksSectionNodeData,
   TreeNodeRenderProps,
@@ -16,23 +16,26 @@ export function TasksSectionNode({
   const section = node.data;
 
   return (
-    <TreeCaretRow
+    <TreeRow
       node={node}
       style={style}
       dragHandle={dragHandle}
-      className="text-sm font-medium text-low"
+      onRowClick={() => node.toggle()}
+      rowClassName="text-sm font-medium text-low"
     >
-      <span className="truncate">{section.label}</span>
-      {section.isLoading ? (
-        <SpinnerIcon
-          aria-label={t('sidebar.tasksLoading')}
-          className="ml-auto size-3 shrink-0 animate-spin text-low"
-        />
-      ) : (
-        <span className="ml-auto text-2xs font-normal text-low opacity-70">
-          {section.children.length}
-        </span>
-      )}
-    </TreeCaretRow>
+      <div className="flex items-center gap-1">
+        <span className="truncate">{section.label}</span>
+        {section.isLoading ? (
+          <SpinnerIcon
+            aria-label={t('sidebar.tasksLoading')}
+            className="ml-auto size-3 shrink-0 animate-spin text-low"
+          />
+        ) : (
+          <span className="ml-auto text-2xs font-normal text-low opacity-70">
+            {section.children.length}
+          </span>
+        )}
+      </div>
+    </TreeRow>
   );
 }
