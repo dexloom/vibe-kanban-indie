@@ -56,16 +56,8 @@ import {
   selectIsCreateDraftDirty,
 } from './kanban-issue-panel-state';
 import { useUiPreferencesStore } from '@/shared/stores/useUiPreferencesStore';
-import { useAzureAttachments } from '@/shared/hooks/useAzureAttachments';
-import {
-  commitIssueAttachments,
-  deleteAttachment,
-} from '@/shared/lib/remoteApi';
-import {
-  extractAttachmentIds,
-  removeAttachmentMarkdownBySource,
-  replaceAttachmentSource,
-} from '@/shared/lib/attachmentUtils';
+import { useIssueAttachments } from '@/shared/hooks/useIssueAttachments';
+import { attachmentsApi } from '@/shared/lib/api';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentKanbanRouteState } from '@/shared/hooks/useCurrentKanbanRouteState';
@@ -131,17 +123,14 @@ function readPipelineProvenance(
 }
 
 /**
- * TODO(VIBE-47): `shared/remote-types.ts`'s generated `Workspace` type
- * (from `api_types::Workspace`, via `crates/remote/src/bin/
- * remote-generate-types.rs`) does not yet include `current_pipeline_stage` —
- * regenerating it requires building `crates/remote`, which was not possible
- * in the sandbox this was authored in (a private git dependency was
- * unreachable there). The Rust struct field already exists
- * (`crates/api-types/src/workspace.rs`) and every remote SQL site projects
- * it. Once `pnpm run remote:generate-types` runs somewhere with access, the
- * field lands on `Workspace` natively (as `bigint | null`, matching the
- * existing i64 convention e.g. `exit_code`) and this accessor should be
- * deleted in favor of reading `workspace.current_pipeline_stage` directly.
+ * TODO(VIBE-47): `shared/remote-types.ts`'s `Workspace` type does not yet
+ * include `current_pipeline_stage`. It was originally generated from
+ * `crates/remote`, which has been deleted — `shared/remote-types.ts` is now a
+ * hand-maintained contract. If the field is needed on the type, add
+ * `current_pipeline_stage: bigint | null` to `Workspace` in
+ * `shared/remote-types.ts` by hand (matching the existing i64 convention e.g.
+ * `exit_code`) and this accessor can be deleted in favor of reading
+ * `workspace.current_pipeline_stage` directly.
  */
 function readCurrentPipelineStage(workspace: Workspace | null): number | null {
   if (!workspace) return null;
@@ -377,8 +366,6 @@ export function KanbanIssuePanelContainer({
 
   // Track previous issue ID to detect actual issue switches (not just data updates)
   const prevIssueIdRef = useRef<string | null>(null);
-  const prevHasPendingAttachmentsRef = useRef(false);
-  const hasPendingAttachmentsRef = useRef(false);
   const titleInputRef = useRef<HTMLTextAreaElement>(null);
 
   const [formState, dispatchFormState] = useReducer(
@@ -555,7 +542,7 @@ export function KanbanIssuePanelContainer({
 
   // Callback to insert markdown into the description field
   const handleDescriptionInsert = useCallback(
-    (markdown: string, options?: { persist?: boolean }) => {
+    (markdown: string) => {
       const currentDesc = latestDescriptionRef.current ?? '';
       const separator = currentDesc.length > 0 ? '\n' : '';
       const newDesc = currentDesc + separator + markdown;
@@ -574,9 +561,7 @@ export function KanbanIssuePanelContainer({
           type: 'setEditDescription',
           description: newDesc,
         });
-        if (options?.persist !== false && !hasPendingAttachmentsRef.current) {
-          debouncedSaveDescription(newDesc);
-        }
+        debouncedSaveDescription(newDesc);
       }
     },
     [
@@ -587,106 +572,36 @@ export function KanbanIssuePanelContainer({
     ]
   );
 
-  const handleDescriptionSourceReplace = useCallback(
-    (previousSrc: string, nextSrc: string, options?: { persist?: boolean }) => {
-      const currentDesc = latestDescriptionRef.current ?? '';
-      const { content: nextDesc, replaced } = replaceAttachmentSource(
-        currentDesc,
-        previousSrc,
-        nextSrc
-      );
-
-      if (!replaced) {
-        return false;
-      }
-      latestDescriptionRef.current = nextDesc;
-
-      if (kanbanCreateMode || !selectedKanbanIssueId) {
-        dispatchFormState({
-          type: 'patchCreateFormData',
-          patch: { description: nextDesc },
-          fallback: createFormFallback,
-        });
-      } else {
-        dispatchFormState({
-          type: 'setEditDescription',
-          description: nextDesc,
-        });
-        if (options?.persist !== false && !hasPendingAttachmentsRef.current) {
-          debouncedSaveDescription(nextDesc);
-        }
-      }
-
-      return true;
-    },
-    [
-      kanbanCreateMode,
-      selectedKanbanIssueId,
-      createFormFallback,
-      debouncedSaveDescription,
-    ]
-  );
-
-  const handleDescriptionSourceRemove = useCallback(
-    (src: string, options?: { persist?: boolean }) => {
-      const currentDesc = latestDescriptionRef.current ?? '';
-      const { content: nextDesc, removed } = removeAttachmentMarkdownBySource(
-        currentDesc,
-        src
-      );
-
-      if (!removed) {
-        return false;
-      }
-      latestDescriptionRef.current = nextDesc || null;
-
-      if (kanbanCreateMode || !selectedKanbanIssueId) {
-        dispatchFormState({
-          type: 'patchCreateFormData',
-          patch: { description: nextDesc || null },
-          fallback: createFormFallback,
-        });
-      } else {
-        dispatchFormState({
-          type: 'setEditDescription',
-          description: nextDesc || null,
-        });
-        if (options?.persist !== false && !hasPendingAttachmentsRef.current) {
-          debouncedSaveDescription(nextDesc || null);
-        }
-      }
-
-      return true;
-    },
-    [
-      kanbanCreateMode,
-      selectedKanbanIssueId,
-      createFormFallback,
-      debouncedSaveDescription,
-    ]
-  );
-
-  // Azure attachment upload hook
+  // Issue attachment upload hook
   const {
     uploadFiles,
     getAttachmentIds,
     clearAttachments,
     isUploading,
-    hasPendingAttachments,
     uploadError,
     clearUploadError,
     localAttachments,
-  } = useAzureAttachments({
-    projectId,
-    issueId: kanbanCreateMode
-      ? undefined
-      : (selectedKanbanIssueId ?? undefined),
-    onMarkdownInsert: handleDescriptionInsert,
-    onAttachmentSourceReplace: handleDescriptionSourceReplace,
-    onAttachmentSourceRemove: handleDescriptionSourceRemove,
-    onError: (msg) => console.error('[attachment]', msg),
-  });
-  hasPendingAttachmentsRef.current = hasPendingAttachments;
+    uploadedAttachments,
+  } = useIssueAttachments(handleDescriptionInsert);
+
+  const linkedAttachmentIdsRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (kanbanCreateMode || !selectedKanbanIssueId) return;
+
+    const newAttachments = uploadedAttachments.filter(
+      (attachment) => !linkedAttachmentIdsRef.current.has(attachment.id)
+    );
+    for (const attachment of newAttachments) {
+      linkedAttachmentIdsRef.current.add(attachment.id);
+      void attachmentsApi
+        .linkIssueAttachments(selectedKanbanIssueId, [attachment.id])
+        .catch((error) => {
+          linkedAttachmentIdsRef.current.delete(attachment.id);
+          console.error('Failed to link issue attachment:', error);
+        });
+    }
+  }, [kanbanCreateMode, selectedKanbanIssueId, uploadedAttachments]);
 
   // Dropzone for drag-drop image upload on description area
   const {
@@ -730,13 +645,16 @@ export function KanbanIssuePanelContainer({
     cancelDebouncedTitle();
     cancelDebouncedDescription();
     cancelDebouncedPipelineEdit();
+    clearAttachments();
+    linkedAttachmentIdsRef.current.clear();
 
     let nextCreateFormData: IssueFormData | null = null;
     let restoredFromScratch = false;
 
     if (mode === 'create') {
       // Check if the composer store has a saved draft (e.g., restored from
-      // localStorage on remote-web). Use it to seed the form instead of defaults.
+      // localStorage on a previous visit). Use it to seed the form instead of
+      // defaults.
       const composerDraft =
         useKanbanIssueComposerStore.getState().byKey[issueComposerKey]?.draft;
       const hasSavedDraft =
@@ -780,35 +698,6 @@ export function KanbanIssuePanelContainer({
     cancelDebouncedPipelineEdit,
     createModeDefaults,
     issueComposerKey,
-  ]);
-
-  useEffect(() => {
-    const wasPending = prevHasPendingAttachmentsRef.current;
-    prevHasPendingAttachmentsRef.current = hasPendingAttachments;
-
-    if (kanbanCreateMode || !selectedKanbanIssueId) {
-      return;
-    }
-
-    if (!wasPending || hasPendingAttachments) {
-      return;
-    }
-
-    const currentDescription = displayData.description ?? null;
-    const persistedDescription = selectedIssue?.description ?? null;
-
-    if (currentDescription === persistedDescription) {
-      return;
-    }
-
-    debouncedSaveDescription(currentDescription);
-  }, [
-    kanbanCreateMode,
-    selectedKanbanIssueId,
-    hasPendingAttachments,
-    displayData.description,
-    selectedIssue?.description,
-    debouncedSaveDescription,
   ]);
 
   // Form change handler - persists changes immediately in edit mode
@@ -914,9 +803,7 @@ export function KanbanIssuePanelContainer({
           type: 'setEditDescription',
           description: value as string | null,
         });
-        if (!hasPendingAttachments) {
-          debouncedSaveDescription(value as string | null);
-        }
+        debouncedSaveDescription(value as string | null);
       } else if (field === 'statusId') {
         // Status changes go through the command bar status selection
         openStatusSelection(projectId, [selectedKanbanIssueId]);
@@ -961,7 +848,6 @@ export function KanbanIssuePanelContainer({
       projectId,
       createFormFallback,
       createFormData,
-      hasPendingAttachments,
       debouncedSaveTitle,
       debouncedSaveDescription,
       openStatusSelection,
@@ -1006,7 +892,7 @@ export function KanbanIssuePanelContainer({
 
   // Submit handler
   const handleSubmit = useCallback(async () => {
-    if (!displayData.title.trim() || hasPendingAttachments) return;
+    if (!displayData.title.trim() || isUploading) return;
 
     setIsSubmitting(true);
     try {
@@ -1065,28 +951,15 @@ export function KanbanIssuePanelContainer({
         intakeMetadataRef.current = null;
         pipelineRef.current = null;
 
-        // Commit only attachments still referenced in the description
-        const allUploadedIds = getAttachmentIds();
-        if (allUploadedIds.length > 0) {
-          const referencedIds = extractAttachmentIds(
-            displayData.description ?? ''
-          );
-          const idsToCommit = allUploadedIds.filter((id) =>
-            referencedIds.has(id)
-          );
-          const idsToDelete = allUploadedIds.filter(
-            (id) => !referencedIds.has(id)
-          );
-
-          if (idsToCommit.length > 0) {
-            await commitIssueAttachments(syncedIssue.id, {
-              attachment_ids: idsToCommit,
-            });
-          }
-          for (const id of idsToDelete) {
-            deleteAttachment(id).catch((err) =>
-              console.error('Failed to delete abandoned attachment:', err)
+        const attachmentIds = getAttachmentIds();
+        if (attachmentIds.length > 0) {
+          try {
+            await attachmentsApi.linkIssueAttachments(
+              syncedIssue.id,
+              attachmentIds
             );
+          } catch (err) {
+            console.error('Failed to link issue attachments:', err);
           }
           clearAttachments();
         }
@@ -1178,7 +1051,7 @@ export function KanbanIssuePanelContainer({
     issueComposerKey,
     getAttachmentIds,
     clearAttachments,
-    hasPendingAttachments,
+    isUploading,
     onExpectIssueOpen,
     t,
   ]);

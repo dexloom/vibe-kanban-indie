@@ -9,14 +9,8 @@ use executors::executors::ExecutorError;
 use futures::{StreamExt, TryStreamExt};
 use git::{GitService, GitServiceError};
 use preview_proxy::PreviewProxyService;
-use relay_control::{RelayControl, signing::RelaySigningService};
-use relay_hosts::RelayHosts;
-use remote_info::RemoteInfo;
-use serde_json::Value;
 use services::services::{
-    analytics::AnalyticsService,
     approvals::Approvals,
-    auth::AuthContext,
     config::{Config, ConfigError},
     container::{ContainerError, ContainerService},
     events::{EventError, EventService},
@@ -25,24 +19,13 @@ use services::services::{
     filesystem::{FilesystemError, FilesystemService},
     filesystem_watcher::FilesystemWatcherError,
     queued_message::QueuedMessageService,
-    remote_client::RemoteClient,
     repo::RepoService,
 };
 use sqlx::Error as SqlxError;
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
-use trusted_key_auth::runtime::TrustedKeyAuthRuntime;
-use utils::sentry as sentry_utils;
 use worktree_manager::WorktreeError;
-
-#[derive(Debug, Clone, Copy, Error)]
-#[error("Remote client not configured")]
-pub struct RemoteClientNotConfigured;
-
-#[derive(Debug, Clone, Copy, Error)]
-#[error("Relay hosts not configured")]
-pub struct RelayHostsNotConfigured;
 
 #[derive(Debug, Error)]
 pub enum DeploymentError {
@@ -70,8 +53,6 @@ pub enum DeploymentError {
     Event(#[from] EventError),
     #[error(transparent)]
     Config(#[from] ConfigError),
-    #[error("Remote client not configured")]
-    RemoteClientNotConfigured,
     #[error(transparent)]
     Other(#[from] AnyhowError),
 }
@@ -80,13 +61,9 @@ pub enum DeploymentError {
 pub trait Deployment: Clone + Send + Sync + 'static {
     async fn new(shutdown: CancellationToken) -> Result<Self, DeploymentError>;
 
-    fn user_id(&self) -> &str;
-
     fn config(&self) -> &Arc<RwLock<Config>>;
 
     fn db(&self) -> &DBService;
-
-    fn analytics(&self) -> &Option<AnalyticsService>;
 
     fn container(&self) -> &impl ContainerService;
 
@@ -106,45 +83,9 @@ pub trait Deployment: Clone + Send + Sync + 'static {
 
     fn queued_message_service(&self) -> &QueuedMessageService;
 
-    fn auth_context(&self) -> &AuthContext;
-
-    fn relay_control(&self) -> &Arc<RelayControl>;
-
-    fn relay_signing(&self) -> &RelaySigningService;
-
     fn client_info(&self) -> &ClientInfo;
 
-    fn remote_info(&self) -> &RemoteInfo;
-
     fn preview_proxy(&self) -> &PreviewProxyService;
-
-    fn relay_hosts(&self) -> Result<&Arc<RelayHosts>, RelayHostsNotConfigured> {
-        Err(RelayHostsNotConfigured)
-    }
-
-    fn trusted_key_auth(&self) -> &TrustedKeyAuthRuntime;
-
-    fn remote_client(&self) -> Result<RemoteClient, RemoteClientNotConfigured> {
-        Err(RemoteClientNotConfigured)
-    }
-
-    async fn update_sentry_scope(&self) -> Result<(), DeploymentError> {
-        let user_id = self.user_id();
-        let config = self.config().read().await;
-        let username = config.github.username.as_deref();
-        let email = config.github.primary_email.as_deref();
-        sentry_utils::configure_user_scope(user_id, username, email);
-
-        Ok(())
-    }
-
-    async fn track_if_analytics_allowed(&self, event_name: &str, properties: Value) {
-        let analytics_enabled = self.config().read().await.analytics_enabled;
-        // Track events unless user has explicitly opted out
-        if analytics_enabled && let Some(analytics) = self.analytics() {
-            analytics.track_event(self.user_id(), event_name, Some(properties.clone()));
-        }
-    }
 
     async fn stream_events(
         &self,

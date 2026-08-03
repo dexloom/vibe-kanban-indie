@@ -31,8 +31,6 @@ import { RightSidebar } from './RightSidebar';
 import { ChangesPanelContainer } from './ChangesPanelContainer';
 import { CreateChatBoxContainer } from '@/shared/components/CreateChatBoxContainer';
 import { PreviewBrowserContainer } from './PreviewBrowserContainer';
-import { WorkspacesGuideDialog } from '@/shared/dialogs/shared/WorkspacesGuideDialog';
-import { useUserSystem } from '@/shared/hooks/useUserSystem';
 
 import {
   PERSIST_KEYS,
@@ -41,8 +39,6 @@ import {
   RIGHT_MAIN_PANEL_MODES,
 } from '@/shared/stores/useUiPreferencesStore';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
-
-const WORKSPACES_GUIDE_ID = 'workspaces-guide';
 
 export function WorkspacesLayout() {
   const appNavigation = useAppNavigation();
@@ -134,29 +130,6 @@ export function WorkspacesLayout() {
     setLeftSidebarVisible,
     setLeftMainPanelVisible,
   } = useWorkspacePanelState(isCreateMode ? undefined : workspaceId);
-
-  const {
-    config,
-    updateAndSaveConfig,
-    loading: configLoading,
-  } = useUserSystem();
-  const hasAutoShownWorkspacesGuide = useRef(false);
-
-  // Auto-show Workspaces Guide on first visit
-  useEffect(() => {
-    if (hasAutoShownWorkspacesGuide.current) return;
-    if (configLoading || !config) return;
-
-    const seenFeatures = config.showcases?.seen_features ?? [];
-    if (seenFeatures.includes(WORKSPACES_GUIDE_ID)) return;
-
-    hasAutoShownWorkspacesGuide.current = true;
-
-    void updateAndSaveConfig({
-      showcases: { seen_features: [...seenFeatures, WORKSPACES_GUIDE_ID] },
-    });
-    WorkspacesGuideDialog.show().finally(() => WorkspacesGuideDialog.hide());
-  }, [configLoading, config, updateAndSaveConfig]);
 
   // Ensure left panels visible when right main panel hidden
   useEffect(() => {

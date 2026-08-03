@@ -1,6 +1,4 @@
-pub mod analytics;
 pub mod approvals;
-pub mod auth;
 pub mod config;
 pub mod container;
 pub mod diff_stream;
@@ -12,19 +10,14 @@ pub mod file_search;
 pub mod filesystem;
 pub mod filesystem_watcher;
 pub mod notification;
-pub mod oauth_credentials;
 pub mod opencode_agents;
 pub mod orchestrator_compactor;
 pub mod pipeline_stage;
 pub mod pipelines;
 pub mod pr_monitor;
 pub mod project_config;
-pub mod recurrent;
-
-#[cfg(feature = "qa-mode")]
 pub mod qa_repos;
 pub mod queued_message;
-pub mod remote_client;
-pub mod remote_sync;
+pub mod recurrent;
 pub mod repo;
 pub mod speckit;

@@ -27,7 +27,6 @@ use services::services::{
     },
     container::ContainerService,
     project_config,
-    remote_client::RemoteClientError,
 };
 use tokio::fs;
 use ts_rs::TS;
@@ -38,7 +37,6 @@ use crate::{
     DeploymentImpl,
     error::ApiError,
     middleware::signed_ws::{MaybeSignedWebSocket, SignedWsUpgrade},
-    runtime::relay_registration,
 };
 
 pub fn router() -> Router<DeploymentImpl> {
@@ -92,15 +90,12 @@ impl Environment {
 pub struct UserSystemInfo {
     pub version: String,
     pub config: Config,
-    pub machine_id: String,
     pub login_status: LoginStatus,
-    pub remote_auth_degraded: Option<String>,
     #[serde(flatten)]
     pub profiles: ExecutorConfigs,
     pub environment: Environment,
     /// Capabilities supported per executor (e.g., { "CLAUDE_CODE": ["SESSION_FORK"] })
     pub capabilities: HashMap<String, Vec<BaseAgentCapability>>,
-    pub shared_api_base: Option<String>,
     pub preview_proxy_port: Option<u16>,
 }
 
@@ -110,57 +105,12 @@ async fn get_user_system_info(
     State(deployment): State<DeploymentImpl>,
 ) -> ResponseJson<ApiResponse<UserSystemInfo>> {
     let config = deployment.config().read().await.clone();
-    let login_status = match tokio::time::timeout(
-        std::time::Duration::from_secs(2),
-        deployment.get_login_status(),
-    )
-    .await
-    {
-        Ok(status) => status,
-        Err(_) => {
-            tracing::warn!("timed out determining login status for /api/info");
-
-            let auth_context = deployment.auth_context();
-            let cached_profile = auth_context.cached_profile().await;
-
-            match auth_context.get_credentials().await {
-                Some(_) => {
-                    if auth_context.remote_auth_degraded_slug().await.is_none() {
-                        auth_context
-                            .set_remote_auth_degraded_slug(
-                                RemoteClientError::generic_degraded_slug(),
-                            )
-                            .await;
-                    }
-
-                    deployment
-                        .track_if_analytics_allowed(
-                            "login_status_timeout",
-                            serde_json::json!({
-                                "has_cached_profile": cached_profile.is_some(),
-                            }),
-                        )
-                        .await;
-
-                    LoginStatus::LoggedIn {
-                        profile: cached_profile,
-                    }
-                }
-                None => {
-                    auth_context.clear_profile().await;
-                    auth_context.clear_remote_auth_degraded_slug().await;
-                    LoginStatus::LoggedOut
-                }
-            }
-        }
-    };
+    let login_status = deployment.get_login_status().await;
 
     let user_system_info = UserSystemInfo {
         version: env!("CARGO_PKG_VERSION").to_string(),
         config,
-        machine_id: deployment.user_id().to_string(),
         login_status,
-        remote_auth_degraded: deployment.auth_context().remote_auth_degraded_slug().await,
         profiles: ExecutorConfigs::get_cached(),
         environment: Environment::new(),
         capabilities: {
@@ -173,7 +123,6 @@ async fn get_user_system_info(
             }
             caps
         },
-        shared_api_base: deployment.remote_info().get_api_base(),
         preview_proxy_port: deployment.client_info().get_preview_proxy_port(),
     };
 
@@ -194,7 +143,7 @@ async fn update_config(
     }
 
     // Get old config state before updating
-    let old_config = deployment.config().read().await.clone();
+    let _old_config = deployment.config().read().await.clone();
 
     match save_config_to_file(&new_config, &config_path).await {
         Ok(_) => {
@@ -203,61 +152,10 @@ async fn update_config(
             drop(config);
 
             // Track config events when fields transition from false → true and run side effects
-            handle_config_events(&deployment, &old_config, &new_config).await;
 
             ResponseJson(ApiResponse::success(new_config))
         }
         Err(e) => ResponseJson(ApiResponse::error(&format!("Failed to save config: {}", e))),
-    }
-}
-
-/// Track config events when fields transition from false → true
-async fn track_config_events(deployment: &DeploymentImpl, old: &Config, new: &Config) {
-    let events = [
-        (
-            !old.disclaimer_acknowledged && new.disclaimer_acknowledged,
-            "onboarding_disclaimer_accepted",
-            serde_json::json!({}),
-        ),
-        (
-            !old.onboarding_acknowledged && new.onboarding_acknowledged,
-            "onboarding_completed",
-            serde_json::json!({
-                "profile": new.executor_profile,
-                "editor": new.editor
-            }),
-        ),
-        (
-            !old.analytics_enabled && new.analytics_enabled,
-            "analytics_session_start",
-            serde_json::json!({}),
-        ),
-    ];
-
-    for (should_track, event_name, properties) in events {
-        if should_track {
-            deployment
-                .track_if_analytics_allowed(event_name, properties)
-                .await;
-        }
-    }
-}
-
-async fn handle_config_events(deployment: &DeploymentImpl, old: &Config, new: &Config) {
-    track_config_events(deployment, old, new).await;
-
-    let old_host_nickname = relay_registration::clean_host_nickname(old, deployment.user_id());
-    let new_host_nickname = relay_registration::clean_host_nickname(new, deployment.user_id());
-
-    match (old.relay_enabled, new.relay_enabled) {
-        (false, true) => relay_registration::spawn_relay(deployment).await,
-        (true, false) => relay_registration::stop_relay(deployment).await,
-        (true, true) => {
-            if old_host_nickname != new_host_nickname {
-                relay_registration::spawn_relay(deployment).await;
-            }
-        }
-        (false, false) => (),
     }
 }
 

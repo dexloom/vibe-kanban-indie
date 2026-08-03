@@ -77,16 +77,6 @@ pub async fn add_workspace_repo(
             ApiError::Conflict("Repository already attached to workspace".to_string())
         })?;
 
-    deployment
-        .track_if_analytics_allowed(
-            "task_attempt_repo_added",
-            serde_json::json!({
-                "workspace_id": workspace.id.to_string(),
-                "repo_id": repo.repo.id.to_string(),
-            }),
-        )
-        .await;
-
     Ok(ResponseJson(ApiResponse::success(
         AddWorkspaceRepoResponse { workspace, repo },
     )))

@@ -38,12 +38,8 @@ function resolveLocalDestinationFromPath(path: string): AppDestination | null {
       return { kind: 'root' };
     case '/onboarding':
       return { kind: 'onboarding' };
-    case '/onboarding_/sign-in':
-      return { kind: 'onboarding-sign-in' };
     case '/_app/workspaces':
       return { kind: 'workspaces' };
-    case '/_app/export':
-      return { kind: 'export' };
     case '/_app/common-tasks':
       return { kind: 'common-tasks' };
     case '/_app/hosts/$hostId/workspaces': {
@@ -187,8 +183,6 @@ function destinationToLocalTarget(
       return { to: '/' } as const;
     case 'onboarding':
       return { to: '/onboarding' } as const;
-    case 'onboarding-sign-in':
-      return { to: '/onboarding/sign-in' } as const;
     case 'workspaces':
       if (effectiveHostId) {
         return {
@@ -233,8 +227,6 @@ function destinationToLocalTarget(
         to: '/workspaces/$workspaceId/vscode',
         params: { workspaceId: destination.workspaceId },
       } as const;
-    case 'export':
-      return { to: '/export' } as const;
     case 'common-tasks':
       return { to: '/common-tasks' } as const;
     case 'project':
@@ -334,8 +326,6 @@ export function createLocalAppNavigation(): AppNavigation {
     goToRoot: (transition) => navigateTo({ kind: 'root' }, transition),
     goToOnboarding: (transition) =>
       navigateTo({ kind: 'onboarding' }, transition),
-    goToOnboardingSignIn: (transition) =>
-      navigateTo({ kind: 'onboarding-sign-in' }, transition),
     goToWorkspaces: (transition) =>
       navigateTo({ kind: 'workspaces' }, transition),
     goToWorkspacesCreate: (transition) =>
@@ -344,7 +334,6 @@ export function createLocalAppNavigation(): AppNavigation {
       navigateTo({ kind: 'workspace', workspaceId }, transition),
     goToWorkspaceVsCode: (workspaceId, transition) =>
       navigateTo({ kind: 'workspace-vscode', workspaceId }, transition),
-    goToExport: (transition) => navigateTo({ kind: 'export' }, transition),
     goToCommonTasks: (transition) =>
       navigateTo({ kind: 'common-tasks' }, transition),
     goToProject: (projectId, transition) =>

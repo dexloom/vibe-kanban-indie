@@ -5,7 +5,6 @@ edition.workspace = true
 
 [dependencies]
 axum.workspace = true
-ws-bridge.workspace = true
 reqwest.workspace = true
 http.workspace = true
 thiserror.workspace = true
@@ -13,3 +12,6 @@ tokio.workspace = true
 tracing.workspace = true
 utils.workspace = true
 uuid.workspace = true
+futures-util.workspace = true
+futures.workspace = true
+tokio-tungstenite.workspace = true

@@ -1169,6 +1169,7 @@ export function KanbanContainer() {
                               <div className="mt-half">
                                 <KanbanWorkspaceDispatch
                                   workspaces={dispatchWorkspaces}
+                                  currentWorkspaceIds={workspaceIdsShownOnCard}
                                   onDispatch={(workspaceId) =>
                                     handleDispatchIssueToWorkspace(
                                       issue.id,

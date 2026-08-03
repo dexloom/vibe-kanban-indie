@@ -7,23 +7,14 @@ import {
 import type { ReactNode } from 'react';
 import {
   LayoutIcon,
-  DownloadSimpleIcon,
   ClockClockwiseIcon,
   LinkIcon,
   PlusIcon,
   SpinnerIcon,
-  StarIcon,
   type Icon,
 } from '@phosphor-icons/react';
 import { cn } from '../lib/cn';
-import { AppBarSocialLink } from './AppBarSocialLink';
 import { Tooltip } from './Tooltip';
-
-function formatStarCount(count: number): string {
-  if (count < 1000) return String(count);
-  const k = count / 1000;
-  return k >= 10 ? `${Math.floor(k)}k` : `${k.toFixed(1)}k`;
-}
 
 function getProjectInitials(name: string): string {
   const trimmed = name.trim();
@@ -42,7 +33,6 @@ interface AppBarProps {
   onPairHostClick?: () => void;
   activeHostId?: string | null;
   onCreateProject: () => void;
-  onExportClick?: () => void;
   onCommonTasksClick?: () => void;
   onWorkspacesClick: () => void;
   onHostClick?: (hostId: string, status: AppBarHostStatus) => void;
@@ -51,26 +41,17 @@ interface AppBarProps {
   onProjectsDragEnd: (result: DropResult) => void;
   isSavingProjectOrder?: boolean;
   isWorkspacesActive: boolean;
-  isExportActive?: boolean;
   isCommonTasksActive?: boolean;
   activeProjectId: string | null;
   isSignedIn?: boolean;
   isLoadingProjects?: boolean;
-  // Optional sign-in handler. The local-only indie app has nothing to sign in
-  // to and omits this; remote-web still passes it. The dedicated kanban sign-in
-  // CTA was removed (sign-in remains available via the user popover), so this
-  // prop is currently inert in the rail — kept so remote-web compiles and can
-  // re-wire a CTA later without churning the prop interface again.
-  onSignIn?: () => void;
   onHoverStart?: () => void;
   onHoverEnd?: () => void;
   notificationBell?: ReactNode;
   userPopover?: ReactNode;
-  starCount?: number | null;
   appVersion?: string | null;
   updateVersion?: string | null;
   onUpdateClick?: () => void;
-  githubIconPath: string;
 }
 
 export interface AppBarProject {
@@ -204,7 +185,6 @@ export function AppBar({
   onPairHostClick,
   activeHostId = null,
   onCreateProject,
-  onExportClick,
   onCommonTasksClick,
   onWorkspacesClick,
   onHostClick,
@@ -213,7 +193,6 @@ export function AppBar({
   onProjectsDragEnd,
   isSavingProjectOrder,
   isWorkspacesActive,
-  isExportActive = false,
   isCommonTasksActive = false,
   activeProjectId,
   isSignedIn,
@@ -222,11 +201,9 @@ export function AppBar({
   onHoverEnd,
   notificationBell,
   userPopover,
-  starCount,
   appVersion,
   updateVersion,
   onUpdateClick,
-  githubIconPath,
 }: AppBarProps) {
   const sections: AppBarSection[] = [];
 
@@ -334,23 +311,6 @@ export function AppBar({
       key: 'projects',
       label: 'Projects',
       items: projectSectionItems,
-    });
-  }
-
-  if (isSignedIn && onExportClick) {
-    sections.push({
-      key: 'export',
-      label: 'Export',
-      items: [
-        {
-          key: 'export-data',
-          kind: 'icon-button',
-          label: 'Export data',
-          icon: DownloadSimpleIcon,
-          isActive: isExportActive,
-          onClick: onExportClick,
-        },
-      ],
     });
   }
 
@@ -503,23 +463,10 @@ export function AppBar({
         </AppBarSection>
       ))}
 
-      {/* Bottom section: Notifications + User popover + GitHub */}
+      {/* Bottom section: Notifications + User popover */}
       <div className="mt-auto pt-base flex flex-col items-center gap-4">
         {notificationBell}
         {userPopover}
-        <AppBarSocialLink
-          href="https://github.com/dexloom/vibe-kanban-indie"
-          label="Star on GitHub"
-          iconPath={githubIconPath}
-          badge={
-            starCount != null && (
-              <>
-                <StarIcon size={10} weight="fill" />
-                {formatStarCount(starCount)}
-              </>
-            )
-          }
-        />
         {updateVersion ? (
           <Tooltip content={`Update to v${updateVersion}`} side="right">
             <button

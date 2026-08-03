@@ -19,13 +19,13 @@ export function LocalAuthProvider({ children }: LocalAuthProviderProps) {
 
   // The local build runs the kanban without any cloud account. Present a
   // predefined local user so the auth-gated shell (sign-in checks, providers)
-  // works without login. A real cloud login, when present, still wins.
+  // works without login.
   const value = useMemo<AuthContextValue>(() => {
     if (loginStatus?.status === 'loggedin') {
       return {
         isSignedIn: true,
         isLoaded: true,
-        userId: loginStatus.profile?.user_id ?? LOCAL_USER_ID,
+        userId: loginStatus.user_id ?? LOCAL_USER_ID,
       };
     }
     return { isSignedIn: true, isLoaded: true, userId: LOCAL_USER_ID };

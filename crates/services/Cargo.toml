@@ -11,7 +11,6 @@ qa-mode = ["executors/qa-mode"]
 [dependencies]
 indicatif.workspace = true
 api-types.workspace = true
-relay-types.workspace = true
 utils.workspace = true
 git.workspace = true
 git-host.workspace = true

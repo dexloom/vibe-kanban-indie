@@ -34,16 +34,6 @@ async fn queue_message(
         .queued_message_service()
         .queue_message(session.id, data);
 
-    deployment
-        .track_if_analytics_allowed(
-            "follow_up_queued",
-            serde_json::json!({
-                "session_id": session.id.to_string(),
-                "workspace_id": session.workspace_id.to_string(),
-            }),
-        )
-        .await;
-
     Ok(ResponseJson(ApiResponse::success(QueueStatus::Queued {
         message: queued,
     })))
@@ -57,16 +47,6 @@ async fn cancel_queued_message(
     deployment
         .queued_message_service()
         .cancel_queued(session.id);
-
-    deployment
-        .track_if_analytics_allowed(
-            "follow_up_queue_cancelled",
-            serde_json::json!({
-                "session_id": session.id.to_string(),
-                "workspace_id": session.workspace_id.to_string(),
-            }),
-        )
-        .await;
 
     Ok(ResponseJson(ApiResponse::success(QueueStatus::Empty)))
 }

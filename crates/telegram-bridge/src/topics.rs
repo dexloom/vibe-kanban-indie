@@ -5,12 +5,12 @@
 //! forum topic. Escalations for that worktree are routed into its topic instead
 //! of the General area.
 //!
-//! Routing is keyed by `execution_process_id` (what approvals carry). We resolve
-//! `exec → session → workspace` over the backend's local REST API
-//! (`require_relay_request_signature` is a no-op for non-relay requests, so the
-//! daemon reaches these endpoints unauthenticated). The
-//! `workspace_id → message_thread_id` map is persisted under `~/.vibe-kanban`
-//! so a bridge restart reuses existing topics instead of creating duplicates.
+//! Routing is keyed on `execution_process_id` (what approvals carry). We resolve
+//! `exec → session → workspace` over the backend's local REST API; the daemon
+//! reaches these endpoints directly since the local backend is unauthenticated.
+//! The `workspace_id → message_thread_id` map is persisted under
+//! `~/.vibe-kanban` so a bridge restart reuses existing topics instead of
+//! creating duplicates.
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 

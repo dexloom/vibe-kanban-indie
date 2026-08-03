@@ -1,10 +1,7 @@
 use mcp::task_server::McpServer;
 use rmcp::{ServiceExt, transport::stdio};
 use tracing_subscriber::{EnvFilter, prelude::*};
-use utils::{
-    port_file::read_port_file,
-    sentry::{self as sentry_utils, SentrySource, sentry_layer},
-};
+use utils::port_file::read_port_file;
 
 const HOST_ENV: &str = "MCP_HOST";
 const PORT_ENV: &str = "MCP_PORT";
@@ -191,15 +188,12 @@ fn init_process_logging(log_prefix: &str, version: &str) {
         .install_default()
         .expect("Failed to install rustls crypto provider");
 
-    sentry_utils::init_once(SentrySource::Mcp);
-
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::fmt::layer()
                 .with_writer(std::io::stderr)
                 .with_filter(EnvFilter::new("debug")),
         )
-        .with(sentry_layer())
         .init();
 
     tracing::debug!(

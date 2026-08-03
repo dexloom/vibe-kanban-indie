@@ -1,1 +1,1 @@
-pub mod relay_registration;
+// Runtime abstractions are reserved for future use.

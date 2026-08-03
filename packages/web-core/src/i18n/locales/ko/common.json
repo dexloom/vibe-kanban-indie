@@ -71,29 +71,12 @@
     "loading": "로딩 중..."
   },
   "orgSwitcher": {
-    "organizations": "조직",
-    "orgSettings": "조직 설정"
+    "organizations": "조직"
   },
   "ok": "확인",
   "error": "오류",
-  "signIn": "로그인",
   "signOut": "로그아웃",
-  "oauth": {
-    "title": "Vibe Kanban 로그인",
-    "description": "로그인하여 조직에 참여하고 팀과 작업을 공유하세요",
-    "continueWithGitHub": "GitHub로 계속",
-    "continueWithGoogle": "Google로 계속",
-    "waitingTitle": "인증 완료",
-    "waitingDescription": "인증을 위한 팝업 창이 열렸습니다",
-    "waitingForAuth": "인증 대기 중...",
-    "popupInstructions": "팝업 창이 열리지 않는 경우 팝업 차단 설정을 확인해주세요.",
-    "back": "뒤로",
-    "successTitle": "인증 성공!",
-    "welcomeBack": "환영합니다, {{name}}",
-    "errorTitle": "인증 실패",
-    "errorDescription": "계정 인증 중 문제가 발생했습니다",
-    "tryAgain": "다시 시도"
-  },
+  "oauth": {},
   "toolbar": {
     "sortBy": "정렬 기준",
     "groupBy": "그룹화 기준"
@@ -213,44 +196,6 @@
     "defaultPlaceholder": "명령어를 입력하거나 검색...",
     "selectBranch": "Select Branch",
     "selectBranchFor": "Select Branch for {{repoName}}"
-  },
-  "workspacesGuide": {
-    "welcome": {
-      "title": "환영합니다",
-      "content": "Vibe Kanban의 새롭게 디자인된 UI인 Workspaces에 오신 것을 환영합니다. 초기 피드백을 위해 일부 사용자에게 먼저 공개하고 있습니다. 네비게이션 바의 피드백 아이콘을 통해 언제든지 의견을 공유해 주세요."
-    },
-    "commandBar": {
-      "title": "명령 바",
-      "content": "명령 바는 탐색의 중심 허브입니다. CMD+K로 열어 워크스페이스에서 사용 가능한 모든 작업을 검색하고 접근할 수 있습니다."
-    },
-    "contextBar": {
-      "title": "컨텍스트 바",
-      "content": "컨텍스트 바를 사용하면 패널 간에 빠르게 전환할 수 있습니다. 가장 편한 위치로 드래그하세요."
-    },
-    "sidebar": {
-      "title": "워크스페이스 사이드바",
-      "content": "모든 워크스페이스의 상태를 한눈에 확인할 수 있습니다. 알림은 주의가 필요한 워크스페이스를 강조 표시합니다. 병합된 워크스페이스를 보관하여 사이드바를 깔끔하게 유지하세요."
-    },
-    "multiRepo": {
-      "title": "멀티 저장소 지원",
-      "content": "단일 워크스페이스에 여러 저장소를 추가할 수 있습니다. 다른 저장소에서 작업하면서 한 저장소의 코드를 참조하거나 여러 저장소에 걸쳐 변경 사항을 동시에 구현할 수 있습니다."
-    },
-    "sessions": {
-      "title": "다중 세션",
-      "content": "단일 워크스페이스 내에서 다른 에이전트와의 세션을 포함하여 여러 에이전트 대화 세션을 만들 수 있습니다. 이를 통해 대화 제한을 우회하거나 별도의 스레드에서 검토 에이전트를 시작할 수 있습니다."
-    },
-    "preview": {
-      "title": "변경 사항 미리보기",
-      "content": "컨텍스트 전환 없이 내장 브라우저에서 작업을 미리 볼 수 있습니다. 데스크톱, 모바일 및 사용자 지정 뷰포트 크기에서 테스트할 수 있습니다."
-    },
-    "diffs": {
-      "title": "변경 사항 및 코멘트",
-      "content": "새롭게 디자인된 변경 사항 패널에는 변경된 파일 트리가 포함되어 있습니다. 변경 사항에 직접 코멘트하여 에이전트에게 피드백을 제공하고, 워크스페이스가 PR에 연결된 경우 GitHub 코멘트를 볼 수 있습니다."
-    },
-    "classicUi": {
-      "title": "클래식 UI로 돌아가기",
-      "content": "네비게이션 바 왼쪽의 나가기 아이콘을 클릭하면 클래식 칸반 보드로 돌아갑니다. 새 UI를 완전히 비활성화하려면 설정의 \"베타 기능\"에서 \"Workspaces 베타 활성화\" 옵션을 업데이트하세요."
-    }
   },
   "logs": {
     "searchLogs": "로그 검색",
@@ -388,7 +333,6 @@
     "previewImageWithName": "[이미지: {{name}}]",
     "previewFile": "[파일]",
     "previewFileWithName": "[파일: {{name}}]",
-    "imageAttachmentNameFallback": "첨부파일",
     "removeImage": "이미지 제거",
     "maxFilesAtOnce": "한 번에 최대 {{count}}개의 파일만 업로드할 수 있습니다",
     "fileExceedsLimit": "파일 {{filename}} 이(가) 20MB 제한을 초과했습니다",
@@ -405,9 +349,7 @@
       "all": "전체"
     },
     "loginRequired": {
-      "title": "로그인 필요",
-      "description": "이 프로젝트를 보려면 로그인하세요.",
-      "action": "로그인"
+      "description": "이 프로젝트를 보려면 로그인하세요."
     },
     "team": "Team",
     "personal": "Personal",
@@ -485,7 +427,8 @@
         "title": "Invite your team",
         "content": "We've automatically created a personal organization and initial project so you can get started with Vibe Kanban. Export your cloud data before shutdown."
       }
-    }
+    },
+    "currentWorkspace": "running here"
   },
   "createMode": {
     "headings": {
@@ -527,18 +470,7 @@
     "streamsAffected": "{{count}}개 스트림이 영향을 받음",
     "streamsAffected_other": "{{count}}개 스트림이 영향을 받음",
     "status": "(상태 {{status}})",
-    "refreshPage": "페이지 새로고침",
-    "remoteAuthUnavailable": "원격 인증을 일시적으로 사용할 수 없습니다. 복구될 때까지 일부 원격 기능이 작동하지 않을 수 있습니다."
-  },
-  "onboardingSignIn": {
-    "subtitle": "Sign in to continue",
-    "signedInAs": "Signed in as {{name}}.",
-    "moreOptions": "More options",
-    "featureHeader": "Feature",
-    "signedInHeader": "Signed in",
-    "skipSignInHeader": "Don't sign in",
-    "yes": "Yes",
-    "no": "No"
+    "refreshPage": "페이지 새로고침"
   },
   "errors": {
     "generic": "An unexpected error occurred"

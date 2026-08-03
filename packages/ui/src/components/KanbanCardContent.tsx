@@ -84,7 +84,7 @@ function formatKanbanDescriptionPreview(
         const normalizedAlt = altText.trim();
         const normalizedUrl = url.trim();
         const isImageAttachment =
-          normalizedUrl.startsWith('attachment://') &&
+          normalizedUrl.startsWith('/api/attachments/') &&
           isImageLikeAttachmentName(normalizedAlt);
 
         if (isImageAttachment) {
@@ -99,7 +99,7 @@ function formatKanbanDescriptionPreview(
       }
     )
     .replace(
-      /(?<!!)\[([^\]]*)\]\((attachment:\/\/[^)]+|\.vibe-attachments\/[^)]+)\)/g,
+      /(?<!!)\[([^\]]*)\]\((\/api\/attachments\/[^)]+\/file|\.vibe-attachments\/[^)]+)\)/g,
       (_match, label: string) => {
         const normalizedLabel = label.trim();
         return normalizedLabel

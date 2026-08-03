@@ -1,9 +1,8 @@
 use std::str::FromStr;
 
-use api_types::{Issue, ListProjectStatusesResponse, ProjectStatus};
-use db::models::{execution_process::ExecutionProcessStatus, tag::Tag};
+use api_types::Issue;
+use db::models::execution_process::ExecutionProcessStatus;
 use executors::executors::BaseCodingAgent;
-use regex::Regex;
 use rmcp::{
     ErrorData,
     model::{CallToolResult, Content},
@@ -42,8 +41,6 @@ mod issue_assignees;
 mod issue_relationships;
 mod issue_tags;
 mod organizations;
-mod remote_issues;
-mod remote_projects;
 mod repos;
 mod sessions;
 mod task_attempts;
@@ -55,8 +52,6 @@ impl McpServer {
             + Self::workspaces_tools_router()
             + Self::organizations_tools_router()
             + Self::repos_tools_router()
-            + Self::remote_projects_tools_router()
-            + Self::remote_issues_tools_router()
             + Self::issue_assignees_tools_router()
             + Self::issue_tags_tools_router()
             + Self::issue_relationships_tools_router()
@@ -219,51 +214,6 @@ impl McpServer {
         Ok(())
     }
 
-    // Expands @tagname references in text by replacing them with tag content.
-    async fn expand_tags(&self, text: &str) -> String {
-        let tag_pattern = match Regex::new(r"@([^\s@]+)") {
-            Ok(re) => re,
-            Err(_) => return text.to_string(),
-        };
-
-        let tag_names: Vec<String> = tag_pattern
-            .captures_iter(text)
-            .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
-            .collect::<std::collections::HashSet<_>>()
-            .into_iter()
-            .collect();
-
-        if tag_names.is_empty() {
-            return text.to_string();
-        }
-
-        let url = self.url("/api/tags");
-        let tags: Vec<Tag> = match self.client.get(&url).send().await {
-            Ok(resp) if resp.status().is_success() => {
-                match resp.json::<ApiResponseEnvelope<Vec<Tag>>>().await {
-                    Ok(envelope) if envelope.success => envelope.data.unwrap_or_default(),
-                    _ => return text.to_string(),
-                }
-            }
-            _ => return text.to_string(),
-        };
-
-        let tag_map: std::collections::HashMap<&str, &str> = tags
-            .iter()
-            .map(|t| (t.tag_name.as_str(), t.content.as_str()))
-            .collect();
-
-        let result = tag_pattern.replace_all(text, |caps: &regex::Captures| {
-            let tag_name = caps.get(1).map(|m| m.as_str()).unwrap_or("");
-            match tag_map.get(tag_name) {
-                Some(content) => (*content).to_string(),
-                None => caps.get(0).map(|m| m.as_str()).unwrap_or("").to_string(),
-            }
-        });
-
-        result.into_owned()
-    }
-
     // Resolves a project_id from an explicit parameter or falls back to context.
     fn resolve_project_id(&self, explicit: Option<Uuid>) -> Result<Uuid, ToolError> {
         if let Some(id) = explicit {
@@ -291,67 +241,6 @@ impl McpServer {
             return Ok(id);
         }
         Ok(super::LOCAL_ORGANIZATION_ID)
-    }
-
-    // Fetches project statuses for a project.
-    async fn fetch_project_statuses(
-        &self,
-        project_id: Uuid,
-    ) -> Result<Vec<ProjectStatus>, ToolError> {
-        let url = self.url(&format!("/api/project-statuses?project_id={}", project_id));
-        let response: ListProjectStatusesResponse = self.send_json(self.client.get(&url)).await?;
-        Ok(response.project_statuses)
-    }
-
-    /// Pure: resolve a status NAME to its id against an already-fetched status list.
-    ///
-    /// Case-insensitive. The error message is read VERBATIM by the orchestrator prompt
-    /// ("use one of those exact names"), so its wording must not drift. See VIBE-2 / SPEC §4.2.
-    fn status_id_from_name(
-        statuses: &[ProjectStatus],
-        status_name: &str,
-    ) -> Result<Uuid, ToolError> {
-        statuses
-            .iter()
-            .find(|s| s.name.eq_ignore_ascii_case(status_name))
-            .map(|s| s.id)
-            .ok_or_else(|| {
-                let available: Vec<&str> = statuses.iter().map(|s| s.name.as_str()).collect();
-                ToolError::message(format!(
-                    "Unknown status '{}'. Available statuses: {:?}",
-                    status_name, available
-                ))
-            })
-    }
-
-    /// Pure: resolve a status id to its display name against an already-fetched status list.
-    /// Falls back to the UUID string when the id is not in the list — the same fallback this
-    /// crate has always had.
-    fn status_name_from_id(statuses: &[ProjectStatus], status_id: Uuid) -> String {
-        statuses
-            .iter()
-            .find(|s| s.id == status_id)
-            .map(|s| s.name.clone())
-            .unwrap_or_else(|| status_id.to_string())
-    }
-
-    // Gets the default status_id for a project (first non-hidden status by sort_order).
-    async fn default_status_id(&self, project_id: Uuid) -> Result<Uuid, ToolError> {
-        let statuses = self.fetch_project_statuses(project_id).await?;
-        statuses
-            .iter()
-            .filter(|s| !s.hidden)
-            .min_by_key(|s| s.sort_order)
-            .map(|s| s.id)
-            .ok_or_else(|| ToolError::message("No visible statuses found for project"))
-    }
-
-    // Resolves a status_id to its display name. Falls back to UUID string if lookup fails.
-    async fn resolve_status_name(&self, project_id: Uuid, status_id: Uuid) -> String {
-        match self.fetch_project_statuses(project_id).await {
-            Ok(statuses) => Self::status_name_from_id(&statuses, status_id),
-            Err(_) => status_id.to_string(),
-        }
     }
 
     // Links a workspace to a remote issue by fetching issue.project_id and calling link endpoint.
@@ -411,7 +300,6 @@ mod tests {
     use uuid::Uuid;
 
     use super::McpServer;
-    use super::ProjectStatus;
     use crate::task_server::{McpContext, McpMode, McpRepoContext};
 
     static RUSTLS_PROVIDER: Once = Once::new();
@@ -530,60 +418,5 @@ mod tests {
         let serialized = serde_json::to_value(&context).expect("context should serialize");
 
         assert!(serialized.get("orchestrator_session_id").is_none());
-    }
-
-    fn status_fixture(id: Uuid, name: &str) -> ProjectStatus {
-        serde_json::from_value(serde_json::json!({
-            "id": id,
-            "project_id": "11111111-1111-1111-1111-111111111111",
-            "name": name,
-            "color": "#000000",
-            "sort_order": 0,
-            "hidden": false,
-            "created_at": "2026-01-01T00:00:00Z"
-        }))
-        .expect("fixture JSON should deserialize into ProjectStatus")
-    }
-
-    #[test]
-    fn status_id_from_name_matches_case_insensitively() {
-        let in_progress = Uuid::new_v4();
-        let statuses = [
-            status_fixture(Uuid::new_v4(), "Todo"),
-            status_fixture(in_progress, "In Progress"),
-        ];
-
-        assert_eq!(
-            McpServer::status_id_from_name(&statuses, "in progress").unwrap(),
-            in_progress
-        );
-        // Round-trips to the board's CANONICAL casing — this is why `update_issue` reports the
-        // resolved name rather than echoing what the caller typed.
-        assert_eq!(
-            McpServer::status_name_from_id(&statuses, in_progress),
-            "In Progress"
-        );
-    }
-
-    #[test]
-    fn status_id_from_name_error_text_is_unchanged() {
-        // The orchestrator prompt reads this string VERBATIM. Byte-for-byte pin.
-        let statuses = [
-            status_fixture(Uuid::new_v4(), "Todo"),
-            status_fixture(Uuid::new_v4(), "In Progress"),
-        ];
-
-        let err = McpServer::status_id_from_name(&statuses, "Shipped").unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            "Unknown status 'Shipped'. Available statuses: [\"Todo\", \"In Progress\"]"
-        );
-
-        // An unknown id falls back to the UUID string rather than erroring.
-        let missing = Uuid::new_v4();
-        assert_eq!(
-            McpServer::status_name_from_id(&statuses, missing),
-            missing.to_string()
-        );
     }
 }

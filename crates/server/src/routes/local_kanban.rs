@@ -10,8 +10,9 @@
 use std::sync::atomic::{AtomicI64, Ordering};
 
 use api_types::{
-    CreateIssueAssigneeRequest, CreateIssueRequest, CreateIssueTagRequest, CreateProjectRequest,
-    CreateProjectStatusRequest, CreateTagRequest, DeleteResponse, IssuePriority,
+    CreateIssueAssigneeRequest, CreateIssueCommentRequest, CreateIssueRequest,
+    CreateIssueTagRequest, CreateProjectRequest, CreateProjectStatusRequest, CreateTagRequest,
+    DeleteResponse, IssueComment, IssuePriority, ListIssueCommentsQuery, ListIssueCommentsResponse,
     ListMembersResponse, ListOrganizationsResponse, MemberRole, MutationResponse,
     OrganizationMemberWithProfile, OrganizationWithRole, Project as ApiProject, UpdateIssueRequest,
     UpdateProjectRequest, UpdateProjectStatusRequest, UpdateTagRequest, Workspace as ApiWorkspace,
@@ -25,6 +26,7 @@ use axum::{
 use chrono::Utc;
 use db::models::{
     issue::{Issue as DbIssue, IssueUpdate, NewIssue},
+    issue_comment::{IssueComment as DbIssueComment, NewIssueComment},
     issue_workspace::{IssueWorkspace, LinkedWorkspaceRow},
     kanban_tag::{IssueAssignee as DbIssueAssignee, IssueTag as DbIssueTag, KanbanTag},
     local_user::{LOCAL_USER_ID, LocalUser},
@@ -612,8 +614,86 @@ async fn delete_issue(
 }
 
 // ---------------------------------------------------------------------------
-// Tags
+// Issue comments
 // ---------------------------------------------------------------------------
+
+async fn fb_issue_comments(
+    State(deployment): State<DeploymentImpl>,
+    Query(q): Query<ListIssueCommentsQuery>,
+) -> Result<ResponseJson<ListIssueCommentsResponse>, ApiError> {
+    let rows = DbIssueComment::list_by_issue(&deployment.db().pool, q.issue_id).await?;
+    let issue_comments = rows
+        .into_iter()
+        .map(|row| IssueComment {
+            id: row.id,
+            issue_id: row.issue_id,
+            author_id: Some(row.author_id),
+            parent_id: row.parent_id,
+            message: row.message,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        })
+        .collect();
+    Ok(ResponseJson(ListIssueCommentsResponse { issue_comments }))
+}
+
+async fn create_issue_comment(
+    State(deployment): State<DeploymentImpl>,
+    ResponseJson(req): ResponseJson<CreateIssueCommentRequest>,
+) -> Result<ResponseJson<MutationResponse<IssueComment>>, ApiError> {
+    let row = DbIssueComment::create(
+        &deployment.db().pool,
+        NewIssueComment {
+            id: req.id.unwrap_or_else(Uuid::new_v4),
+            issue_id: req.issue_id,
+            author_id: LOCAL_USER_ID,
+            parent_id: req.parent_id,
+            message: &req.message,
+        },
+    )
+    .await?;
+    Ok(mutation(IssueComment {
+        id: row.id,
+        issue_id: row.issue_id,
+        author_id: Some(row.author_id),
+        parent_id: row.parent_id,
+        message: row.message,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }))
+}
+
+async fn update_issue_comment(
+    State(deployment): State<DeploymentImpl>,
+    Path(id): Path<Uuid>,
+    ResponseJson(req): ResponseJson<api_types::UpdateIssueCommentRequest>,
+) -> Result<ResponseJson<MutationResponse<IssueComment>>, ApiError> {
+    let row = DbIssueComment::update(
+        &deployment.db().pool,
+        id,
+        req.message.as_deref(),
+        req.parent_id,
+    )
+    .await?
+    .ok_or_else(|| ApiError::BadRequest("comment not found".into()))?;
+    Ok(mutation(IssueComment {
+        id: row.id,
+        issue_id: row.issue_id,
+        author_id: Some(row.author_id),
+        parent_id: row.parent_id,
+        message: row.message,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }))
+}
+
+async fn delete_issue_comment(
+    State(deployment): State<DeploymentImpl>,
+    Path(id): Path<Uuid>,
+) -> Result<ResponseJson<DeleteResponse>, ApiError> {
+    DbIssueComment::delete(&deployment.db().pool, id).await?;
+    Ok(deleted())
+}
 
 async fn create_tag(
     State(deployment): State<DeploymentImpl>,
@@ -708,6 +788,7 @@ pub fn router() -> Router<DeploymentImpl> {
         .route("/v1/fallback/tags", get(fb_tags))
         .route("/v1/fallback/issue_tags", get(fb_issue_tags))
         .route("/v1/fallback/issue_assignees", get(fb_issue_assignees))
+        .route("/v1/fallback/issue_comments", get(fb_issue_comments))
         .route(
             "/v1/fallback/project_workspaces",
             get(fb_project_workspaces),
@@ -739,6 +820,11 @@ pub fn router() -> Router<DeploymentImpl> {
         .route(
             "/v1/issue_assignees/{id}",
             axum::routing::delete(delete_issue_assignee),
+        )
+        .route("/v1/issue_comments", post(create_issue_comment))
+        .route(
+            "/v1/issue_comments/{id}",
+            patch(update_issue_comment).delete(delete_issue_comment),
         )
 }
 

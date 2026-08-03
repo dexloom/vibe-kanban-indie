@@ -24,10 +24,6 @@ fn default_commit_reminder_enabled() -> bool {
     true
 }
 
-fn default_relay_enabled() -> bool {
-    true
-}
-
 /// Preferred terminal emulator used to attach to interactive (detached tmux)
 /// agent sessions. Defaults to a platform-appropriate emulator.
 fn default_terminal() -> TerminalKind {
@@ -74,7 +70,6 @@ pub struct Config {
     pub notifications: NotificationConfig,
     pub editor: EditorConfig,
     pub github: GitHubConfig,
-    pub analytics_enabled: bool,
     pub workspace_dir: Option<String>,
     pub last_app_version: Option<String>,
     pub show_release_notes: bool,
@@ -94,8 +89,6 @@ pub struct Config {
     pub commit_reminder_prompt: Option<String>,
     #[serde(default)]
     pub send_message_shortcut: SendMessageShortcut,
-    #[serde(default = "default_relay_enabled")]
-    pub relay_enabled: bool,
     #[serde(default)]
     pub host_nickname: Option<String>,
     /// Terminal emulator used to attach to interactive agent sessions.
@@ -125,7 +118,6 @@ impl Config {
             notifications: old_config.notifications,
             editor: old_config.editor,
             github: old_config.github,
-            analytics_enabled: old_config.analytics_enabled,
             workspace_dir: old_config.workspace_dir,
             last_app_version: old_config.last_app_version,
             show_release_notes: old_config.show_release_notes,
@@ -137,7 +129,6 @@ impl Config {
             commit_reminder_enabled: old_config.commit_reminder_enabled,
             commit_reminder_prompt: old_config.commit_reminder_prompt,
             send_message_shortcut: old_config.send_message_shortcut,
-            relay_enabled: old_config.relay_enabled,
             host_nickname: old_config.host_nickname,
             terminal: default_terminal(),
             iterm_tabs: default_iterm_tabs(),
@@ -184,7 +175,6 @@ impl Default for Config {
             notifications: NotificationConfig::default(),
             editor: EditorConfig::default(),
             github: GitHubConfig::default(),
-            analytics_enabled: true,
             workspace_dir: None,
             last_app_version: None,
             show_release_notes: false,
@@ -196,7 +186,6 @@ impl Default for Config {
             commit_reminder_enabled: true,
             commit_reminder_prompt: None,
             send_message_shortcut: SendMessageShortcut::default(),
-            relay_enabled: true,
             host_nickname: None,
             terminal: default_terminal(),
             iterm_tabs: default_iterm_tabs(),
@@ -221,7 +210,6 @@ mod tests {
             "notifications": NotificationConfig::default(),
             "editor": EditorConfig::default(),
             "github": GitHubConfig::default(),
-            "analytics_enabled": true,
             "workspace_dir": null,
             "last_app_version": null,
             "show_release_notes": false,

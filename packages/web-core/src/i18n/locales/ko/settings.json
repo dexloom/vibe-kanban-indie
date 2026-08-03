@@ -27,11 +27,8 @@
         "organizationsDesc": "Manage organization members and permissions",
         "remote-projects": "프로젝트",
         "remote-projectsDesc": "프로젝트 관리",
-        "relay": "Remote Access",
-        "relayDesc": "Relay tunnel and enrollment",
         "machineSettings": "Machine Settings",
         "accountSettings": "Account Settings",
-        "pairOtherMachines": "Pair other machines",
         "selectHost": "Select host",
         "telegram": "Telegram",
         "telegramDesc": "Agent escalations to Telegram",
@@ -63,6 +60,10 @@
           "label": "언어",
           "placeholder": "언어 선택",
           "helper": "선호하는 언어를 선택하세요. 브라우저 기본값은 시스템 언어를 따릅니다."
+        },
+        "animateRunningOutline": {
+          "label": "Animated border while working",
+          "helper": "Show a shimmering border around the message box while the agent works. A subtle pulsating dot is always shown."
         }
       },
       "taskExecution": {
@@ -219,14 +220,6 @@
           "label": "메시지 보내기 키",
           "helper": "메시지를 보내는 키보드 단축키를 선택하세요.",
           "enterLabel": "Enter (Shift+Enter로 새 줄)"
-        }
-      },
-      "privacy": {
-        "title": "개인정보 보호",
-        "description": "익명 사용 데이터를 공유하여 Vibe-Kanban 개선에 도움을 주세요.",
-        "telemetry": {
-          "label": "원격 분석 활성화",
-          "helper": "애플리케이션 개선을 위한 익명 사용 이벤트 추적을 활성화합니다. 프롬프트나 프로젝트 정보는 수집되지 않습니다."
         }
       },
       "taskTemplates": {
@@ -534,31 +527,6 @@
         "unsavedChanges": "저장되지 않은 변경사항이 있습니다",
         "discard": "취소",
         "confirmSwitch": "저장되지 않은 변경사항이 있습니다. 정말 저장소를 전환하시겠습니까? 변경사항이 손실됩니다."
-      }
-    },
-    "relay": {
-      "title": "Remote Access",
-      "description": "Allow access to this instance from the web via relay tunnel.",
-      "enabled": {
-        "label": "Enable remote access",
-        "helper": "When enabled, this instance can be accessed remotely through a relay tunnel."
-      },
-      "enrollmentCode": {
-        "label": "Pairing Code",
-        "helper": "Enter this code in the browser to pair with this instance.",
-        "loginRequired": "Log in to generate a pairing code.",
-        "fetchError": "Failed to fetch pairing code.",
-        "show": "Show pairing code"
-      },
-      "host": {
-        "label": "호스트"
-      },
-      "client": {
-        "label": "클라이언트"
-      },
-      "overview": {
-        "available": "Available",
-        "unavailable": "Unavailable"
       }
     },
     "remoteProjects": {

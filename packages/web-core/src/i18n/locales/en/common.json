@@ -76,38 +76,11 @@
     "currentDisabled": "Cannot select the current branch"
   },
   "orgSwitcher": {
-    "organizations": "Organizations",
-    "orgSettings": "Organization settings"
+    "organizations": "Organizations"
   },
   "personal": "Personal",
-  "signIn": "Sign in",
   "signOut": "Sign out",
-  "oauth": {
-    "title": "Sign in to Vibe Kanban",
-    "description": "Sign in to join organizations and share tasks with your team",
-    "continueWithGitHub": "Continue with GitHub",
-    "continueWithGoogle": "Continue with Google",
-    "waitingTitle": "Complete Authentication",
-    "waitingDescription": "A popup window has been opened for authentication",
-    "waitingForAuth": "Waiting for authentication...",
-    "popupInstructions": "If the popup window didn't open, please check your popup blocker settings.",
-    "back": "Back",
-    "successTitle": "Authentication Successful!",
-    "welcomeBack": "Welcome back, {{name}}",
-    "errorTitle": "Authentication Failed",
-    "errorDescription": "There was a problem authenticating your account",
-    "tryAgain": "Try Again"
-  },
-  "onboardingSignIn": {
-    "subtitle": "Sign in to continue",
-    "signedInAs": "Signed in as {{name}}.",
-    "moreOptions": "More options",
-    "featureHeader": "Feature",
-    "signedInHeader": "Signed in",
-    "skipSignInHeader": "Don't sign in",
-    "yes": "Yes",
-    "no": "No"
-  },
+  "oauth": {},
   "toolbar": {
     "sortBy": "Sort by",
     "groupBy": "Group by"
@@ -229,44 +202,6 @@
     "defaultPlaceholder": "Type a command or search...",
     "selectBranch": "Select Branch",
     "selectBranchFor": "Select Branch for {{repoName}}"
-  },
-  "workspacesGuide": {
-    "welcome": {
-      "title": "Welcome",
-      "content": "Welcome to the Workspaces page. One view of the workspaces across all of your projects, and the fastest way to review work from your agents. Share feedback anytime via the navbar icon."
-    },
-    "commandBar": {
-      "title": "Command Bar",
-      "content": "The command bar is your central hub for navigation. Open it with CMD+K to search and access every action available in a workspace."
-    },
-    "contextBar": {
-      "title": "Context Bar",
-      "content": "The context bar lets you switch between panes quickly. Drag it wherever works best for you."
-    },
-    "sidebar": {
-      "title": "Workspace Sidebar",
-      "content": "See the status of all your workspaces at a glance. Notifications highlight which ones need attention. Archive merged workspaces to keep your sidebar clean."
-    },
-    "multiRepo": {
-      "title": "Multi-Repo Support",
-      "content": "Add multiple repos to a single workspace. Reference code from one repo while working in another, or implement changes across several repos at once."
-    },
-    "sessions": {
-      "title": "Multiple Sessions",
-      "content": "Create multiple agent conversation sessions within a single workspace, including sessions with different agents. This helps you work around conversation limits or spin up review agents in separate threads."
-    },
-    "preview": {
-      "title": "Preview Changes",
-      "content": "Preview your work in a built-in browser without switching contexts. Test across desktop, mobile, and custom viewport sizes."
-    },
-    "diffs": {
-      "title": "Diffs and Comments",
-      "content": "The redesigned diffs panel includes a file tree of your changes. Comment directly on diffs to give feedback to the agent, and view GitHub comments when your workspace is linked to a PR."
-    },
-    "classicUi": {
-      "title": "Return to Classic UI",
-      "content": "Click the exit icon on the left side of the navbar to return to the classic kanban board. To disable the new UI entirely, update the \"Enable Workspaces Beta\" option under \"Beta Features\" in settings."
-    }
   },
   "logs": {
     "searchLogs": "Search logs",
@@ -406,7 +341,6 @@
     "previewImageWithName": "[Image: {{name}}]",
     "previewFile": "[File]",
     "previewFileWithName": "[File: {{name}}]",
-    "imageAttachmentNameFallback": "Attachment",
     "removeImage": "Remove image",
     "maxFilesAtOnce": "Maximum {{count}} files at once",
     "fileExceedsLimit": "File {{filename}} exceeds 20MB limit",
@@ -423,9 +357,7 @@
       "all": "All"
     },
     "loginRequired": {
-      "title": "Sign in required",
-      "description": "Please sign in to view this project.",
-      "action": "Sign in"
+      "description": "Please sign in to view this project."
     },
     "team": "Team",
     "personal": "Personal",
@@ -503,7 +435,8 @@
         "title": "Invite your team",
         "content": "We've automatically created a personal organization and initial project so you can get started with Vibe Kanban. Export your cloud data before shutdown."
       }
-    }
+    },
+    "currentWorkspace": "running here"
   },
   "createMode": {
     "headings": {
@@ -545,8 +478,7 @@
     "streamsAffected": "{{count}} stream affected",
     "streamsAffected_other": "{{count}} streams affected",
     "status": "(status {{status}})",
-    "refreshPage": "Refresh Page",
-    "remoteAuthUnavailable": "Remote authentication is temporarily unavailable. Some remote features may not work until it recovers."
+    "refreshPage": "Refresh Page"
   },
   "askQuestion": {
     "title": "Agent is asking a question",

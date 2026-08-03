@@ -13,18 +13,9 @@ import { useIssueContext } from '@/shared/hooks/useIssueContext';
 import { useScratch } from '@/shared/hooks/useScratch';
 import { useDebouncedCallback } from '@/shared/hooks/useDebouncedCallback';
 import { useOrgContext } from '@/shared/hooks/useOrgContext';
-import { useProjectContext } from '@/shared/hooks/useProjectContext';
 import { useCurrentUser } from '@/shared/hooks/auth/useCurrentUser';
-import { useAzureAttachments } from '@/shared/hooks/useAzureAttachments';
-import {
-  commitCommentAttachments,
-  deleteAttachment,
-} from '@/shared/lib/remoteApi';
-import {
-  extractAttachmentIds,
-  removeAttachmentMarkdownBySource,
-  replaceAttachmentSource,
-} from '@/shared/lib/attachmentUtils';
+import { useIssueAttachments } from '@/shared/hooks/useIssueAttachments';
+import { attachmentsApi } from '@/shared/lib/api';
 import {
   IssueCommentsSection,
   type IssueCommentsEditorProps,
@@ -58,7 +49,6 @@ export function IssueCommentsSectionContainer({
 function IssueCommentsSectionContent() {
   const { t } = useTranslation('common');
   const { membersWithProfilesById } = useOrgContext();
-  const { projectId } = useProjectContext();
   const issueContext = useIssueContext();
   const { data: currentUser } = useCurrentUser();
   const currentUserId = currentUser?.user_id ?? '';
@@ -139,64 +129,26 @@ function IssueCommentsSectionContent() {
     );
   }, []);
 
-  const handleCommentSourceReplace = useCallback(
-    (previousSrc: string, nextSrc: string) => {
-      let didReplace = false;
-      setCommentInput((prev) => {
-        const { content, replaced } = replaceAttachmentSource(
-          prev,
-          previousSrc,
-          nextSrc
-        );
-        didReplace = replaced;
-        return content;
-      });
-      return didReplace;
-    },
-    []
-  );
-
-  const handleCommentSourceRemove = useCallback((src: string) => {
-    let didRemove = false;
-    setCommentInput((prev) => {
-      const { content, removed } = removeAttachmentMarkdownBySource(prev, src);
-      didRemove = removed;
-      return content;
-    });
-    return didRemove;
-  }, []);
-
   const {
     uploadFiles,
     getAttachmentIds,
     clearAttachments,
     isUploading,
-    hasPendingAttachments,
     uploadError,
     clearUploadError,
     localAttachments,
-  } = useAzureAttachments({
-    projectId,
-    onMarkdownInsert: handleCommentMarkdownInsert,
-    onAttachmentSourceReplace: handleCommentSourceReplace,
-    onAttachmentSourceRemove: handleCommentSourceRemove,
-  });
+  } = useIssueAttachments(handleCommentMarkdownInsert);
 
   useEffect(() => {
     if (hydratedCommentDraftIdRef.current !== commentDraftId) return;
-    if (hasPendingAttachments) return;
+    if (isUploading) return;
     if (skipNextPersistRef.current) {
       skipNextPersistRef.current = false;
       return;
     }
 
     debouncedPersistCommentDraft(commentInput);
-  }, [
-    commentInput,
-    commentDraftId,
-    debouncedPersistCommentDraft,
-    hasPendingAttachments,
-  ]);
+  }, [commentInput, commentDraftId, debouncedPersistCommentDraft, isUploading]);
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop: (acceptedFiles) => {
@@ -334,24 +286,14 @@ function IssueCommentsSectionContent() {
 
     const allUploadedIds = getAttachmentIds();
     if (allUploadedIds.length > 0) {
-      const referencedIds = extractAttachmentIds(message);
-      const idsToCommit = allUploadedIds.filter((id) => referencedIds.has(id));
-      const idsToDelete = allUploadedIds.filter((id) => !referencedIds.has(id));
-
-      if (idsToCommit.length > 0) {
-        try {
-          const confirmedComment = await persisted;
-          await commitCommentAttachments(confirmedComment.id, {
-            attachment_ids: idsToCommit,
-          });
-        } catch (err) {
-          console.error('Failed to commit comment attachments:', err);
-        }
-      }
-      for (const id of idsToDelete) {
-        deleteAttachment(id).catch((err) =>
-          console.error('Failed to delete abandoned attachment:', err)
+      try {
+        const confirmedComment = await persisted;
+        await attachmentsApi.linkCommentAttachments(
+          confirmedComment.id,
+          allUploadedIds
         );
+      } catch (err) {
+        console.error('Failed to link comment attachments:', err);
       }
     }
     clearAttachments();

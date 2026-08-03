@@ -173,17 +173,6 @@ pub async fn open_repo_in_editor(
                 if url.is_some() { " (remote mode)" } else { "" }
             );
 
-            deployment
-                .track_if_analytics_allowed(
-                    "repo_editor_opened",
-                    serde_json::json!({
-                        "repo_id": repo_id.to_string(),
-                        "editor_type": payload.as_ref().and_then(|req| req.editor_type.as_ref()),
-                        "remote_mode": url.is_some(),
-                    }),
-                )
-                .await;
-
             Ok(ResponseJson(ApiResponse::success(OpenEditorResponse {
                 url,
             })))

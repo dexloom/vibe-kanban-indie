@@ -450,15 +450,6 @@ pub async fn run_setup_script(
         )
         .await?;
 
-    deployment
-        .track_if_analytics_allowed(
-            "setup_script_executed",
-            serde_json::json!({
-                "workspace_id": workspace.id.to_string(),
-            }),
-        )
-        .await;
-
     Ok(ResponseJson(ApiResponse::success(execution_process)))
 }
 

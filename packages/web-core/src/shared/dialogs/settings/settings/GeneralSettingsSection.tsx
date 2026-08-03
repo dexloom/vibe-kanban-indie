@@ -341,8 +341,10 @@ export function GeneralSettingsSection() {
 
         <SettingsCheckbox
           id="animate-running-outline"
-          label="Animated border while working"
-          description="Show a shimmering border around the message box while the agent works. A subtle pulsating dot is always shown."
+          label={t('settings.general.appearance.animateRunningOutline.label')}
+          description={t(
+            'settings.general.appearance.animateRunningOutline.helper'
+          )}
           checked={animateRunningOutline}
           onChange={setAnimateRunningOutline}
         />
@@ -839,20 +841,6 @@ export function GeneralSettingsSection() {
             }
           />
         </SettingsField>
-      </SettingsCard>
-
-      {/* Privacy */}
-      <SettingsCard
-        title={t('settings.general.privacy.title')}
-        description={t('settings.general.privacy.description')}
-      >
-        <SettingsCheckbox
-          id="analytics-enabled"
-          label={t('settings.general.privacy.telemetry.label')}
-          description={t('settings.general.privacy.telemetry.helper')}
-          checked={draft?.analytics_enabled ?? false}
-          onChange={(checked) => updateDraft({ analytics_enabled: checked })}
-        />
       </SettingsCard>
 
       {/* Task Templates */}

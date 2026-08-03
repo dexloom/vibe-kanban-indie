@@ -36,10 +36,6 @@ export const Pages: Record<StaticPageId, CommandBarPage> = {
         type: 'group',
         label: 'General',
         items: [
-          { type: 'action', action: Actions.SignIn },
-          { type: 'action', action: Actions.SignOut },
-          { type: 'action', action: Actions.Feedback },
-          { type: 'action', action: Actions.WorkspacesGuide },
           { type: 'action', action: Actions.ProjectsGuide },
           { type: 'action', action: Actions.ProjectSettings },
           { type: 'action', action: Actions.Settings },

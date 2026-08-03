@@ -41,9 +41,8 @@ export function useUserSystemController({
   const appVersion = userSystemInfo?.version || null;
   const previewProxyPort = userSystemInfo?.preview_proxy_port ?? null;
   const environment = userSystemInfo?.environment || null;
-  const machineId = userSystemInfo?.machine_id || null;
+  const machineId = null;
   const loginStatus = userSystemInfo?.login_status || null;
-  const remoteAuthDegraded = userSystemInfo?.remote_auth_degraded || null;
   const profiles =
     (userSystemInfo?.executors as Record<string, ExecutorProfile> | null) ||
     null;
@@ -152,7 +151,6 @@ export function useUserSystemController({
         capabilities,
         machineId,
         loginStatus,
-        remoteAuthDegraded,
       },
       appVersion,
       previewProxyPort,
@@ -162,7 +160,6 @@ export function useUserSystemController({
       capabilities,
       machineId,
       loginStatus,
-      remoteAuthDegraded,
       updateConfig,
       saveConfig,
       updateAndSaveConfig,
@@ -181,7 +178,6 @@ export function useUserSystemController({
       loading,
       previewProxyPort,
       loginStatus,
-      remoteAuthDegraded,
       profiles,
       reloadSystem,
       saveConfig,

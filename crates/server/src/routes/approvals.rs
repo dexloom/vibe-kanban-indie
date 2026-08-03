@@ -189,16 +189,6 @@ async fn headed_approval_request(
         }
     };
 
-    deployment
-        .track_if_analytics_allowed(
-            "headed_approval_resolved",
-            serde_json::json!({
-                "execution_process_id": execution_process_id.to_string(),
-                "tool_name": tool_name,
-            }),
-        )
-        .await;
-
     ResponseJson(decision)
 }
 
@@ -223,21 +213,7 @@ async fn respond_to_approval(
     let service = deployment.approvals();
 
     match service.respond(&id, request).await {
-        Ok((outcome, context)) => {
-            deployment
-                .track_if_analytics_allowed(
-                    "approval_responded",
-                    serde_json::json!({
-                        "approval_id": &id,
-                        "status": format!("{:?}", outcome),
-                        "tool_name": context.tool_name,
-                        "execution_process_id": context.execution_process_id.to_string(),
-                    }),
-                )
-                .await;
-
-            Ok(ResponseJson(ApiResponse::success(outcome)))
-        }
+        Ok((outcome, _context)) => Ok(ResponseJson(ApiResponse::success(outcome))),
         Err(e) => {
             tracing::error!("Failed to respond to approval: {:?}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)

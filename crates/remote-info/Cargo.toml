@@ -1,4 +1,0 @@
-[package]
-name = "remote-info"
-version.workspace = true
-edition.workspace = true

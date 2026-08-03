@@ -24,12 +24,6 @@ export type Issue = { id: string, project_id: string, issue_number: number, simp
 
 export type IssueAssignee = { id: string, issue_id: string, user_id: string, assigned_at: string, };
 
-export type Blob = { id: string, project_id: string, blob_path: string, thumbnail_blob_path: string | null, original_name: string, mime_type: string | null, size_bytes: bigint, hash: string, width: number | null, height: number | null, created_at: string, updated_at: string, };
-
-export type Attachment = { id: string, blob_id: string, issue_id: string | null, comment_id: string | null, created_at: string, expires_at: string | null, };
-
-export type AttachmentWithBlob = { id: string, blob_id: string, issue_id: string | null, comment_id: string | null, created_at: string, expires_at: string | null, blob_path: string, thumbnail_blob_path: string | null, original_name: string, mime_type: string | null, size_bytes: bigint, hash: string, width: number | null, height: number | null, };
-
 export type IssueFollower = { id: string, issue_id: string, user_id: string, };
 
 export type IssueTag = { id: string, issue_id: string, tag_id: string, };
@@ -70,10 +64,6 @@ export type SortDirection = "asc" | "desc";
 export type UserData = { user_id: string, first_name: string | null, last_name: string | null, username: string | null, };
 
 export type User = { id: string, email: string, first_name: string | null, last_name: string | null, username: string | null, created_at: string, updated_at: string, };
-
-export type RelayHost = { id: string, owner_user_id: string, machine_id: string, name: string, status: string, last_seen_at: string | null, agent_version: string | null, created_at: string, updated_at: string, access_role: string, };
-
-export type ListRelayHostsResponse = { hosts: Array<RelayHost>, };
 
 export type CreateRemoteSessionResponse = { session_id: string, };
 
@@ -164,18 +154,6 @@ export type CreateIssueCommentReactionRequest = {
 id?: string, comment_id: string, emoji: string, };
 
 export type UpdateIssueCommentReactionRequest = { emoji: string | null, };
-
-export type InitUploadRequest = { project_id: string, filename: string, size_bytes: number, hash: string, };
-
-export type InitUploadResponse = { upload_url: string, upload_id: string, expires_at: string, skip_upload: boolean, existing_blob_id: string | null, };
-
-export type ConfirmUploadRequest = { project_id: string, upload_id: string, filename: string, content_type?: string, size_bytes: number, hash: string, issue_id?: string, comment_id?: string, };
-
-export type CommitAttachmentsRequest = { attachment_ids: Array<string>, };
-
-export type CommitAttachmentsResponse = { attachments: Array<AttachmentWithBlob>, };
-
-export type AttachmentUrlResponse = { url: string, };
 
 export type ExportRequest = { organization_id: string, 
 /**

@@ -283,14 +283,15 @@ impl ExecutionProcess {
         pool: &SqlitePool,
         session_id: Uuid,
     ) -> Result<bool, sqlx::Error> {
-        let count: i64 = sqlx::query_scalar!(
+        let count: i64 = sqlx::query_scalar(
             r#"SELECT COUNT(*) as "count!: i64"
                FROM execution_processes ep
                WHERE ep.session_id = $1
                  AND ep.status = 'running'
-                 AND ep.run_reason = 'codingagent'"#,
-            session_id
+                 AND ep.run_reason = 'codingagent'
+                 AND ep.dropped = FALSE"#,
         )
+        .bind(session_id)
         .fetch_one(pool)
         .await?;
         Ok(count > 0)
@@ -936,5 +937,33 @@ mod tests {
             }
             other => panic!("expected AlreadyRunningCodingAgent, got {other:?}"),
         }
+    }
+
+    /// A `dropped` running coding-agent row must NOT block a new dispatch: the
+    /// unique partial index tolerates dropped rows (`WHERE dropped = FALSE`),
+    /// so the advisory preflight mirrors the index. Without this filter a
+    /// stale leaked dropped+running row would lock the session out with 409.
+    #[tokio::test]
+    async fn has_running_ignores_dropped_rows() {
+        let pool = pool().await;
+        let session = seed_session(&pool).await;
+
+        sqlx::query(
+            "INSERT INTO execution_processes \
+             (id, session_id, run_reason, executor_action, status, dropped, started_at, created_at, updated_at) \
+             VALUES (?, ?, 'codingagent', '{}', 'running', 1, datetime('now'), datetime('now'), datetime('now'))",
+        )
+        .bind(Uuid::new_v4())
+        .bind(session)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        assert!(
+            !ExecutionProcess::has_running_coding_agent_for_session(&pool, session)
+                .await
+                .unwrap(),
+            "dropped running coding-agent row must not count as running"
+        );
     }
 }

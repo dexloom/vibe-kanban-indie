@@ -71,29 +71,12 @@
     "currentDisabled": "无法选择当前分支"
   },
   "orgSwitcher": {
-    "organizations": "组织",
-    "orgSettings": "组织设置"
+    "organizations": "组织"
   },
   "ok": "确定",
   "error": "错误",
-  "signIn": "登录",
   "signOut": "退出登录",
-  "oauth": {
-    "title": "登录 Vibe Kanban",
-    "description": "登录以加入组织并与团队共享任务",
-    "continueWithGitHub": "使用 GitHub 继续",
-    "continueWithGoogle": "使用 Google 继续",
-    "waitingTitle": "完成身份验证",
-    "waitingDescription": "已打开弹出窗口进行身份验证",
-    "waitingForAuth": "等待身份验证...",
-    "popupInstructions": "如果弹出窗口未打开，请检查您的弹窗拦截器设置。",
-    "back": "返回",
-    "successTitle": "身份验证成功！",
-    "welcomeBack": "欢迎回来，{{name}}",
-    "errorTitle": "身份验证失败",
-    "errorDescription": "验证您的账户时出现问题",
-    "tryAgain": "重试"
-  },
+  "oauth": {},
   "toolbar": {
     "sortBy": "排序方式",
     "groupBy": "分组方式"
@@ -213,44 +196,6 @@
     "defaultPlaceholder": "输入命令或搜索...",
     "selectBranch": "Select Branch",
     "selectBranchFor": "Select Branch for {{repoName}}"
-  },
-  "workspacesGuide": {
-    "welcome": {
-      "title": "欢迎",
-      "content": "欢迎使用 Workspaces，这是 Vibe Kanban 的全新设计界面。我们正在向部分用户推出以获取早期反馈。您可以随时通过导航栏中的反馈图标分享您的想法。"
-    },
-    "commandBar": {
-      "title": "命令栏",
-      "content": "命令栏是您的导航中心。使用 CMD+K 打开它，可以搜索和访问工作区中的所有可用操作。"
-    },
-    "contextBar": {
-      "title": "上下文栏",
-      "content": "上下文栏让您可以快速切换不同面板。将它拖动到最适合您的位置。"
-    },
-    "sidebar": {
-      "title": "工作区侧边栏",
-      "content": "一目了然地查看所有工作区的状态。通知会突出显示需要关注的工作区。归档已合并的工作区以保持侧边栏整洁。"
-    },
-    "multiRepo": {
-      "title": "多仓库支持",
-      "content": "将多个仓库添加到单个工作区。在处理一个仓库时可以引用另一个仓库的代码，或者同时在多个仓库中实现更改。"
-    },
-    "sessions": {
-      "title": "多会话",
-      "content": "在单个工作区内创建多个代理对话会话，包括与不同代理的会话。这可以帮助您绕过对话限制，或在单独的线程中启动审查代理。"
-    },
-    "preview": {
-      "title": "预览更改",
-      "content": "无需切换上下文，即可在内置浏览器中预览您的工作。支持桌面、移动设备和自定义视口尺寸测试。"
-    },
-    "diffs": {
-      "title": "差异和评论",
-      "content": "重新设计的差异面板包含更改的文件树。直接在差异上评论以向代理提供反馈，当您的工作区链接到 PR 时还可以查看 GitHub 评论。"
-    },
-    "classicUi": {
-      "title": "返回经典界面",
-      "content": "点击导航栏左侧的退出图标可返回经典看板。要完全禁用新界面，请在设置中的「测试版功能」下更新「启用 Workspaces 测试版」选项。"
-    }
   },
   "logs": {
     "searchLogs": "搜索日志",
@@ -405,9 +350,7 @@
       "all": "全部"
     },
     "loginRequired": {
-      "title": "需要登录",
-      "description": "请登录以查看此项目。",
-      "action": "登录"
+      "description": "请登录以查看此项目。"
     },
     "team": "Team",
     "personal": "Personal",
@@ -485,7 +428,8 @@
         "title": "Invite your team",
         "content": "We've automatically created a personal organization and initial project so you can get started with Vibe Kanban. Export your cloud data before shutdown."
       }
-    }
+    },
+    "currentWorkspace": "running here"
   },
   "createMode": {
     "headings": {
@@ -527,18 +471,7 @@
     "streamsAffected": "{{count}} 个数据流受影响",
     "streamsAffected_other": "{{count}} 个数据流受影响",
     "status": "(状态 {{status}})",
-    "refreshPage": "刷新页面",
-    "remoteAuthUnavailable": "远程身份验证暂时不可用。在恢复之前，部分远程功能可能无法使用。"
-  },
-  "onboardingSignIn": {
-    "subtitle": "Sign in to continue",
-    "signedInAs": "Signed in as {{name}}.",
-    "moreOptions": "More options",
-    "featureHeader": "Feature",
-    "signedInHeader": "Signed in",
-    "skipSignInHeader": "Don't sign in",
-    "yes": "Yes",
-    "no": "No"
+    "refreshPage": "刷新页面"
   },
   "errors": {
     "generic": "An unexpected error occurred"

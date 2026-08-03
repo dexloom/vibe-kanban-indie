@@ -18,7 +18,7 @@ use db::models::{
 use deployment::Deployment;
 use git::{ConflictOp, GitCliError, GitServiceError};
 use serde::{Deserialize, Serialize};
-use services::services::{container::ContainerService, diff_stream, remote_sync};
+use services::services::container::ContainerService;
 use ts_rs::TS;
 use utils::response::ApiResponse;
 use uuid::Uuid;
@@ -162,19 +162,9 @@ pub fn router() -> Router<DeploymentImpl> {
 }
 
 async fn resolve_vibe_kanban_identifier(
-    deployment: &DeploymentImpl,
+    _deployment: &DeploymentImpl,
     local_workspace_id: Uuid,
 ) -> String {
-    if let Ok(client) = deployment.remote_client()
-        && let Ok(remote_ws) = client.get_workspace_by_local_id(local_workspace_id).await
-        && let Some(issue_id) = remote_ws.issue_id
-        && let Ok(issue) = client.get_issue(issue_id).await
-    {
-        if !issue.simple_id.is_empty() {
-            return issue.simple_id;
-        }
-        return issue_id.to_string();
-    }
     local_workspace_id.to_string()
 }
 
@@ -253,27 +243,11 @@ pub async fn merge_workspace(
     )
     .await?;
 
-    if let Ok(client) = deployment.remote_client() {
-        let workspace_id = workspace.id;
-        tokio::spawn(async move {
-            remote_sync::sync_local_workspace_merge_to_remote(&client, workspace_id).await;
-        });
-    }
-
     if !workspace.pinned
         && let Err(e) = deployment.container().archive_workspace(workspace.id).await
     {
         tracing::error!("Failed to archive workspace {}: {}", workspace.id, e);
     }
-
-    deployment
-        .track_if_analytics_allowed(
-            "task_attempt_merged",
-            serde_json::json!({
-                "workspace_id": workspace.id.to_string(),
-            }),
-        )
-        .await;
 
     Ok(ResponseJson(ApiResponse::success(())))
 }
@@ -338,30 +312,6 @@ pub async fn commit_workspace(
 
     let committed = deployment.git().commit(&worktree_path, &commit_message)?;
 
-    if committed {
-        if let Ok(client) = deployment.remote_client() {
-            let pool = deployment.db().pool.clone();
-            let git = deployment.git().clone();
-            let mut ws = workspace.clone();
-            ws.container_ref = Some(container_ref.clone());
-            tokio::spawn(async move {
-                let stats = diff_stream::compute_diff_stats(&pool, &git, &ws).await;
-                remote_sync::sync_workspace_to_remote(&client, ws.id, None, None, stats.as_ref())
-                    .await;
-            });
-        }
-
-        deployment
-            .track_if_analytics_allowed(
-                "task_attempt_committed",
-                serde_json::json!({
-                    "workspace_id": workspace.id.to_string(),
-                    "repo_id": request.repo_id.to_string(),
-                }),
-            )
-            .await;
-    }
-
     Ok(ResponseJson(ApiResponse::success(
         CommitWorkspaceResponse { committed },
     )))
@@ -394,26 +344,7 @@ pub async fn push_workspace_branch(
         .git()
         .push_to_remote(&worktree_path, &workspace.branch, false)
     {
-        Ok(_) => {
-            if let Ok(client) = deployment.remote_client() {
-                let pool = deployment.db().pool.clone();
-                let git = deployment.git().clone();
-                let mut ws = workspace.clone();
-                ws.container_ref = Some(container_ref.clone());
-                tokio::spawn(async move {
-                    let stats = diff_stream::compute_diff_stats(&pool, &git, &ws).await;
-                    remote_sync::sync_workspace_to_remote(
-                        &client,
-                        ws.id,
-                        None,
-                        None,
-                        stats.as_ref(),
-                    )
-                    .await;
-                });
-            }
-            Ok(ResponseJson(ApiResponse::success(())))
-        }
+        Ok(_) => Ok(ResponseJson(ApiResponse::success(()))),
         Err(GitServiceError::GitCLI(GitCliError::PushRejected(_))) => Ok(ResponseJson(
             ApiResponse::error_with_data(PushError::ForcePushRequired),
         )),
@@ -447,17 +378,6 @@ pub async fn force_push_workspace_branch(
     deployment
         .git()
         .push_to_remote(&worktree_path, &workspace.branch, true)?;
-
-    if let Ok(client) = deployment.remote_client() {
-        let pool = deployment.db().pool.clone();
-        let git = deployment.git().clone();
-        let mut ws = workspace.clone();
-        ws.container_ref = Some(container_ref.clone());
-        tokio::spawn(async move {
-            let stats = diff_stream::compute_diff_stats(&pool, &git, &ws).await;
-            remote_sync::sync_workspace_to_remote(&client, ws.id, None, None, stats.as_ref()).await;
-        });
-    }
 
     Ok(ResponseJson(ApiResponse::success(())))
 }
@@ -637,16 +557,6 @@ pub async fn change_target_branch(
             .git()
             .get_branch_status(&repo.path, &workspace.branch, &new_target_branch)?;
 
-    deployment
-        .track_if_analytics_allowed(
-            "task_attempt_target_branch_changed",
-            serde_json::json!({
-                "repo_id": repo_id.to_string(),
-                "workspace_id": workspace.id.to_string(),
-            }),
-        )
-        .await;
-
     Ok(ResponseJson(ApiResponse::success(
         ChangeTargetBranchResponse {
             repo_id,
@@ -779,15 +689,6 @@ pub async fn rename_branch(
         );
     }
 
-    deployment
-        .track_if_analytics_allowed(
-            "task_attempt_branch_renamed",
-            serde_json::json!({
-                "updated_children": updated_children_count,
-            }),
-        )
-        .await;
-
     Ok(ResponseJson(ApiResponse::success(RenameBranchResponse {
         branch: new_branch_name.to_string(),
     })))
@@ -879,16 +780,6 @@ pub async fn rebase_workspace(
             other => Err(ApiError::GitService(other)),
         };
     }
-
-    deployment
-        .track_if_analytics_allowed(
-            "task_attempt_rebased",
-            serde_json::json!({
-                "workspace_id": workspace.id.to_string(),
-                "repo_id": payload.repo_id.to_string(),
-            }),
-        )
-        .await;
 
     Ok(ResponseJson(ApiResponse::success(())))
 }

@@ -2,10 +2,7 @@
 resolver = "3"
 members = [
     "crates/api-types",
-    "crates/relay-client",
     "crates/server",
-    "crates/relay-types",
-    "crates/trusted-key-auth",
     "crates/mcp",
     "crates/tui",
     "crates/telegram-bridge",
@@ -14,32 +11,20 @@ members = [
     "crates/services",
     "crates/worktree-manager",
     "crates/workspace-manager",
-    "crates/relay-control",
-    "crates/relay-protocol",
-    "crates/relay-ws",
-    "crates/ws-bridge",
-    "crates/relay-hosts",
     "crates/client-info",
-    "crates/remote-info",
     "crates/utils",
     "crates/git",
     "crates/git-host",
     "crates/local-deployment",
     "crates/deployment",
     "crates/review",
-    "crates/embedded-ssh",
-    "crates/desktop-bridge",
     "crates/tauri-app",
     "crates/preview-proxy",
-    "crates/relay-tunnel-core",
-    "crates/relay-webrtc",
 ]
-exclude = ["crates/remote", "crates/relay-tunnel"]
 
 # Shared package metadata inherited by every member via `version.workspace = true`
 # / `edition.workspace = true`. Bumping the release version is a one-line change
-# here (the excluded `remote` / `relay-tunnel` crates are separate workspaces and
-# keep their own versions).
+# here.
 [workspace.package]
 version = "0.2.23"
 edition = "2024"
@@ -71,14 +56,11 @@ dashmap = "6.1"
 db = { path = "crates/db" }
 deployment = { path = "crates/deployment" }
 derivative = "2.2.0"
-desktop-bridge = { path = "crates/desktop-bridge" }
 dialoguer = "0.11"
 directories = "6.0.0"
 dirs = "5.0"
 dotenv = "0.15"
 dunce = "1.0"
-ed25519-dalek = { version = "2.2.0", features = ["rand_core"] }
-embedded-ssh = { path = "crates/embedded-ssh" }
 enum_dispatch = "0.3.13"
 eventsource-stream = "0.2"
 executors = { path = "crates/executors" }
@@ -92,8 +74,6 @@ git = { path = "crates/git" }
 git-host = { path = "crates/git-host" }
 git2 = { version = "0.20.3", default-features = false }
 globwalk = "0.9"
-hkdf = "0.12"
-hmac = "0.12"
 http = "1"
 hyper = { version = "1", features = ["client", "http1", "server"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
@@ -118,25 +98,11 @@ preview-proxy = { path = "crates/preview-proxy" }
 rand = { version = "0.8", features = ["std"] }
 ratatui = "0.29"
 regex = "1.11.1"
-relay-client = { path = "crates/relay-client" }
-relay-control = { path = "crates/relay-control" }
-relay-hosts = { path = "crates/relay-hosts" }
-relay-protocol = { path = "crates/relay-protocol" }
-relay-tunnel-core = { path = "crates/relay-tunnel-core" }
-relay-types = { path = "crates/relay-types" }
-relay-webrtc = { path = "crates/relay-webrtc" }
-relay-ws = { path = "crates/relay-ws" }
-remote-info = { path = "crates/remote-info" }
 reqwest = { version = "0.13", default-features = false, features = ["json", "query", "rustls", "stream"] }
 rmcp = { version = "1.2.0", features = ["server", "transport-io"] }
-russh = "0.48"
-russh-keys = "0.48"
-russh-sftp = "2.0"
 rust-embed = "8.2"
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std", "tls12"] }
 schemars = { version = "1.0.4", features = ["chrono04", "derive", "preserve_order", "uuid1"] }
-sentry = { version = "0.46.2", default-features = false, features = ["anyhow", "backtrace", "debug-images", "panic", "reqwest", "rustls"] }
-sentry-tracing = { version = "0.46.2", default-features = false, features = ["backtrace"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde_with = "3"
@@ -146,9 +112,7 @@ sha2 = "0.10"
 shellexpand = "3.1.1"
 shlex = "1.3.0"
 similar = "2"
-spake2 = { version = "0.5.0-pre.0", features = ["getrandom"] }
 sqlx = { version = "0.8.6", features = ["chrono", "derive", "postgres", "runtime-tokio", "sqlite", "sqlite-preupdate-hook", "tls-rustls-aws-lc-rs", "uuid"] }
-ssh-key = { version = "0.6", features = ["ed25519"] }
 strip-ansi-escapes = "0.2.1"
 strum = "0.27.2"
 strum_macros = "0.27.2"
@@ -165,26 +129,21 @@ tokio = { version = "1.0", features = ["full", "macros", "net", "rt-multi-thread
 tokio-stream = { version = "0.1.17", features = ["io-util", "sync"] }
 tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots", "rustls-tls-webpki-roots"] }
 tokio-util = { version = "0.7", features = ["codec", "compat", "io", "rt"] }
-tokio-yamux = "0.3.17"
 toml = "0.8"
 toml_edit = "0.20"
 tower-http = { version = "0.5", features = ["compression-br", "compression-gzip", "cors", "fs", "request-id", "trace", "validate-request"] }
 tracing = "0.1.43"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "registry"] }
-trusted-key-auth = { path = "crates/trusted-key-auth" }
 ts-rs = { git = "https://github.com/xazukx/ts-rs.git", branch = "use-ts-enum", features = ["chrono-impl", "no-serde-warnings", "serde-json-impl", "uuid-impl"] }
 url = "2.5"
 utils = { path = "crates/utils" }
 uuid = { version = "1.0", features = ["serde", "v4"] }
 walkdir = "2"
-webrtc = "0.12"
-webrtc-ice = "0.12"
 which = "8.0.0"
 workspace-manager = { path = "crates/workspace-manager" }
 workspace_utils = { path = "crates/utils", package = "utils" }
 worktree-manager = { path = "crates/worktree-manager" }
-ws-bridge = { path = "crates/ws-bridge" }
 xdg = "3.0"
 
 [profile.release]
