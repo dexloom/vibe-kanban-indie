@@ -541,8 +541,12 @@
   },
   "appBar": {
     "projects": "プロジェクト",
-    "workspaces": "ワークスペース",
     "notifications": "通知",
     "organizations": "組織"
+  },
+  "sidebar": {
+    "workspacesSection": "ワークスペース",
+    "unassigned": "未割り当て",
+    "openProjectKanban": "プロジェクトのカンバンを開く"
   }
 }

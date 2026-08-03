@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { DropResult } from '@hello-pangea/dnd';
-import { Outlet, useNavigate } from '@tanstack/react-router';
+import { Outlet } from '@tanstack/react-router';
 import { XIcon, KanbanIcon } from '@phosphor-icons/react';
 import { SyncErrorProvider } from '@/shared/providers/SyncErrorProvider';
 import { useIsMobile } from '@/shared/hooks/useIsMobile';
@@ -19,15 +18,7 @@ import { useAuth } from '@/shared/hooks/auth/useAuth';
 import { useAppUpdateStore } from '@/shared/stores/useAppUpdateStore';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentAppDestination } from '@/shared/hooks/useCurrentAppDestination';
-import {
-  getProjectDestination,
-  isWorkspacesDashboardDestination,
-  isWorkspaceChatDestination,
-} from '@/shared/lib/routes/appNavigation';
-import {
-  CreateRemoteProjectDialog,
-  type CreateRemoteProjectResult,
-} from '@/shared/dialogs/org/CreateRemoteProjectDialog';
+import { getProjectDestination } from '@/shared/lib/routes/appNavigation';
 import { CommandBarDialog } from '@/shared/dialogs/command-bar/CommandBarDialog';
 import { useCommandBarShortcut } from '@/shared/hooks/useCommandBarShortcut';
 import { useShape } from '@/shared/integrations/electric/hooks';
@@ -38,6 +29,10 @@ import {
   type Project as RemoteProject,
 } from 'shared/remote-types';
 import { AppBarNotificationBellContainer } from '@/pages/workspaces/AppBarNotificationBellContainer';
+import { useWorkspaceProjectMembership } from '@/shared/hooks/useWorkspaceProjectMembership';
+import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
+import type { SidebarWorkspace } from '@/shared/hooks/useWorkspaces';
+import type { OutlinerWorkspace } from '@vibe/ui/components/outliner/types';
 
 export function SharedAppLayout() {
   const appNavigation = useAppNavigation();
@@ -51,7 +46,6 @@ export function SharedAppLayout() {
   const updateVersion = useAppUpdateStore((s) => s.updateVersion);
   const restartForUpdate = useAppUpdateStore((s) => s.restart);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const navigate = useNavigate();
   // Register CMD+K shortcut globally for all routes under SharedAppLayout
   useCommandBarShortcut(() => CommandBarDialog.show());
 
@@ -146,24 +140,32 @@ export function SharedAppLayout() {
     [appNavigation]
   );
 
-  const handleProjectsDragEnd = useCallback(
-    async ({ source, destination }: DropResult) => {
+  // ADR-007: react-arborist hands us a project-id array (Unassigned is
+  // filtered out upstream by the tree). Persist the same way we did for
+  // the @hello-pangea/dnd flow — optimistic reorder with rollback on
+  // persistence failure.
+  const handleProjectsReorder = useCallback(
+    async (reorderedProjectIds: string[]) => {
       if (isSavingProjectOrder) {
         return;
       }
-      if (!destination || source.index === destination.index) {
-        return;
+
+      // Build the new ordering by mapping ids back to full project rows,
+      // then appending any project rows that weren't part of the reorder
+      // (defensive — should not happen in practice).
+      const byId = new Map(orderedProjects.map((p) => [p.id, p]));
+      const reordered: RemoteProject[] = [];
+      for (const id of reorderedProjectIds) {
+        const project = byId.get(id);
+        if (project) reordered.push(project);
+      }
+      for (const project of orderedProjects) {
+        if (!reorderedProjectIds.includes(project.id)) {
+          reordered.push(project);
+        }
       }
 
       const previousOrder = orderedProjects;
-      const reordered = [...orderedProjects];
-      const [moved] = reordered.splice(source.index, 1);
-
-      if (!moved) {
-        return;
-      }
-
-      reordered.splice(destination.index, 0, moved);
       setOrderedProjects(reordered);
       setIsSavingProjectOrder(true);
 
@@ -184,38 +186,56 @@ export function SharedAppLayout() {
     [isSavingProjectOrder, orderedProjects, updateManyProjects]
   );
 
-  const handleCreateProject = useCallback(async () => {
-    if (!selectedOrgId) return;
-
-    try {
-      const result: CreateRemoteProjectResult =
-        await CreateRemoteProjectDialog.show({ organizationId: selectedOrgId });
-
-      if (result.action === 'created' && result.project) {
-        appNavigation.goToProject(result.project.id);
-      }
-    } catch {
-      // Dialog cancelled
-    }
-  }, [selectedOrgId, appNavigation]);
-
   const handleSignIn = useCallback(async () => {
     // Local-only fork: no OAuth flow.
   }, []);
 
-  // Workspaces shortcut: highlight when the user is on the workspaces
-  // dashboard OR on a workspace/chat destination. Both predicates live in
-  // @/shared/lib/routes/appNavigation.
-  const isWorkspacesActive = useMemo(
+  // Workspace tree data: derive membership from the remote-shape workspaces
+  // exposed by UserContext, then surface active/archived lists from the
+  // local workspace context so the tree stays in sync with live status.
+  const membership = useWorkspaceProjectMembership();
+  const {
+    workspaceId,
+    activeWorkspaces,
+    archivedWorkspaces,
+    isWorkspacesListLoading,
+  } = useWorkspaceContext();
+
+  const sidebarProjects = useMemo(
     () =>
-      isWorkspacesDashboardDestination(currentDestination) ||
-      isWorkspaceChatDestination(currentDestination),
-    [currentDestination]
+      orderedProjects.map((p) => ({ id: p.id, name: p.name, color: p.color })),
+    [orderedProjects]
   );
 
-  const onOpenWorkspaces = useCallback(() => {
-    void navigate({ to: '/workspaces' });
-  }, [navigate]);
+  // Single mapper used by both active and archived OutlinerWorkspace memos.
+  // SidebarWorkspace is the union element type for both source arrays.
+  const toOutlinerWorkspace = (ws: SidebarWorkspace): OutlinerWorkspace => ({
+    id: ws.id,
+    name: ws.name,
+    createdAt: ws.createdAt,
+    filesChanged: ws.filesChanged,
+    linesAdded: ws.linesAdded,
+    linesRemoved: ws.linesRemoved,
+    isRunning: ws.isRunning,
+    isPinned: ws.isPinned,
+    kind: ws.kind,
+    hasPendingApproval: ws.hasPendingApproval,
+    hasRunningDevServer: ws.hasRunningDevServer,
+    hasUnseenActivity: ws.hasUnseenActivity,
+    latestProcessCompletedAt: ws.latestProcessCompletedAt,
+    latestProcessStatus: ws.latestProcessStatus,
+    prStatus: ws.prStatus,
+  });
+
+  const outlinerWorkspaces = useMemo<OutlinerWorkspace[]>(
+    () => activeWorkspaces.map(toOutlinerWorkspace),
+    [activeWorkspaces]
+  );
+
+  const outlinerArchivedWorkspaces = useMemo<OutlinerWorkspace[]>(
+    () => archivedWorkspaces.map(toOutlinerWorkspace),
+    [archivedWorkspaces]
+  );
 
   return (
     <SyncErrorProvider>
@@ -224,25 +244,26 @@ export function SharedAppLayout() {
           'bg-primary',
           isMobile
             ? 'flex fixed inset-0 pb-[env(safe-area-inset-bottom)]'
-            : 'grid grid-cols-[256px_1fr] h-screen'
+            : 'grid grid-cols-[256px_1fr] grid-rows-[minmax(0,1fr)] h-screen'
         )}
       >
         {!isMobile && (
           <>
-            {/* Desktop sidebar (Projects + Workspaces shortcut + bottom
-                notification/org/user slots). Spans the full left column; the
-                top drag-region strip lives inside the Sidebar itself. */}
+            {/* Desktop sidebar: project tree + bottom notification/org/user
+                slots. Spans the full left column; the top drag-region strip
+                lives inside the Sidebar itself. */}
             <Sidebar
-              projects={orderedProjects}
+              projects={sidebarProjects}
               activeProjectId={activeProjectId}
-              isSignedIn={isSignedIn}
+              activeWorkspaceId={workspaceId ?? null}
+              workspaces={outlinerWorkspaces}
+              archivedWorkspaces={outlinerArchivedWorkspaces}
+              membership={membership}
               isLoadingProjects={isLoading}
-              isSavingProjectOrder={isSavingProjectOrder}
-              onProjectClick={handleProjectClick}
-              onCreateProject={handleCreateProject}
-              onProjectsDragEnd={handleProjectsDragEnd}
-              onOpenWorkspaces={onOpenWorkspaces}
-              isWorkspacesActive={isWorkspacesActive}
+              isLoadingWorkspaces={isWorkspacesListLoading}
+              onProjectsReorder={handleProjectsReorder}
+              onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
+              onSelectProject={handleProjectClick}
               notificationBell={
                 isSignedIn ? <AppBarNotificationBellContainer /> : undefined
               }
@@ -299,25 +320,20 @@ export function SharedAppLayout() {
 
             <div className="flex-1 min-h-0 overflow-y-auto">
               <Sidebar
-                projects={orderedProjects}
+                projects={sidebarProjects}
                 activeProjectId={activeProjectId}
-                isSignedIn={isSignedIn}
+                activeWorkspaceId={workspaceId ?? null}
+                workspaces={outlinerWorkspaces}
+                archivedWorkspaces={outlinerArchivedWorkspaces}
+                membership={membership}
                 isLoadingProjects={isLoading}
-                isSavingProjectOrder={isSavingProjectOrder}
-                onProjectClick={(id) => {
+                isLoadingWorkspaces={isWorkspacesListLoading}
+                onProjectsReorder={handleProjectsReorder}
+                onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
+                onSelectProject={(id) => {
                   handleProjectClick(id);
                   setIsDrawerOpen(false);
                 }}
-                onCreateProject={() => {
-                  void handleCreateProject();
-                  setIsDrawerOpen(false);
-                }}
-                onProjectsDragEnd={handleProjectsDragEnd}
-                onOpenWorkspaces={() => {
-                  onOpenWorkspaces();
-                  setIsDrawerOpen(false);
-                }}
-                isWorkspacesActive={isWorkspacesActive}
                 organizationsSwitcher={<OrganizationSwitcherButton />}
                 userPopover={<AppBarUserPopoverContainer />}
                 appVersion={appVersion}

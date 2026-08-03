@@ -545,8 +545,12 @@
   },
   "appBar": {
     "projects": "Projects",
-    "workspaces": "Workspaces",
     "notifications": "Notifications",
     "organizations": "Organizations"
+  },
+  "sidebar": {
+    "workspacesSection": "Workspaces",
+    "unassigned": "Unassigned",
+    "openProjectKanban": "Open project kanban"
   }
 }

@@ -1,6 +1,10 @@
 # ADR-006: Workspaces view — local Outliner (tree-view) left panel
 
-- **Status**: Accepted
+- **Status**: Superseded (2026-08-03) by ADR-007 — the outliner moves into the
+  global sidebar as the 3rd level of a project-scoped tree; the view-local
+  placement in `WorkspacesLayout` is removed. The Outliner component itself,
+  the bucket semantics, and the `categorizeWorkspacesForOutliner` domain module
+  remain canonical.
 - **Date**: 2026-08-03
 - **Relates to**: ADR-003 (domain module canonical), ADR-005 (global sidebar, amended)
 

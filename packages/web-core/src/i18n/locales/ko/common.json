@@ -541,8 +541,12 @@
   },
   "appBar": {
     "projects": "프로젝트",
-    "workspaces": "워크스페이스",
     "notifications": "알림",
     "organizations": "조직"
+  },
+  "sidebar": {
+    "workspacesSection": "워크스페이스",
+    "unassigned": "미할당",
+    "openProjectKanban": "프로젝트 칸반 열기"
   }
 }

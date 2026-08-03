@@ -1,25 +1,31 @@
-import { LayoutIcon } from '@phosphor-icons/react';
-import type { DropResult } from '@hello-pangea/dnd';
-import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 import { cn } from '../lib/cn';
 import { Tooltip } from './Tooltip';
-import { ProjectsGroup, type ProjectsGroupProject } from './ProjectsGroup';
+import { SidebarProjectTree, type SidebarProject } from './SidebarProjectTree';
+import type { OutlinerWorkspace } from './outliner/types';
+
+/** Sidebar-local alias for the membership map shape. */
+export type SidebarMembership = Map<string, Set<string>>;
 
 interface SidebarProps {
-  projects: ProjectsGroupProject[];
+  /** All projects to render at the root of the tree. */
+  projects: readonly SidebarProject[];
+  /** Project id whose destination the user is currently on, if any. */
   activeProjectId: string | null;
-  isSignedIn: boolean;
+  /** Active (non-archived) workspaces, fed into each project's tree. */
+  workspaces: OutlinerWorkspace[];
+  /** Archived workspaces. */
+  archivedWorkspaces?: OutlinerWorkspace[];
+  /** local_workspace_id → set of project ids (for tree grouping). */
+  membership: SidebarMembership;
+  /** Workspace id whose destination the user is currently on, if any. */
+  activeWorkspaceId: string | null;
   isLoadingProjects?: boolean;
-  isSavingProjectOrder?: boolean;
-  onProjectClick: (projectId: string) => void;
-  onCreateProject: () => void;
-  onProjectsDragEnd: (result: DropResult) => void;
-
-  /** Handler invoked when the user clicks the Workspaces shortcut button. */
-  onOpenWorkspaces: () => void;
-  /** Whether the current destination is a workspaces/chat destination. */
-  isWorkspacesActive: boolean;
+  isLoadingWorkspaces?: boolean;
+  /** Called after the user successfully reorders projects. */
+  onProjectsReorder: (reorderedProjectIds: string[]) => void;
+  onSelectWorkspace: (id: string) => void;
+  onSelectProject: (id: string) => void;
 
   notificationBell?: ReactNode;
   organizationsSwitcher?: ReactNode;
@@ -34,14 +40,15 @@ interface SidebarProps {
 export function Sidebar({
   projects,
   activeProjectId,
-  isSignedIn,
+  workspaces,
+  archivedWorkspaces = [],
+  membership,
+  activeWorkspaceId,
   isLoadingProjects,
-  isSavingProjectOrder,
-  onProjectClick,
-  onCreateProject,
-  onProjectsDragEnd,
-  onOpenWorkspaces,
-  isWorkspacesActive,
+  isLoadingWorkspaces,
+  onProjectsReorder,
+  onSelectWorkspace,
+  onSelectProject,
   notificationBell,
   organizationsSwitcher,
   userPopover,
@@ -50,13 +57,11 @@ export function Sidebar({
   onUpdateClick,
   className,
 }: SidebarProps) {
-  const { t } = useTranslation('common');
-
   return (
     <aside
       aria-label="Primary sidebar"
       className={cn(
-        'flex h-full w-[256px] shrink-0 flex-col gap-2 overflow-y-auto',
+        'flex h-full w-[256px] shrink-0 flex-col gap-2 overflow-hidden',
         'border-r border-border bg-secondary p-2',
         className
       )}
@@ -65,35 +70,18 @@ export function Sidebar({
           covers the top; keeping the strip small and inert is harmless. */}
       <div data-tauri-drag-region className="h-7 shrink-0" aria-hidden="true" />
 
-      <ProjectsGroup
+      <SidebarProjectTree
         projects={projects}
         activeProjectId={activeProjectId}
-        isSignedIn={isSignedIn}
-        isLoading={isLoadingProjects ?? false}
-        isSavingProjectOrder={isSavingProjectOrder}
-        onProjectClick={onProjectClick}
-        onCreateProject={onCreateProject}
-        onProjectsDragEnd={onProjectsDragEnd}
+        workspaces={workspaces}
+        archivedWorkspaces={archivedWorkspaces}
+        membership={membership}
+        activeWorkspaceId={activeWorkspaceId}
+        isLoading={isLoadingProjects || isLoadingWorkspaces}
+        onSelectWorkspace={onSelectWorkspace}
+        onSelectProject={onSelectProject}
+        onProjectsReorder={onProjectsReorder}
       />
-
-      <Tooltip content={t('appBar.workspaces')} side="right">
-        <button
-          type="button"
-          onClick={onOpenWorkspaces}
-          aria-label={t('appBar.workspaces')}
-          aria-current={isWorkspacesActive ? 'page' : undefined}
-          className={cn(
-            'flex w-full items-center gap-2 rounded-md px-2 py-1.5',
-            'text-sm transition-colors cursor-pointer',
-            isWorkspacesActive
-              ? 'bg-tertiary text-high'
-              : 'text-normal hover:bg-tertiary'
-          )}
-        >
-          <LayoutIcon className="size-icon-xs" weight="bold" />
-          <span className="truncate">{t('appBar.workspaces')}</span>
-        </button>
-      </Tooltip>
 
       <div className="mt-auto flex flex-row items-center gap-1 pt-2">
         {notificationBell}
