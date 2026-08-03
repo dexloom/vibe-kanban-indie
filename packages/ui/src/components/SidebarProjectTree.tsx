@@ -13,6 +13,7 @@ import {
 } from './outliner/types';
 import {
   buildSidebarTreeInitialOpenState,
+  findTreeNodeById,
   pendingOpenStatusCardIds,
   readSidebarTreeOpenState,
   writeSidebarTreeOpenState,
@@ -244,15 +245,17 @@ export function SidebarProjectTree({
   // Replay persisted status/card open state onto lazily-loaded nodes. Statuses
   // only mount after the Tasks section opens (lazy gate), so their ids are not
   // in initialOpenState; each time tree data changes we open any stored-open
-  // status/card that just appeared. `appliedOpenRef` guards against reopening
-  // a node the user collapsed after it was first restored.
+  // status/card that just appeared. Presence is resolved against the built
+  // treeData (NOT api.get, which only sees visible nodes) so a card under a
+  // still-collapsed status is still found and opened. `appliedOpenRef` guards
+  // against reopening a node the user collapsed after it was first restored.
   useEffect(() => {
     const api = treeRef.current;
     if (!api) return;
     const ids = pendingOpenStatusCardIds(
       mountOpenRef.current,
       appliedOpenRef.current,
-      (id) => api.get(id)?.data ?? null,
+      (id) => findTreeNodeById(treeData, id),
     );
     for (const id of ids) {
       api.open(id);

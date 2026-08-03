@@ -6,6 +6,7 @@ import {
 import { UNASSIGNED_PROJECT_ID, type SidebarTreeNode } from './types';
 import {
   buildSidebarTreeInitialOpenState,
+  findTreeNodeById,
   pendingOpenStatusCardIds,
   readOpenTasksProjectIds,
   writeSidebarTreeOpenState,
@@ -176,5 +177,58 @@ describe('pendingOpenStatusCardIds', () => {
     expect(
       pendingOpenStatusCardIds(stored, new Set(['p1:card:c1']), node)
     ).toEqual([]);
+  });
+});
+
+describe('findTreeNodeById', () => {
+  const tree: SidebarTreeNode[] = [
+    {
+      id: 'p1',
+      type: 'project',
+      name: 'P1',
+      color: '0 0% 50%',
+      children: [
+        {
+          id: 'p1:tasks',
+          type: 'section',
+          kind: 'tasks',
+          projectId: 'p1',
+          label: 'Tasks',
+          children: [
+            {
+              id: 'p1:status:s1',
+              type: 'status',
+              projectId: 'p1',
+              statusId: 's1',
+              name: 'Todo',
+              color: '0 0% 50%',
+              children: [
+                {
+                  id: 'p1:card:c1',
+                  type: 'card',
+                  issue: {
+                    id: 'c1',
+                    title: 'Fix',
+                    priority: null,
+                    statusId: 's1',
+                    projectId: 'p1',
+                    parentIssueId: null,
+                  },
+                  children: [],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ];
+
+  it('finds a deeply nested card under collapsed ancestors', () => {
+    expect(findTreeNodeById(tree, 'p1:card:c1')?.type).toBe('card');
+  });
+
+  it('returns null for an unknown id', () => {
+    expect(findTreeNodeById(tree, 'p9:status:ghost')).toBeNull();
   });
 });

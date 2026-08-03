@@ -200,3 +200,25 @@ export function pendingOpenStatusCardIds(
   }
   return out;
 }
+
+/**
+ * Depth-first lookup of a tree node by id in the BUILT tree data. Unlike
+ * react-arborist's `tree.get(id)` (which only resolves VISIBLE/flattened
+ * nodes), this finds nodes under collapsed ancestors too — required so the
+ * replay effect can restore a card whose parent status is still closed at
+ * replay time (it opens the card id; the store applies it when the status
+ * renders).
+ */
+export function findTreeNodeById(
+  nodes: readonly SidebarTreeNode[],
+  id: string
+): SidebarTreeNode | null {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    if ('children' in node && node.children && node.children.length > 0) {
+      const found = findTreeNodeById(node.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
