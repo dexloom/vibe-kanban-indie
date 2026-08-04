@@ -17,15 +17,15 @@ interface TreeRowProps {
   showCaret?: boolean;
   rowClassName?: string;
   /** Extra attributes spread onto the outer row div. Used by CardNodeRow
-   * to inject the custom tree-drag `onMouseDown` + `data-tree-card`
-   * attribute, and by StatusNodeRow to inject hello-pangea Droppable
-   * refs/props. We type as `Record<string, unknown>` so callers can pass
-   * `data-*` attributes (which `HTMLAttributes` doesn\'t enumerate).
+   * to inject the custom drag-system `onMouseDown`, and by StatusNodeRow
+   * to inject the drop-target data attributes. We type as
+   * `Record<string, unknown>` so callers can pass `data-*` attributes
+   * (which `HTMLAttributes` doesn\'t enumerate).
    */
   outerProps?: Record<string, unknown>;
   /** When set, takes precedence over `dragHandle` and is set as the outer
    * div's `ref`. Lets CardNodeRow merge react-arborist's `dragHandle` with
-   * hello-pangea's `provided.innerRef` into a single callback ref. */
+   * the controller's captured element into a single callback ref. */
   outerRef?: Ref<HTMLDivElement>;
   children: ReactNode;
 }
@@ -36,8 +36,8 @@ interface TreeRowProps {
  * blind to node type. Childless rows get a bullet in the caret column;
  * expandable rows get a caret button.
  *
- * The cross-surface DnD feature (PLAN §6) reuses this shell by passing
- * `outerProps` (hello-pangea `draggableProps` / `droppableProps`) and
+ * The cross-surface DnD feature reuses this shell by passing `outerProps`
+ * (the unified drag system's `onMouseDown` and drop-target attrs) and
  * `outerRef` (merged with `dragHandle`) — see CardNodeRow / StatusNodeRow.
  */
 export function TreeRow({
@@ -54,10 +54,10 @@ export function TreeRow({
 }: TreeRowProps) {
   const { t } = useTranslation('common');
   const hasCaret = showCaret ?? !node.isLeaf;
-  // Merge hello-pangea's `draggableProps.style` (transform that moves the row
-  // under the cursor while dragging) over react-arborist's positional style.
-  // `style` on the outer div is arborist's; outerProps.style is the dnd
-  // transform. Both are required.
+  // Merge any `outerProps.style` (e.g. a future drag-system transform that
+  // moves the row under the cursor while dragging) over react-arborist's
+  // positional style. `style` on the outer div is arborist's;
+  // outerProps.style is the override. Both are required.
   const outerStyle = outerProps?.style as CSSProperties | undefined;
   const passthroughProps = { ...(outerProps ?? {}) } as Record<string, unknown>;
   delete passthroughProps.style;
@@ -72,7 +72,7 @@ export function TreeRow({
       className={cn(
         'relative flex w-full cursor-pointer items-center gap-1 overflow-hidden pr-1.5 text-left',
         'focus:outline-none',
-        rowClassName,
+        rowClassName
       )}
       {...passthroughProps}
     >
@@ -90,7 +90,7 @@ export function TreeRow({
           <CaretRightIcon
             className={cn(
               'size-2.5 transition-transform duration-150',
-              node.isOpen && 'rotate-90',
+              node.isOpen && 'rotate-90'
             )}
             weight="bold"
           />

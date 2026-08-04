@@ -2,37 +2,28 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { NodeApi } from 'react-arborist';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CardNodeRow } from './CardNodeRow';
-import {
-  TreeDragControllerContext,
-  type TreeDragControllerValue,
-} from './treeDrag/TreeDragControllerContext';
-import type { TreeDragManager } from './treeDrag/TreeDragManager';
+import { DragControllerContext, type DragControllerValue } from '../dnd';
+import type { DragController } from '../dnd';
 import type { CardNode } from './types';
 
 afterEach(cleanup);
 
-// CardNodeRow no longer wraps the row in a hello-pangea <Droppable>/<Draggable>;
-// it delegates drag to the custom TreeDragManager via the controller
-// context. Tests wrap the row in a controller provider so the hook can
-// locate a manager.
-
 function withController(
   node: React.ReactNode,
-  manager: TreeDragManager | null = null,
+  controller: DragController | null = null
 ) {
-  const setDragState = vi.fn();
-  const value: TreeDragControllerValue = { manager, setDragState };
+  const value: DragControllerValue = { controller };
   return (
-    <TreeDragControllerContext.Provider value={value}>
+    <DragControllerContext.Provider value={value}>
       {node}
-    </TreeDragControllerContext.Provider>
+    </DragControllerContext.Provider>
   );
 }
 
 function cardNode(
   overrides: Partial<CardNode['issue']> = {},
   children: CardNode[] = [],
-  isOpen = false,
+  isOpen = false
 ) {
   const activate = vi.fn();
   const toggle = vi.fn();
@@ -63,8 +54,8 @@ describe('CardNodeRow', () => {
   it('renders the issue title', () => {
     const { container } = render(
       withController(
-        <CardNodeRow node={cardNode().node} style={{ paddingLeft: 36 }} />,
-      ),
+        <CardNodeRow node={cardNode().node} style={{ paddingLeft: 36 }} />
+      )
     );
 
     expect(container.textContent).toBe('Fix auth');
@@ -78,8 +69,8 @@ describe('CardNodeRow', () => {
           node={cardNode().node}
           style={{}}
           activeIssueId="issue-1"
-        />,
-      ),
+        />
+      )
     );
 
     const row = container.querySelector('[aria-current]') as HTMLElement;
@@ -89,14 +80,12 @@ describe('CardNodeRow', () => {
   });
 
   it('does not toggle or activate when a leaf card row is clicked', () => {
-    // Navigation happens on react-arborist\'s OUTER row (handleActivate); the
-    // inner row must not double-fire it.
     const { node, activate, toggle } = cardNode();
     const { container } = render(
-      withController(<CardNodeRow node={node} style={{}} />),
+      withController(<CardNodeRow node={node} style={{}} />)
     );
 
-    const row = container.querySelector('[data-tree-card]') as HTMLElement;
+    const row = container.querySelector('.cursor-pointer') as HTMLElement;
     expect(row).toBeTruthy();
     fireEvent.click(row);
 
@@ -108,7 +97,7 @@ describe('CardNodeRow', () => {
     const child = cardNode({ id: 'issue-2' }).node.data;
     const { node, activate, toggle } = cardNode({}, [child], true);
     const { container } = render(
-      withController(<CardNodeRow node={node} style={{}} />),
+      withController(<CardNodeRow node={node} style={{}} />)
     );
 
     const caret = container.querySelector('button') as HTMLButtonElement;
@@ -123,71 +112,56 @@ describe('CardNodeRow', () => {
   it('renders leaf cards without a caret or aria-expanded', () => {
     const { node, activate, toggle } = cardNode();
     const { container } = render(
-      withController(<CardNodeRow node={node} style={{}} />),
+      withController(<CardNodeRow node={node} style={{}} />)
     );
 
     expect(container.querySelector('button')).toBeNull();
-    const row = container.querySelector('[data-tree-card]') as HTMLElement;
+    const row = container.querySelector('.cursor-pointer') as HTMLElement;
     expect(row.hasAttribute('aria-expanded')).toBe(false);
     fireEvent.click(row);
     expect(activate).not.toHaveBeenCalled();
     expect(toggle).not.toHaveBeenCalled();
   });
 
-  it('tags the row with data-tree-card so the drag manager can clone it for the ghost', () => {
-    const { container } = render(
-      withController(<CardNodeRow node={cardNode().node} style={{}} />),
-    );
-    const row = container.querySelector(
-      '[data-tree-card="issue-1"]',
-    ) as HTMLElement;
-    expect(row).toBeTruthy();
-  });
-
-  it('forwards mousedown to the manager via the controller', () => {
+  it('forwards mousedown to the controller via the drag hook', () => {
     const startPress = vi.fn();
-    const manager = { startPress } as unknown as TreeDragManager;
+    const controller = { startPress } as unknown as DragController;
     const { container } = render(
       withController(
         <CardNodeRow node={cardNode().node} style={{}} />,
-        manager,
-      ),
+        controller
+      )
     );
-    const row = container.querySelector(
-      '[data-tree-card="issue-1"]',
-    ) as HTMLElement;
+    const row = container.querySelector('.cursor-pointer') as HTMLElement;
     fireEvent.mouseDown(row, { button: 0 });
     expect(startPress).toHaveBeenCalledWith(
-      'issue-1',
-      'project-1',
-      expect.any(MouseEvent),
-      expect.any(Function),
+      { kind: 'issue-move', issueId: 'issue-1', projectId: 'project-1' },
+      row,
+      expect.any(MouseEvent)
     );
   });
 
   it('does NOT start a drag when isMultiSelectActive is true', () => {
     const startPress = vi.fn();
-    const manager = { startPress } as unknown as TreeDragManager;
+    const controller = { startPress } as unknown as DragController;
     const { container } = render(
       withController(
         <CardNodeRow node={cardNode().node} style={{}} isMultiSelectActive />,
-        manager,
-      ),
+        controller
+      )
     );
-    const row = container.querySelector(
-      '[data-tree-card="issue-1"]',
-    ) as HTMLElement;
+    const row = container.querySelector('.cursor-pointer') as HTMLElement;
     fireEvent.mouseDown(row, { button: 0 });
     expect(startPress).not.toHaveBeenCalled();
   });
 
   it('does NOT start a drag when mousedown originated on a caret <button>', () => {
     const startPress = vi.fn();
-    const manager = { startPress } as unknown as TreeDragManager;
+    const controller = { startPress } as unknown as DragController;
     const child = cardNode({ id: 'issue-2' }).node.data;
     const { node } = cardNode({}, [child], true);
     const { container } = render(
-      withController(<CardNodeRow node={node} style={{}} />, manager),
+      withController(<CardNodeRow node={node} style={{}} />, controller)
     );
     const caret = container.querySelector('button') as HTMLButtonElement;
     expect(caret).toBeTruthy();

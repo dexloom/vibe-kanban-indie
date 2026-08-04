@@ -49,6 +49,7 @@ import {
   KanbanHeader,
   type DropResult,
 } from '@vibe/ui/components/KanbanBoard';
+import { DragDropContext } from '@hello-pangea/dnd';
 import { KanbanCardContent } from '@vibe/ui/components/KanbanCardContent';
 import { KanbanWorkspaceDispatch } from '@vibe/ui/components/KanbanWorkspaceDispatch';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
@@ -73,7 +74,10 @@ import {
 } from '@vibe/ui/components/Dropdown';
 import { SearchableTagDropdownContainer } from '@/shared/components/SearchableTagDropdownContainer';
 import type { IssuePriority } from 'shared/remote-types';
-import { PROJECT_WORKSPACES_SHAPE } from 'shared/remote-types';
+import {
+  PROJECT_WORKSPACES_SHAPE,
+  PROJECT_ISSUES_SHAPE,
+} from 'shared/remote-types';
 import { refreshShapeSource } from '@/shared/lib/electric/collections';
 import { useIssueMultiSelect } from '@/shared/hooks/useIssueMultiSelect';
 import { useIssueSelectionStore } from '@/shared/stores/useIssueSelectionStore';
@@ -81,6 +85,7 @@ import { BulkActionBarContainer } from './BulkActionBarContainer';
 import {
   useKanbanDragHandler,
   type KanbanDragHandler,
+  type KanbanMove,
 } from '@/shared/components/ui-new/containers/KanbanDragHandlerContext';
 
 const areStringSetsEqual = (left: string[], right: string[]): boolean => {
@@ -707,111 +712,134 @@ export function KanbanContainer() {
     [statusColumnIndexMap]
   );
 
-  // Simple onDragEnd handler - the library handles all visual movement
-  const handleDragEnd = useCallback(
-    (result: DropResult) => {
-      const { source, destination } = result;
-
-      // Dropped outside a valid droppable
-      if (!destination) return;
-
-      // No movement
-      if (
-        source.droppableId === destination.droppableId &&
-        source.index === destination.index
-      ) {
-        return;
-      }
-
+  // Move-based handler. Called from two paths:
+  //   1. The shared custom drag system via KanbanDragHandlerProvider
+  //      (cross-surface drag → kanban column lands here with
+  //      destIndex undefined, defaulting to 'end').
+  //   2. The legacy list-view adapter (IssueListView) which still uses
+  //      hello-pangea for positional reordering inside columns.
+  // The same logic handles both: it updates local state, then fires
+  // bulkUpdateIssues for both the destination column (status_id +
+  // sort_order) and the source column (sort_order only when cross-column).
+  const handleKanbanMove = useCallback(
+    (move: KanbanMove) => {
+      const { issueId, fromStatusId, toStatusId, destIndex = 'end' } = move;
       const isManualSort = kanbanFilters.sortField === 'sort_order';
 
-      // Block within-column reordering when not in manual sort mode
-      // (cross-column moves are always allowed for status changes)
-      if (source.droppableId === destination.droppableId && !isManualSort) {
-        return;
+      if (fromStatusId === toStatusId) {
+        // Same-status move: meaningful only as a positional reorder
+        // (numeric destIndex from the legacy list view) and only in manual
+        // sort mode. Custom drags are always 'end' → no-op.
+        if (destIndex === 'end') return;
+        if (!isManualSort) return;
       }
 
-      const sourceId = source.droppableId;
-      const destId = destination.droppableId;
-      const isCrossColumn = sourceId !== destId;
-
-      // Update local state and capture new items for bulk update
       let newItems: Record<string, string[]> = {};
       setItems((prev) => {
-        const sourceItems = [...(prev[sourceId] ?? [])];
-        const [moved] = sourceItems.splice(source.index, 1);
-
-        if (!isCrossColumn) {
-          // Within-column reorder
-          sourceItems.splice(destination.index, 0, moved);
-          newItems = { ...prev, [sourceId]: sourceItems };
-        } else {
-          // Cross-column move
-          const destItems = [...(prev[destId] ?? [])];
-          destItems.splice(destination.index, 0, moved);
-          newItems = {
-            ...prev,
-            [sourceId]: sourceItems,
-            [destId]: destItems,
-          };
-        }
+        const sourceItems = [...(prev[fromStatusId] ?? [])].filter(
+          (id) => id !== issueId
+        );
+        const destItems = [...(prev[toStatusId] ?? [])].filter(
+          (id) => id !== issueId
+        );
+        const insertAt =
+          destIndex === 'end'
+            ? destItems.length
+            : Math.min(destIndex, destItems.length);
+        destItems.splice(insertAt, 0, issueId);
+        newItems = {
+          ...prev,
+          [fromStatusId]: sourceItems,
+          [toStatusId]: destItems,
+        };
         return newItems;
       });
 
-      // Build bulk updates for all issues in affected columns
+      // Build bulk updates with sort_order recalculation for BOTH columns.
       const updates: BulkUpdateIssueItem[] = [];
-
-      // Always update destination column
-      const destIssueIds = newItems[destId] ?? [];
-      destIssueIds.forEach((issueId, index) => {
+      const destIssueIds = newItems[toStatusId] ?? [];
+      destIssueIds.forEach((id, index) => {
         updates.push({
-          id: issueId,
+          id,
           changes: {
-            status_id: destId,
-            sort_order: calculateSortOrder(destId, index),
+            status_id: toStatusId,
+            sort_order: calculateSortOrder(toStatusId, index),
           },
         });
       });
-
-      // Update source column if cross-column move
-      if (isCrossColumn) {
-        const sourceIssueIds = newItems[sourceId] ?? [];
-        sourceIssueIds.forEach((issueId, index) => {
+      if (fromStatusId !== toStatusId) {
+        const sourceIssueIds = newItems[fromStatusId] ?? [];
+        sourceIssueIds.forEach((id, index) => {
           updates.push({
-            id: issueId,
+            id,
             changes: {
-              sort_order: calculateSortOrder(sourceId, index),
+              sort_order: calculateSortOrder(fromStatusId, index),
             },
           });
         });
       }
 
-      // Perform bulk update
       isSyncingRef.current = true;
       bulkUpdateIssues(updates)
+        .then(() => {
+          refreshShapeSource(PROJECT_ISSUES_SHAPE, { project_id: projectId });
+        })
         .catch((err) => {
           console.error('Failed to bulk update sort order:', err);
         })
         .finally(() => {
-          // Delay clearing flag to let Electric sync complete
           setTimeout(() => {
             isSyncingRef.current = false;
           }, 500);
         });
     },
-    [kanbanFilters.sortField, calculateSortOrder]
+    [projectId, kanbanFilters.sortField, calculateSortOrder]
   );
 
-  // Register the existing in-kanban handler with the SharedAppLayout
-  // bridge so the layout-level <DragDropContext> can delegate kanban-internal
-  // drops back here (PLAN §6.2). The setter is stable; the handler closes
-  // over `kanbanFilters.sortField` + `calculateSortOrder` and is re-registered
-  // when those change.
+  // Legacy list-view adapter (positional reorder still uses
+  // hello-pangea). Translates the DropResult into a KanbanMove.
+  const handleLegacyListDragEnd = useCallback(
+    (result: DropResult) => {
+      if (!result.destination) return;
+      const fromStatusId = result.source.droppableId;
+      const toStatusId = result.destination.droppableId;
+      if (
+        fromStatusId === toStatusId &&
+        result.source.index === result.destination.index
+      ) {
+        return;
+      }
+      handleKanbanMove({
+        issueId: result.draggableId,
+        fromStatusId,
+        toStatusId,
+        destIndex: result.destination.index,
+      });
+    },
+    [handleKanbanMove]
+  );
+
+  // Register the move-based handler with the SharedAppLayout bridge so the
+  // shared DragProvider can delegate kanban-internal drops back here.
+  //
+  // The handler is registered ONCE on mount and reads the latest
+  // `handleKanbanMove` through a ref. This is deliberate: handler identity
+  // churns whenever `statuses` refetches via the ~30s fallback poll
+  // (the chained `useMemo`s — `sortedStatuses` → `visibleStatuses` →
+  // `statusColumnIndexMap` → `calculateSortOrder` — produce fresh
+  // identities even for content-equal data), and re-registering on every
+  // churn means the bridge cleanup nulls `kanbanHandlerRef.current` and
+  // the next run sets it back. The ref pattern keeps the bridge handler
+  // stable for the component's lifetime and always invokes the
+  // freshest closure.
+  const handleKanbanMoveRef = useRef(handleKanbanMove);
+  handleKanbanMoveRef.current = handleKanbanMove;
   const { registerHandler: registerKanbanHandler } = useKanbanDragHandler();
   useEffect(() => {
-    const handler: KanbanDragHandler = (result) => handleDragEnd(result);
-    return registerKanbanHandler(handler);
-  }, [registerKanbanHandler, handleDragEnd]);
+    const stableHandler: KanbanDragHandler = (move) =>
+      handleKanbanMoveRef.current(move);
+    return registerKanbanHandler(stableHandler);
+  }, [registerKanbanHandler]);
 
   // Multi-select support
   const {
@@ -1071,7 +1099,7 @@ export function KanbanContainer() {
                       </div>
                     </KanbanHeader>
                     <KanbanCards id={status.id} activeProjectId={projectId}>
-                      {issueIds.map((issueId, index) => {
+                      {issueIds.map((issueId) => {
                         const issue = issueMap[issueId];
                         if (!issue) return null;
                         const issueWorkspaces =
@@ -1094,9 +1122,12 @@ export function KanbanContainer() {
                         return (
                           <KanbanCard
                             key={issue.id}
-                            id={`issue:${issue.id}`}
+                            source={{
+                              kind: 'issue-move',
+                              issueId: issue.id,
+                              projectId,
+                            }}
                             name={issue.title}
-                            index={index}
                             className="group"
                             onClick={(e) => handleCardClick(issue.id, e)}
                             isOpen={selectedKanbanIssueId === issue.id}
@@ -1206,21 +1237,23 @@ export function KanbanContainer() {
       ) : (
         <div className="flex-1 overflow-y-auto px-double">
           <KanbanProvider className="!block !w-full">
-            <IssueListView
-              statuses={listViewStatuses}
-              items={items}
-              issueMap={issueMap}
-              issueAssigneesMap={issueAssigneesMap}
-              getTagObjectsForIssue={getTagObjectsForIssue}
-              getResolvedRelationshipsForIssue={
-                getResolvedRelationshipsForIssue
-              }
-              onIssueClick={handleCardClick}
-              selectedIssueId={selectedKanbanIssueId}
-              selectedIssueIds={selectedIssueIds}
-              isMultiSelectActive={isMultiSelectActive}
-              onIssueCheckboxChange={handleCheckboxChange}
-            />
+            <DragDropContext onDragEnd={handleLegacyListDragEnd}>
+              <IssueListView
+                statuses={listViewStatuses}
+                items={items}
+                issueMap={issueMap}
+                issueAssigneesMap={issueAssigneesMap}
+                getTagObjectsForIssue={getTagObjectsForIssue}
+                getResolvedRelationshipsForIssue={
+                  getResolvedRelationshipsForIssue
+                }
+                onIssueClick={handleCardClick}
+                selectedIssueId={selectedKanbanIssueId}
+                selectedIssueIds={selectedIssueIds}
+                isMultiSelectActive={isMultiSelectActive}
+                onIssueCheckboxChange={handleCheckboxChange}
+              />
+            </DragDropContext>
           </KanbanProvider>
         </div>
       )}

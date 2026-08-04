@@ -1,15 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  BUCKET_ORDER,
-  LEGACY_BUCKET_PERSIST_KEYS,
-} from '../../lib/buckets';
+import { BUCKET_ORDER, LEGACY_BUCKET_PERSIST_KEYS } from '../../lib/buckets';
 import { UNASSIGNED_PROJECT_ID, type SidebarTreeNode } from './types';
 import {
   buildSidebarTreeInitialOpenState,
   findTreeNodeById,
   pendingOpenStatusCardIds,
-  readOpenTasksProjectIds,
-  writeSidebarTreeOpenState,
 } from './openState';
 
 // vitest's default jsdom environment ships `localStorage` as an empty stub
@@ -64,10 +59,10 @@ beforeEach(() => {
 });
 
 describe('buildSidebarTreeInitialOpenState', () => {
-  it('defaults the Tasks section to CLOSED for a real project', () => {
+  it('defaults the Tasks section to OPEN for a real project', () => {
     const tree: readonly SidebarTreeNode[] = [projectNode('p1')];
     const out = buildSidebarTreeInitialOpenState(tree);
-    expect(out['p1:tasks']).toBe(false);
+    expect(out['p1:tasks']).toBe(true);
   });
 
   it('does not seed any status node ids', () => {
@@ -89,11 +84,11 @@ describe('buildSidebarTreeInitialOpenState', () => {
   it('lets a persisted Tasks-section value override the default', () => {
     window.localStorage.setItem(
       SIDEBAR_BLOB_KEY,
-      JSON.stringify({ v: 1, state: { 'p1:tasks': true } })
+      JSON.stringify({ v: 1, state: { 'p1:tasks': false } })
     );
     const tree: readonly SidebarTreeNode[] = [projectNode('p1')];
     const out = buildSidebarTreeInitialOpenState(tree);
-    expect(out['p1:tasks']).toBe(true);
+    expect(out['p1:tasks']).toBe(false);
   });
 
   it('does not emit a tasks id for the Unassigned pseudo-project', () => {
@@ -123,25 +118,6 @@ describe('buildSidebarTreeInitialOpenState', () => {
     expect(out['p1:bucket:idle']).toBe(true);
     expect(out['p1:bucket:archived']).toBe(false);
   });
-
-  it('readOpenTasksProjectIds returns projects whose Tasks section is open', () => {
-    writeSidebarTreeOpenState({
-      'p1': true,
-      'p1:workspaces': true,
-      'p1:tasks': true,
-      'p1:bucket:idle': true,
-      'p2:tasks': false,
-      'p2:workspaces': false,
-    });
-    expect(readOpenTasksProjectIds()).toEqual(['p1']);
-  });
-
-  it('readOpenTasksProjectIds respects an explicit map without localStorage', () => {
-    expect(
-      readOpenTasksProjectIds({ 'p1:tasks': true, 'p2:tasks': false })
-    ).toEqual(['p1']);
-    expect(readOpenTasksProjectIds({})).toEqual([]);
-  });
 });
 
 describe('pendingOpenStatusCardIds', () => {
@@ -155,7 +131,7 @@ describe('pendingOpenStatusCardIds', () => {
 
   it('returns stored-open status/card ids that are present and unapplied', () => {
     const stored = {
-      'p1': true,
+      p1: true,
       'p1:tasks': true,
       'p1:status:s1': true,
       'p1:card:c1': true,
@@ -170,7 +146,7 @@ describe('pendingOpenStatusCardIds', () => {
     const stored = {
       'p1:status:s1': false,
       'p1:card:c1': true,
-      'p1': true,
+      p1: true,
       'p1:tasks': true,
       'p1:status:ghost': true,
     };

@@ -4,6 +4,7 @@ import { SpinnerIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../lib/cn';
 import {
+  makeTasksSectionId,
   makeWorkspacesSectionId,
   type OutlinerWorkspace,
   type ProjectNode,
@@ -14,7 +15,9 @@ import {
 import {
   buildSidebarTreeInitialOpenState,
   findTreeNodeById,
+  isTasksSectionOpen,
   pendingOpenStatusCardIds,
+  projectIdFromOpenStateKey,
   readSidebarTreeOpenState,
   writeSidebarTreeOpenState,
 } from './outliner/openState';
@@ -231,6 +234,16 @@ export function SidebarProjectTree({
       seenProjectIdsRef.current.add(projectId);
       api.open(projectId);
       api.open(makeWorkspacesSectionId(projectId));
+      // A persisted-open Tasks section must restore too. initialOpenState is
+      // seed-once, and when projects arrive asynchronously after the Tree
+      // consumed its mount-time map (empty), the stored-open Tasks id was
+      // never seeded — so open it explicitly here (unless the user explicitly
+      // closed it). The web-core loader gate hydrates from the same blob, so
+      // statuses load once it's open.
+      const tasksId = makeTasksSectionId(projectId);
+      if (isTasksSectionOpen(openStateRef.current, projectId)) {
+        api.open(tasksId);
+      }
       openStateRef.current = {
         ...openStateRef.current,
         [projectId]: true,
@@ -273,15 +286,22 @@ export function SidebarProjectTree({
   // no longer visible). The read-time GC only filters on next load; without
   // this, deleted projects' `:tasks`/`:status:`/`:card:`/`:bucket:` keys
   // accumulate in localStorage forever.
+  //
+  // Guard: projects load asynchronously, so on first mount projectKey is ''.
+  // Pruning then would drop EVERY persisted key (including a user's closed
+  // Tasks section) before any project arrives. Only prune once we have seen
+  // at least one project — after that, an empty projectKey means the user
+  // genuinely removed them and pruning is legitimate.
+  const seenAnyProjectRef = useRef(false);
   useEffect(() => {
+    if (projectKey) seenAnyProjectRef.current = true;
+    if (!seenAnyProjectRef.current) return;
     const live = new Set(projectKey ? projectKey.split(',') : []);
     const entries = Object.entries(openStateRef.current);
     let changed = false;
     const pruned: Record<string, boolean> = {};
     for (const [key, open] of entries) {
-      const separatorIndex = key.indexOf(':');
-      const projectId =
-        separatorIndex === -1 ? key : key.slice(0, separatorIndex);
+      const projectId = projectIdFromOpenStateKey(key);
       if (live.has(projectId)) pruned[key] = open;
       else changed = true;
     }

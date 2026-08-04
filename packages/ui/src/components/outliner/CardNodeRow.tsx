@@ -1,11 +1,11 @@
 import { cn } from '../../lib/cn';
 import { TreeRow } from './TreeRow';
-import { useTreeCardDrag } from './treeDrag';
+import { useDraggable } from '../dnd';
 import type { CardNode, TreeNodeRenderProps } from './types';
 
 interface CardNodeRowProps extends TreeNodeRenderProps<CardNode> {
   activeIssueId?: string | null;
-  /** Disables drag while the kanban's bulk-select mode is on (PLAN §7.5).
+  /** Disables drag while the kanban's bulk-select mode is on.
    * Defaults to `false` so the prop is optional in tests / non-DnD contexts. */
   isMultiSelectActive?: boolean;
 }
@@ -13,19 +13,16 @@ interface CardNodeRowProps extends TreeNodeRenderProps<CardNode> {
 /**
  * Compact issue title row. Cards with sub-issues expose an isolated caret.
  *
- * Drag is handled by the custom tree drag manager (see
- * `outliner/treeDrag/TreeDragManager`) rather than hello-pangea — the
- * hello-pangea `<Draggable>` never lifts inside react-arborist\'s
- * virtualized rows (registry churn drops the Draggable before mousedown,
- * `getById` invariant crashes), so we install our own mouse sensor and
- * ghost. The hook `useTreeCardDrag` returns an `onMouseDown` handler that
- * the layout\'s `TreeDragManager` listens to. A `data-tree-card` attribute
- * tags the source row so the manager can clone it for the ghost.
+ * Drag is handled by the unified custom drag system (see
+ * `components/dnd/DragController`). The controller owns the window-level
+ * mouse sensor and ghost; this hook only binds `onMouseDown` to the row's
+ * current element so the controller can clone the actual DOM node for the
+ * ghost.
  *
- * The row\'s click-to-navigate still flows through react-arborist\'s outer
- * DefaultRow → `node.handleClick` → `onActivate`; the manager installs a
+ * The row's click-to-navigate still flows through react-arborist's outer
+ * DefaultRow → `node.handleClick` → `onActivate`; the controller installs a
  * one-shot capture-phase click swallower on promote so the synthetic click
- * fired after a real drag doesn\'t navigate.
+ * fired after a real drag doesn't navigate.
  */
 export function CardNodeRow({
   node,
@@ -37,10 +34,9 @@ export function CardNodeRow({
   const isActive = issue.id === activeIssueId;
   const hasChildren = node.data.children.length > 0;
 
-  const { onMouseDown } = useTreeCardDrag(
-    issue.id,
-    issue.projectId,
-    isMultiSelectActive,
+  const { onMouseDown } = useDraggable(
+    { kind: 'issue-move', issueId: issue.id, projectId: issue.projectId },
+    { disabled: isMultiSelectActive }
   );
 
   return (
@@ -53,11 +49,10 @@ export function CardNodeRow({
         'text-sm leading-tight',
         isActive
           ? 'text-high font-semibold'
-          : 'text-normal font-light hover:text-high',
+          : 'text-normal font-light hover:text-high'
       )}
       outerProps={{
         ...(onMouseDown ? { onMouseDown } : {}),
-        'data-tree-card': issue.id,
       }}
     >
       <div className="flex min-w-0 items-center gap-1">

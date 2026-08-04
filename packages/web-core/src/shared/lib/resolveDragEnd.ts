@@ -1,4 +1,8 @@
-import type { DropResult } from '@hello-pangea/dnd';
+import type {
+  DragCompletion,
+  DragSource,
+  Placement,
+} from '@vibe/ui/components/dnd';
 
 /**
  * Minimal shape the resolver needs from an Issue row. The full `Issue`
@@ -14,7 +18,14 @@ export interface IssueDragLookup {
 
 export type DragOutcome =
   | { type: 'no-op' }
-  | { type: 'kanban-internal'; result: DropResult }
+  | {
+      type: 'kanban-internal';
+      issueId: string;
+      fromStatusId: string;
+      toStatusId: string;
+      projectId: string;
+      destIndex?: number;
+    }
   | {
       type: 'move-issue';
       issueId: string;
@@ -25,35 +36,34 @@ export type DragOutcome =
 
 type ParsedSurface =
   | { surface: 'kanban'; statusId: string; projectId: string }
-  | { surface: 'tree-status'; statusId: string; projectId: string }
-  | { surface: 'tree-card'; statusId: string; projectId: string };
+  | { surface: 'tree-status'; statusId: string; projectId: string };
 
 type ParseResult =
-  ParsedSurface | { invalid: 'cross-project' } | { invalid: true };
+  | ParsedSurface
+  | { invalid: 'cross-project' }
+  | { invalid: 'not-a-target' }
+  | { invalid: 'not-a-valid-status-target' };
 
-const ISSUE_DROPPABLE_PREFIX = 'issue:';
 const TREE_STATUS_PATTERN = /^([^:]+):status:(.+)$/;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Parse a droppableId into one of three surfaces used by the resolver:
+ * Parse a targetId into one of two surfaces used by the resolver:
  *  - `kanban`: bare UUID status column (kanban board)
  *  - `tree-status`: `<projectId>:status:<statusId>` (sidebar status row)
- *  - `tree-card`: bare UUID that resolves to an Issue via `issuesById`
- *    (sidebar card row's per-card droppable added by the cross-surface
- *    step — see PLAN §6.5 / CardNodeRow)
  *
- * Distinguishing kanban vs tree-card is purely positional: a bare UUID that
- * is `issuesById` is a card; the same shape that isn't is a kanban column.
- * A status dropped with the wrong project prefix is rejected as cross-project.
+ * Cards are no longer drop targets in the cross-surface path, so a bare
+ * UUID that matches an issue is rejected as `not-a-target` (defensive —
+ * the layout never paints a card with `data-drop-target-id`, but if a
+ * future regression does, the resolver refuses to treat it as a status).
  */
-function parseDroppableId(
-  droppableId: string,
+function parseTargetId(
+  targetId: string,
   activeProjectId: string,
   issuesById: ReadonlyMap<string, IssueDragLookup>
 ): ParseResult {
-  const treeStatus = TREE_STATUS_PATTERN.exec(droppableId);
+  const treeStatus = TREE_STATUS_PATTERN.exec(targetId);
   if (treeStatus) {
     const parsedProjectId = treeStatus[1];
     if (parsedProjectId !== activeProjectId) {
@@ -66,140 +76,110 @@ function parseDroppableId(
     };
   }
 
-  // Bare UUID — could be a kanban column or a tree card.
-  if (!UUID_PATTERN.test(droppableId)) {
-    return { invalid: true };
+  if (!UUID_PATTERN.test(targetId)) {
+    return { invalid: 'not-a-valid-status-target' };
   }
 
-  const issue = issuesById.get(droppableId);
-  if (issue) {
-    if (issue.project_id !== activeProjectId) {
-      return { invalid: 'cross-project' };
-    }
-    return {
-      surface: 'tree-card',
-      statusId: issue.status_id,
-      projectId: issue.project_id,
-    };
+  if (issuesById.has(targetId)) {
+    return { invalid: 'not-a-target' };
   }
 
   return {
     surface: 'kanban',
-    statusId: droppableId,
+    statusId: targetId,
     projectId: activeProjectId,
   };
 }
 
 /**
- * Resolve a hello-pangea `onDragEnd` result into one of four outcomes:
+ * Resolve a `DragCompletion` (the unified custom drag system's drop
+ * payload) into one of four outcomes:
  *
- *  - `no-op`            — nothing meaningful changed (no destination, no real move).
- *  - `kanban-internal`  — both source and destination are bare-UUID kanban columns;
- *                         delegate to the kanban board's existing handler.
- *  - `move-issue`       — at least one side is a tree droppable; fire
+ *  - `no-op`            — nothing meaningful changed (drag kind unsupported,
+ *                         same-status drop, or no destination).
+ *  - `kanban-internal`  — destination is a bare-UUID kanban column; delegate
+ *                         to the kanban board's existing handler.
+ *  - `move-issue`       — destination is a tree-status row OR a kanban column
+ *                         AND the source is an issue-move; the layout fires
  *                         `bulkUpdateIssues` with the resolved target status.
- *  - `invalid`          — reason is logged and the drop is silently snapped back.
+ *  - `invalid`          — reason is logged and the drop is silently snapped
+ *                         back.
  *
- * The function is pure: callers supply `activeProjectId` and `issuesById` so the
- * implementation never closes over stale state (PLAN §11 risk mitigation).
+ * The function is pure: callers supply `activeProjectId` and `issuesById`
+ * so the implementation never closes over stale state.
  */
 export function resolveDragEnd(
-  result: DropResult,
+  completion: DragCompletion,
   activeProjectId: string | null,
   issuesById: ReadonlyMap<string, IssueDragLookup>
 ): DragOutcome {
-  const { destination, source, draggableId } = result;
+  const { source, targetId } = completion;
 
-  // 1. destination === null → no-op (dropped outside any droppable)
-  if (!destination) return { type: 'no-op' };
+  // 1. Drag kind dispatch — only `issue-move` is implemented today.
+  //    Future kinds (`column-reorder`, `project-reorder`) return invalid
+  //    until their resolver branches land.
+  if (source.kind !== 'issue-move') {
+    return { type: 'invalid', reason: 'unsupported drag kind' };
+  }
 
-  // 2. No active project (e.g. landing page)
+  // 2. Issue lookup (typed-narrowed via the dispatch above).
+  const issueSource = source as Extract<DragSource, { kind: 'issue-move' }>;
+
+  // 3. No active project (e.g. landing page).
   if (!activeProjectId) {
     return { type: 'invalid', reason: 'no active project' };
   }
 
-  // 3. draggableId must carry the "issue:" prefix
-  if (!draggableId.startsWith(ISSUE_DROPPABLE_PREFIX)) {
-    return { type: 'invalid', reason: 'not an issue' };
-  }
-  const issueId = draggableId.slice(ISSUE_DROPPABLE_PREFIX.length);
-  if (!issueId) {
-    return { type: 'invalid', reason: 'not an issue' };
-  }
-
-  // 4. Issue must be present in the lookup
-  const issue = issuesById.get(issueId);
+  // 4. Issue must be present in the lookup.
+  const issue = issuesById.get(issueSource.issueId);
   if (!issue) {
     return { type: 'invalid', reason: 'unknown issue' };
   }
 
-  // 5. Active-project guard (the drag-source can't be from another project
-  // because the sidebar tree only renders cards for expanded tasks projects,
-  // but the kanban path can theoretically cross projects.)
+  // 5. Active-project guard.
   if (issue.project_id !== activeProjectId) {
     return { type: 'invalid', reason: 'cross-project' };
   }
 
-  // 6. Destination must parse as one of the valid status targets
-  const parsedDest = parseDroppableId(
-    destination.droppableId,
-    activeProjectId,
-    issuesById
-  );
+  // 6. Destination must parse as a valid status target.
+  const parsedDest = parseTargetId(targetId, activeProjectId, issuesById);
   if ('invalid' in parsedDest) {
+    if (parsedDest.invalid === 'cross-project') {
+      return { type: 'invalid', reason: 'cross-project' };
+    }
+    if (parsedDest.invalid === 'not-a-target') {
+      return { type: 'invalid', reason: 'not a drop target' };
+    }
+    return { type: 'invalid', reason: 'not a valid status target' };
+  }
+
+  if (
+    parsedDest.surface === 'tree-status' &&
+    parsedDest.statusId === issue.status_id
+  ) {
+    return { type: 'no-op' };
+  }
+
+  if (parsedDest.surface === 'kanban') {
     return {
-      type: 'invalid',
-      reason:
-        parsedDest.invalid === 'cross-project'
-          ? 'cross-project'
-          : 'not a valid status target',
+      type: 'kanban-internal',
+      issueId: issue.id,
+      fromStatusId: issue.status_id,
+      toStatusId: parsedDest.statusId,
+      projectId: activeProjectId,
+      destIndex: completion.index ?? undefined,
     };
   }
 
-  // 7. Same droppableId and same index → true no-movement (e.g. mouseup on
-  //    the same card that was lifted). Drops to the same column at a
-  //    different index still fall through to step 8 (kanban-internal).
-  if (
-    source.droppableId === destination.droppableId &&
-    source.index === destination.index
-  ) {
-    return { type: 'no-op' };
-  }
-
-  // 8. Both source and destination are kanban columns → delegate to the
-  //    kanban board's existing handler (it owns sort_order recalculation).
-  const parsedSource = parseDroppableId(
-    source.droppableId,
-    activeProjectId,
-    issuesById
-  );
-  if (
-    'surface' in parsedSource &&
-    parsedSource.surface === 'kanban' &&
-    parsedDest.surface === 'kanban'
-  ) {
-    return { type: 'kanban-internal', result };
-  }
-
-  // 9. Anything else (cross-surface or tree→tree) → caller fires a single
-  //    bulkUpdateIssues with the destination status.
-  //
-  //    Same-status guard: if the resolved target status equals the source
-  //    issue's current status, collapse to no-op so the caller doesn't
-  //    fire a redundant bulkUpdateIssues (the custom tree drag manager may
-  //    resolve a sloppy drop onto the issue's own status, and the kanban
-  //    path can land a kanban→tree drop onto the same status). The guard
-  //    runs AFTER the kanban-internal branch so same-column kanban
-  //    reorders (manual sort) still update sort_order via the kanban
-  //    handler — a reorder isn't a status change.
-  if (parsedDest.statusId === issue.status_id) {
-    return { type: 'no-op' };
-  }
-
+  // 9. Tree-status target → cross-surface move.
   return {
     type: 'move-issue',
-    issueId,
+    issueId: issue.id,
     targetStatusId: parsedDest.statusId,
     projectId: parsedDest.projectId,
   };
 }
+
+// Re-export the placement type so callers that don't already import the
+// dnd module can still reference the surface explicitly.
+export type { Placement };

@@ -5,7 +5,6 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import { DragDropContext } from '@hello-pangea/dnd';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Issue, ProjectStatus } from 'shared/remote-types';
 import type { SidebarProject } from './outliner/types';
@@ -150,35 +149,31 @@ function renderTree(
   } = {}
 ) {
   return render(
-    // hello-pangea Droppables (now wrapping every card row + status row)
-    // need a DragDropContext ancestor.
-    <DragDropContext onDragEnd={() => {}}>
-      <SidebarProjectTree
-        projects={overrides.projects ?? [projectOne]}
-        activeProjectId={null}
-        workspaces={[]}
-        membership={new Map()}
-        activeWorkspaceId={null}
-        onSelectWorkspace={vi.fn()}
-        onSelectProject={overrides.onSelectProject ?? vi.fn()}
-        tasksByProject={
-          overrides.tasksByProject ??
-          new Map([
-            [
-              'project-1',
-              {
-                statuses: [statusTodo, statusReview],
-                issues: [issue, subIssue],
-              },
-            ],
-          ])
-        }
-        loadingTasksProjectIds={new Set()}
-        activeIssueId={null}
-        onTasksExpansionChange={overrides.onTasksExpansionChange}
-        onSelectIssue={overrides.onSelectIssue}
-      />
-    </DragDropContext>
+    <SidebarProjectTree
+      projects={overrides.projects ?? [projectOne]}
+      activeProjectId={null}
+      workspaces={[]}
+      membership={new Map()}
+      activeWorkspaceId={null}
+      onSelectWorkspace={vi.fn()}
+      onSelectProject={overrides.onSelectProject ?? vi.fn()}
+      tasksByProject={
+        overrides.tasksByProject ??
+        new Map([
+          [
+            'project-1',
+            {
+              statuses: [statusTodo, statusReview],
+              issues: [issue, subIssue],
+            },
+          ],
+        ])
+      }
+      loadingTasksProjectIds={new Set()}
+      activeIssueId={null}
+      onTasksExpansionChange={overrides.onTasksExpansionChange}
+      onSelectIssue={overrides.onSelectIssue}
+    />
   );
 }
 
@@ -211,11 +206,7 @@ describe('SidebarProjectTree tasks integration', () => {
     const onTasksExpansionChange = vi.fn();
     renderTree({ onTasksExpansionChange });
 
-    fireEvent.click(rowForText('Tasks'));
-    await waitFor(() =>
-      expect(onTasksExpansionChange).toHaveBeenLastCalledWith('project-1', true)
-    );
-
+    // Tasks defaults OPEN (owner decision); the first click collapses it.
     fireEvent.click(rowForText('Tasks'));
     await waitFor(() =>
       expect(onTasksExpansionChange).toHaveBeenLastCalledWith(
@@ -223,13 +214,18 @@ describe('SidebarProjectTree tasks integration', () => {
         false
       )
     );
+
+    fireEvent.click(rowForText('Tasks'));
+    await waitFor(() =>
+      expect(onTasksExpansionChange).toHaveBeenLastCalledWith('project-1', true)
+    );
   });
 
   it('selects an issue when its title row is clicked', async () => {
     const onSelectIssue = vi.fn();
     renderTree({ onSelectIssue });
 
-    fireEvent.click(rowForText('Tasks'));
+    // Tasks is open by default — no need to expand it first.
     fireEvent.click(await screen.findByText('Todo'));
     fireEvent.click(await screen.findByText('Fix auth'));
 
@@ -254,7 +250,7 @@ describe('SidebarProjectTree tasks integration', () => {
   it('renders a caret for statuses with cards and a bullet for empty statuses', async () => {
     renderTree();
 
-    fireEvent.click(rowForText('Tasks'));
+    // Tasks is open by default — statuses are already visible.
     await waitFor(() => expect(screen.getByText('Todo')).toBeTruthy());
 
     const todoRow = outerRowForText('Todo');
@@ -334,7 +330,7 @@ describe('SidebarProjectTree open-state persistence', () => {
     );
   });
 
-  it('auto-opens a project added mid-session but not its Tasks section', async () => {
+  it('auto-opens a project added mid-session including its Tasks section', async () => {
     const { rerender } = renderTree();
     expect(screen.getAllByText('Workspaces')).toHaveLength(1);
 
@@ -360,24 +356,23 @@ describe('SidebarProjectTree open-state persistence', () => {
     await waitFor(() =>
       expect(screen.getAllByText('Workspaces')).toHaveLength(2)
     );
-    // Tasks was NOT auto-opened for the new project: its section header row
-    // is visible (parent is open) but collapsed. Rows are in document order,
-    // so the second "Tasks" belongs to project-2.
+    // Tasks defaults OPEN, so the new project's Tasks section auto-opens too.
     const tasksRows = screen.getAllByText('Tasks');
     expect(tasksRows).toHaveLength(2);
     expect(
       (tasksRows[1] as HTMLElement)
         .closest('[role="treeitem"]')
         ?.getAttribute('aria-expanded')
-    ).toBe('false');
+    ).toBe('true');
   });
 
   it('prunes persisted keys for projects removed while the app is open', async () => {
     const { rerender } = renderTree();
 
-    // Open the Tasks section so a project-scoped key lands in the blob.
+    // Toggle the Tasks section (default open → close) so a project-scoped
+    // key lands in the blob.
     fireEvent.click(rowForText('Tasks'));
-    await waitFor(() => expect(readBlob()['project-1:tasks']).toBe(true));
+    await waitFor(() => expect(readBlob()['project-1:tasks']).toBe(false));
 
     // Remove the only project → prune effect drops all its keys.
     rerender(

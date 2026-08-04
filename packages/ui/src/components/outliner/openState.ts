@@ -48,6 +48,16 @@ export function readLegacyBucketOpenState(): Record<BucketId, boolean> {
 // inside provider.js `useRef(createStore(...))`). Post-mount, its in-memory
 // redux store owns open state. This module only seeds the initial map and
 // mirrors user toggles back to localStorage.
+//
+// SINGLE RULE MODEL — every consumer (tree seed, auto-open effect, web-core
+// loader gate) must derive from these helpers; the rule must never be
+// re-implemented inline:
+//   - `isTasksSectionOpen(stored, projectId)` — the "open unless explicitly
+//     closed" rule (owner decision 2026-08-03).
+//   - `deriveOpenTasksProjectIds(stored, live)` — web-core loader gate as a
+//     Set derivation (no consumer needs to enumerate keys).
+//   - `projectIdFromOpenStateKey(key)` — every project-scoped key has the
+//     shape `<projectId>:<rest>`; bare ids have no separator.
 
 const SIDEBAR_TREE_OPEN_STATE_KEY = 'vibe.ui.sidebarTree.openState';
 const SIDEBAR_TREE_OPEN_STATE_VERSION = 1;
@@ -83,12 +93,9 @@ export function readSidebarTreeOpenState(
 
     if (!liveProjectIds || liveProjectIds.size === 0) return state;
     return Object.fromEntries(
-      Object.entries(state).filter(([key]) => {
-        const separatorIndex = key.indexOf(':');
-        const projectId =
-          separatorIndex === -1 ? key : key.slice(0, separatorIndex);
-        return liveProjectIds.has(projectId);
-      })
+      Object.entries(state).filter(([key]) =>
+        liveProjectIds.has(projectIdFromOpenStateKey(key))
+      )
     );
   } catch {
     // corrupt JSON | private mode | quota — fall through
@@ -110,26 +117,48 @@ export function writeSidebarTreeOpenState(map: Record<string, boolean>): void {
 }
 
 /**
- * Project ids whose Tasks section is persisted OPEN (from the blob or from an
- * explicit map). The lazy-loader gate (web-core) hydrates from this so a Tasks
- * section left open survives a reload — otherwise it renders open from
- * initialOpenState while the gate never enables its loader (ADR-011 bugfix).
+ * THE single rule for whether a project's Tasks section is open: open by
+ * default, unless the user explicitly closed it (persisted `false`). Owner
+ * decision 2026-08-03. Every consumer (tree seed, auto-open effect, loader
+ * gate) must call this — never re-derive the rule inline.
  */
-export function readOpenTasksProjectIds(
-  stored?: Readonly<Record<string, boolean>>
-): string[] {
-  const map = stored ?? readSidebarTreeOpenState();
-  return Object.entries(map)
-    .filter(([key, open]) => open && key.endsWith(':tasks'))
-    .map(([key]) => key.slice(0, -':tasks'.length));
+export function isTasksSectionOpen(
+  stored: Readonly<Record<string, boolean>>,
+  projectId: string
+): boolean {
+  return stored[makeTasksSectionId(projectId)] !== false;
+}
+
+/**
+ * Which of the given live projects have their Tasks loaders enabled. Derived
+ * from the persisted blob + the live project set — the single derivation of
+ * the web-core loader gate. Projects not in the blob default OPEN.
+ */
+export function deriveOpenTasksProjectIds(
+  stored: Readonly<Record<string, boolean>>,
+  liveProjectIds: Iterable<string>
+): Set<string> {
+  const out = new Set<string>();
+  for (const pid of liveProjectIds) {
+    if (isTasksSectionOpen(stored, pid)) out.add(pid);
+  }
+  return out;
+}
+
+/** Extract the projectId a persisted open-state key is scoped to (the text
+ * before the first ':' — bucket/status/card/tasks keys are all
+ * `<projectId>:<rest>`; a bare project id has no separator). */
+export function projectIdFromOpenStateKey(key: string): string {
+  const separatorIndex = key.indexOf(':');
+  return separatorIndex === -1 ? key : key.slice(0, separatorIndex);
 }
 
 /**
  * Build the `initialOpenState` map for <Tree>. Per-node resolution:
  *   1. value persisted in the sidebar-tree blob
  *   2. legacy per-bucket value (buckets only, first-run migration)
- *   3. default: project & Workspaces section & attention/running/idle buckets
- *      OPEN; archived bucket CLOSED; **Tasks section CLOSED**.
+ *   3. default: project & Workspaces section & Tasks section (real projects
+ *      only) & attention/running/idle buckets OPEN; archived bucket CLOSED.
  *
  * Status nodes are INTENTIONALLY NOT seeded: their ids are unknown at mount
  * (tasks load lazily once the Tasks section is opened). With
@@ -169,12 +198,15 @@ export function buildSidebarTreeInitialOpenState(
         stored[nodeId] ?? legacy[bucketId] ?? BUCKET_DEFAULT_OPEN[bucketId];
     }
 
-    // Tasks section: real projects only, default CLOSED. Unassigned never has
-    // a Tasks section, so do not emit an id for it (keeps the map clean and
-    // prevents a phantom persisted key).
+    // Tasks section: real projects only. Default OPEN via the central rule
+    // (owner decision 2026-08-03 — open regardless of status count; a user
+    // who closes it persists `false`, which the seed + auto-open + loader
+    // gate all respect). Unassigned never has a Tasks section, so do not
+    // emit an id for it (keeps the map clean and prevents a phantom
+    // persisted key).
     if (!isUnassigned) {
       const tasksId = makeTasksSectionId(projectId);
-      out[tasksId] = stored[tasksId] ?? false;
+      out[tasksId] = isTasksSectionOpen(stored, projectId);
     }
   }
   return out;

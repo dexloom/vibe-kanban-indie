@@ -8,29 +8,28 @@ import {
   TooltipTrigger,
 } from './RadixTooltip';
 import { cn } from '../lib/cn';
-import { useDragActive, useDragCandidate } from './outliner/dragState';
 import {
-  Droppable,
-  Draggable,
-  type DraggableProvided,
-  type DraggableStateSnapshot,
-  type DroppableProvided,
-  type DroppableStateSnapshot,
-} from '@hello-pangea/dnd';
-import {
+  useDragActive,
+  useDragCandidate,
+  useDragInsertion,
+} from './outliner/dragState';
+import { useDraggable, useDropTarget } from './dnd';
+import { adjustInsertionIndex } from './dnd/geometry';
+import type { DragSource } from './dnd';
+import React, {
   type KeyboardEvent,
   type MouseEvent,
-  type MutableRefObject,
   type ReactNode,
-  type Ref,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DotsSixVerticalIcon, PlusIcon } from '@phosphor-icons/react';
 import { Button } from './Button';
 
-// Re-exported so existing imports keep compiling — leaf components below use
-// Droppable/Draggable directly, and downstream consumers reference the type
-// via `@vibe/ui`.
+// Re-exported so existing imports keep compiling — `RemoteProjectsSettingsSection`
+// imports `DropResult` from `@vibe/ui/components/KanbanBoard`. The list-view
+// adapter in `KanbanContainer` retains hello-pangea for its own
+// `DragDropContext`. The cross-surface path (this file) no longer depends
+// on the hello-pangea runtime types.
 export type { DropResult } from '@hello-pangea/dnd';
 
 export type Status = {
@@ -48,7 +47,7 @@ export type Feature = {
 };
 
 // =============================================================================
-// Kanban Board (Droppable Column)
+// Kanban Board (Container)
 // =============================================================================
 
 export type KanbanBoardProps = {
@@ -63,126 +62,82 @@ export const KanbanBoard = ({ children, className }: KanbanBoardProps) => {
 };
 
 // =============================================================================
-// Kanban Card (Draggable)
+// Kanban Card (Draggable via shared dnd context)
 // =============================================================================
 
-export type KanbanCardProps = Pick<Feature, 'id' | 'name'> & {
-  index: number;
+export type KanbanCardProps = {
+  source: DragSource;
   children?: ReactNode;
   className?: string;
   onClick?: (e: MouseEvent<HTMLDivElement>) => void;
   tabIndex?: number;
-  forwardedRef?: Ref<HTMLDivElement>;
   onKeyDown?: (e: KeyboardEvent) => void;
   isOpen?: boolean;
   isSelected?: boolean;
   dragDisabled?: boolean;
   isMobile?: boolean;
+  name?: string;
 };
 
 export const KanbanCard = ({
-  id,
-  name,
-  index,
+  source,
   children,
   className,
   onClick,
   tabIndex,
-  forwardedRef,
   onKeyDown,
   isOpen,
   isSelected,
   dragDisabled = false,
   isMobile,
+  name,
 }: KanbanCardProps) => {
+  const { onMouseDown } = useDraggable(source, { disabled: dragDisabled });
   return (
-    <Draggable draggableId={id} index={index} isDragDisabled={dragDisabled}>
-      {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => {
-        // Combine DnD ref and forwarded ref
-        const setRefs = (node: HTMLDivElement | null) => {
-          provided.innerRef(node);
-          if (typeof forwardedRef === 'function') {
-            forwardedRef(node);
-          } else if (forwardedRef && typeof forwardedRef === 'object') {
-            (forwardedRef as MutableRefObject<HTMLDivElement | null>).current =
-              node;
-          }
-        };
-
-        return (
-          <Card
-            className={cn(
-              'p-base outline-none flex-col rounded-md border -mt-[1px] -mx-[1px] bg-surface',
-              snapshot.isDragging && 'cursor-grabbing shadow-lg',
-              isSelected
-                ? 'ring-2 ring-accent ring-inset bg-accent/5'
-                : isOpen && 'ring-2 ring-brand ring-inset',
-              className,
-            )}
-            ref={setRefs}
-            {...provided.draggableProps}
-            {...(isMobile ? {} : provided.dragHandleProps)}
-            tabIndex={tabIndex}
-            onClick={
-              isMobile
-                ? (e) => {
-                    if (!snapshot.isDragging) onClick?.(e);
-                  }
-                : undefined
-            }
-            onMouseUp={
-              !isMobile
-                ? (e) => {
-                    if (e.button === 0 && !snapshot.isDragging) {
-                      onClick?.(e);
-                    }
-                  }
-                : undefined
-            }
-            onKeyDown={onKeyDown}
-          >
-            {isMobile ? (
-              <div className="flex gap-half">
-                <div
-                  {...provided.dragHandleProps}
-                  className="flex items-start pt-half cursor-grab shrink-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <DotsSixVerticalIcon
-                    className="size-icon-xs text-low"
-                    weight="bold"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  {children ?? (
-                    <p className="m-0 font-medium text-sm">{name}</p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              (children ?? <p className="m-0 font-medium text-sm">{name}</p>)
-            )}
-          </Card>
-        );
-      }}
-    </Draggable>
+    <Card
+      className={cn(
+        'p-base outline-none flex-col rounded-md border -mt-[1px] -mx-[1px] bg-surface',
+        isSelected
+          ? 'ring-2 ring-accent ring-inset bg-accent/5'
+          : isOpen && 'ring-2 ring-brand ring-inset',
+        className,
+      )}
+      {...(onMouseDown ? { onMouseDown } : {})}
+      data-dnd-card=""
+      data-dnd-card-issue-id={source.issueId}
+      tabIndex={tabIndex}
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+    >
+      {isMobile ? (
+        <div className="flex gap-half">
+          <div className="flex items-start pt-half cursor-grab shrink-0">
+            <DotsSixVerticalIcon
+              className="size-icon-xs text-low"
+              weight="bold"
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            {children ?? <p className="m-0 font-medium text-sm">{name}</p>}
+          </div>
+        </div>
+      ) : (
+        (children ?? <p className="m-0 font-medium text-sm">{name}</p>)
+      )}
+    </Card>
   );
 };
 
 // =============================================================================
-// Kanban Cards Container
+// Kanban Cards Container (Drop target via shared dnd context)
 // =============================================================================
 
 export type KanbanCardsProps = {
   id: string;
   children: ReactNode;
   className?: string;
-  /**
-   * Project id this column belongs to. Read by the custom tree-drag
-   * manager via `data-drop-target-project` so it skips targets from
-   * other projects. Optional — when absent the column is invisible to
-   * the custom manager (hello-pangea kanban-internal still works).
-   */
+  /** Project id this column belongs to. Custom drag controller reads
+   * `data-drop-target-project` so it skips targets from other projects. */
   activeProjectId?: string | null;
 };
 
@@ -192,33 +147,62 @@ export const KanbanCards = ({
   className,
   activeProjectId,
 }: KanbanCardsProps) => {
-  // Custom manager candidate + hello-pangea snapshot union for the
-  // solid ring. `isCustomCandidate` flips on when the user is dragging a
-  // tree card and the manager has resolved this column as the magnetic
-  // target.
   const isDragActive = useDragActive();
   const candidateId = useDragCandidate();
   const isCustomCandidate = isDragActive && candidateId === id;
+  const dropTargetAttrs = useDropTarget(id, activeProjectId ?? '');
+  const insertion = useDragInsertion();
+  const showInsertion = insertion?.targetId === id;
+  const cardChildren = React.Children.toArray(children);
+  // The drop index is computed against the column's cards EXCLUDING the
+  // dragged source (which is on its way out). When the source sits in this
+  // column, translate the slot to the full children array so the indicator
+  // lands where the card will actually end up.
+  const sourceFullIndex =
+    insertion?.sourceIssueId != null
+      ? cardChildren.findIndex(
+          (child) =>
+            (child as React.ReactElement).key === insertion.sourceIssueId,
+        )
+      : -1;
+  const fullIndex = adjustInsertionIndex(
+    insertion?.index ?? 0,
+    sourceFullIndex >= 0 ? sourceFullIndex : null,
+  );
+  const renderedChildren = showInsertion
+    ? [
+        ...cardChildren.flatMap((child, i) =>
+          i === fullIndex
+            ? [
+                <div
+                  key={'drop-indicator-' + i}
+                  className="h-0.5 shrink-0 rounded bg-brand/80 mx-2 my-0.5"
+                />,
+                child,
+              ]
+            : [child],
+        ),
+        ...(fullIndex >= cardChildren.length
+          ? [
+              <div
+                key={'drop-indicator-' + fullIndex}
+                className="h-0.5 shrink-0 rounded bg-brand/80 mx-2 my-0.5"
+              />,
+            ]
+          : []),
+      ]
+    : children;
   return (
-    <Droppable droppableId={id}>
-      {(provided: DroppableProvided, snapshot: DroppableStateSnapshot) => (
-        <div
-          className={cn(
-            'flex flex-1 flex-col transition-colors',
-            isCustomCandidate && 'bg-brand/5',
-            className,
-          )}
-          ref={provided.innerRef}
-          {...provided.droppableProps}
-          data-drop-target-id={id}
-          data-drop-target-project={activeProjectId ?? ''}
-        >
-          {children}
-          {provided.placeholder}
-          {void snapshot /* keep snapshot referenced for tree-shake */}
-        </div>
+    <div
+      className={cn(
+        'flex flex-1 flex-col transition-colors',
+        isCustomCandidate && 'bg-brand/5',
+        className,
       )}
-    </Droppable>
+      {...dropTargetAttrs}
+    >
+      {renderedChildren}
+    </div>
   );
 };
 
@@ -283,14 +267,13 @@ export const KanbanHeader = (props: KanbanHeaderProps) => {
 };
 
 // =============================================================================
-// Kanban Provider (layout-only — DragDropContext lives in SharedAppLayout)
+// Kanban Provider (layout-only grid)
 // =============================================================================
 //
-// `DragDropContext` was lifted to `SharedAppLayout` (PLAN §6.1) so a single
-// context spans the sidebar tree AND the kanban board. `KanbanProvider` here
-// stays for its layout-only grid; the leaf `<Draggable>`/`<Droppable>`
-// components below connect to the nearest ancestor `DragDropContext`, so they
-// keep working unchanged.
+// The cross-surface drag system is now owned by `<DragProvider>` (mounted
+// above the tree + kanban in the layout). Cards / columns opt into drag
+// behaviour via the `useDraggable` / `useDropTarget` hooks. `KanbanProvider`
+// stays as a layout-only grid that lays the columns out.
 
 export type KanbanProviderProps = {
   children: ReactNode;

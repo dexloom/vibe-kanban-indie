@@ -1,5 +1,4 @@
 import { cleanup, render, screen } from '@testing-library/react';
-import { DragDropContext } from '@hello-pangea/dnd';
 import type { NodeApi, NodeRendererProps } from 'react-arborist';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TreeNodeRouter } from './treeNodes';
@@ -21,16 +20,9 @@ vi.mock('react-i18next', () => ({
 
 afterEach(cleanup);
 
-// hello-pangea Draggable/Droppable components require a DragDropContext
-// ancestor (useRequiredContext inside the package). Every render in this
-// file is wrapped in one.
-function withDnd(node: React.ReactNode) {
-  return <DragDropContext onDragEnd={() => {}}>{node}</DragDropContext>;
-}
-
 function renderNode(
   data: SidebarTreeNode,
-  overrides: Record<string, unknown> = {},
+  overrides: Record<string, unknown> = {}
 ) {
   const node = {
     data,
@@ -58,7 +50,7 @@ function renderNode(
     activeIssueId: string | null;
     onSelectIssue: (projectId: string, issueId: string) => void;
   };
-  return render(withDnd(<TreeNodeRouter {...props} />));
+  return render(<TreeNodeRouter {...props} />);
 }
 
 describe('TreeNodeRouter task routing', () => {
@@ -109,7 +101,7 @@ describe('TreeNodeRouter task routing', () => {
 });
 
 describe('TreeNodeRouter cross-surface DnD wrapping', () => {
-  it('CardNodeRow tags the row with data-tree-card for the custom drag manager', () => {
+  it('CardNodeRow tags the row with the cursor-pointer shell (custom drag controller reads it via the captured element)', () => {
     const card = {
       id: makeCardNodeId('project-1', '00000000-0000-4000-8000-000000000001'),
       type: 'card',
@@ -124,18 +116,12 @@ describe('TreeNodeRouter cross-surface DnD wrapping', () => {
       children: [],
     } satisfies CardNode;
     const { container } = renderNode(card);
-    // Card rows are tagged with data-tree-card so the custom manager can
-    // locate + clone the source row for the drag ghost. No hello-pangea
-    // Draggable wrapper is rendered anymore (PLAN §6.3).
-    expect(
-      container.querySelector(
-        '[data-tree-card="00000000-0000-4000-8000-000000000001"]',
-      ),
-    ).toBeTruthy();
+    // No hello-pangea Draggable wrapper; the row is a plain cursor-pointer shell.
     expect(container.querySelector('[data-rfd-draggable-id]')).toBeNull();
+    expect(container.querySelector('.cursor-pointer')).toBeTruthy();
   });
 
-  it('StatusNodeRow renders a hello-pangea Droppable with id <projectId>:status:<statusId>', () => {
+  it('StatusNodeRow tags a wrapper with data-drop-target-id for the shared drag controller', () => {
     const status = {
       id: makeStatusNodeId('project-1', '00000000-0000-4000-8000-000000000010'),
       type: 'status',
@@ -148,9 +134,11 @@ describe('TreeNodeRouter cross-surface DnD wrapping', () => {
     const { container } = renderNode(status);
     expect(
       container.querySelector(
-        '[data-rfd-droppable-id="project-1:status:00000000-0000-4000-8000-000000000010"]',
-      ),
+        '[data-drop-target-id="project-1:status:00000000-0000-4000-8000-000000000010"]'
+      )
     ).toBeTruthy();
+    // No hello-pangea Droppable wrapper anymore.
+    expect(container.querySelector('[data-rfd-droppable-id]')).toBeNull();
   });
 
   it('ProjectTreeNode does NOT render a hello-pangea Draggable/Droppable', () => {
