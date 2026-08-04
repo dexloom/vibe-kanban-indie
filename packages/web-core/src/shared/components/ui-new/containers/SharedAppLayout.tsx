@@ -32,6 +32,7 @@ import { sortProjectsByOrder } from '@/shared/lib/projectOrder';
 import {
   PROJECT_ISSUES_SHAPE,
   PROJECT_MUTATION,
+  PROJECT_PROJECT_STATUSES_SHAPE,
   PROJECTS_SHAPE,
   type Project as RemoteProject,
 } from 'shared/remote-types';
@@ -45,7 +46,7 @@ import {
 } from '@vibe/ui/components/outliner/openState';
 import { DragProvider, type DragCompletion } from '@vibe/ui/components/dnd';
 import { resolveDragEnd } from '@/shared/lib/resolveDragEnd';
-import { bulkUpdateIssues } from '@/shared/lib/remoteApi';
+import { bulkUpdateIssues, bulkUpdateProjects } from '@/shared/lib/remoteApi';
 import { refreshShapeSource } from '@/shared/lib/electric/collections';
 import { useIssueSelectionStore } from '@/shared/stores/useIssueSelectionStore';
 import {
@@ -262,6 +263,13 @@ export function SharedAppLayout() {
       enabled: Boolean(activeProjectId),
     }
   );
+  const activeProjectStatuses = useShape(
+    PROJECT_PROJECT_STATUSES_SHAPE,
+    activeProjectParams,
+    {
+      enabled: Boolean(activeProjectId),
+    }
+  );
   const issuesById = useMemo(() => {
     const map = new Map<
       string,
@@ -280,18 +288,55 @@ export function SharedAppLayout() {
     }
     return map;
   }, [activeProjectIssues.data, activeProjectId]);
+  // The active project's visible status-id set. The resolver threads
+  // this through to `resolveDragEnd` so a stale `data-drop-target-id`
+  // attr pointing at a deleted status is rejected instead of routing
+  // a move into a `status_id` that no longer exists.
+  const statusIds = useMemo<ReadonlySet<string>>(() => {
+    const set = new Set<string>();
+    if (!activeProjectId) return set;
+    for (const status of activeProjectStatuses.data) {
+      set.add(status.id);
+    }
+    return set;
+  }, [activeProjectStatuses.data, activeProjectId]);
 
   // Latest-value refs for the cross-surface handler. Reading
-  // activeProjectId / issuesById through refs (not useCallback deps)
-  // keeps the handler identity STABLE across renders.
-  const dndContextRef = useRef({ activeProjectId, issuesById });
-  dndContextRef.current = { activeProjectId, issuesById };
+  // activeProjectId / issuesById / statusIds through refs (not
+  // useCallback deps) keeps the handler identity STABLE across renders.
+  const dndContextRef = useRef({
+    activeProjectId,
+    issuesById,
+    statusIds,
+    selectedOrgId,
+  });
+  dndContextRef.current = {
+    activeProjectId,
+    issuesById,
+    statusIds,
+    selectedOrgId,
+  };
+
+  // Mirror of orderedProjects as a ref so the drag-end callback reads
+  // the live post-swap state without re-creating the callback when
+  // orderedProjects changes.
+  const orderedProjectsRef = useRef(orderedProjects);
+  orderedProjectsRef.current = orderedProjects;
 
   const handleCrossSurfaceDragEnd = useCallback(
     (completion: DragCompletion) => {
-      const { activeProjectId: projectId, issuesById: byId } =
-        dndContextRef.current;
-      const outcome = resolveDragEnd(completion, projectId, byId);
+      const {
+        activeProjectId: projectId,
+        issuesById: byId,
+        statusIds: statusIdsForResolve,
+        selectedOrgId: orgId,
+      } = dndContextRef.current;
+      const outcome = resolveDragEnd(
+        completion,
+        projectId,
+        byId,
+        statusIdsForResolve
+      );
       switch (outcome.type) {
         case 'no-op':
           return;
@@ -337,6 +382,50 @@ export function SharedAppLayout() {
               );
             });
           return;
+        case 'project-reorder': {
+          if (!orgId) return;
+          const aId = outcome.projectId;
+          const bId = outcome.targetProjectId;
+          setOrderedProjects((prev) => {
+            const ia = prev.findIndex((p) => p.id === aId);
+            const ib = prev.findIndex((p) => p.id === bId);
+            if (ia === -1 || ib === -1) return prev;
+            const next = prev.slice();
+            [next[ia], next[ib]] = [next[ib], next[ia]];
+            return next;
+          });
+          // Recompute sort_order for the WHOLE ordered list (not just the
+          // swapped pair). default `sort_order=0` on every project makes
+          // a pairwise swap a no-op under the created_at tiebreak in
+          // `sortProjectsByOrder`; rewriting all rows normalizes the field
+          // and lets the tiebreak yield to the swap.
+          const cur = orderedProjectsRef.current;
+          const ia = cur.findIndex((p) => p.id === aId);
+          const ib = cur.findIndex((p) => p.id === bId);
+          if (ia === -1 || ib === -1) return;
+          const swapped = cur.slice();
+          [swapped[ia], swapped[ib]] = [swapped[ib], swapped[ia]];
+          const STEP = 100;
+          const updates = swapped.map((p, i) => ({
+            id: p.id,
+            changes: { sort_order: i * STEP },
+          }));
+          bulkUpdateProjects(updates)
+            .then(() =>
+              refreshShapeSource(PROJECTS_SHAPE, { organization_id: orgId })
+            )
+            .catch((err) => {
+              console.error(
+                '[dnd] project reorder failed:',
+                err,
+                aId,
+                '↔',
+                bId
+              );
+              refreshShapeSource(PROJECTS_SHAPE, { organization_id: orgId });
+            });
+          return;
+        }
       }
     },
     []

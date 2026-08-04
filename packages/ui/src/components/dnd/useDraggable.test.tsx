@@ -4,7 +4,7 @@
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useDraggable } from './useDraggable';
-import { DragControllerContext, type DragControllerValue } from './DragContext';
+import { DragControllerContext } from './DragContext';
 import type { DragController } from './DragController';
 import { type DragSource } from './types';
 
@@ -33,9 +33,8 @@ function renderWithController(
   props: { source: DragSource; disabled?: boolean },
 ): RenderResult {
   const out: RenderResult = { onMouseDown: null };
-  const value: DragControllerValue = { controller };
   render(
-    <DragControllerContext.Provider value={value}>
+    <DragControllerContext.Provider value={controller}>
       <HookHarness source={props.source} disabled={props.disabled} out={out} />
     </DragControllerContext.Provider>,
   );
@@ -130,17 +129,60 @@ describe('useDraggable', () => {
     expect(startPress).not.toHaveBeenCalled();
   });
 
-  it('does not throw when controller is present but null', () => {
-    const out: RenderResult = { onMouseDown: null };
+  it('returns null onMouseDown when the context value is null (no controller mounted)', () => {
+    const out: RenderResult = { onMouseDown: () => undefined };
     render(
-      <DragControllerContext.Provider value={{ controller: null }}>
+      <DragControllerContext.Provider value={null}>
         <HookHarness
           source={{ kind: 'issue-move', issueId: 'i1', projectId: 'p1' }}
           out={out}
         />
       </DragControllerContext.Provider>,
     );
-    expect(out.onMouseDown).not.toBeNull();
-    expect(() => out.onMouseDown!(fakeMouseEvent(0))).not.toThrow();
+    expect(out.onMouseDown).toBeNull();
+  });
+
+  it('keeps the onMouseDown callback ref-stable across renders with fresh source literals (virtualized row scroll)', () => {
+    // Round-3 finding #15: callers (KanbanCards row map) pass fresh
+    // `{kind, issueId, projectId}` literals on every render. Before the
+    // fix, `useCallback([..., source])` re-bound the callback each paint
+    // — which forced every virtualized row to re-attach its mousedown
+    // listener. Now `source` is read through a ref inside the callback
+    // and the callback identity is stable across source-only re-renders.
+    const startPress = vi.fn();
+    const controller = {
+      startPress,
+    } as unknown as DragController;
+    const initial: DragSource = {
+      kind: 'issue-move',
+      issueId: 'i1',
+      projectId: 'p1',
+    };
+    const out: RenderResult = { onMouseDown: null };
+    const { rerender } = render(
+      <DragControllerContext.Provider value={controller}>
+        <HookHarness source={initial} out={out} />
+      </DragControllerContext.Provider>,
+    );
+    const firstHandler = out.onMouseDown;
+
+    rerender(
+      <DragControllerContext.Provider value={controller}>
+        <HookHarness
+          source={{ kind: 'issue-move', issueId: 'i1', projectId: 'p1' }}
+          out={out}
+        />
+      </DragControllerContext.Provider>,
+    );
+    expect(out.onMouseDown).toBe(firstHandler);
+
+    // The handler still dispatches the LATEST source through the ref.
+    const currentTarget = document.createElement('div');
+    out.onMouseDown!(fakeMouseEvent(0, null, currentTarget));
+    expect(startPress).toHaveBeenCalledWith(
+      { kind: 'issue-move', issueId: 'i1', projectId: 'p1' },
+      currentTarget,
+      expect.any(MouseEvent),
+    );
   });
 });

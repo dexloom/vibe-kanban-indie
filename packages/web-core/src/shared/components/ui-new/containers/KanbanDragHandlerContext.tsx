@@ -1,4 +1,13 @@
 import { createContext, useContext, type ReactNode } from 'react';
+import type {
+  KanbanDragHandler,
+  KanbanMove,
+} from '@/features/kanban/model/kanbanMove';
+
+// Re-exported from `model/kanbanMove` so pure logic (computeKanbanMove
+// and its tests) does not depend on React wiring. Existing imports of
+// `KanbanMove` / `KanbanDragHandler` from this module keep compiling.
+export type { KanbanMove, KanbanDragHandler };
 
 /**
  * Bridge between the shared custom drag system (`DragProvider`) and the
@@ -8,20 +17,14 @@ import { createContext, useContext, type ReactNode } from 'react';
  * can keep its `setItems` + `bulkUpdateIssues` flow. Cross-surface drops
  * go through `bulkUpdateIssues` directly in the layout.
  */
-export interface KanbanMove {
-  issueId: string;
-  fromStatusId: string;
-  toStatusId: string;
-  /** Position in the destination column; 'end' appends (custom cross-surface
-   * drags). A number is used only by the legacy list-view adapter (index
-   * reorder). */
-  destIndex?: number | 'end';
-}
-
-export type KanbanDragHandler = (move: KanbanMove) => void;
-
 export interface KanbanDragHandlerContextValue {
-  registerHandler: (handler: KanbanDragHandler) => void;
+  /**
+   * Register a kanban-internal move handler. Returns a cleanup callback
+   * the caller runs on unmount to clear the bridge (the live definition
+   * lives in `SharedAppLayout`, which nulls its ref via the returned
+   * cleanup; the dev fallback below is a no-op for symmetry).
+   */
+  registerHandler: (handler: KanbanDragHandler) => () => void;
 }
 
 const KanbanDragHandlerContext =
@@ -44,24 +47,23 @@ export function KanbanDragHandlerProvider({
 export function useKanbanDragHandler(): KanbanDragHandlerContextValue {
   const ctx = useContext(KanbanDragHandlerContext);
   if (!ctx) {
-    // `registerHandler` here is a placeholder taking the handler but not
-    // storing it; the layout-side resolver falls back to drop rejection.
+    // No provider above us — typically a misuse of this hook outside the
+    // shared layout. Surface the misconfiguration in dev so the omission
+    // is not silently swallowed; the layout-side resolver still falls
+    // back to drop rejection.
+    if (
+      typeof process !== 'undefined' &&
+      process.env?.NODE_ENV !== 'production'
+    ) {
+      console.warn(
+        'useKanbanDragHandler called outside <KanbanDragHandlerProvider>; kanban-internal drops will be rejected.'
+      );
+    }
     return {
-      registerHandler: (_handler: KanbanDragHandler): void => {
-        /* no-op */
+      registerHandler: (_handler: KanbanDragHandler): (() => void) => {
+        return () => {};
       },
     };
   }
   return ctx;
 }
-
-/**
- * Lookup shape consumed by the cross-surface `resolveDragEnd`. Kept
- * narrow so callers can build the map cheaply from their shape
- * collection without widening the surface.
- */
-export type IssueDragLookup = Readonly<{
-  id: string;
-  project_id: string;
-  status_id: string;
-}>;

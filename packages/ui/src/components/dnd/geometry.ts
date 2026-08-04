@@ -1,8 +1,17 @@
-import type { Candidate, Placement } from './types';
+import type { Placement } from './types';
 
 export interface CardRect {
   top: number;
   bottom: number;
+}
+
+/** Subset of {@link Candidate} that the geometry layer can resolve from a
+ * pointer position + cached rects. The controller composes the full
+ * Candidate (adding index + sourceIssueId) in `resolveCandidateAt` so
+ * `findBestCandidate` stays focused on pure geometry. */
+export interface TargetCandidate {
+  targetId: string | null;
+  placement: Placement | null;
 }
 
 /**
@@ -72,18 +81,8 @@ export function manhattanDistanceToRect(
  *  - top third → `'before'`
  *  - middle third → `'on'`
  *  - bottom third → `'after'`
- *
- * The `x` coordinate is part of the signature so future reorder kinds
- * (horizontal column reorder) can extend it without changing call sites;
- * layout-only callers can pass `0`. The resolver always emits `'on'` for
- * `issue-move`; the field is surfaced for future reorder kinds (column
- * reorder, project reorder) that need relative placement.
  */
-export function computePlacement(
-  _x: number,
-  y: number,
-  r: TargetRect,
-): Placement {
+export function computePlacement(y: number, r: TargetRect): Placement {
   const height = r.bottom - r.top;
   const topThird = r.top + height / 3;
   const bottomThird = r.bottom - height / 3;
@@ -98,76 +97,50 @@ export function computePlacement(
  * Selection rules:
  *  1. Skip rects farther than `threshold` px (magnetic radius).
  *  2. Lowest manhattan distance wins.
- *  3. Tie-breaker 1: an inside-distance (0) beats an outside-distance.
- *  4. Tie-breaker 2: smaller area wins (prefer the tightest match).
- *  5. No candidates in range → `{ targetId: null, placement: null }`.
+ *  3. On a distance tie, smaller area wins (prefer the tightest match).
+ *  4. No candidates in range → `{ targetId: null, placement: null }`.
  *
- * Returns a {@link Candidate} with the winning target's `droppableId`
- * (or `null`) and the placement computed against the winning rect.
+ * Returns a {@link TargetCandidate} with the winning target's `droppableId`
+ * (or `null`) and the placement computed against the winning rect. The
+ * controller layers `index` + `sourceIssueId` on top in `resolveCandidateAt`.
  */
 export function findBestCandidate(
   x: number,
   y: number,
   targets: readonly TargetRect[],
   threshold: number,
-): Candidate {
+): TargetCandidate {
   if (targets.length === 0) {
-    return {
-      targetId: null,
-      placement: null,
-      index: null,
-      sourceIssueId: null,
-    };
+    return { targetId: null, placement: null };
   }
 
   let bestTarget: TargetRect | null = null;
   let bestDist = Infinity;
   let bestArea = Infinity;
-  let bestInside = false;
 
   for (const target of targets) {
     const dist = manhattanDistanceToRect(x, y, target);
     if (dist > threshold) continue;
 
-    const inside = dist === 0;
     const area = (target.right - target.left) * (target.bottom - target.top);
 
     if (dist < bestDist) {
       bestDist = dist;
-      bestInside = inside;
       bestArea = area;
       bestTarget = target;
       continue;
     }
-    if (dist === bestDist && inside && !bestInside) {
-      bestInside = true;
-      bestArea = area;
-      bestTarget = target;
-      continue;
-    }
-    if (
-      dist === bestDist &&
-      inside === bestInside &&
-      area < bestArea &&
-      bestTarget
-    ) {
+    if (dist === bestDist && area < bestArea && bestTarget) {
       bestArea = area;
       bestTarget = target;
     }
   }
 
   if (!bestTarget) {
-    return {
-      targetId: null,
-      placement: null,
-      index: null,
-      sourceIssueId: null,
-    };
+    return { targetId: null, placement: null };
   }
   return {
     targetId: bestTarget.droppableId,
-    placement: computePlacement(x, y, bestTarget),
-    index: null,
-    sourceIssueId: null,
+    placement: computePlacement(y, bestTarget),
   };
 }

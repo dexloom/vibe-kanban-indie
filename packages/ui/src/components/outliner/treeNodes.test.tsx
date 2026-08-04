@@ -1,7 +1,14 @@
 import { cleanup, render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import type { NodeApi, NodeRendererProps } from 'react-arborist';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TreeNodeRouter } from './treeNodes';
+import {
+  DragActiveContext,
+  DragCandidateContext,
+  DragSourceProjectContext,
+} from './dragState';
+import { DragControllerContext } from '../dnd';
 import {
   makeCardNodeId,
   makeStatusNodeId,
@@ -22,7 +29,7 @@ afterEach(cleanup);
 
 function renderNode(
   data: SidebarTreeNode,
-  overrides: Record<string, unknown> = {}
+  overrides: Record<string, unknown> = {},
 ) {
   const node = {
     data,
@@ -134,8 +141,8 @@ describe('TreeNodeRouter cross-surface DnD wrapping', () => {
     const { container } = renderNode(status);
     expect(
       container.querySelector(
-        '[data-drop-target-id="project-1:status:00000000-0000-4000-8000-000000000010"]'
-      )
+        '[data-drop-target-id="project-1:status:00000000-0000-4000-8000-000000000010"]',
+      ),
     ).toBeTruthy();
     // No hello-pangea Droppable wrapper anymore.
     expect(container.querySelector('[data-rfd-droppable-id]')).toBeNull();
@@ -179,5 +186,121 @@ describe('TreeNodeRouter cross-surface DnD wrapping', () => {
     const { container: c2 } = renderNode(leaf);
     expect(c2.querySelector('[data-rfd-draggable-id]')).toBeNull();
     expect(c2.querySelector('[data-rfd-droppable-id]')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// project-reorder (ADR-012 amendment)
+// ---------------------------------------------------------------------------
+//
+// Renders the project node behind the same provider stack the live
+// `DragProvider` exposes (`DragControllerContext` + drag-state contexts).
+// The controller is left null here — `useDraggable` degrades to
+// `{ onMouseDown: null }` (no press handler) but the drop-target data
+// attributes still render, which is what these assertions exercise.
+
+interface ProjectDnDContextOverrides {
+  controller?: unknown;
+  isDragActive?: boolean;
+  candidateId?: string | null;
+  sourceProjectId?: string | null;
+}
+
+function renderProjectWithDndContext(
+  projectId: string,
+  overrides: ProjectDnDContextOverrides = {},
+) {
+  const {
+    controller = null,
+    isDragActive = false,
+    candidateId = null,
+    sourceProjectId = null,
+  } = overrides;
+  const project: ProjectNode = {
+    id: projectId,
+    type: 'project',
+    name: 'Demo',
+    color: '210 50% 50%',
+    children: [],
+  };
+  const node = {
+    data: project,
+    isOpen: false,
+    toggle: vi.fn(),
+    activate: vi.fn(),
+    tree: { indent: 12 },
+  } as unknown as NodeApi<ProjectNode>;
+  const props = {
+    node,
+    style: {},
+    tree: node.tree,
+    dragHandle: undefined,
+    preview: null,
+    onSelectProject: vi.fn(),
+    activeProjectId: null,
+    activeWorkspaceId: null,
+    activeIssueId: null,
+    onSelectIssue: vi.fn(),
+  } as unknown as NodeRendererProps<SidebarTreeNode> & {
+    onSelectProject: (id: string) => void;
+    activeProjectId: string | null;
+    activeWorkspaceId: string | null;
+    activeIssueId: string | null;
+    onSelectIssue: (projectId: string, issueId: string) => void;
+  };
+  const stack: ReactNode = (
+    <DragControllerContext.Provider value={controller as never}>
+      <DragActiveContext.Provider value={isDragActive}>
+        <DragSourceProjectContext.Provider value={sourceProjectId}>
+          <DragCandidateContext.Provider value={candidateId}>
+            <TreeNodeRouter {...props} />
+          </DragCandidateContext.Provider>
+        </DragSourceProjectContext.Provider>
+      </DragActiveContext.Provider>
+    </DragControllerContext.Provider>
+  );
+  return render(stack);
+}
+
+describe('TreeNodeRouter project-reorder wrapping', () => {
+  it('ProjectTreeNode tags the row with data-drop-target-accept-kinds="project-reorder" and data-drop-target-id=project.id', () => {
+    const { container } = renderProjectWithDndContext('project-1');
+    const row = container.querySelector('[data-drop-target-id="project-1"]');
+    expect(row).toBeTruthy();
+    expect(row!.getAttribute('data-drop-target-project')).toBe('project-1');
+    expect(row!.getAttribute('data-drop-target-accept-kinds')).toBe(
+      'project-reorder',
+    );
+  });
+
+  it('ProjectTreeNode (unassigned) does NOT tag the row with drop-target attributes (drag disabled)', () => {
+    const { container } = renderProjectWithDndContext('unassigned');
+    // Unassigned pseudo-project is inert: the controller disables its
+    // drag handle and outerProps spread no `dropTargetAttrs`. Only the
+    // OWN-id-equality fallback would land an attribute, so assert none.
+    expect(
+      container.querySelector('[data-drop-target-id="unassigned"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-drop-target-accept-kinds]'),
+    ).toBeNull();
+  });
+
+  it('ProjectTreeNode dims the source row (opacity-50) when DragSourceProjectContext matches', () => {
+    const { container } = renderProjectWithDndContext('project-dragged', {
+      sourceProjectId: 'project-dragged',
+    });
+    const row = container.querySelector('.cursor-pointer');
+    expect(row).toBeTruthy();
+    expect(row!.className).toContain('opacity-50');
+  });
+
+  it('ProjectTreeNode does NOT dim a non-source row even when another project is being dragged', () => {
+    const { container } = renderProjectWithDndContext('project-other', {
+      sourceProjectId: 'project-dragged',
+    });
+    const row = container.querySelector('.cursor-pointer');
+    expect(row).toBeTruthy();
+    expect(row!.className).not.toContain('opacity-50');
   });
 });

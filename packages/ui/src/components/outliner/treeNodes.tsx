@@ -2,6 +2,12 @@ import type { NodeApi, NodeRendererProps } from 'react-arborist';
 import { ArrowSquareOutIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/cn';
+import { useDraggable, useDropTarget } from '../dnd';
+import {
+  useDragActive,
+  useDragCandidate,
+  useDragSourceProjectId,
+} from './dragState';
 import { OutlinerBucketNode } from './BucketNode';
 import { CardNodeRow } from './CardNodeRow';
 import { OutlinerLeafNode } from './LeafNode';
@@ -35,13 +41,25 @@ function ProjectTreeNode(
   props: TreeNodeRenderProps<ProjectNode> & {
     onSelectProject: (id: string) => void;
     activeProjectId: string | null;
-  }
+  },
 ) {
   const { node, style, dragHandle, onSelectProject, activeProjectId } = props;
   const { t } = useTranslation('common');
   const project = node.data;
   const isActive = project.id === activeProjectId;
   const isUnassigned = project.id === UNASSIGNED_PROJECT_ID;
+  const isDragActive = useDragActive();
+  const candidateId = useDragCandidate();
+  const sourceProjectId = useDragSourceProjectId();
+  const isCandidate = candidateId === project.id;
+  const isSource = sourceProjectId === project.id;
+  const { onMouseDown } = useDraggable(
+    { kind: 'project-reorder', projectId: project.id },
+    { disabled: isUnassigned },
+  );
+  const dropTargetAttrs = useDropTarget(project.id, project.id, {
+    acceptKinds: ['project-reorder'],
+  });
   return (
     <TreeRow
       node={node}
@@ -49,16 +67,23 @@ function ProjectTreeNode(
       dragHandle={dragHandle}
       isActive={isActive}
       onRowClick={() => node.toggle()}
+      outerProps={{
+        ...(onMouseDown ? { onMouseDown } : {}),
+        ...(!isUnassigned ? dropTargetAttrs : {}),
+      }}
       rowClassName={cn(
         'rounded-md text-base transition-colors',
-        isActive ? 'text-high font-bold' : 'text-normal hover:bg-tertiary'
+        isActive ? 'text-high font-bold' : 'text-normal hover:bg-tertiary',
+        isSource && 'opacity-50 transition-opacity',
+        isDragActive && !isUnassigned && !isCandidate && 'bg-tertiary/40',
+        isDragActive && isCandidate && 'bg-brand/20',
       )}
     >
       <div className="flex items-center gap-1">
         <span
           className={cn(
             'flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-2xs font-medium',
-            isUnassigned && 'opacity-70'
+            isUnassigned && 'opacity-70',
           )}
           style={{
             color: `hsl(${project.color})`,
@@ -78,7 +103,7 @@ function ProjectTreeNode(
           className={cn(
             'pointer-events-auto ml-auto shrink-0 rounded-sm p-0.5',
             'text-low hover:text-high hover:bg-tertiary',
-            'transition-opacity focus:outline-none'
+            'transition-opacity focus:outline-none',
           )}
         >
           <ArrowSquareOutIcon className="size-4.5" weight="bold" />
@@ -89,7 +114,7 @@ function ProjectTreeNode(
 }
 
 function SectionTreeNode(
-  props: TreeNodeRenderProps<Extract<SectionNode, { kind: 'workspaces' }>>
+  props: TreeNodeRenderProps<Extract<SectionNode, { kind: 'workspaces' }>>,
 ) {
   const { node, style, dragHandle } = props;
   return (
@@ -115,7 +140,7 @@ export function TreeNodeRouter(
     /** Mirrors KanbanCard's `dragDisabled={isMultiSelectActive}` — tree card
      * drag is disabled while the kanban's bulk-select mode is on (PLAN §7.5). */
     isMultiSelectActive?: boolean;
-  }
+  },
 ) {
   const {
     node,

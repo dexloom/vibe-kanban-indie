@@ -6,14 +6,14 @@ import {
   type TargetRect,
   type CardRect,
 } from './geometry';
+import { isColumnLikeTarget } from './targetKind';
 import type { Candidate, DragCompletion, DragSource } from './types';
 
-function cssEscape(value: string): string {
-  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
-    return CSS.escape(value);
-  }
-  return value.replace(/[^a-zA-Z0-9_-]/g, (character) => `\\${character}`);
-}
+// Visual tuning for the drag ghost. Kept module-local so they survive any
+// future theming pass and are easy to grep.
+const GHOST_Z_INDEX = '9999';
+const GHOST_OFFSET_X = 8;
+const GHOST_OFFSET_Y = -8;
 
 /** Mirror of the subset of React.MouseEvent the controller needs. Lets the
  * hook pass `e.nativeEvent` (a real DOM MouseEvent) without coupling the
@@ -27,9 +27,10 @@ export interface DragControllerCallbacks {
   /** Fires ONCE per drag when the press crosses the movement threshold and
    * the ghost is lifted. */
   onPromote: () => void;
-  /** Fires ONCE per drag, at cancel OR drop. The provider uses this to
-   * reset its active flag (the promote bit is set on press, the end bit is
-   * set on drop/cancel). */
+  /** Fires ONCE per ACTUAL drag (a press that crossed the movement
+   * threshold) at cancel OR drop. Does NOT fire for sub-threshold
+   * releases or ESC during a press — those gestures were never a drag.
+   * The provider uses this to reset its active flag. */
   onDragEnd: () => void;
   /** Fires every time the resolved candidate changes (targetId AND/OR
    * placement). Targets receive this via the provider's candidate context. */
@@ -59,6 +60,7 @@ type ControllerState =
 
 interface TargetQueryResult {
   targets: TargetRect[];
+  elements: Map<string, HTMLElement>;
 }
 
 /**
@@ -67,9 +69,10 @@ interface TargetQueryResult {
  * Pressing captures the source element + initial pointer coords and waits
  * for the user to either cross the movement threshold (promote) or release
  * the mouse (no-op click falls through). Once dragging, the controller
- * owns a pure-DOM ghost, a cached set of drop-target rects, and a
- * rAF-throttled mousemove handler that re-resolves the candidate on every
- * move.
+ * owns a pure-DOM ghost and a rAF-throttled mousemove handler that
+ * re-resolves the candidate on every move. Drop targets are re-queried
+ * from the DOM each frame — a shape sync that adds a status column
+ * mid-gesture is picked up on the next mousemove without a scroll event.
  *
  * No React. No hello-pangea. No external DnD library. The controller
  * attaches window listeners only while a drag is in flight and detaches
@@ -84,8 +87,8 @@ export class DragController {
     placement: null,
     index: null,
     sourceIssueId: null,
+    sourceProjectId: null,
   };
-  private targetCache: TargetQueryResult | null = null;
   private rafHandle: number | null = null;
   private lastClientX = 0;
   private lastClientY = 0;
@@ -116,6 +119,15 @@ export class DragController {
   ): boolean {
     if (this.state.kind !== 'idle') return false;
 
+    // A new gesture is the only legitimate re-entry point. Tear down any
+    // document-level swallower still attached from the previous drag —
+    // by now the prior drag's mouseup click has either fired (and the
+    // browser's `once:true` removed the listener) or never will (e.g.
+    // user ESC'd mid-gesture, then started a fresh press). Leaving it
+    // attached would let the stale swallower eat an arbitrary future
+    // click. `detachClickSwallower` is a no-op when nothing is attached.
+    this.detachClickSwallower();
+
     this.state = {
       kind: 'pressing',
       source,
@@ -128,12 +140,10 @@ export class DragController {
     const onMouseMove = (ev: Event) => this.handleMove(ev as MouseEvent);
     const onMouseUp = (ev: Event) => this.handleMouseUp(ev as MouseEvent);
     const onKeyDown = (ev: Event) => this.handleKeyDown(ev as KeyboardEvent);
-    const onScroll = () => this.invalidateTargets();
 
     this.addWindowListener('mousemove', onMouseMove);
     this.addWindowListener('mouseup', onMouseUp);
     this.addWindowListener('keydown', onKeyDown);
-    this.addWindowListener('scroll', onScroll, { passive: true });
 
     return true;
   }
@@ -142,6 +152,7 @@ export class DragController {
   destroy(): void {
     this.teardown();
     this.removeAllListeners();
+    this.detachClickSwallower();
     this.state = { kind: 'idle' };
   }
 
@@ -160,8 +171,15 @@ export class DragController {
 
   private removeAllListeners(): void {
     for (const entry of this.attached) {
-      const opts =
-        typeof entry.options === 'boolean' ? entry.options : undefined;
+      // `removeEventListener` only matches on (type, listener, capture);
+      // we deliberately preserve ONLY the capture flag — preserving
+      // `passive`/`once` would not weaken correctness (the browser
+      // ignores them on remove) but invites a future reader to "fix"
+      // the asymmetry and accidentally change matching semantics.
+      const opts: AddEventListenerOptions | boolean =
+        typeof entry.options === 'boolean'
+          ? entry.options
+          : { capture: entry.options?.capture ?? false };
       try {
         entry.target.removeEventListener(entry.type, entry.listener, opts);
       } catch {
@@ -242,12 +260,25 @@ export class DragController {
       ghost: null,
     };
     document.body.style.userSelect = 'none';
+    // Toggling a class beats setting `document.body.style.cursor` because
+    // the source card sits under the pointer during a drag and its
+    // own `cursor` rule would win over an inline body style. The
+    // `body.dnd-dragging *` wildcard override (global stylesheet)
+    // re-asserts `grabbing` on every descendant.
+    document.body.classList.add('dnd-dragging');
     const ghost = this.createGhost(element);
     if (ghost) {
       if (this.state.kind === 'dragging') {
         this.state.ghost = ghost;
       }
-      ghost.style.transform = `translate3d(${startX}px, ${startY}px, 0)`;
+      // Apply the same per-frame cursor offset on the initial transform
+      // — otherwise the ghost renders at (startX, startY) for one frame
+      // and snaps to (startX+8, startY-8) on the first rAF. Apply the
+      // offsets now so the ghost stays anchored to the cursor through
+      // the entire gesture.
+      ghost.style.transform = `translate3d(${startX + GHOST_OFFSET_X}px, ${
+        startY + GHOST_OFFSET_Y
+      }px, 0)`;
     }
     // Install one-shot capture-phase click swallow: the browser fires a
     // synthetic click on mouseup after a real drag, and react-arborist's
@@ -274,7 +305,7 @@ export class DragController {
     ghost.style.top = '0';
     ghost.style.left = '0';
     ghost.style.pointerEvents = 'none';
-    ghost.style.zIndex = '9999';
+    ghost.style.zIndex = GHOST_Z_INDEX;
     ghost.style.opacity = '0.85';
     ghost.style.willChange = 'transform';
     ghost.style.transformOrigin = 'top left';
@@ -286,25 +317,36 @@ export class DragController {
     if (this.state.kind !== 'dragging') return;
     const ghost = this.state.ghost;
     if (!ghost) return;
-    ghost.style.transform = `translate3d(${x + 8}px, ${y - 8}px, 0)`;
+    ghost.style.transform = `translate3d(${x + GHOST_OFFSET_X}px, ${
+      y + GHOST_OFFSET_Y
+    }px, 0)`;
   }
 
-  private invalidateTargets(): void {
-    this.targetCache = null;
-  }
-
-  private collectTargets(): TargetRect[] {
-    if (this.targetCache) return this.targetCache.targets;
-    if (this.state.kind !== 'dragging') return [];
+  private collectTargets(): TargetQueryResult {
+    if (this.state.kind !== 'dragging') {
+      return { targets: [], elements: new Map() };
+    }
     const source = this.state.source;
-    if (typeof document === 'undefined') return [];
+    if (typeof document === 'undefined') {
+      return { targets: [], elements: new Map() };
+    }
 
     const out: TargetRect[] = [];
+    const elements = new Map<string, HTMLElement>();
     const nodes = document.querySelectorAll<HTMLElement>(
       '[data-drop-target-id][data-drop-target-project][data-drop-target-accept-kinds]',
     );
+    const isProjectReorder = source.kind === 'project-reorder';
     nodes.forEach((el) => {
-      if (el.dataset.dropTargetProject !== source.projectId) return;
+      if (isProjectReorder) {
+        // Targets are OTHER project rows (each row's data-drop-target-project
+        // is its OWN id, which never equals the dragged project's id, so the
+        // equality filter would reject every peer). Exclude self so the
+        // dragged row never becomes its own candidate.
+        if (el.dataset.dropTargetId === source.projectId) return;
+      } else {
+        if (el.dataset.dropTargetProject !== source.projectId) return;
+      }
       const acceptKinds = (el.dataset.dropTargetAcceptKinds ?? '').split(',');
       if (!acceptKinds.includes(source.kind)) return;
       const id = el.dataset.dropTargetId;
@@ -317,9 +359,12 @@ export class DragController {
         right: rect.right,
         bottom: rect.bottom,
       });
+      // The backing element is the SoT for the kanban-column
+      // insertion-index resolver; without this map the resolver would
+      // need a second `document.querySelector` per rAF frame.
+      elements.set(id, el);
     });
-    this.targetCache = { targets: out };
-    return out;
+    return { targets: out, elements };
   }
 
   private recomputeCandidate(): void {
@@ -339,31 +384,44 @@ export class DragController {
   }
 
   private resolveCandidateAt(x: number, y: number): Candidate {
-    const targets = this.collectTargets();
-    const candidate = findBestCandidate(x, y, targets, DROP_THRESHOLD_PX);
-    candidate.sourceIssueId =
+    const { targets, elements } = this.collectTargets();
+    const { targetId, placement } = findBestCandidate(
+      x,
+      y,
+      targets,
+      DROP_THRESHOLD_PX,
+    );
+    const sourceIssueId =
       this.state.kind === 'dragging' && this.state.source.kind === 'issue-move'
         ? this.state.source.issueId
         : null;
-    if (
+    const sourceProjectId =
       this.state.kind === 'dragging' &&
-      this.state.source.kind === 'issue-move' &&
-      candidate.targetId &&
-      !candidate.targetId.includes(':status:')
+      this.state.source.kind === 'project-reorder'
+        ? this.state.source.projectId
+        : null;
+    let index: number | null = null;
+    if (
+      targetId &&
+      isColumnLikeTarget(targetId) &&
+      this.state.kind === 'dragging' &&
+      this.state.source.kind === 'issue-move'
     ) {
-      candidate.index = this.resolveCardIndex(candidate.targetId, y);
+      index = this.resolveCardIndex(targetId, y, elements);
     }
-    return candidate;
+    return { targetId, placement, index, sourceIssueId, sourceProjectId };
   }
 
-  private resolveCardIndex(targetId: string, pointerY: number): number | null {
-    if (typeof document === 'undefined') return null;
-    const column = document.querySelector<HTMLElement>(
-      `[data-drop-target-id="${cssEscape(targetId)}"]`,
-    );
+  private resolveCardIndex(
+    targetId: string,
+    pointerY: number,
+    elements: ReadonlyMap<string, HTMLElement>,
+  ): number | null {
+    if (this.state.kind !== 'dragging') return null;
+    if (this.state.source.kind !== 'issue-move') return null;
+    const column = elements.get(targetId);
     if (!column) return null;
-    const sourceIssueId =
-      this.state.kind === 'dragging' ? this.state.source.issueId : null;
+    const sourceIssueId = this.state.source.issueId;
     const rects: CardRect[] = [];
     column.querySelectorAll<HTMLElement>('[data-dnd-card]').forEach((el) => {
       if (el.dataset.dndCardIssueId === sourceIssueId) return;
@@ -382,21 +440,31 @@ export class DragController {
     return { source, targetId, placement: 'on', index: this.candidate.index };
   }
 
-  /** Single point of teardown for cancel / drop. Restores `user-select` and
-   * fires `onDragEnd` so the provider can reset its active flag. */
+  /** Single point of teardown for cancel / drop. Used by:
+   *  - mouseup-after-promote (drop path),
+   *  - ESC during pressing (gesture never lifted),
+   *  - ESC during dragging (real drag cancelled),
+   *  - sub-threshold mouseup (gesture never lifted).
+   *
+   *  `onDragEnd` fires only when an actual drag was lifted — a
+   *  sub-threshold release or ESC during a press must NOT notify the
+   *  provider, because from the provider's perspective no drag ever
+   *  happened (the active flag was never set in the first place).
+   */
   private cancel(): void {
+    const wasDragging = this.state.kind === 'dragging';
     try {
       this.teardown();
     } finally {
       this.removeAllListeners();
       this.state = { kind: 'idle' };
-      if (this.clickSwallower) {
-        document.removeEventListener('click', this.clickSwallower, {
-          capture: true,
-        } as EventListenerOptions);
-        this.clickSwallower = null;
+      // The one-shot click swallower installed in `promote()` is registered
+      // with `{ once: true, capture: true }` — the browser removes it
+      // automatically after the first click. Eagerly detaching it here
+      // would let a synthetic click fired after ESC navigate the row.
+      if (wasDragging) {
+        this.callbacks.onDragEnd();
       }
-      this.callbacks.onDragEnd();
     }
   }
 
@@ -406,6 +474,7 @@ export class DragController {
     }
     if (this.state.kind === 'dragging') {
       document.body.style.userSelect = '';
+      document.body.classList.remove('dnd-dragging');
     }
     if (this.rafHandle !== null) {
       cancelAnimationFrame(this.rafHandle);
@@ -421,9 +490,23 @@ export class DragController {
         placement: null,
         index: null,
         sourceIssueId: null,
+        sourceProjectId: null,
       };
       this.callbacks.onCandidateChange(this.candidate);
     }
-    this.targetCache = null;
+  }
+
+  // Removes the one-shot capture-phase click swallower installed in
+  // `promote()`. Called ONLY from `destroy()` and from `startPress()`
+  // (the previous-drag re-entry guard). `cancel()` must leave it
+  // attached so the synthetic click fired after an ESC'd drag is still
+  // swallowed (the round-1 bug). Capture must match how it was added
+  // (`{ capture: true }`) for the browser to find the right entry.
+  private detachClickSwallower(): void {
+    if (!this.clickSwallower) return;
+    document.removeEventListener('click', this.clickSwallower, {
+      capture: true,
+    });
+    this.clickSwallower = null;
   }
 }

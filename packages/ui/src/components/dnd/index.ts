@@ -5,6 +5,7 @@ export {
   findBestCandidate,
   computePlacement,
   type TargetRect,
+  type TargetCandidate,
 } from './geometry';
 export type {
   DragKind,
@@ -18,11 +19,7 @@ export {
   type ManagerMouseEvent,
   type DragControllerCallbacks,
 } from './DragController';
-export {
-  DragControllerContext,
-  useDragController,
-  type DragControllerValue,
-} from './DragContext';
+export { DragControllerContext, useDragController } from './DragContext';
 export { DragProvider, type DragProviderProps } from './DragProvider';
 export { useDraggable, type UseDraggableOptions } from './useDraggable';
 export {

@@ -62,3 +62,33 @@ export const DragInsertionProvider = DragInsertionContext.Provider;
 export function useDragInsertion(): InsertionPoint | null {
   return useContext(DragInsertionContext);
 }
+
+/**
+ * Id of the dragged source issue, or `null` when no drag is in flight.
+ *
+ * Constant for the duration of a single drag — `candidate.sourceIssueId`
+ * is set on the first candidate change after promote and never mutates
+ * until `onDragEnd` clears it. Source-column cards read this to dim
+ * themselves during a drag, even when their column has no live insertion
+ * (the source column's `DragInsertionContext` is null while the pointer
+ * is over a different column). Kept as its own context — separate from
+ * `DragInsertionContext` — so a source-id change does not invalidate
+ * insertion consumers (same render-storm discipline as
+ * `DragActiveContext` vs `DragCandidateContext`).
+ */
+export const DragSourceContext = createContext<string | null>(null);
+
+export const DragSourceProvider = DragSourceContext.Provider;
+
+export function useDragSourceIssueId(): string | null {
+  return useContext(DragSourceContext);
+}
+
+/** Id of the dragged project (project-reorder). Constant within a drag. */
+export const DragSourceProjectContext = createContext<string | null>(null);
+
+export const DragSourceProjectProvider = DragSourceProjectContext.Provider;
+
+export function useDragSourceProjectId(): string | null {
+  return useContext(DragSourceProjectContext);
+}

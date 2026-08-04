@@ -509,3 +509,14 @@ html {
     background-color: #212121;
   }
 }
+
+/* Drag-and-drop: force the grabbing cursor on every element during an
+ * active drag. The source card sits under the pointer and its own
+ * `cursor: auto` rule would otherwise beat an inline body style. A
+ * `body.dnd-dragging *` wildcard with `!important` re-asserts the
+ * grabbing cursor regardless of component-level rules. Toggle is
+ * driven by `DragController.promote()` / `teardown()`. */
+body.dnd-dragging,
+body.dnd-dragging * {
+  cursor: grabbing !important;
+}

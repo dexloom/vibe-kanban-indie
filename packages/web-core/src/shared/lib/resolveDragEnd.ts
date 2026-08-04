@@ -1,8 +1,6 @@
-import type {
-  DragCompletion,
-  DragSource,
-  Placement,
-} from '@vibe/ui/components/dnd';
+import type { DragCompletion, Placement } from '@vibe/ui/components/dnd';
+import { UNASSIGNED_PROJECT_ID } from '@vibe/ui/components/outliner/types';
+import { parseTargetId } from './targetId';
 
 /**
  * Minimal shape the resolver needs from an Issue row. The full `Issue`
@@ -32,124 +30,97 @@ export type DragOutcome =
       targetStatusId: string;
       projectId: string;
     }
+  | { type: 'project-reorder'; projectId: string; targetProjectId: string }
   | { type: 'invalid'; reason: string };
-
-type ParsedSurface =
-  | { surface: 'kanban'; statusId: string; projectId: string }
-  | { surface: 'tree-status'; statusId: string; projectId: string };
-
-type ParseResult =
-  | ParsedSurface
-  | { invalid: 'cross-project' }
-  | { invalid: 'not-a-target' }
-  | { invalid: 'not-a-valid-status-target' };
-
-const TREE_STATUS_PATTERN = /^([^:]+):status:(.+)$/;
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * Parse a targetId into one of two surfaces used by the resolver:
- *  - `kanban`: bare UUID status column (kanban board)
- *  - `tree-status`: `<projectId>:status:<statusId>` (sidebar status row)
- *
- * Cards are no longer drop targets in the cross-surface path, so a bare
- * UUID that matches an issue is rejected as `not-a-target` (defensive —
- * the layout never paints a card with `data-drop-target-id`, but if a
- * future regression does, the resolver refuses to treat it as a status).
- */
-function parseTargetId(
-  targetId: string,
-  activeProjectId: string,
-  issuesById: ReadonlyMap<string, IssueDragLookup>
-): ParseResult {
-  const treeStatus = TREE_STATUS_PATTERN.exec(targetId);
-  if (treeStatus) {
-    const parsedProjectId = treeStatus[1];
-    if (parsedProjectId !== activeProjectId) {
-      return { invalid: 'cross-project' };
-    }
-    return {
-      surface: 'tree-status',
-      statusId: treeStatus[2],
-      projectId: parsedProjectId,
-    };
-  }
-
-  if (!UUID_PATTERN.test(targetId)) {
-    return { invalid: 'not-a-valid-status-target' };
-  }
-
-  if (issuesById.has(targetId)) {
-    return { invalid: 'not-a-target' };
-  }
-
-  return {
-    surface: 'kanban',
-    statusId: targetId,
-    projectId: activeProjectId,
-  };
-}
 
 /**
  * Resolve a `DragCompletion` (the unified custom drag system's drop
- * payload) into one of four outcomes:
+ * payload) into one of five outcomes:
  *
  *  - `no-op`            — nothing meaningful changed (drag kind unsupported,
- *                         same-status drop, or no destination).
+ *                         same-status drop, no destination, or project-reorder
+ *                         onto self / unassigned).
  *  - `kanban-internal`  — destination is a bare-UUID kanban column; delegate
  *                         to the kanban board's existing handler.
  *  - `move-issue`       — destination is a tree-status row OR a kanban column
  *                         AND the source is an issue-move; the layout fires
  *                         `bulkUpdateIssues` with the resolved target status.
+ *  - `project-reorder`  — source is project-reorder; layout swaps project
+ *                         positions and writes `sort_order` for the full
+ *                         ordered list via `bulkUpdateProjects`.
  *  - `invalid`          — reason is logged and the drop is silently snapped
  *                         back.
  *
- * The function is pure: callers supply `activeProjectId` and `issuesById`
- * so the implementation never closes over stale state.
+ * The function is pure: callers supply `activeProjectId`, `issuesById`,
+ * and `statusIds` (the active project's visible status-id set — used to
+ * reject stale `data-drop-target-id` attrs pointing at deleted statuses).
  */
 export function resolveDragEnd(
   completion: DragCompletion,
   activeProjectId: string | null,
-  issuesById: ReadonlyMap<string, IssueDragLookup>
+  issuesById: ReadonlyMap<string, IssueDragLookup>,
+  statusIds: ReadonlySet<string>
 ): DragOutcome {
   const { source, targetId } = completion;
 
-  // 1. Drag kind dispatch — only `issue-move` is implemented today.
-  //    Future kinds (`column-reorder`, `project-reorder`) return invalid
-  //    until their resolver branches land.
+  // 1a. Project reorder branch — SWAP semantics, runs ahead of the
+  //     issue-move path so same-id or unassigned targets surface as
+  //     no-ops rather than invalid. `placement`, `index`, `issuesById`,
+  //     `statusIds`, and `activeProjectId` are unused for this branch
+  //     (signature unchanged).
+  if (source.kind === 'project-reorder') {
+    const targetProjectId = targetId;
+    if (targetProjectId === source.projectId) return { type: 'no-op' };
+    if (targetProjectId === UNASSIGNED_PROJECT_ID) return { type: 'no-op' };
+    return {
+      type: 'project-reorder',
+      projectId: source.projectId,
+      targetProjectId,
+    };
+  }
+
+  // 1. Drag kind dispatch — `issue-move` is the only remaining branch
+  //    today; any future kind that slips through returns invalid.
   if (source.kind !== 'issue-move') {
     return { type: 'invalid', reason: 'unsupported drag kind' };
   }
 
-  // 2. Issue lookup (typed-narrowed via the dispatch above).
-  const issueSource = source as Extract<DragSource, { kind: 'issue-move' }>;
-
-  // 3. No active project (e.g. landing page).
+  // 2. No active project (e.g. landing page).
   if (!activeProjectId) {
     return { type: 'invalid', reason: 'no active project' };
   }
 
-  // 4. Issue must be present in the lookup.
-  const issue = issuesById.get(issueSource.issueId);
+  // 3. Issue must be present in the lookup.
+  const issue = issuesById.get(source.issueId);
   if (!issue) {
     return { type: 'invalid', reason: 'unknown issue' };
   }
 
-  // 5. Active-project guard.
+  // 4. Active-project guard.
   if (issue.project_id !== activeProjectId) {
     return { type: 'invalid', reason: 'cross-project' };
   }
 
-  // 6. Destination must parse as a valid status target.
-  const parsedDest = parseTargetId(targetId, activeProjectId, issuesById);
-  if ('invalid' in parsedDest) {
-    if (parsedDest.invalid === 'cross-project') {
-      return { type: 'invalid', reason: 'cross-project' };
-    }
-    if (parsedDest.invalid === 'not-a-target') {
-      return { type: 'invalid', reason: 'not a drop target' };
-    }
+  // 5. Destination must parse as a valid status target.
+  const parsedDest = parseTargetId(targetId, (id) => issuesById.has(id));
+  if (!parsedDest) {
+    return { type: 'invalid', reason: 'not a valid status target' };
+  }
+
+  // 6. Tree-status cross-project guard (parseTargetId doesn't carry the
+  //    active project; we layer it on here).
+  if (
+    parsedDest.surface === 'tree-status' &&
+    parsedDest.projectId !== activeProjectId
+  ) {
+    return { type: 'invalid', reason: 'cross-project' };
+  }
+
+  // 7. Reject stale `data-drop-target-id` attrs pointing at a deleted
+  //    status (the kanban column was removed but the DOM attr still
+  //    references the old UUID). Without this guard the resolver would
+  //    happily route the move into a status_id that no longer exists.
+  if (parsedDest.surface === 'kanban' && !statusIds.has(parsedDest.statusId)) {
     return { type: 'invalid', reason: 'not a valid status target' };
   }
 
@@ -171,12 +142,12 @@ export function resolveDragEnd(
     };
   }
 
-  // 9. Tree-status target → cross-surface move.
+  // Tree-status target → cross-surface move.
   return {
     type: 'move-issue',
     issueId: issue.id,
     targetStatusId: parsedDest.statusId,
-    projectId: parsedDest.projectId,
+    projectId: parsedDest.projectId!,
   };
 }
 

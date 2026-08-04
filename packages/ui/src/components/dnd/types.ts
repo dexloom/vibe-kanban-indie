@@ -1,10 +1,10 @@
 export type DragKind = 'issue-move' | 'column-reorder' | 'project-reorder';
 
-export type DragSource = {
-  kind: 'issue-move';
-  issueId: string;
-  projectId: string;
-};
+/** Discriminated union — future `column-reorder` / `project-reorder` variants
+ * extend this; consumers narrow via `source.kind`. */
+export type DragSource =
+  | { kind: 'issue-move'; issueId: string; projectId: string }
+  | { kind: 'project-reorder'; projectId: string };
 
 export type Placement = 'on' | 'before' | 'after';
 
@@ -25,4 +25,7 @@ export interface Candidate {
    * for the source card's presence in the target column. Constant within a
    * drag. */
   sourceIssueId: string | null;
+  /** Id of the dragged project (project-reorder only); constant within a
+   * drag. */
+  sourceProjectId: string | null;
 }

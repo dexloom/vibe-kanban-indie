@@ -12,10 +12,17 @@ import {
   useDragActive,
   useDragCandidate,
   useDragInsertion,
+  useDragSourceIssueId,
 } from './outliner/dragState';
 import { useDraggable, useDropTarget } from './dnd';
 import { adjustInsertionIndex } from './dnd/geometry';
 import type { DragSource } from './dnd';
+
+/** Source shape specific to kanban card drags; narrows `DragSource` for
+ * the props below so card-only code reaches `.issueId` without a runtime
+ * guard. Project-row drags are bound via the same `DragSource` union but
+ * flow through a separate tree-node renderer (see `treeNodes.tsx`). */
+type IssueMoveSource = Extract<DragSource, { kind: 'issue-move' }>;
 import React, {
   type KeyboardEvent,
   type MouseEvent,
@@ -66,7 +73,7 @@ export const KanbanBoard = ({ children, className }: KanbanBoardProps) => {
 // =============================================================================
 
 export type KanbanCardProps = {
-  source: DragSource;
+  source: IssueMoveSource;
   children?: ReactNode;
   className?: string;
   onClick?: (e: MouseEvent<HTMLDivElement>) => void;
@@ -93,13 +100,20 @@ export const KanbanCard = ({
   name,
 }: KanbanCardProps) => {
   const { onMouseDown } = useDraggable(source, { disabled: dragDisabled });
+  // Dim the source card while a drag is in flight; the source card may
+  // be in a column that has no live insertion (the pointer is over a
+  // different column), so the source id lives in its own context
+  // (`DragSourceContext`), not on `DragInsertionContext`.
+  const dragSourceIssueId = useDragSourceIssueId();
+  const isDraggedSource = dragSourceIssueId === source.issueId;
   return (
     <Card
       className={cn(
-        'p-base outline-none flex-col rounded-md border -mt-[1px] -mx-[1px] bg-surface',
+        'p-base outline-none flex-col rounded-md border -mt-[1px] -mx-[1px] bg-surface cursor-pointer',
         isSelected
           ? 'ring-2 ring-accent ring-inset bg-accent/5'
           : isOpen && 'ring-2 ring-brand ring-inset',
+        isDraggedSource && 'opacity-50 transition-opacity',
         className,
       )}
       {...(onMouseDown ? { onMouseDown } : {})}
@@ -139,61 +153,101 @@ export type KanbanCardsProps = {
   /** Project id this column belongs to. Custom drag controller reads
    * `data-drop-target-project` so it skips targets from other projects. */
   activeProjectId?: string | null;
+  /** When false, same-column drags (where the source card already lives in
+   * this column) suppress the insertion indicator — the controller no-ops
+   * the move in non-positional sort modes so the indicator would be a lie. */
+  positionalReorderEnabled?: boolean;
 };
+
+/** Fallback placeholder height when the column has no cards to measure
+ * (empty column). Matches the typical card visual height in this app. */
+const FALLBACK_CARD_HEIGHT_PX = 60;
 
 export const KanbanCards = ({
   id,
   children,
   className,
   activeProjectId,
+  positionalReorderEnabled = true,
 }: KanbanCardsProps) => {
   const isDragActive = useDragActive();
   const candidateId = useDragCandidate();
   const isCustomCandidate = isDragActive && candidateId === id;
   const dropTargetAttrs = useDropTarget(id, activeProjectId ?? '');
   const insertion = useDragInsertion();
-  const showInsertion = insertion?.targetId === id;
-  const cardChildren = React.Children.toArray(children);
-  // The drop index is computed against the column's cards EXCLUDING the
-  // dragged source (which is on its way out). When the source sits in this
-  // column, translate the slot to the full children array so the indicator
-  // lands where the card will actually end up.
-  const sourceFullIndex =
-    insertion?.sourceIssueId != null
-      ? cardChildren.findIndex(
-          (child) =>
-            (child as React.ReactElement).key === insertion.sourceIssueId,
-        )
-      : -1;
+  // Container ref + effect-based source-card index + placeholder-height
+  // lookup. The render pass would otherwise see `containerRef.current
+  // === null` (refs are set during commit, not render) and resolve the
+  // source index to -1, placing the indicator one slot off. The effect
+  // runs after commit and stashes the resolved index in state; the next
+  // render reads the live value. Skipping the useState-as-ref callback
+  // avoids a re-render per commit (StrictMode would triple-fire it).
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const [sourceFullIndex, setSourceFullIndex] = React.useState(-1);
+  const [cardHeightPx, setCardHeightPx] = React.useState(
+    FALLBACK_CARD_HEIGHT_PX,
+  );
+  // `React.Children.toArray` returns a fresh array every call — keep a
+  // memoized view so downstream slice / array operations don't churn
+  // when the children prop is referentially stable.
+  const cardChildren = React.useMemo(
+    () => React.Children.toArray(children),
+    [children],
+  );
+  // `useLayoutEffect` instead of `useEffect`: the DOM query + state set
+  // must run synchronously BEFORE paint, otherwise the first paint
+  // after a column entry sees `sourceFullIndex === -1` and the
+  // indicator lands one slot off for one frame. The placeholder-height
+  // measurement shares this same query (one DOM pass per effect run).
+  React.useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!insertion || insertion.targetId !== id) {
+      setSourceFullIndex(-1);
+      setCardHeightPx(FALLBACK_CARD_HEIGHT_PX);
+      return;
+    }
+    if (!el) {
+      setSourceFullIndex(-1);
+      setCardHeightPx(FALLBACK_CARD_HEIGHT_PX);
+      return;
+    }
+    // Locate the dragged source card by DOM order, not React key. React's
+    // `Children.toArray` rewrites every key with an internal `.$` prefix,
+    // so matching against `insertion.sourceIssueId` directly never finds
+    // a hit and the indicator would render one slot off. The container's
+    // `[data-dnd-card]` children are in 1:1 order with `cardChildren`,
+    // and each card carries `data-dnd-card-issue-id` for an exact lookup.
+    const cards = Array.from(
+      el.querySelectorAll<HTMLElement>('[data-dnd-card]'),
+    );
+    // First card's height = the placeholder slot height. Empty column
+    // falls back to a constant. `getBoundingClientRect` is the live
+    // layout height (border + padding + content), no margins.
+    setCardHeightPx(
+      cards[0]
+        ? cards[0].getBoundingClientRect().height
+        : FALLBACK_CARD_HEIGHT_PX,
+    );
+    if (insertion.sourceIssueId == null) {
+      setSourceFullIndex(-1);
+      return;
+    }
+    const idx = cards.findIndex(
+      (card) => card.dataset.dndCardIssueId === insertion.sourceIssueId,
+    );
+    setSourceFullIndex(idx);
+  }, [insertion, id]);
   const fullIndex = adjustInsertionIndex(
     insertion?.index ?? 0,
     sourceFullIndex >= 0 ? sourceFullIndex : null,
   );
-  const renderedChildren = showInsertion
-    ? [
-        ...cardChildren.flatMap((child, i) =>
-          i === fullIndex
-            ? [
-                <div
-                  key={'drop-indicator-' + i}
-                  className="h-0.5 shrink-0 rounded bg-brand/80 mx-2 my-0.5"
-                />,
-                child,
-              ]
-            : [child],
-        ),
-        ...(fullIndex >= cardChildren.length
-          ? [
-              <div
-                key={'drop-indicator-' + fullIndex}
-                className="h-0.5 shrink-0 rounded bg-brand/80 mx-2 my-0.5"
-              />,
-            ]
-          : []),
-      ]
-    : children;
+  // Non-positional sort → any insertion would be re-sorted away by the
+  // next shape sync, so the indicator would lie about the landing slot.
+  // Suppress for every column insertion in that mode.
+  const showInsertion = insertion?.targetId === id && positionalReorderEnabled;
   return (
     <div
+      ref={containerRef}
       className={cn(
         'flex flex-1 flex-col transition-colors',
         isCustomCandidate && 'bg-brand/5',
@@ -201,7 +255,19 @@ export const KanbanCards = ({
       )}
       {...dropTargetAttrs}
     >
-      {renderedChildren}
+      {showInsertion ? (
+        <>
+          {cardChildren.slice(0, fullIndex)}
+          <div
+            data-dnd-insertion-indicator=""
+            className="shrink-0 rounded-md border-2 border-dashed border-brand/60 bg-brand/5 mx-2"
+            style={{ height: `${cardHeightPx}px` }}
+          />
+          {cardChildren.slice(fullIndex)}
+        </>
+      ) : (
+        children
+      )}
     </div>
   );
 };

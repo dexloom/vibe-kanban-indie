@@ -1,4 +1,4 @@
-import { useCallback, type MouseEvent as ReactMouseEvent } from 'react';
+import { useCallback, useRef, type MouseEvent as ReactMouseEvent } from 'react';
 import { useDragController } from './DragContext';
 import type { DragSource } from './types';
 
@@ -13,6 +13,14 @@ export function useDraggable(
   onMouseDown: ((e: ReactMouseEvent<HTMLElement>) => void) | null;
 } {
   const controller = useDragController();
+  // The callback is bound ONCE per (controller, disabled) change so
+  // virtualized tree rows don't see a fresh handler every scroll frame.
+  // `source` is read through a ref — callers pass fresh
+  // `{kind, issueId, projectId}` literals on each render, which would
+  // otherwise re-bind this callback (and the inner `controller.startPress`
+  // dispatch) on every paint.
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
   const onMouseDown = useCallback(
     (e: ReactMouseEvent<HTMLElement>) => {
       if (!controller) return;
@@ -26,9 +34,9 @@ export function useDraggable(
       // event (it fires on mouseup regardless), so plain clicks still fall
       // through to navigation/toggle.
       e.preventDefault();
-      controller.controller?.startPress(source, e.currentTarget, e.nativeEvent);
+      controller.startPress(sourceRef.current, e.currentTarget, e.nativeEvent);
     },
-    [controller, options?.disabled, source],
+    [controller, options?.disabled],
   );
   return { onMouseDown: controller ? onMouseDown : null };
 }

@@ -5,6 +5,8 @@ import {
   DragActiveProvider,
   DragCandidateProvider,
   DragInsertionProvider,
+  DragSourceProjectProvider,
+  DragSourceProvider,
   type InsertionPoint,
 } from '../outliner/dragState';
 import type { Candidate, DragCompletion } from './types';
@@ -21,8 +23,19 @@ export function DragProvider({ onDrop, children }: DragProviderProps) {
     placement: null,
     index: null,
     sourceIssueId: null,
+    sourceProjectId: null,
   });
   const [insertion, setInsertion] = useState<InsertionPoint | null>(null);
+  // `sourceIssueId` is constant for the duration of a drag — the
+  // controller carries it on every candidate, but only the FIRST set
+  // matters (subsequent identical values would still re-render the
+  // source-context consumers). Guard with a setIfChanged so a noisy
+  // rAF stream that re-emits the same id does not invalidate
+  // `KanbanCard` instances across the source column.
+  const [sourceIssueId, setSourceIssueId] = useState<string | null>(null);
+  // `sourceProjectId` mirrors `sourceIssueId` for `project-reorder`
+  // drags — project rows read it to dim themselves during a drag.
+  const [sourceProjectId, setSourceProjectId] = useState<string | null>(null);
   const onDropRef = useRef(onDrop);
   onDropRef.current = onDrop;
   const controllerRef = useRef<DragController | null>(null);
@@ -32,9 +45,13 @@ export function DragProvider({ onDrop, children }: DragProviderProps) {
       onDragEnd: () => {
         setIsDragActive(false);
         setInsertion(null);
+        setSourceIssueId(null);
+        setSourceProjectId(null);
       },
       onCandidateChange: (c: Candidate) => {
         setCandidate(c);
+        if (c.sourceIssueId !== null) setSourceIssueId(c.sourceIssueId);
+        if (c.sourceProjectId !== null) setSourceProjectId(c.sourceProjectId);
         setInsertion(
           c.targetId && c.index !== null
             ? {
@@ -54,15 +71,19 @@ export function DragProvider({ onDrop, children }: DragProviderProps) {
       controllerRef.current = null;
     };
   }, []);
-  const value = useMemo(() => ({ controller: controllerRef.current }), []);
+  const value = useMemo(() => controllerRef.current, []);
   return (
     <DragControllerContext.Provider value={value}>
       <DragActiveProvider value={isDragActive}>
-        <DragCandidateProvider value={candidate.targetId}>
-          <DragInsertionProvider value={insertion}>
-            {children}
-          </DragInsertionProvider>
-        </DragCandidateProvider>
+        <DragSourceProvider value={sourceIssueId}>
+          <DragSourceProjectProvider value={sourceProjectId}>
+            <DragCandidateProvider value={candidate.targetId}>
+              <DragInsertionProvider value={insertion}>
+                {children}
+              </DragInsertionProvider>
+            </DragCandidateProvider>
+          </DragSourceProjectProvider>
+        </DragSourceProvider>
       </DragActiveProvider>
     </DragControllerContext.Provider>
   );

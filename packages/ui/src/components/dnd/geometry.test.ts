@@ -93,26 +93,26 @@ describe('computePlacement', () => {
   const r = rect('r1', 0, 0, 10, 30);
 
   it('returns "before" when the pointer is in the top third', () => {
-    expect(computePlacement(5, 5, r)).toBe('before');
+    expect(computePlacement(5, r)).toBe('before');
   });
 
   it('returns "before" at the top-third boundary', () => {
     // height/3 = 10; at y===top → before.
-    expect(computePlacement(5, 0, r)).toBe('before');
-    expect(computePlacement(5, 9, r)).toBe('before');
+    expect(computePlacement(0, r)).toBe('before');
+    expect(computePlacement(9, r)).toBe('before');
   });
 
   it('returns "on" when the pointer sits in the middle third', () => {
-    expect(computePlacement(5, 10, r)).toBe('on');
-    expect(computePlacement(5, 15, r)).toBe('on');
-    expect(computePlacement(5, 19, r)).toBe('on');
+    expect(computePlacement(10, r)).toBe('on');
+    expect(computePlacement(15, r)).toBe('on');
+    expect(computePlacement(19, r)).toBe('on');
   });
 
   it('returns "after" when the pointer is in the bottom third', () => {
     // Strictly past bottomThird (20) → 'after'.
-    expect(computePlacement(5, 21, r)).toBe('after');
-    expect(computePlacement(5, 25, r)).toBe('after');
-    expect(computePlacement(5, 30, r)).toBe('after');
+    expect(computePlacement(21, r)).toBe('after');
+    expect(computePlacement(25, r)).toBe('after');
+    expect(computePlacement(30, r)).toBe('after');
   });
 });
 
@@ -121,8 +121,6 @@ describe('findBestCandidate', () => {
     expect(findBestCandidate(0, 0, [], 100)).toEqual({
       targetId: null,
       placement: null,
-      index: null,
-      sourceIssueId: null,
     });
   });
 
@@ -134,8 +132,6 @@ describe('findBestCandidate', () => {
     expect(findBestCandidate(0, 0, targets, 100)).toEqual({
       targetId: null,
       placement: null,
-      index: null,
-      sourceIssueId: null,
     });
   });
 

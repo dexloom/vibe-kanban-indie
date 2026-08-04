@@ -82,6 +82,7 @@ import { refreshShapeSource } from '@/shared/lib/electric/collections';
 import { useIssueMultiSelect } from '@/shared/hooks/useIssueMultiSelect';
 import { useIssueSelectionStore } from '@/shared/stores/useIssueSelectionStore';
 import { BulkActionBarContainer } from './BulkActionBarContainer';
+import { computeKanbanMove } from '../model/computeKanbanMove';
 import {
   useKanbanDragHandler,
   type KanbanDragHandler,
@@ -492,6 +493,11 @@ export function KanbanContainer() {
 
   // Track items as arrays of IDs grouped by status
   const [items, setItems] = useState<Record<string, string[]>>({});
+  // Items mirror, used by the move handler to compute the next state
+  // outside the React updater (the previous implementation mutated a `let`
+  // inside the setItems updater, which is fragile under concurrent React).
+  const itemsRef = useRef<Record<string, string[]>>({});
+  itemsRef.current = items;
   const [isFiltersDialogOpen, setIsFiltersDialogOpen] = useState(false);
 
   // Sync items from filtered issues when they change
@@ -712,50 +718,75 @@ export function KanbanContainer() {
     [statusColumnIndexMap]
   );
 
+  // Fire the REST + shape refresh. `isSyncingRef` gates the items-rebuild
+  // effect so the optimistic local order isn't trampled by a slow shape
+  // sync; cleared in both branches once the shape refresh resolves (or
+  // the catch runs). On failure we just log + force a shape refresh — the
+  // failed bulkUpdateIssues left the backend untouched, so the next shape
+  // sync restores authoritative state.
+  const applyKanbanMove = useCallback(
+    (updates: BulkUpdateIssueItem[], projectIdArg: string) => {
+      isSyncingRef.current = true;
+      bulkUpdateIssues(updates)
+        .then(() =>
+          refreshShapeSource(PROJECT_ISSUES_SHAPE, {
+            project_id: projectIdArg,
+          })
+        )
+        .then(() => {
+          isSyncingRef.current = false;
+        })
+        .catch((err) => {
+          console.error('Failed to bulk update sort order:', err);
+          isSyncingRef.current = false;
+          refreshShapeSource(PROJECT_ISSUES_SHAPE, {
+            project_id: projectIdArg,
+          });
+        });
+    },
+    []
+  );
+
+  // Hoisted once and reused by `handleKanbanMove` (same-status gate) +
+  // the `positionalReorderEnabled` prop on each `KanbanCards` column
+  // (insertion indicator suppression). Otherwise the same expression is
+  // computed twice per render and `KanbanCards` misses a state when the
+  // move handler's deps array excludes a related derivation.
+  const isManualSort = kanbanFilters.sortField === 'sort_order';
+
   // Move-based handler. Called from two paths:
-  //   1. The shared custom drag system via KanbanDragHandlerProvider
-  //      (cross-surface drag → kanban column lands here with
-  //      destIndex undefined, defaulting to 'end').
+  //   1. The shared custom drag system via KanbanDragHandlerProvider.
+  //      Cross-surface drops land here with a numeric `destIndex` —
+  //      the unified `DragController` ALWAYS emits a numeric
+  //      `completion.index` for kanban-column hits (threaded through
+  //      `kanban-internal.destIndex`), including same-column drags.
+  //      `destIndex` is undefined ONLY when a future shape lands
+  //      without an index, which the unified controller does not
+  //      currently produce — the comment that used to call this an
+  //      "append" path was stale (the unified controller never reaches
+  //      `handleKanbanMove` without a numeric index for kanban hits).
   //   2. The legacy list-view adapter (IssueListView) which still uses
-  //      hello-pangea for positional reordering inside columns.
-  // The same logic handles both: it updates local state, then fires
-  // bulkUpdateIssues for both the destination column (status_id +
-  // sort_order) and the source column (sort_order only when cross-column).
+  //      hello-pangea for positional reordering inside columns. The
+  //      `DropResult.destination.index` is a numeric hello-pangea
+  //      value; in non-positional sort mode it is `null` and the
+  //      `computeKanbanMove` clamps-to-end behavior applies.
+  // Thin orchestrator: guard → compute next state → build updates →
+  // apply (REST + shape refresh).
   const handleKanbanMove = useCallback(
     (move: KanbanMove) => {
-      const { issueId, fromStatusId, toStatusId, destIndex = 'end' } = move;
-      const isManualSort = kanbanFilters.sortField === 'sort_order';
+      const { fromStatusId, toStatusId } = move;
 
-      if (fromStatusId === toStatusId) {
-        // Same-status move: meaningful only as a positional reorder
-        // (numeric destIndex from the legacy list view) and only in manual
-        // sort mode. Custom drags are always 'end' → no-op.
-        if (destIndex === 'end') return;
-        if (!isManualSort) return;
-      }
+      // The same-status gate: in non-positional sort mode (the default)
+      // every same-status move is a no-op because the next shape sync
+      // re-sorts the column and the user's intent is "leave it where it
+      // is". This is the sole practical gate for same-status moves
+      // (custom drags always emit a numeric index for kanban-column
+      // hits, so the previous destIndex==null check was unreachable).
+      if (fromStatusId === toStatusId && !isManualSort) return;
 
-      let newItems: Record<string, string[]> = {};
-      setItems((prev) => {
-        const sourceItems = [...(prev[fromStatusId] ?? [])].filter(
-          (id) => id !== issueId
-        );
-        const destItems = [...(prev[toStatusId] ?? [])].filter(
-          (id) => id !== issueId
-        );
-        const insertAt =
-          destIndex === 'end'
-            ? destItems.length
-            : Math.min(destIndex, destItems.length);
-        destItems.splice(insertAt, 0, issueId);
-        newItems = {
-          ...prev,
-          [fromStatusId]: sourceItems,
-          [toStatusId]: destItems,
-        };
-        return newItems;
-      });
+      const newItems = computeKanbanMove(itemsRef.current, move);
+      setItems(newItems);
 
-      // Build bulk updates with sort_order recalculation for BOTH columns.
       const updates: BulkUpdateIssueItem[] = [];
       const destIssueIds = newItems[toStatusId] ?? [];
       destIssueIds.forEach((id, index) => {
@@ -767,7 +798,10 @@ export function KanbanContainer() {
           },
         });
       });
-      if (fromStatusId !== toStatusId) {
+      if (
+        fromStatusId !== toStatusId &&
+        statusColumnIndexMap.has(fromStatusId)
+      ) {
         const sourceIssueIds = newItems[fromStatusId] ?? [];
         sourceIssueIds.forEach((id, index) => {
           updates.push({
@@ -779,21 +813,15 @@ export function KanbanContainer() {
         });
       }
 
-      isSyncingRef.current = true;
-      bulkUpdateIssues(updates)
-        .then(() => {
-          refreshShapeSource(PROJECT_ISSUES_SHAPE, { project_id: projectId });
-        })
-        .catch((err) => {
-          console.error('Failed to bulk update sort order:', err);
-        })
-        .finally(() => {
-          setTimeout(() => {
-            isSyncingRef.current = false;
-          }, 500);
-        });
+      applyKanbanMove(updates, projectId);
     },
-    [projectId, kanbanFilters.sortField, calculateSortOrder]
+    [
+      projectId,
+      isManualSort,
+      calculateSortOrder,
+      statusColumnIndexMap,
+      applyKanbanMove,
+    ]
   );
 
   // Legacy list-view adapter (positional reorder still uses
@@ -1098,7 +1126,11 @@ export function KanbanContainer() {
                         </button>
                       </div>
                     </KanbanHeader>
-                    <KanbanCards id={status.id} activeProjectId={projectId}>
+                    <KanbanCards
+                      id={status.id}
+                      activeProjectId={projectId}
+                      positionalReorderEnabled={isManualSort}
+                    >
                       {issueIds.map((issueId) => {
                         const issue = issueMap[issueId];
                         if (!issue) return null;
