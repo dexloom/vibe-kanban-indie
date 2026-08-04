@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { KanbanCard, KanbanCards } from './KanbanBoard';
 import {
   DragActiveProvider,
+  DragCandidateIndexProvider,
   DragCandidateProvider,
   DragSourceProvider,
 } from './outliner/dragState';
@@ -23,6 +24,12 @@ const SOURCE_B = {
   issueId: 'issue-2',
   projectId: 'p1',
   statusId: 'status-A',
+};
+const SOURCE_C = {
+  kind: 'issue-move' as const,
+  issueId: 'issue-3',
+  projectId: 'p1',
+  statusId: 'status-B',
 };
 
 describe('KanbanCard drop target attrs', () => {
@@ -253,6 +260,72 @@ describe('KanbanCards cross-column move preview', () => {
       );
       expect(clones.length).toBe(1);
       expect((clones[0] as HTMLElement).style.opacity).toBe('0.5');
+    });
+    unmount();
+  });
+
+  it('inserts the dimmed clone at the candidate insertion index (not the end)', async () => {
+    const { container, unmount } = render(
+      <>
+        <div data-dnd-card data-dnd-card-issue-id="issue-1">
+          A
+        </div>
+        <DragActiveProvider value={true}>
+          <DragSourceProvider value="issue-1">
+            <DragCandidateProvider value="status-B">
+              <DragCandidateIndexProvider value={0}>
+                <KanbanCards id="status-B" activeProjectId="p1">
+                  <KanbanCard key="issue-2" source={SOURCE_B}>
+                    B
+                  </KanbanCard>
+                  <KanbanCard key="issue-3" source={SOURCE_C}>
+                    C
+                  </KanbanCard>
+                </KanbanCards>
+              </DragCandidateIndexProvider>
+            </DragCandidateProvider>
+          </DragSourceProvider>
+        </DragActiveProvider>
+      </>
+    );
+    await waitFor(() => {
+      const col = container.querySelector('[data-drop-target-id="status-B"]')!;
+      const order = Array.from(
+        col.querySelectorAll('[data-dnd-card-issue-id]')
+      ).map((el) => el.getAttribute('data-dnd-card-issue-id'));
+      // index 0 → the clone goes BEFORE issue-2 / issue-3.
+      expect(order).toEqual(['issue-1', 'issue-2', 'issue-3']);
+    });
+    unmount();
+  });
+
+  it('appends the clone when the candidate index is past the last child', async () => {
+    const { container, unmount } = render(
+      <>
+        <div data-dnd-card data-dnd-card-issue-id="issue-1">
+          A
+        </div>
+        <DragActiveProvider value={true}>
+          <DragSourceProvider value="issue-1">
+            <DragCandidateProvider value="status-B">
+              <DragCandidateIndexProvider value={99}>
+                <KanbanCards id="status-B" activeProjectId="p1">
+                  <KanbanCard key="issue-2" source={SOURCE_B}>
+                    B
+                  </KanbanCard>
+                </KanbanCards>
+              </DragCandidateIndexProvider>
+            </DragCandidateProvider>
+          </DragSourceProvider>
+        </DragActiveProvider>
+      </>
+    );
+    await waitFor(() => {
+      const col = container.querySelector('[data-drop-target-id="status-B"]')!;
+      const order = Array.from(
+        col.querySelectorAll('[data-dnd-card-issue-id]')
+      ).map((el) => el.getAttribute('data-dnd-card-issue-id'));
+      expect(order).toEqual(['issue-2', 'issue-1']);
     });
     unmount();
   });

@@ -10,6 +10,13 @@ export interface KanbanMove {
   issueId: string;
   fromStatusId: string;
   toStatusId: string;
+  /** Insertion slot in the destination column (how many cards sit above).
+   * `undefined`/null appends to the end (legacy list-view path). */
+  index?: number | null;
+  /** When set, this is a same-column SWAP of two cards (not a move): the
+   * board swaps `issueId` and `swapWithIssueId` in the destination column
+   * and persists their `status_id` + `sort_order` exchange. */
+  swapWithIssueId?: string | null;
 }
 
 export type KanbanDragHandler = (move: KanbanMove) => void;

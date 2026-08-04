@@ -1,9 +1,12 @@
 import {
   DROP_THRESHOLD_PX,
   DRAG_THRESHOLD_PX,
+  computeCardInsertionIndex,
   findBestCandidate,
+  type CardExtent,
   type TargetRect,
 } from './geometry';
+import { isColumnLikeTarget } from './targetKind';
 import type { Candidate, DragCompletion, DragSource } from './types';
 
 // Visual tuning for the drag ghost. Kept module-local so they survive any
@@ -89,6 +92,12 @@ export class DragController {
    * swap preview never oscillates and any card in the column can be the
    * target (not just the one first hovered). */
   private sourceCardRects: Map<string, { left: number; top: number; right: number; bottom: number }> | null = null;
+  /** Snapshot of the TARGET column's card extents for cross-column move
+   * insertion-index resolution. Captured lazily when the candidate first
+   * resolves to a given column; the move preview appends a clone into the
+   * column, shifting its live rects, so the index must be computed against
+   * this frozen layout to avoid oscillation. */
+  private targetColumnRects: { columnId: string; cards: CardExtent[] } | null = null;
   private rafHandle: number | null = null;
   private lastClientX = 0;
   private lastClientY = 0;
@@ -476,24 +485,70 @@ export class DragController {
       targets,
       DROP_THRESHOLD_PX
     );
+    // Cross-column move onto a kanban column: resolve the insertion slot
+    // against the target column's promote-time card snapshot. Tree-status
+    // rows and card (swap) targets carry no insertion index.
+    const index =
+      sourceIssueId !== null &&
+      targetId !== null &&
+      !isCard &&
+      isColumnLikeTarget(targetId)
+        ? this.resolveColumnInsertIndex(targetId, y)
+        : null;
     return {
       targetId,
       placement,
-      index: null,
+      index,
       isCard,
       sourceIssueId,
       sourceProjectId,
     };
   }
 
+  /** Insertion slot for a cross-column move: how many of the target column's
+   * cards sit above the pointer's card slot (pointer above a card's midpoint
+   * → before it; below → after). Snapshotted per column so the preview
+   * clone's presence never shifts the resolved index. */
+  private resolveColumnInsertIndex(columnId: string, y: number): number {
+    const cards = this.getTargetColumnCards(columnId);
+    return computeCardInsertionIndex(y, cards);
+  }
+
+  private getTargetColumnCards(columnId: string): CardExtent[] {
+    if (
+      this.targetColumnRects !== null &&
+      this.targetColumnRects.columnId === columnId
+    ) {
+      return this.targetColumnRects.cards;
+    }
+    const cards: CardExtent[] = [];
+    if (typeof document !== 'undefined') {
+      document
+        .querySelectorAll<HTMLElement>(`[data-drop-target-status="${columnId}"]`)
+        .forEach((cardEl) => {
+          const rect = cardEl.getBoundingClientRect();
+          cards.push({ top: rect.top, bottom: rect.bottom });
+        });
+    }
+    // The preview clone is NOT registered as a drop target (its
+    // `data-drop-target-id` is stripped), so the live query sees only real
+    // cards. Sort defensively top→bottom regardless.
+    cards.sort((a, b) => a.top - b.top);
+    this.targetColumnRects = { columnId, cards };
+    return cards;
+  }
+
   private isPointerOverSource(x: number, y: number): boolean {
     if (this.state.kind !== 'dragging') return false;
-    const sourceEl = this.state.element;
-    if (!sourceEl || typeof document === 'undefined') return false;
-    // `elementFromPoint` ignores the ghost (pointer-events: none), so it
-    // returns the real source card when the pointer rests on it.
-    const under = document.elementFromPoint(x, y);
-    return !!under && sourceEl.contains(under);
+    const src = this.state.source;
+    if (src.kind !== 'issue-move') return false;
+    // Compare against the promote-time SNAPSHOT rect of the source card,
+    // not the live DOM: the swap preview reorders children mid-gesture, so
+    // the source card's live position is wherever the pointer dragged it.
+    // Only a true "returned to my own slot" lands inside the snapshot.
+    const rect = this.sourceCardRects?.get(src.issueId);
+    if (!rect) return false;
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
   }
 
   private buildDragCompletion(
@@ -534,6 +589,7 @@ export class DragController {
 
   private teardown(): void {
     this.sourceCardRects = null;
+    this.targetColumnRects = null;
     if (this.state.kind === 'dragging' && this.state.ghost) {
       this.state.ghost.remove();
     }

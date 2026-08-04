@@ -757,36 +757,89 @@ export function KanbanContainer() {
   // apply (REST + shape refresh).
   const handleKanbanMove = useCallback(
     (move: KanbanMove) => {
-      const { fromStatusId, toStatusId } = move;
+      const { swapWithIssueId } = move;
+      // Same-column SWAP of two cards: exchange their status_id +
+      // sort_order optimistically (no round-trip flash — the visual
+      // preview already reordered the DOM, so committing immediately in
+      // the local items map prevents the "updated → old → correct" flicker
+      // the user saw on successful swaps).
+      if (swapWithIssueId) {
+        const a = issueMap[move.issueId];
+        const b = issueMap[swapWithIssueId];
+        if (!a || !b) return;
+        setItems((prev) => {
+          const next = { ...prev };
+          const aCol = [...(next[a.status_id] ?? [])];
+          const bCol = [...(next[b.status_id] ?? [])];
+          const ai = aCol.indexOf(a.id);
+          const bi = bCol.indexOf(b.id);
+          // Swap the ids in place when both live in the same column; when
+          // they live in different columns, swap the ids' membership.
+          if (a.status_id === b.status_id && ai !== -1 && bi !== -1) {
+            [aCol[ai], aCol[bi]] = [aCol[bi], aCol[ai]];
+            next[a.status_id] = aCol;
+          } else {
+            if (ai !== -1) aCol.splice(ai, 1);
+            if (bi !== -1) bCol.splice(bi, 1);
+            next[a.status_id] = [...bCol, a.id];
+            next[b.status_id] = [...aCol, b.id];
+          }
+          return next;
+        });
+        bulkUpdateIssues([
+          {
+            id: a.id,
+            changes: { status_id: b.status_id, sort_order: b.sort_order },
+          },
+          {
+            id: b.id,
+            changes: { status_id: a.status_id, sort_order: a.sort_order },
+          },
+        ])
+          .then(() =>
+            refreshShapeSource(PROJECT_ISSUES_SHAPE, {
+              project_id: projectId,
+            })
+          )
+          .catch((err) => {
+            console.error('[dnd] kanban swap failed:', err);
+            refreshShapeSource(PROJECT_ISSUES_SHAPE, {
+              project_id: projectId,
+            });
+          });
+        return;
+      }
+
+      const { fromStatusId: from, toStatusId: to } = move;
       // Same-status drop is a no-op (computeKanbanMove would return
       // the prev map unchanged; the early return avoids the bulkUpdate
       // round-trip too).
-      if (fromStatusId === toStatusId) return;
+      if (from === to) return;
 
       const newItems = computeKanbanMove(itemsRef.current, move);
       setItems(newItems);
 
       const updates: BulkUpdateIssueItem[] = [];
-      const destIssueIds = newItems[toStatusId] ?? [];
+      const destIssueIds = newItems[to] ?? [];
       destIssueIds.forEach((id, index) => {
         updates.push({
           id,
           changes: {
-            status_id: toStatusId,
-            sort_order: calculateSortOrder(toStatusId, index),
+            status_id: to,
+            sort_order: calculateSortOrder(to, index),
           },
         });
       });
       if (
-        fromStatusId !== toStatusId &&
-        statusColumnIndexMap.has(fromStatusId)
+        from !== to &&
+        statusColumnIndexMap.has(from)
       ) {
-        const sourceIssueIds = newItems[fromStatusId] ?? [];
+        const sourceIssueIds = newItems[from] ?? [];
         sourceIssueIds.forEach((id, index) => {
           updates.push({
             id,
             changes: {
-              sort_order: calculateSortOrder(fromStatusId, index),
+              sort_order: calculateSortOrder(from, index),
             },
           });
         });
@@ -794,7 +847,7 @@ export function KanbanContainer() {
 
       applyKanbanMove(updates, projectId);
     },
-    [projectId, calculateSortOrder, statusColumnIndexMap, applyKanbanMove]
+    [projectId, calculateSortOrder, statusColumnIndexMap, applyKanbanMove, issueMap]
   );
 
   // Legacy list-view adapter (positional reorder still uses

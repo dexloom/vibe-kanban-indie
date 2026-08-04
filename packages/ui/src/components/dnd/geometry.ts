@@ -105,3 +105,34 @@ export function findBestCandidate(
     isCard: bestTarget.isCard,
   };
 }
+
+/** Vertical extent of a card in a column, for insertion-index math. */
+export interface CardExtent {
+  top: number;
+  bottom: number;
+}
+
+/**
+ * Compute the insertion slot for a cross-column move: where the dragged card
+ * lands relative to the target column's existing cards, decided by the
+ * pointer against each card's vertical midpoint.
+ *
+ *  - pointer above a card's midpoint → insert BEFORE that card
+ *  - pointer below a card's midpoint → insert AFTER it
+ *  - pointer past the last card → append (index = cards.length)
+ *  - empty column → 0 (append to empty)
+ *
+ * `cards` MUST be pre-sorted top→bottom (DOM order) and should come from a
+ * promote-time snapshot so the preview clone's insertion cannot feed back
+ * into the index (oscillation guard — see the swap snapshot).
+ */
+export function computeCardInsertionIndex(
+  y: number,
+  cards: readonly CardExtent[]
+): number {
+  for (let i = 0; i < cards.length; i++) {
+    const mid = (cards[i].top + cards[i].bottom) / 2;
+    if (y <= mid) return i;
+  }
+  return cards.length;
+}

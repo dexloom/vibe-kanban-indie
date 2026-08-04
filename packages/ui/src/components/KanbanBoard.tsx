@@ -11,6 +11,7 @@ import { cn } from '../lib/cn';
 import {
   useDragActive,
   useDragCandidate,
+  useDragCandidateIndex,
   useDragSourceIssueId,
 } from './outliner/dragState';
 import { useDraggable, useDropTarget } from './dnd';
@@ -174,6 +175,7 @@ export const KanbanCards = ({
 }: KanbanCardsProps) => {
   const isDragActive = useDragActive();
   const candidateId = useDragCandidate();
+  const candidateIndex = useDragCandidateIndex();
   const sourceIssueId = useDragSourceIssueId();
   const isSwapPreview =
     isDragActive && candidateId !== null && candidateId !== id;
@@ -181,9 +183,11 @@ export const KanbanCards = ({
   const dropTargetAttrs = useDropTarget(id, activeProjectId ?? '');
   const columnRef = useRef<HTMLDivElement | null>(null);
   // Cross-column move preview: append a dimmed clone of the dragged card at
-  // the end of the target column, so the user sees exactly what will land.
-  // Same imperative-clone pattern as the drag ghost (transient, removed on
-  // preview end). The source card stays in its original column (dimmed).
+  // the insertion slot of the target column (index = how many cards sit
+  // above it; computed against the controller's promote-time snapshot), so
+  // the user sees exactly what will land. Same imperative-clone pattern as
+  // the drag ghost (transient, removed on preview end). The source card
+  // stays in its original column (dimmed).
   useEffect(() => {
     if (!isMovePreview || !sourceIssueId || !columnRef.current) return;
     // Issue ids are bare UUIDs (safe selector chars — no CSS escaping needed).
@@ -196,9 +200,12 @@ export const KanbanCards = ({
     preview.style.pointerEvents = 'none';
     preview.removeAttribute('data-dnd-card');
     preview.removeAttribute('data-drop-target-id');
-    columnRef.current.appendChild(preview);
+    const col = columnRef.current;
+    const insertAt = candidateIndex ?? col.children.length;
+    const anchor = col.children[insertAt] ?? null;
+    col.insertBefore(preview, anchor);
     return () => preview.remove();
-  }, [isMovePreview, sourceIssueId]);
+  }, [isMovePreview, sourceIssueId, candidateIndex]);
 
   const displayChildren = useMemo(() => {
     if (!isSwapPreview || !sourceIssueId) return children;

@@ -63,4 +63,61 @@ describe('computeKanbanMove', () => {
     expect(prev.done).toEqual(['x']);
     expect(result).not.toBe(prev);
   });
+
+  it('inserts at the given index in the destination column', () => {
+    const move: KanbanMove = {
+      issueId: 'b',
+      fromStatusId: 'todo',
+      toStatusId: 'done',
+      index: 1,
+    };
+    const result = computeKanbanMove(
+      items(['todo', ['a', 'b', 'c']], ['done', ['x', 'y']]),
+      move
+    );
+    expect(result.todo).toEqual(['a', 'c']);
+    expect(result.done).toEqual(['x', 'b', 'y']);
+  });
+
+  it('inserts at the front when index is 0', () => {
+    const move: KanbanMove = {
+      issueId: 'b',
+      fromStatusId: 'todo',
+      toStatusId: 'done',
+      index: 0,
+    };
+    const result = computeKanbanMove(
+      items(['todo', ['a', 'b', 'c']], ['done', ['x', 'y']]),
+      move
+    );
+    expect(result.done).toEqual(['b', 'x', 'y']);
+  });
+
+  it('clamps an index past the end of the destination column (appends)', () => {
+    const move: KanbanMove = {
+      issueId: 'b',
+      fromStatusId: 'todo',
+      toStatusId: 'done',
+      index: 99,
+    };
+    const result = computeKanbanMove(
+      items(['todo', ['a', 'b', 'c']], ['done', ['x', 'y']]),
+      move
+    );
+    expect(result.done).toEqual(['x', 'y', 'b']);
+  });
+
+  it('treats null index as append', () => {
+    const move: KanbanMove = {
+      issueId: 'b',
+      fromStatusId: 'todo',
+      toStatusId: 'done',
+      index: null,
+    };
+    const result = computeKanbanMove(
+      items(['todo', ['a', 'b', 'c']], ['done', ['x']]),
+      move
+    );
+    expect(result.done).toEqual(['x', 'b']);
+  });
 });

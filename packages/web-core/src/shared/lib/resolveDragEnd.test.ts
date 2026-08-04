@@ -126,6 +126,7 @@ describe('resolveDragEnd', () => {
       fromStatusId: COL_TODO,
       toStatusId: COL_TODO,
       projectId: ACTIVE,
+      index: null,
     });
   });
 
@@ -158,6 +159,26 @@ describe('resolveDragEnd', () => {
       fromStatusId: COL_TODO,
       toStatusId: COL_DONE,
       projectId: ACTIVE,
+      index: null,
+    });
+  });
+
+  it('passes the insertion index through for a cross-status kanban move', () => {
+    const completion = makeCompletion(uuid(1), COL_DONE, ACTIVE, 2);
+    const issues = issuesById({
+      id: uuid(1),
+      project_id: ACTIVE,
+      status_id: COL_TODO,
+    });
+    expect(
+      resolveDragEnd(completion, ACTIVE, issues, ACTIVE_STATUS_IDS)
+    ).toEqual({
+      type: 'kanban-internal',
+      issueId: uuid(1),
+      fromStatusId: COL_TODO,
+      toStatusId: COL_DONE,
+      projectId: ACTIVE,
+      index: 2,
     });
   });
 

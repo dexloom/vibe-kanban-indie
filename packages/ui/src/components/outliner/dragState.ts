@@ -43,6 +43,20 @@ export function useDragCandidate(): string | null {
 }
 
 /**
+ * Insertion slot of the candidate, non-null only for a cross-column issue
+ * move onto a kanban column (how many cards sit above the pointer's card
+ * slot). Kept as a separate context so a slot change re-renders only the
+ * kanban column showing the move preview, not every candidate consumer.
+ */
+export const DragCandidateIndexContext = createContext<number | null>(null);
+
+export const DragCandidateIndexProvider = DragCandidateIndexContext.Provider;
+
+export function useDragCandidateIndex(): number | null {
+  return useContext(DragCandidateIndexContext);
+}
+
+/**
  * Id of the dragged source issue, or `null` when no drag is in flight.
  *
  * Constant for the duration of a single drag — `candidate.sourceIssueId`

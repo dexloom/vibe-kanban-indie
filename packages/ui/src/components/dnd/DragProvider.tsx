@@ -3,6 +3,7 @@ import { DragController, type DragControllerCallbacks } from './DragController';
 import { DragControllerContext } from './DragContext';
 import {
   DragActiveProvider,
+  DragCandidateIndexProvider,
   DragCandidateProvider,
   DragSourceProjectProvider,
   DragSourceProvider,
@@ -65,9 +66,11 @@ export function DragProvider({ onDrop, children }: DragProviderProps) {
       <DragActiveProvider value={isDragActive}>
         <DragSourceProvider value={sourceIssueId}>
           <DragSourceProjectProvider value={sourceProjectId}>
-            <DragCandidateProvider value={candidate.targetId}>
+          <DragCandidateProvider value={candidate.targetId}>
+            <DragCandidateIndexProvider value={candidate.index}>
               {children}
-            </DragCandidateProvider>
+            </DragCandidateIndexProvider>
+          </DragCandidateProvider>
           </DragSourceProjectProvider>
         </DragSourceProvider>
       </DragActiveProvider>

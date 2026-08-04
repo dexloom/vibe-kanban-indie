@@ -23,6 +23,8 @@ export type DragOutcome =
       fromStatusId: string;
       toStatusId: string;
       projectId: string;
+      /** Insertion slot in the destination column, or null to append. */
+      index: number | null;
     }
   | {
       type: 'issue-swap';
@@ -170,6 +172,7 @@ export function resolveDragEnd(
       fromStatusId: issue.status_id,
       toStatusId: parsedDest.statusId,
       projectId: activeProjectId,
+      index: completion.index ?? null,
     };
   }
 

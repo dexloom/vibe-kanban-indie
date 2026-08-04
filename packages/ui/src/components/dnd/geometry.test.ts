@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DRAG_THRESHOLD_PX,
   DROP_THRESHOLD_PX,
+  computeCardInsertionIndex,
   computePlacement,
   findBestCandidate,
   manhattanDistanceToRect,
@@ -70,7 +71,6 @@ describe('manhattanDistanceToRect', () => {
 describe('computePlacement', () => {
   // Target with height 30: top=0, topThird=10, bottomThird=20, bottom=30.
   const r = rect('r1', 0, 0, 10, 30);
-
   it('returns "before" when the pointer is in the top third', () => {
     expect(computePlacement(5, r)).toBe('before');
   });
@@ -92,6 +92,43 @@ describe('computePlacement', () => {
     expect(computePlacement(21, r)).toBe('after');
     expect(computePlacement(25, r)).toBe('after');
     expect(computePlacement(30, r)).toBe('after');
+  });
+});
+
+describe('computeCardInsertionIndex', () => {
+  // Cards: [0,20], [40,60], [80,100] — midpoints at 10, 50, 90.
+  const cards = [
+    { top: 0, bottom: 20 },
+    { top: 40, bottom: 60 },
+    { top: 80, bottom: 100 },
+  ];
+
+  it('returns 0 when the pointer is above the first card', () => {
+    expect(computeCardInsertionIndex(-5, cards)).toBe(0);
+  });
+
+  it('inserts before a card when the pointer is above its midpoint', () => {
+    // Above midpoint 10 → before card 0.
+    expect(computeCardInsertionIndex(5, cards)).toBe(0);
+    // At the midpoint → before that card.
+    expect(computeCardInsertionIndex(10, cards)).toBe(0);
+    // Between card0 and card1, above card1's midpoint → index 1.
+    expect(computeCardInsertionIndex(30, cards)).toBe(1);
+    expect(computeCardInsertionIndex(50, cards)).toBe(1);
+  });
+
+  it('inserts after a card when the pointer is below its midpoint', () => {
+    // Below card0's midpoint 10 but at/below... y=20 is past midpoint → next card check.
+    expect(computeCardInsertionIndex(20, cards)).toBe(1);
+    expect(computeCardInsertionIndex(60, cards)).toBe(2);
+  });
+
+  it('appends when the pointer is past the last card', () => {
+    expect(computeCardInsertionIndex(150, cards)).toBe(3);
+  });
+
+  it('returns 0 for an empty column (append to empty)', () => {
+    expect(computeCardInsertionIndex(50, [])).toBe(0);
   });
 });
 

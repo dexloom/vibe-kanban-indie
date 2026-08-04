@@ -351,12 +351,26 @@ export function SharedAppLayout() {
             issueId: outcome.issueId,
             fromStatusId: outcome.fromStatusId,
             toStatusId: outcome.toStatusId,
+            index: outcome.index ?? undefined,
           });
           return;
         case 'issue-swap': {
           const sourceIssue = byId.get(outcome.sourceIssueId);
           const targetIssue = byId.get(outcome.targetIssueId);
           if (!sourceIssue || !targetIssue) return;
+          // Prefer the kanban board's handler: it commits the swap to the
+          // local items map optimistically, so the drop doesn't flash back
+          // to the old order while the shape refresh round-trips. Fall back
+          // to a direct bulkUpdate when no board is mounted (tree-only view).
+          if (kanbanHandlerRef.current) {
+            kanbanHandlerRef.current({
+              issueId: sourceIssue.id,
+              fromStatusId: sourceIssue.status_id,
+              toStatusId: targetIssue.status_id,
+              swapWithIssueId: targetIssue.id,
+            });
+            return;
+          }
           bulkUpdateIssues([
             {
               id: outcome.sourceIssueId,
