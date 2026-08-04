@@ -183,6 +183,19 @@ export function resolveDragEnd(
 
   // 9. Anything else (cross-surface or tree→tree) → caller fires a single
   //    bulkUpdateIssues with the destination status.
+  //
+  //    Same-status guard: if the resolved target status equals the source
+  //    issue's current status, collapse to no-op so the caller doesn't
+  //    fire a redundant bulkUpdateIssues (the custom tree drag manager may
+  //    resolve a sloppy drop onto the issue's own status, and the kanban
+  //    path can land a kanban→tree drop onto the same status). The guard
+  //    runs AFTER the kanban-internal branch so same-column kanban
+  //    reorders (manual sort) still update sort_order via the kanban
+  //    handler — a reorder isn't a status change.
+  if (parsedDest.statusId === issue.status_id) {
+    return { type: 'no-op' };
+  }
+
   return {
     type: 'move-issue',
     issueId,

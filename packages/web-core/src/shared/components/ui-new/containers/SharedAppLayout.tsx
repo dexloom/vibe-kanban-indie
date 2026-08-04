@@ -40,7 +40,15 @@ import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import type { SidebarWorkspace } from '@/shared/hooks/useWorkspaces';
 import type { OutlinerWorkspace } from '@vibe/ui/components/outliner/types';
 import { readOpenTasksProjectIds } from '@vibe/ui/components/outliner/openState';
-import { DragActiveProvider } from '@vibe/ui/components/outliner/dragState';
+import {
+  DragActiveProvider,
+  DragCandidateProvider,
+} from '@vibe/ui/components/outliner/dragState';
+import {
+  TreeDragControllerContext,
+  type TreeDragControllerValue,
+  TreeDragManager,
+} from '@vibe/ui/components/outliner/treeDrag';
 import { DragDropContext } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
 import { resolveDragEnd } from '@/shared/lib/resolveDragEnd';
@@ -59,9 +67,18 @@ export function SharedAppLayout() {
   const mobileFontScale = useUiPreferencesStore((s) => s.mobileFontScale);
   const { isSignedIn } = useAuth();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  // True while a hello-pangea drag is in flight — feeds DragActiveProvider so
-  // tree status/card droppables can outline possible drop targets.
-  const [isDragActive, setIsDragActive] = useState(false);
+  // hello-pangea drag state — true while the DnD library reports a drag in
+  // flight. Drives the `DragActiveContext` boolean.
+  const [hpDragging, setHpDragging] = useState(false);
+  // Custom tree drag state — true while the layout-level `TreeDragManager`
+  // has promoted a press into a drag. Drives the same context so the two
+  // systems appear as one to consumers.
+  const [customDragging, setCustomDragging] = useState(false);
+  // Candidate droppable id from the custom manager, fed into
+  // `DragCandidateContext` so tree status rows + kanban cards paint a
+  // solid ring on the magnetic target.
+  const [candidateId, setCandidateId] = useState<string | null>(null);
+  const isDragActive = hpDragging || customDragging;
   // `selectedIssueIds.size > 1` matches `useIssueMultiSelect`'s
   // `isMultiSelectActive` definition (PLAN §7.5). We don't call the hook
   // from web-core here because it lives in web-core already — we just need
@@ -280,40 +297,89 @@ export function SharedAppLayout() {
     return map;
   }, [activeProjectIssues.data, activeProjectId]);
 
-  const handleCrossSurfaceDragEnd = useCallback(
-    (result: DropResult) => {
-      const outcome = resolveDragEnd(result, activeProjectId, issuesById);
-      switch (outcome.type) {
-        case 'no-op':
-          return;
-        case 'invalid':
-          // Snap-back is automatic when no state change fires; console
-          // for now so devs see why a drop was rejected during smoke.
-          console.debug('[dnd] drop rejected:', outcome.reason);
-          return;
-        case 'kanban-internal':
-          kanbanHandlerRef.current?.(result);
-          return;
-        case 'move-issue':
-          bulkUpdateIssues([
-            {
-              id: outcome.issueId,
-              changes: { status_id: outcome.targetStatusId },
-            },
-          ]).catch((err) => {
-            console.error(
-              '[dnd] cross-surface move failed:',
-              err,
-              'issue',
-              outcome.issueId,
-              '→ status',
-              outcome.targetStatusId
-            );
-          });
-          return;
-      }
-    },
-    [activeProjectId, issuesById]
+  // Latest-value refs for the cross-surface handler. Reading activeProjectId /
+  // issuesById through refs (not useCallback deps) keeps the handler identity
+  // STABLE across renders — hello-pangea recreates its redux store/registry
+  // whenever DragDropContext's getResponders changes identity, and a churning
+  // registry drops virtualized tree Draggables from `registry.draggable` (they
+  // re-register one effect behind), so a mousedown hits `getById` → invariant
+  // crash and the drag never lifts. Refs are always fresh at drag-end time.
+  const dndContextRef = useRef({ activeProjectId, issuesById });
+  dndContextRef.current = { activeProjectId, issuesById };
+
+  const handleCrossSurfaceDragEnd = useCallback((result: DropResult) => {
+    const { activeProjectId: projectId, issuesById: byId } =
+      dndContextRef.current;
+    const outcome = resolveDragEnd(result, projectId, byId);
+    switch (outcome.type) {
+      case 'no-op':
+        return;
+      case 'invalid':
+        // Snap-back is automatic when no state change fires; console
+        // for now so devs see why a drop was rejected during smoke.
+        console.debug('[dnd] drop rejected:', outcome.reason);
+        return;
+      case 'kanban-internal':
+        kanbanHandlerRef.current?.(result);
+        return;
+      case 'move-issue':
+        bulkUpdateIssues([
+          {
+            id: outcome.issueId,
+            changes: { status_id: outcome.targetStatusId },
+          },
+        ]).catch((err) => {
+          console.error(
+            '[dnd] cross-surface move failed:',
+            err,
+            'issue',
+            outcome.issueId,
+            '→ status',
+            outcome.targetStatusId
+          );
+        });
+        return;
+    }
+  }, []);
+
+  // -------------------------------------------------------------------
+  // Custom tree drag manager
+  // -------------------------------------------------------------------
+  //
+  // The manager owns its own mouse sensor (window mousemove/mouseup/keydown)
+  // + ghost. hello-pangea\'s registry churn drops virtualized tree
+  // Draggables mid-press, so this bypasses the DnD library entirely for
+  // the sidebar tree. The manager builds a synthetic DropResult that
+  // flows through `handleCrossSurfaceDragEnd` → `resolveDragEnd` — same
+  // resolver as hello-pangea.
+  //
+  // The `setDragState` callback feeds `customDragging` (merged with
+  // `hpDragging` to drive `DragActiveProvider`) so consumers see a
+  // unified "is a drag in flight" boolean.
+  const setDragState = useCallback((s: { isActive: boolean }) => {
+    setCustomDragging(s.isActive);
+  }, []);
+  const managerRef = useRef<TreeDragManager | null>(null);
+  if (managerRef.current === null) {
+    managerRef.current = new TreeDragManager({
+      onPromote: () => setCustomDragging(true),
+      onCandidateChange: setCandidateId,
+      onDrop: (result) => {
+        setCustomDragging(false);
+        handleCrossSurfaceDragEnd(result);
+      },
+    });
+  }
+  // Cleanup on unmount (StrictMode double-mount, HMR, route teardown).
+  useEffect(() => {
+    return () => {
+      managerRef.current?.destroy();
+      managerRef.current = null;
+    };
+  }, []);
+  const treeDragController = useMemo<TreeDragControllerValue>(
+    () => ({ manager: managerRef.current, setDragState }),
+    [setDragState]
   );
 
   const handleSignIn = useCallback(async () => {
@@ -391,162 +457,174 @@ export function SharedAppLayout() {
   return (
     <SyncErrorProvider>
       <DragActiveProvider value={isDragActive}>
-        <DragDropContext
-          onDragStart={() => setIsDragActive(true)}
-          onDragEnd={(result) => {
-            setIsDragActive(false);
-            handleCrossSurfaceDragEnd(result);
-          }}
-        >
-        <KanbanDragHandlerProvider value={providerValue}>
-          <SidebarProjectTasksRegistry
-            projectIds={realProjectIds}
-            openTasksProjectIds={openTasksProjectIds}
-            onTasksByProject={handleTasksByProject}
-            onLoadingTasksProjectIds={handleLoadingTasks}
-          />
-          <div
-            className={cn(
-              'bg-primary',
-              isMobile
-                ? 'flex fixed inset-0 pb-[env(safe-area-inset-bottom)]'
-                : 'grid grid-cols-[256px_1fr] grid-rows-[minmax(0,1fr)] h-screen'
-            )}
-          >
-            {!isMobile && (
-              <>
-                {/* Desktop sidebar: project tree + bottom notification/org/user
+        <DragCandidateProvider value={candidateId}>
+          <TreeDragControllerContext.Provider value={treeDragController}>
+            <DragDropContext
+              onDragStart={() => setHpDragging(true)}
+              onDragEnd={(result) => {
+                setHpDragging(false);
+                handleCrossSurfaceDragEnd(result);
+              }}
+            >
+              <KanbanDragHandlerProvider value={providerValue}>
+                <SidebarProjectTasksRegistry
+                  projectIds={realProjectIds}
+                  openTasksProjectIds={openTasksProjectIds}
+                  onTasksByProject={handleTasksByProject}
+                  onLoadingTasksProjectIds={handleLoadingTasks}
+                />
+                <div
+                  className={cn(
+                    'bg-primary',
+                    isMobile
+                      ? 'flex fixed inset-0 pb-[env(safe-area-inset-bottom)]'
+                      : 'grid grid-cols-[256px_1fr] grid-rows-[minmax(0,1fr)] h-screen'
+                  )}
+                >
+                  {!isMobile && (
+                    <>
+                      {/* Desktop sidebar: project tree + bottom notification/org/user
                 slots. Spans the full left column; the top drag-region strip
                 lives inside the Sidebar itself. */}
-                <Sidebar
-                  projects={sidebarProjects}
-                  activeProjectId={activeProjectId}
-                  activeWorkspaceId={workspaceId ?? null}
-                  activeIssueId={activeIssueId}
-                  tasksByProject={tasksByProject}
-                  loadingTasksProjectIds={loadingTasksProjectIds}
-                  onTasksExpansionChange={handleTasksExpansionChange}
-                  onSelectIssue={handleSelectIssue}
-                  workspaces={outlinerWorkspaces}
-                  archivedWorkspaces={outlinerArchivedWorkspaces}
-                  membership={membership}
-                  isLoadingProjects={isLoading}
-                  isLoadingWorkspaces={isWorkspacesListLoading}
-                  onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
-                  onSelectProject={handleProjectClick}
-                  isMultiSelectActive={isMultiSelectActive}
-                  headerActions={
-                    <CreateProjectButton onClick={handleCreateProject} />
-                  }
-                  bottomActions={<SidebarBottomActions />}
-                />
-                {/* Content column: Navbar on top, Outlet below. */}
-                <div className="flex flex-col min-h-0 min-w-0">
-                  <NavbarContainer onOpenDrawer={() => setIsDrawerOpen(true)} />
-                  <div className="relative flex-1 min-h-0 overflow-hidden">
-                    <Outlet />
-                  </div>
-                </div>
-              </>
-            )}
-
-            {isMobile && (
-              <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-                <NavbarContainer
-                  mobileMode={isMobile}
-                  onOpenDrawer={() => setIsDrawerOpen(true)}
-                />
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  <Outlet />
-                </div>
-              </div>
-            )}
-
-            {/* Mobile project navigation drawer (rebuilt on the same Sidebar
-            primitives). */}
-            <MobileDrawer
-              open={isDrawerOpen && isMobile}
-              onClose={() => setIsDrawerOpen(false)}
-            >
-              <div className="flex flex-col h-full">
-                {/* Header: org name + close button */}
-                <div className="flex items-center justify-between p-4 border-b border-border">
-                  <span className="text-sm font-medium text-high truncate">
-                    {organizations.find((o) => o.id === selectedOrgId)?.name ??
-                      'Organization'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsDrawerOpen(false)}
-                    className="p-1 rounded-sm text-low hover:text-normal cursor-pointer"
-                    aria-label="Close"
-                  >
-                    <XIcon className="h-4 w-4" weight="bold" />
-                  </button>
-                </div>
-
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <Sidebar
-                    projects={sidebarProjects}
-                    activeProjectId={activeProjectId}
-                    activeWorkspaceId={workspaceId ?? null}
-                    activeIssueId={activeIssueId}
-                    tasksByProject={tasksByProject}
-                    loadingTasksProjectIds={loadingTasksProjectIds}
-                    onTasksExpansionChange={handleTasksExpansionChange}
-                    onSelectIssue={handleSelectIssue}
-                    workspaces={outlinerWorkspaces}
-                    archivedWorkspaces={outlinerArchivedWorkspaces}
-                    membership={membership}
-                    isLoadingProjects={isLoading}
-                    isLoadingWorkspaces={isWorkspacesListLoading}
-                    onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
-                    onSelectProject={(id) => {
-                      handleProjectClick(id);
-                      setIsDrawerOpen(false);
-                    }}
-                    isMultiSelectActive={isMultiSelectActive}
-                    headerActions={
-                      <CreateProjectButton onClick={handleCreateProject} />
-                    }
-                    bottomActions={<SidebarBottomActions />}
-                  />
-                </div>
-
-                {!isSignedIn && (
-                  <div className="p-3 border-t border-border">
-                    <div className="px-4 py-6 text-center">
-                      <KanbanIcon
-                        className="h-8 w-8 mx-auto text-low"
-                        weight="bold"
+                      <Sidebar
+                        projects={sidebarProjects}
+                        activeProjectId={activeProjectId}
+                        activeWorkspaceId={workspaceId ?? null}
+                        activeIssueId={activeIssueId}
+                        tasksByProject={tasksByProject}
+                        loadingTasksProjectIds={loadingTasksProjectIds}
+                        onTasksExpansionChange={handleTasksExpansionChange}
+                        onSelectIssue={handleSelectIssue}
+                        workspaces={outlinerWorkspaces}
+                        archivedWorkspaces={outlinerArchivedWorkspaces}
+                        membership={membership}
+                        isLoadingProjects={isLoading}
+                        isLoadingWorkspaces={isWorkspacesListLoading}
+                        onSelectWorkspace={(id) =>
+                          appNavigation.goToWorkspace(id)
+                        }
+                        onSelectProject={handleProjectClick}
+                        isMultiSelectActive={isMultiSelectActive}
+                        headerActions={
+                          <CreateProjectButton onClick={handleCreateProject} />
+                        }
+                        bottomActions={<SidebarBottomActions />}
                       />
-                      <p className="mt-3 text-sm font-medium text-high">
-                        Kanban Boards
-                      </p>
-                      <p className="mt-1 text-xs text-low">
-                        Sign in to organise your coding agents with kanban
-                        boards.
-                      </p>
-                      <div className="mt-4">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleSignIn();
-                            setIsDrawerOpen(false);
-                          }}
-                          className="w-full px-3 py-2 rounded-md text-sm font-medium bg-brand text-on-brand hover:bg-brand-hover cursor-pointer"
-                        >
-                          Sign in
-                        </button>
+                      {/* Content column: Navbar on top, Outlet below. */}
+                      <div className="flex flex-col min-h-0 min-w-0">
+                        <NavbarContainer
+                          onOpenDrawer={() => setIsDrawerOpen(true)}
+                        />
+                        <div className="relative flex-1 min-h-0 overflow-hidden">
+                          <Outlet />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {isMobile && (
+                    <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+                      <NavbarContainer
+                        mobileMode={isMobile}
+                        onOpenDrawer={() => setIsDrawerOpen(true)}
+                      />
+                      <div className="flex-1 min-h-0 overflow-hidden">
+                        <Outlet />
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            </MobileDrawer>
-          </div>
-        </KanbanDragHandlerProvider>
-        </DragDropContext>
+                  )}
+
+                  {/* Mobile project navigation drawer (rebuilt on the same Sidebar
+            primitives). */}
+                  <MobileDrawer
+                    open={isDrawerOpen && isMobile}
+                    onClose={() => setIsDrawerOpen(false)}
+                  >
+                    <div className="flex flex-col h-full">
+                      {/* Header: org name + close button */}
+                      <div className="flex items-center justify-between p-4 border-b border-border">
+                        <span className="text-sm font-medium text-high truncate">
+                          {organizations.find((o) => o.id === selectedOrgId)
+                            ?.name ?? 'Organization'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsDrawerOpen(false)}
+                          className="p-1 rounded-sm text-low hover:text-normal cursor-pointer"
+                          aria-label="Close"
+                        >
+                          <XIcon className="h-4 w-4" weight="bold" />
+                        </button>
+                      </div>
+
+                      <div className="flex-1 min-h-0 overflow-y-auto">
+                        <Sidebar
+                          projects={sidebarProjects}
+                          activeProjectId={activeProjectId}
+                          activeWorkspaceId={workspaceId ?? null}
+                          activeIssueId={activeIssueId}
+                          tasksByProject={tasksByProject}
+                          loadingTasksProjectIds={loadingTasksProjectIds}
+                          onTasksExpansionChange={handleTasksExpansionChange}
+                          onSelectIssue={handleSelectIssue}
+                          workspaces={outlinerWorkspaces}
+                          archivedWorkspaces={outlinerArchivedWorkspaces}
+                          membership={membership}
+                          isLoadingProjects={isLoading}
+                          isLoadingWorkspaces={isWorkspacesListLoading}
+                          onSelectWorkspace={(id) =>
+                            appNavigation.goToWorkspace(id)
+                          }
+                          onSelectProject={(id) => {
+                            handleProjectClick(id);
+                            setIsDrawerOpen(false);
+                          }}
+                          isMultiSelectActive={isMultiSelectActive}
+                          headerActions={
+                            <CreateProjectButton
+                              onClick={handleCreateProject}
+                            />
+                          }
+                          bottomActions={<SidebarBottomActions />}
+                        />
+                      </div>
+
+                      {!isSignedIn && (
+                        <div className="p-3 border-t border-border">
+                          <div className="px-4 py-6 text-center">
+                            <KanbanIcon
+                              className="h-8 w-8 mx-auto text-low"
+                              weight="bold"
+                            />
+                            <p className="mt-3 text-sm font-medium text-high">
+                              Kanban Boards
+                            </p>
+                            <p className="mt-1 text-xs text-low">
+                              Sign in to organise your coding agents with kanban
+                              boards.
+                            </p>
+                            <div className="mt-4">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSignIn();
+                                  setIsDrawerOpen(false);
+                                }}
+                                className="w-full px-3 py-2 rounded-md text-sm font-medium bg-brand text-on-brand hover:bg-brand-hover cursor-pointer"
+                              >
+                                Sign in
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </MobileDrawer>
+                </div>
+              </KanbanDragHandlerProvider>
+            </DragDropContext>
+          </TreeDragControllerContext.Provider>
+        </DragCandidateProvider>
       </DragActiveProvider>
     </SyncErrorProvider>
   );

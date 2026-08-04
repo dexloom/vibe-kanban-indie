@@ -1,22 +1,38 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { DragDropContext } from '@hello-pangea/dnd';
 import type { NodeApi } from 'react-arborist';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CardNodeRow } from './CardNodeRow';
+import {
+  TreeDragControllerContext,
+  type TreeDragControllerValue,
+} from './treeDrag/TreeDragControllerContext';
+import type { TreeDragManager } from './treeDrag/TreeDragManager';
 import type { CardNode } from './types';
 
 afterEach(cleanup);
 
-// hello-pangea requires an ancestor <DragDropContext> for the
-// cross-surface Droppable/Draggable wrappers around a card row.
-function withDnd(node: React.ReactNode) {
-  return <DragDropContext onDragEnd={() => {}}>{node}</DragDropContext>;
+// CardNodeRow no longer wraps the row in a hello-pangea <Droppable>/<Draggable>;
+// it delegates drag to the custom TreeDragManager via the controller
+// context. Tests wrap the row in a controller provider so the hook can
+// locate a manager.
+
+function withController(
+  node: React.ReactNode,
+  manager: TreeDragManager | null = null,
+) {
+  const setDragState = vi.fn();
+  const value: TreeDragControllerValue = { manager, setDragState };
+  return (
+    <TreeDragControllerContext.Provider value={value}>
+      {node}
+    </TreeDragControllerContext.Provider>
+  );
 }
 
 function cardNode(
   overrides: Partial<CardNode['issue']> = {},
   children: CardNode[] = [],
-  isOpen = false
+  isOpen = false,
 ) {
   const activate = vi.fn();
   const toggle = vi.fn();
@@ -46,9 +62,9 @@ function cardNode(
 describe('CardNodeRow', () => {
   it('renders the issue title', () => {
     const { container } = render(
-      withDnd(
-        <CardNodeRow node={cardNode().node} style={{ paddingLeft: 36 }} />
-      )
+      withController(
+        <CardNodeRow node={cardNode().node} style={{ paddingLeft: 36 }} />,
+      ),
     );
 
     expect(container.textContent).toBe('Fix auth');
@@ -57,13 +73,13 @@ describe('CardNodeRow', () => {
 
   it('marks the active issue as the current page with semibold text', () => {
     const { container } = render(
-      withDnd(
+      withController(
         <CardNodeRow
           node={cardNode().node}
           style={{}}
           activeIssueId="issue-1"
-        />
-      )
+        />,
+      ),
     );
 
     const row = container.querySelector('[aria-current]') as HTMLElement;
@@ -73,16 +89,14 @@ describe('CardNodeRow', () => {
   });
 
   it('does not toggle or activate when a leaf card row is clicked', () => {
-    // Navigation happens on react-arborist's OUTER row (handleActivate); the
+    // Navigation happens on react-arborist\'s OUTER row (handleActivate); the
     // inner row must not double-fire it.
     const { node, activate, toggle } = cardNode();
     const { container } = render(
-      withDnd(<CardNodeRow node={node} style={{}} />)
+      withController(<CardNodeRow node={node} style={{}} />),
     );
 
-    const row = container.querySelector(
-      '[role="treeitem"], [data-rfd-draggable-id]'
-    ) as HTMLElement;
+    const row = container.querySelector('[data-tree-card]') as HTMLElement;
     expect(row).toBeTruthy();
     fireEvent.click(row);
 
@@ -94,7 +108,7 @@ describe('CardNodeRow', () => {
     const child = cardNode({ id: 'issue-2' }).node.data;
     const { node, activate, toggle } = cardNode({}, [child], true);
     const { container } = render(
-      withDnd(<CardNodeRow node={node} style={{}} />)
+      withController(<CardNodeRow node={node} style={{}} />),
     );
 
     const caret = container.querySelector('button') as HTMLButtonElement;
@@ -109,55 +123,75 @@ describe('CardNodeRow', () => {
   it('renders leaf cards without a caret or aria-expanded', () => {
     const { node, activate, toggle } = cardNode();
     const { container } = render(
-      withDnd(<CardNodeRow node={node} style={{}} />)
+      withController(<CardNodeRow node={node} style={{}} />),
     );
 
     expect(container.querySelector('button')).toBeNull();
-    const row = container.querySelector(
-      '[role="treeitem"], [data-rfd-draggable-id]'
-    ) as HTMLElement;
+    const row = container.querySelector('[data-tree-card]') as HTMLElement;
     expect(row.hasAttribute('aria-expanded')).toBe(false);
     fireEvent.click(row);
     expect(activate).not.toHaveBeenCalled();
     expect(toggle).not.toHaveBeenCalled();
   });
 
-  it('renders a hello-pangea Draggable with draggableId="issue:<issueId>"', () => {
+  it('tags the row with data-tree-card so the drag manager can clone it for the ghost', () => {
     const { container } = render(
-      withDnd(<CardNodeRow node={cardNode().node} style={{}} />)
+      withController(<CardNodeRow node={cardNode().node} style={{}} />),
     );
-    // hello-pangea sets data-rfd-draggable-id on the draggable element so
-    // the mouse-based drag layer can find it.
-    const draggable = container.querySelector(
-      '[data-rfd-draggable-id="issue:issue-1"]'
-    );
-    expect(draggable).toBeTruthy();
+    const row = container.querySelector(
+      '[data-tree-card="issue-1"]',
+    ) as HTMLElement;
+    expect(row).toBeTruthy();
   });
 
-  it('renders a per-card Droppable with droppableId equal to the issue id', () => {
+  it('forwards mousedown to the manager via the controller', () => {
+    const startPress = vi.fn();
+    const manager = { startPress } as unknown as TreeDragManager;
     const { container } = render(
-      withDnd(<CardNodeRow node={cardNode().node} style={{}} />)
+      withController(
+        <CardNodeRow node={cardNode().node} style={{}} />,
+        manager,
+      ),
     );
-    // hello-pangea tags the droppable's outer div with data-rfd-droppable-id.
-    const droppable = container.querySelector(
-      '[data-rfd-droppable-id="issue-1"]'
+    const row = container.querySelector(
+      '[data-tree-card="issue-1"]',
+    ) as HTMLElement;
+    fireEvent.mouseDown(row, { button: 0 });
+    expect(startPress).toHaveBeenCalledWith(
+      'issue-1',
+      'project-1',
+      expect.any(MouseEvent),
+      expect.any(Function),
     );
-    expect(droppable).toBeTruthy();
   });
 
-  it('still renders the Draggable wrapper when isMultiSelectActive is true', () => {
-    // hello-pangea gates drag start at runtime when isDragDisabled is true;
-    // there is no exposed ARIA / style signal we can sniff across versions.
-    // The contract we assert here is plumbing — the prop reaches the
-    // <Draggable> wrapper without the row crashing or losing its markup.
+  it('does NOT start a drag when isMultiSelectActive is true', () => {
+    const startPress = vi.fn();
+    const manager = { startPress } as unknown as TreeDragManager;
     const { container } = render(
-      withDnd(
-        <CardNodeRow node={cardNode().node} style={{}} isMultiSelectActive />
-      )
+      withController(
+        <CardNodeRow node={cardNode().node} style={{}} isMultiSelectActive />,
+        manager,
+      ),
     );
-    expect(
-      container.querySelector('[data-rfd-draggable-id="issue:issue-1"]')
-    ).toBeTruthy();
-    expect(container.textContent).toContain('Fix auth');
+    const row = container.querySelector(
+      '[data-tree-card="issue-1"]',
+    ) as HTMLElement;
+    fireEvent.mouseDown(row, { button: 0 });
+    expect(startPress).not.toHaveBeenCalled();
+  });
+
+  it('does NOT start a drag when mousedown originated on a caret <button>', () => {
+    const startPress = vi.fn();
+    const manager = { startPress } as unknown as TreeDragManager;
+    const child = cardNode({ id: 'issue-2' }).node.data;
+    const { node } = cardNode({}, [child], true);
+    const { container } = render(
+      withController(<CardNodeRow node={node} style={{}} />, manager),
+    );
+    const caret = container.querySelector('button') as HTMLButtonElement;
+    expect(caret).toBeTruthy();
+    fireEvent.mouseDown(caret, { button: 0 });
+    expect(startPress).not.toHaveBeenCalled();
   });
 });

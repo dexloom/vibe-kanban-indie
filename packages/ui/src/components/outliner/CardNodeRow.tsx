@@ -1,13 +1,6 @@
-import {
-  Droppable,
-  Draggable,
-  type DraggableProvided,
-  type DraggableStateSnapshot,
-  type DroppableProvided,
-} from '@hello-pangea/dnd';
-import { type MutableRefObject, type Ref } from 'react';
 import { cn } from '../../lib/cn';
 import { TreeRow } from './TreeRow';
+import { useTreeCardDrag } from './treeDrag';
 import type { CardNode, TreeNodeRenderProps } from './types';
 
 interface CardNodeRowProps extends TreeNodeRenderProps<CardNode> {
@@ -20,25 +13,23 @@ interface CardNodeRowProps extends TreeNodeRenderProps<CardNode> {
 /**
  * Compact issue title row. Cards with sub-issues expose an isolated caret.
  *
- * Cross-surface DnD wrapping (PLAN §6.3, §6.5):
- *  - Outer `<Droppable>` uses the bare issue.id as droppableId. Each card
- *    gets its own droppable, satisfying hello-pangea's invariant that a
- *    `<Draggable>` must have a `<Droppable>` React ancestor (react-arborist
- *    makes each row a sibling, not a DOM child of the status row's div).
- *    `resolveDragEnd` distinguishes card droppables from kanban-column
- *    droppables by `issuesById.has(id)` lookup.
- *  - Inner `<Draggable>` carries the canonical `issue:<uuid>` draggableId
- *    consumed by the cross-surface resolver in `SharedAppLayout`.
- *  - `outerRef` merges the renderer's react-arborist `dragHandle` ref with
- *    hello-pangea's `provided.innerRef` so both libraries anchor to the
- *    same DOM node. `outerProps` spreads `provided.draggableProps` +
- *    `provided.dragHandleProps` onto the row.
- *  - `isDragDisabled={isMultiSelectActive}` mirrors `KanbanCard.dragDisabled`.
+ * Drag is handled by the custom tree drag manager (see
+ * `outliner/treeDrag/TreeDragManager`) rather than hello-pangea — the
+ * hello-pangea `<Draggable>` never lifts inside react-arborist\'s
+ * virtualized rows (registry churn drops the Draggable before mousedown,
+ * `getById` invariant crashes), so we install our own mouse sensor and
+ * ghost. The hook `useTreeCardDrag` returns an `onMouseDown` handler that
+ * the layout\'s `TreeDragManager` listens to. A `data-tree-card` attribute
+ * tags the source row so the manager can clone it for the ghost.
+ *
+ * The row\'s click-to-navigate still flows through react-arborist\'s outer
+ * DefaultRow → `node.handleClick` → `onActivate`; the manager installs a
+ * one-shot capture-phase click swallower on promote so the synthetic click
+ * fired after a real drag doesn\'t navigate.
  */
 export function CardNodeRow({
   node,
   style,
-  dragHandle,
   activeIssueId,
   isMultiSelectActive = false,
 }: CardNodeRowProps) {
@@ -46,64 +37,32 @@ export function CardNodeRow({
   const isActive = issue.id === activeIssueId;
   const hasChildren = node.data.children.length > 0;
 
-  // hello-pangea requires a numeric `index` per draggable. Each card lives
-  // in its own Droppable (no sibling comparison needed), and cross-status
-  // moves never use intra-status ordering — pass 0.
-  const draggableIndex = 0;
+  const { onMouseDown } = useTreeCardDrag(
+    issue.id,
+    issue.projectId,
+    isMultiSelectActive,
+  );
 
   return (
-    <Droppable droppableId={issue.id}>
-      {(dropProvided: DroppableProvided) => (
-        <div ref={dropProvided.innerRef} {...dropProvided.droppableProps}>
-          <Draggable
-            draggableId={`issue:${issue.id}`}
-            index={draggableIndex}
-            isDragDisabled={isMultiSelectActive}
-          >
-            {(
-              dragProvided: DraggableProvided,
-              snapshot: DraggableStateSnapshot
-            ) => {
-              const setRefs = (el: HTMLDivElement | null) => {
-                dragProvided.innerRef(el);
-                if (typeof dragHandle === 'function') {
-                  dragHandle(el as HTMLDivElement);
-                } else if (dragHandle && typeof dragHandle === 'object') {
-                  (
-                    dragHandle as MutableRefObject<HTMLDivElement | null>
-                  ).current = el;
-                }
-              };
-
-              return (
-                <TreeRow
-                  node={node}
-                  style={style}
-                  isActive={isActive}
-                  showCaret={hasChildren}
-                  rowClassName={cn(
-                    'text-sm leading-tight',
-                    isActive
-                      ? 'text-high font-semibold'
-                      : 'text-normal font-light hover:text-high',
-                    snapshot.isDragging && 'cursor-grabbing shadow-lg'
-                  )}
-                  outerRef={setRefs as unknown as Ref<HTMLDivElement>}
-                  outerProps={{
-                    ...dragProvided.draggableProps,
-                    ...dragProvided.dragHandleProps,
-                  }}
-                >
-                  <div className="flex min-w-0 items-center gap-1">
-                    <span className="truncate">{issue.title}</span>
-                  </div>
-                </TreeRow>
-              );
-            }}
-          </Draggable>
-          {dropProvided.placeholder}
-        </div>
+    <TreeRow
+      node={node}
+      style={style}
+      isActive={isActive}
+      showCaret={hasChildren}
+      rowClassName={cn(
+        'text-sm leading-tight',
+        isActive
+          ? 'text-high font-semibold'
+          : 'text-normal font-light hover:text-high',
       )}
-    </Droppable>
+      outerProps={{
+        ...(onMouseDown ? { onMouseDown } : {}),
+        'data-tree-card': issue.id,
+      }}
+    >
+      <div className="flex min-w-0 items-center gap-1">
+        <span className="truncate">{issue.title}</span>
+      </div>
+    </TreeRow>
   );
 }

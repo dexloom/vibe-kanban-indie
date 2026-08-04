@@ -1,5 +1,5 @@
 import { CaretRightIcon } from '@phosphor-icons/react';
-import type { CSSProperties, HTMLAttributes, ReactNode, Ref } from 'react';
+import type { CSSProperties, ReactNode, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NodeApi } from 'react-arborist';
 import { cn } from '../../lib/cn';
@@ -16,10 +16,13 @@ interface TreeRowProps {
   /** Override caret visibility. Default: shown when !node.isLeaf. Cards pass children>0. */
   showCaret?: boolean;
   rowClassName?: string;
-  /** Extra attributes spread onto the outer row div. Used by CardNodeRow /
-   * StatusNodeRow to inject hello-pangea Draggable/Droppable refs + props
-   * (PLAN §6.3). */
-  outerProps?: HTMLAttributes<HTMLDivElement>;
+  /** Extra attributes spread onto the outer row div. Used by CardNodeRow
+   * to inject the custom tree-drag `onMouseDown` + `data-tree-card`
+   * attribute, and by StatusNodeRow to inject hello-pangea Droppable
+   * refs/props. We type as `Record<string, unknown>` so callers can pass
+   * `data-*` attributes (which `HTMLAttributes` doesn\'t enumerate).
+   */
+  outerProps?: Record<string, unknown>;
   /** When set, takes precedence over `dragHandle` and is set as the outer
    * div's `ref`. Lets CardNodeRow merge react-arborist's `dragHandle` with
    * hello-pangea's `provided.innerRef` into a single callback ref. */
@@ -51,22 +54,25 @@ export function TreeRow({
 }: TreeRowProps) {
   const { t } = useTranslation('common');
   const hasCaret = showCaret ?? !node.isLeaf;
-  // `style` is already supplied directly via the `style` prop above; drop
-  // it from `outerProps` so callers don't double-set it.
-  const { style: _ignoredStyle, ...passthroughProps } = outerProps ?? {};
-  void _ignoredStyle;
+  // Merge hello-pangea's `draggableProps.style` (transform that moves the row
+  // under the cursor while dragging) over react-arborist's positional style.
+  // `style` on the outer div is arborist's; outerProps.style is the dnd
+  // transform. Both are required.
+  const outerStyle = outerProps?.style as CSSProperties | undefined;
+  const passthroughProps = { ...(outerProps ?? {}) } as Record<string, unknown>;
+  delete passthroughProps.style;
   const ref = outerRef ?? dragHandle;
 
   return (
     <div
-      style={style}
+      style={outerStyle ? { ...style, ...outerStyle } : style}
       ref={ref}
       aria-current={isActive ? 'page' : undefined}
       onClick={onRowClick}
       className={cn(
         'relative flex w-full cursor-pointer items-center gap-1 overflow-hidden pr-1.5 text-left',
         'focus:outline-none',
-        rowClassName
+        rowClassName,
       )}
       {...passthroughProps}
     >
@@ -84,7 +90,7 @@ export function TreeRow({
           <CaretRightIcon
             className={cn(
               'size-2.5 transition-transform duration-150',
-              node.isOpen && 'rotate-90'
+              node.isOpen && 'rotate-90',
             )}
             weight="bold"
           />

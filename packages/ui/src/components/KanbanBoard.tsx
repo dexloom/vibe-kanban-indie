@@ -8,12 +8,14 @@ import {
   TooltipTrigger,
 } from './RadixTooltip';
 import { cn } from '../lib/cn';
+import { useDragActive, useDragCandidate } from './outliner/dragState';
 import {
   Droppable,
   Draggable,
   type DraggableProvided,
   type DraggableStateSnapshot,
   type DroppableProvided,
+  type DroppableStateSnapshot,
 } from '@hello-pangea/dnd';
 import {
   type KeyboardEvent,
@@ -115,7 +117,7 @@ export const KanbanCard = ({
               isSelected
                 ? 'ring-2 ring-accent ring-inset bg-accent/5'
                 : isOpen && 'ring-2 ring-brand ring-inset',
-              className
+              className,
             )}
             ref={setRefs}
             {...provided.draggableProps}
@@ -175,22 +177,50 @@ export type KanbanCardsProps = {
   id: string;
   children: ReactNode;
   className?: string;
+  /**
+   * Project id this column belongs to. Read by the custom tree-drag
+   * manager via `data-drop-target-project` so it skips targets from
+   * other projects. Optional — when absent the column is invisible to
+   * the custom manager (hello-pangea kanban-internal still works).
+   */
+  activeProjectId?: string | null;
 };
 
-export const KanbanCards = ({ id, children, className }: KanbanCardsProps) => (
-  <Droppable droppableId={id}>
-    {(provided: DroppableProvided) => (
-      <div
-        className={cn('flex flex-1 flex-col', className)}
-        ref={provided.innerRef}
-        {...provided.droppableProps}
-      >
-        {children}
-        {provided.placeholder}
-      </div>
-    )}
-  </Droppable>
-);
+export const KanbanCards = ({
+  id,
+  children,
+  className,
+  activeProjectId,
+}: KanbanCardsProps) => {
+  // Custom manager candidate + hello-pangea snapshot union for the
+  // solid ring. `isCustomCandidate` flips on when the user is dragging a
+  // tree card and the manager has resolved this column as the magnetic
+  // target.
+  const isDragActive = useDragActive();
+  const candidateId = useDragCandidate();
+  const isCustomCandidate = isDragActive && candidateId === id;
+  return (
+    <Droppable droppableId={id}>
+      {(provided: DroppableProvided, snapshot: DroppableStateSnapshot) => (
+        <div
+          className={cn(
+            'flex flex-1 flex-col transition-colors',
+            isCustomCandidate && 'bg-brand/5',
+            className,
+          )}
+          ref={provided.innerRef}
+          {...provided.droppableProps}
+          data-drop-target-id={id}
+          data-drop-target-project={activeProjectId ?? ''}
+        >
+          {children}
+          {provided.placeholder}
+          {void snapshot /* keep snapshot referenced for tree-shake */}
+        </div>
+      )}
+    </Droppable>
+  );
+};
 
 // =============================================================================
 // Kanban Header
@@ -219,7 +249,7 @@ export const KanbanHeader = (props: KanbanHeaderProps) => {
       className={cn(
         'sticky top-0 z-20 flex shrink-0 items-center gap-base p-base flex gap-base',
         'bg-background',
-        props.className
+        props.className,
       )}
       style={{
         backgroundImage: `linear-gradient(hsl(var(${props.color}) / 0.03), hsl(var(${props.color}) / 0.03))`,
@@ -275,7 +305,7 @@ export const KanbanProvider = ({
     <div
       className={cn(
         'inline-grid grid-flow-col auto-cols-[minmax(200px,400px)] divide-x border-x items-stretch min-h-full',
-        className
+        className,
       )}
     >
       {children}

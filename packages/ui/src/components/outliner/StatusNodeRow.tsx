@@ -5,7 +5,7 @@ import {
 } from '@hello-pangea/dnd';
 import { cn } from '../../lib/cn';
 import { TreeRow } from './TreeRow';
-import { useDragActive } from './dragState';
+import { useDragActive, useDragCandidate } from './dragState';
 import {
   makeStatusNodeId,
   type StatusNode,
@@ -19,41 +19,46 @@ import {
  * `<projectId>:status:<statusId>` (PLAN §5). The droppable wraps the row
  * itself — drops land on the status header regardless of collapse state
  * (PLAN §6.5). When the status has children, they're rendered in
- * separate react-arborist rows each with their own per-card Droppable.
+ * separate react-arborist rows.
  *
- * During a drag the row is a drop target: `useDragActive` outlines every
- * status (subtle ring) and hello-pangea's `snapshot.isDraggingOver` fills
- * the one under the pointer (solid brand ring + tint) — drop lands there.
+ * Drop targeting rings: union of hello-pangea\'s `snapshot.isDraggingOver`
+ * (kanban→tree) and the custom manager\'s `useDragCandidate()` (tree→tree,
+ * tree→kanban). The custom manager reads `data-drop-target-id` /
+ * `data-drop-target-project` attributes on the droppable wrapper to
+ * compute its magnetic candidate, so we paint the same ring for both
+ * source paths.
  */
 export function StatusNodeRow({
   node,
   style,
-  dragHandle,
 }: TreeNodeRenderProps<StatusNode>) {
   const status = node.data;
   const isDragActive = useDragActive();
+  const candidateId = useDragCandidate();
+  const statusDroppableId = makeStatusNodeId(status.projectId, status.statusId);
+  const isCandidate = candidateId === statusDroppableId;
   return (
-    <Droppable
-      droppableId={makeStatusNodeId(status.projectId, status.statusId)}
-    >
-      {(
-        dropProvided: DroppableProvided,
-        snapshot: DroppableStateSnapshot,
-      ) => (
-        <div ref={dropProvided.innerRef} {...dropProvided.droppableProps}>
+    <Droppable droppableId={statusDroppableId}>
+      {(dropProvided: DroppableProvided, snapshot: DroppableStateSnapshot) => (
+        <div
+          ref={dropProvided.innerRef}
+          {...dropProvided.droppableProps}
+          data-drop-target-id={statusDroppableId}
+          data-drop-target-project={status.projectId}
+        >
           <TreeRow
             node={node}
             style={style}
-            dragHandle={dragHandle}
             onRowClick={() => node.toggle()}
             showCaret={status.children.length > 0}
             rowClassName={cn(
               'text-xs font-medium uppercase tracking-wide text-low',
               isDragActive &&
                 !snapshot.isDraggingOver &&
+                !isCandidate &&
                 'ring-1 ring-border-strong/40',
               isDragActive &&
-                snapshot.isDraggingOver &&
+                (snapshot.isDraggingOver || isCandidate) &&
                 'ring-2 ring-brand bg-brand/10',
             )}
           >

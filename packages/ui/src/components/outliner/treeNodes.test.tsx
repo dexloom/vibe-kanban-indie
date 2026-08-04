@@ -30,7 +30,7 @@ function withDnd(node: React.ReactNode) {
 
 function renderNode(
   data: SidebarTreeNode,
-  overrides: Record<string, unknown> = {}
+  overrides: Record<string, unknown> = {},
 ) {
   const node = {
     data,
@@ -109,7 +109,7 @@ describe('TreeNodeRouter task routing', () => {
 });
 
 describe('TreeNodeRouter cross-surface DnD wrapping', () => {
-  it('CardNodeRow renders a hello-pangea Draggable with draggableId issue:<id>', () => {
+  it('CardNodeRow tags the row with data-tree-card for the custom drag manager', () => {
     const card = {
       id: makeCardNodeId('project-1', '00000000-0000-4000-8000-000000000001'),
       type: 'card',
@@ -124,17 +124,15 @@ describe('TreeNodeRouter cross-surface DnD wrapping', () => {
       children: [],
     } satisfies CardNode;
     const { container } = renderNode(card);
+    // Card rows are tagged with data-tree-card so the custom manager can
+    // locate + clone the source row for the drag ghost. No hello-pangea
+    // Draggable wrapper is rendered anymore (PLAN §6.3).
     expect(
       container.querySelector(
-        '[data-rfd-draggable-id="issue:00000000-0000-4000-8000-000000000001"]'
-      )
+        '[data-tree-card="00000000-0000-4000-8000-000000000001"]',
+      ),
     ).toBeTruthy();
-    // Each card is also its own Droppable (per-card droppableId = issue.id).
-    expect(
-      container.querySelector(
-        '[data-rfd-droppable-id="00000000-0000-4000-8000-000000000001"]'
-      )
-    ).toBeTruthy();
+    expect(container.querySelector('[data-rfd-draggable-id]')).toBeNull();
   });
 
   it('StatusNodeRow renders a hello-pangea Droppable with id <projectId>:status:<statusId>', () => {
@@ -150,8 +148,8 @@ describe('TreeNodeRouter cross-surface DnD wrapping', () => {
     const { container } = renderNode(status);
     expect(
       container.querySelector(
-        '[data-rfd-droppable-id="project-1:status:00000000-0000-4000-8000-000000000010"]'
-      )
+        '[data-rfd-droppable-id="project-1:status:00000000-0000-4000-8000-000000000010"]',
+      ),
     ).toBeTruthy();
   });
 

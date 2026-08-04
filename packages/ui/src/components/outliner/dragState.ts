@@ -19,3 +19,26 @@ export const DragActiveProvider = DragActiveContext.Provider;
 export function useDragActive(): boolean {
   return useContext(DragActiveContext);
 }
+
+/**
+ * Droppable id of the candidate the custom tree drag manager currently
+ * resolves for the pointer, or `null` when no candidate qualifies.
+ *
+ * Tree rows and kanban cards union this with their own hello-pangea
+ * snapshot to render a solid ring on whichever target the pointer is
+ * actually over — covers both hello-pangea kanban→tree (StatusNodeRow\'s
+ * Droppable) and the custom tree→tree / tree→kanban path.
+ *
+ * Kept as a SEPARATE context from `DragActiveContext` (boolean) so a
+ * candidate change does not invalidate every consumer of the boolean
+ * context. If we shipped one merged context, a candidate change would
+ * re-render every kanban card; with separate contexts only the rows that
+ * call `useDragCandidate()` re-render.
+ */
+export const DragCandidateContext = createContext<string | null>(null);
+
+export const DragCandidateProvider = DragCandidateContext.Provider;
+
+export function useDragCandidate(): string | null {
+  return useContext(DragCandidateContext);
+}

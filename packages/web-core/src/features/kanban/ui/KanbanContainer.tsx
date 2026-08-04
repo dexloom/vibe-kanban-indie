@@ -1070,7 +1070,7 @@ export function KanbanContainer() {
                         </button>
                       </div>
                     </KanbanHeader>
-                    <KanbanCards id={status.id}>
+                    <KanbanCards id={status.id} activeProjectId={projectId}>
                       {issueIds.map((issueId, index) => {
                         const issue = issueMap[issueId];
                         if (!issue) return null;
@@ -1094,7 +1094,7 @@ export function KanbanContainer() {
                         return (
                           <KanbanCard
                             key={issue.id}
-                            id={issue.id}
+                            id={`issue:${issue.id}`}
                             name={issue.title}
                             index={index}
                             className="group"

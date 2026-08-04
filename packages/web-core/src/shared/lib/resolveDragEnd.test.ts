@@ -160,6 +160,47 @@ describe('resolveDragEnd', () => {
     expect(resolveDragEnd(result, ACTIVE, issues)).toEqual({ type: 'no-op' });
   });
 
+  it('returns no-op when destination status equals the issue current status (tree card → tree status with same id)', () => {
+    // The custom tree drag manager may resolve a drop onto the status row
+    // the issue already lives under (magnetic snap-back, sloppy drop); the
+    // move would be a no-op write, so collapse it here. Covers the custom
+    // path AND the kanban→tree path (both flow through resolveDragEnd).
+    const result = makeResult(
+      'issue:' + uuid(1),
+      { droppableId: uuid(1), index: 0 }, // tree card source
+      { droppableId: `${ACTIVE}:status:${COL_TODO}`, index: 0 } // same status
+    );
+    const issues = issuesById({
+      id: uuid(1),
+      project_id: ACTIVE,
+      status_id: COL_TODO,
+    });
+
+    expect(resolveDragEnd(result, ACTIVE, issues)).toEqual({ type: 'no-op' });
+  });
+
+  it('returns kanban-internal for same-status kanban move (guard does NOT fire — kanban reorder path wins)', () => {
+    // Regression for guard placement: same-status moves between two kanban
+    // columns still surface as kanban-internal so the kanban handler can
+    // update sort_order. The guard is intentionally scoped to the move-issue
+    // return so manual-sort reorders aren\'t blocked.
+    const result = makeResult(
+      'issue:' + uuid(1),
+      { droppableId: COL_TODO, index: 0 },
+      { droppableId: COL_DONE, index: 0 }
+    );
+    const issues = issuesById({
+      id: uuid(1),
+      project_id: ACTIVE,
+      status_id: COL_DONE,
+    });
+
+    expect(resolveDragEnd(result, ACTIVE, issues)).toEqual({
+      type: 'kanban-internal',
+      result,
+    });
+  });
+
   it('returns kanban-internal for same-column reorder (diff index within a kanban column)', () => {
     // The kanban handler decides whether to honour the reorder based on
     // kanbanFilters.sortField; resolveDragEnd surfaces it as kanban-internal.
