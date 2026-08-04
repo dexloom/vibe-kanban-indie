@@ -4,10 +4,8 @@ import { DragControllerContext } from './DragContext';
 import {
   DragActiveProvider,
   DragCandidateProvider,
-  DragInsertionProvider,
   DragSourceProjectProvider,
   DragSourceProvider,
-  type InsertionPoint,
 } from '../outliner/dragState';
 import type { Candidate, DragCompletion } from './types';
 
@@ -22,10 +20,10 @@ export function DragProvider({ onDrop, children }: DragProviderProps) {
     targetId: null,
     placement: null,
     index: null,
+    isCard: false,
     sourceIssueId: null,
     sourceProjectId: null,
   });
-  const [insertion, setInsertion] = useState<InsertionPoint | null>(null);
   // `sourceIssueId` is constant for the duration of a drag — the
   // controller carries it on every candidate, but only the FIRST set
   // matters (subsequent identical values would still re-render the
@@ -44,7 +42,6 @@ export function DragProvider({ onDrop, children }: DragProviderProps) {
       onPromote: () => setIsDragActive(true),
       onDragEnd: () => {
         setIsDragActive(false);
-        setInsertion(null);
         setSourceIssueId(null);
         setSourceProjectId(null);
       },
@@ -52,15 +49,6 @@ export function DragProvider({ onDrop, children }: DragProviderProps) {
         setCandidate(c);
         if (c.sourceIssueId !== null) setSourceIssueId(c.sourceIssueId);
         if (c.sourceProjectId !== null) setSourceProjectId(c.sourceProjectId);
-        setInsertion(
-          c.targetId && c.index !== null
-            ? {
-                targetId: c.targetId,
-                index: c.index,
-                sourceIssueId: c.sourceIssueId,
-              }
-            : null,
-        );
       },
       onDrop: (completion) => onDropRef.current(completion),
     } satisfies DragControllerCallbacks);
@@ -78,9 +66,7 @@ export function DragProvider({ onDrop, children }: DragProviderProps) {
         <DragSourceProvider value={sourceIssueId}>
           <DragSourceProjectProvider value={sourceProjectId}>
             <DragCandidateProvider value={candidate.targetId}>
-              <DragInsertionProvider value={insertion}>
-                {children}
-              </DragInsertionProvider>
+              {children}
             </DragCandidateProvider>
           </DragSourceProjectProvider>
         </DragSourceProvider>

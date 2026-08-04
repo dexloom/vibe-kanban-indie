@@ -10,11 +10,6 @@ export interface KanbanMove {
   issueId: string;
   fromStatusId: string;
   toStatusId: string;
-  /** Destination position; omit to append. Set only by the legacy list-view
-   * adapter (positional reorder); custom cross-surface drags always emit a
-   * numeric `completion.index` for kanban-column hits (threaded as
-   * `destIndex: number`), so `destIndex === undefined` means append. */
-  destIndex?: number;
 }
 
 export type KanbanDragHandler = (move: KanbanMove) => void;

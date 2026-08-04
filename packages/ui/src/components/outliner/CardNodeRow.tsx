@@ -35,7 +35,12 @@ export function CardNodeRow({
   const hasChildren = node.data.children.length > 0;
 
   const { onMouseDown } = useDraggable(
-    { kind: 'issue-move', issueId: issue.id, projectId: issue.projectId },
+    {
+      kind: 'issue-move',
+      issueId: issue.id,
+      projectId: issue.projectId,
+      statusId: issue.statusId,
+    },
     { disabled: isMultiSelectActive }
   );
 

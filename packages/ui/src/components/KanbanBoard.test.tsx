@@ -2,300 +2,99 @@
  * @vitest-environment jsdom
  */
 import { cleanup, render, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { KanbanCard, KanbanCards } from './KanbanBoard';
 import {
   DragActiveProvider,
   DragCandidateProvider,
-  DragInsertionProvider,
   DragSourceProvider,
-  type InsertionPoint,
 } from './outliner/dragState';
 
 afterEach(cleanup);
 
-interface ProbeCardProps {
-  issueId: string;
-  label: string;
-}
+const SOURCE_A = {
+  kind: 'issue-move' as const,
+  issueId: 'issue-1',
+  projectId: 'p1',
+  statusId: 'status-A',
+};
+const SOURCE_B = {
+  kind: 'issue-move' as const,
+  issueId: 'issue-2',
+  projectId: 'p1',
+  statusId: 'status-A',
+};
 
-/** Minimal stand-in for `KanbanCard`: a `<div data-dnd-card>` carrying the
- * `data-dnd-card-issue-id` the DOM-order lookup inside `KanbanCards` keys
- * off. We do not need `useDraggable` / the controller here. */
-function ProbeCard({ issueId, label }: ProbeCardProps) {
-  return (
-    <div data-dnd-card="" data-dnd-card-issue-id={issueId}>
-      {label}
-    </div>
-  );
-}
-
-describe('KanbanCards insertion indicator', () => {
-  it('inserts the indicator at the adjusted slot (source A, index 1 in [A,B,C] lands between B and C)', async () => {
-    const COL_ID = 'col-1';
-    const insertion: InsertionPoint = {
-      targetId: COL_ID,
-      index: 1, // slot 1 against [B, C] (source A excluded)
-      sourceIssueId: 'A',
-    };
-    const { container } = render(
-      <DragActiveProvider value={true}>
-        <DragCandidateProvider value={COL_ID}>
-          <DragInsertionProvider value={insertion}>
-            <KanbanCards id={COL_ID} activeProjectId="p1">
-              <ProbeCard issueId="A" label="A" />
-              <ProbeCard issueId="B" label="B" />
-              <ProbeCard issueId="C" label="C" />
-            </KanbanCards>
-          </DragInsertionProvider>
-        </DragCandidateProvider>
-      </DragActiveProvider>,
+describe('KanbanCard drop target attrs', () => {
+  it('exposes data-drop-target-id + project + status + accept-kinds for the drag controller', () => {
+    const { container } = render(<KanbanCard source={SOURCE_A}>A</KanbanCard>);
+    const card = container.querySelector('[data-dnd-card]');
+    expect(card).toBeTruthy();
+    expect(card?.getAttribute('data-drop-target-id')).toBe('issue-1');
+    expect(card?.getAttribute('data-drop-target-project')).toBe('p1');
+    expect(card?.getAttribute('data-drop-target-status')).toBe('status-A');
+    expect(card?.getAttribute('data-drop-target-accept-kinds')).toBe(
+      'issue-move'
     );
-
-    const col = container.firstElementChild!;
-    // The source-card DOM lookup needs a mounted container, so the
-    // adjusted indicator only appears on the second render. Wait for it.
-    await waitFor(() => {
-      expect(
-        col.querySelectorAll('[data-dnd-insertion-indicator]').length,
-      ).toBeGreaterThan(0);
-    });
-    const indicatorCount = col.querySelectorAll(
-      '[data-dnd-insertion-indicator]',
-    ).length;
-    expect(indicatorCount).toBe(1);
-    // Round-5 placeholder: dashed-border slot, NOT the old 2px bar.
-    const indicator = col.querySelector(
-      '[data-dnd-insertion-indicator]',
-    ) as HTMLElement;
-    expect(indicator.className).toContain('border-dashed');
-    expect(indicator.className).toContain('border-brand');
-    expect(indicator.style.height).toBeTruthy();
-    // Indicator sits between B and C in DOM order.
-    const kids = Array.from(col.children);
-    const indicatorIdx = kids.findIndex((el) =>
-      el.hasAttribute('data-dnd-insertion-indicator'),
-    );
-    const bIdx = kids.findIndex(
-      (el) => el.getAttribute('data-dnd-card-issue-id') === 'B',
-    );
-    const cIdx = kids.findIndex(
-      (el) => el.getAttribute('data-dnd-card-issue-id') === 'C',
-    );
-    expect(indicatorIdx).toBe(bIdx + 1);
-    expect(indicatorIdx).toBe(cIdx - 1);
   });
 
-  it('inserts the indicator at index 0 (no source, slot 0 in [B, C])', () => {
-    const COL_ID = 'col-2';
-    const insertion: InsertionPoint = {
-      targetId: COL_ID,
-      index: 0,
-      sourceIssueId: null,
-    };
-    const { container } = render(
-      <DragActiveProvider value={true}>
-        <DragCandidateProvider value={COL_ID}>
-          <DragInsertionProvider value={insertion}>
-            <KanbanCards id={COL_ID} activeProjectId="p1">
-              <ProbeCard issueId="B" label="B" />
-              <ProbeCard issueId="C" label="C" />
-            </KanbanCards>
-          </DragInsertionProvider>
-        </DragCandidateProvider>
-      </DragActiveProvider>,
-    );
-
-    const col = container.firstElementChild!;
-    const indicators = col.querySelectorAll('[data-dnd-insertion-indicator]');
-    expect(indicators.length).toBe(1);
-    // Indicator sits before both cards.
-    const indicator = indicators[0] as HTMLElement;
+  it('also keeps the data-dnd-card-issue-id for the source-card dimming context', () => {
+    const { container } = render(<KanbanCard source={SOURCE_A}>A</KanbanCard>);
     expect(
-      indicator.compareDocumentPosition(col.children[1]!) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(indicator.className).toContain('border-dashed');
-    expect(indicator.style.height).toBeTruthy();
+      container
+        .querySelector('[data-dnd-card]')
+        ?.getAttribute('data-dnd-card-issue-id')
+    ).toBe('issue-1');
   });
+});
 
-  it('appends the indicator at the end when the adjusted slot equals the children length', async () => {
-    const COL_ID = 'col-3';
-    const insertion: InsertionPoint = {
-      targetId: COL_ID,
-      index: 1,
-      sourceIssueId: 'A',
-    };
+describe('KanbanCard during a drag (no ring/outline highlights)', () => {
+  it('does NOT add ring or brand classes to the candidate card during a drag', () => {
     const { container } = render(
       <DragActiveProvider value={true}>
-        <DragCandidateProvider value={COL_ID}>
-          <DragInsertionProvider value={insertion}>
-            <KanbanCards id={COL_ID} activeProjectId="p1">
-              <ProbeCard issueId="A" label="A" />
-              <ProbeCard issueId="B" label="B" />
-            </KanbanCards>
-          </DragInsertionProvider>
+        <DragCandidateProvider value="issue-1">
+          <KanbanCard source={SOURCE_A}>A</KanbanCard>
         </DragCandidateProvider>
-      </DragActiveProvider>,
+      </DragActiveProvider>
     );
-
-    const col = container.firstElementChild!;
-    await waitFor(() => {
-      expect(
-        col.querySelectorAll('[data-dnd-insertion-indicator]').length,
-      ).toBe(1);
-    });
-    // sourceFullIndex=0, raw index=1 → adjustInsertionIndex → 2. Children
-    // length is 2 → indicator appended at the end.
-    const indicators = col.querySelectorAll('[data-dnd-insertion-indicator]');
-    expect(indicators.length).toBe(1);
-    // Indicator follows B in DOM order (compareDocumentPosition: the
-    // B node precedes the indicator → PRECEDING bit set on the
-    // indicator's view of B).
-    expect(
-      indicators[0]!.compareDocumentPosition(
-        col.querySelector('[data-dnd-card-issue-id="B"]')!,
-      ) & Node.DOCUMENT_POSITION_PRECEDING,
-    ).toBeTruthy();
-    expect(indicators[0]!.className).toContain('border-dashed');
+    const card = container.querySelector('[data-dnd-card]')!;
+    expect(card.className).not.toContain('ring-brand');
+    expect(card.className).not.toContain('bg-brand/10');
+    expect(card.className).not.toContain('ring-border-strong/40');
+    expect(card.className).not.toContain('ring-1');
+    expect(card.className).not.toContain('ring-2');
   });
 
-  it('hides the indicator when positionalReorderEnabled={false} (non-positional sort mode would re-sort the card)', () => {
-    const COL_ID = 'col-4';
-    const insertion: InsertionPoint = {
-      targetId: COL_ID,
-      index: 1,
-      sourceIssueId: 'A',
-    };
+  it('does NOT add ring/border classes to a non-candidate card during a drag', () => {
     const { container } = render(
       <DragActiveProvider value={true}>
-        <DragCandidateProvider value={COL_ID}>
-          <DragInsertionProvider value={insertion}>
-            <KanbanCards
-              id={COL_ID}
-              activeProjectId="p1"
-              positionalReorderEnabled={false}
-            >
-              <ProbeCard issueId="A" label="A" />
-              <ProbeCard issueId="B" label="B" />
-            </KanbanCards>
-          </DragInsertionProvider>
+        <DragCandidateProvider value="issue-OTHER">
+          <KanbanCard source={SOURCE_A}>A</KanbanCard>
         </DragCandidateProvider>
-      </DragActiveProvider>,
+      </DragActiveProvider>
     );
-
-    const col = container.firstElementChild!;
-    expect(col.querySelectorAll('[data-dnd-insertion-indicator]').length).toBe(
-      0,
-    );
-  });
-
-  it('placeholder height is measured from the first card in the column', async () => {
-    // Round-5: the insertion placeholder is a slot the size of a card,
-    // not a 2px bar. `KanbanCards` reads the first card's
-    // `getBoundingClientRect().height` and writes it into the
-    // placeholder's inline style. jsdom returns 0/0/0/0 by default —
-    // stub the prototype to assert the wiring.
-    const COL_ID = 'col-measured';
-    const insertion: InsertionPoint = {
-      targetId: COL_ID,
-      index: 0,
-      sourceIssueId: null,
-    };
-    const spy = vi
-      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-      .mockReturnValue({
-        x: 0,
-        y: 0,
-        left: 0,
-        top: 0,
-        right: 100,
-        bottom: 84,
-        width: 100,
-        height: 84,
-        toJSON: () => ({}),
-      } as DOMRect);
-    try {
-      const { container } = render(
-        <DragActiveProvider value={true}>
-          <DragCandidateProvider value={COL_ID}>
-            <DragInsertionProvider value={insertion}>
-              <KanbanCards id={COL_ID} activeProjectId="p1">
-                <ProbeCard issueId="A" label="A" />
-                <ProbeCard issueId="B" label="B" />
-              </KanbanCards>
-            </DragInsertionProvider>
-          </DragCandidateProvider>
-        </DragActiveProvider>,
-      );
-      const indicator = container.querySelector(
-        '[data-dnd-insertion-indicator]',
-      ) as HTMLElement;
-      await waitFor(() => {
-        expect(indicator.style.height).toBe('84px');
-      });
-    } finally {
-      spy.mockRestore();
-    }
-  });
-
-  it('empty column uses the fallback placeholder height (no cards to measure)', async () => {
-    const COL_ID = 'col-empty';
-    const insertion: InsertionPoint = {
-      targetId: COL_ID,
-      index: 0,
-      sourceIssueId: null,
-    };
-    const { container } = render(
-      <DragActiveProvider value={true}>
-        <DragCandidateProvider value={COL_ID}>
-          <DragInsertionProvider value={insertion}>
-            <KanbanCards id={COL_ID} activeProjectId="p1">
-              {null}
-            </KanbanCards>
-          </DragInsertionProvider>
-        </DragCandidateProvider>
-      </DragActiveProvider>,
-    );
-    const indicator = container.querySelector(
-      '[data-dnd-insertion-indicator]',
-    ) as HTMLElement;
-    await waitFor(() => {
-      // Fallback is 60px; jsdom's zero-rect means measurement yields 0,
-      // so the empty-column branch owns the fallback value.
-      expect(indicator.style.height).toBe('60px');
-    });
+    const card = container.querySelector('[data-dnd-card]')!;
+    expect(card.className).not.toContain('ring-border-strong/40');
+    expect(card.className).not.toContain('ring-1');
+    expect(card.className).not.toContain('bg-brand/10');
   });
 });
 
 describe('KanbanCard source dim', () => {
   it('applies opacity-50 to the dragged source card; other cards stay opaque', () => {
-    // Round-5: the source card dims to signal "this is being moved".
-    // The source id lives in its own context (`DragSourceContext`) so a
-    // re-render that flips it doesn't invalidate the insertion
-    // consumers (separate context split, same render-storm discipline
-    // as DragActive / DragCandidate).
     const { container } = render(
-      <DragSourceProvider value="A">
-        <KanbanCard
-          source={{ kind: 'issue-move', issueId: 'A', projectId: 'p1' }}
-        >
-          A
-        </KanbanCard>
-        <KanbanCard
-          source={{ kind: 'issue-move', issueId: 'B', projectId: 'p1' }}
-        >
-          B
-        </KanbanCard>
-      </DragSourceProvider>,
+      <DragSourceProvider value="issue-1">
+        <KanbanCard source={SOURCE_A}>A</KanbanCard>
+        <KanbanCard source={SOURCE_B}>B</KanbanCard>
+      </DragSourceProvider>
     );
     const cards = Array.from(
-      container.querySelectorAll<HTMLElement>('[data-dnd-card]'),
+      container.querySelectorAll<HTMLElement>('[data-dnd-card]')
     );
     expect(cards).toHaveLength(2);
     const [a, b] = cards;
-    expect(a!.getAttribute('data-dnd-card-issue-id')).toBe('A');
-    expect(b!.getAttribute('data-dnd-card-issue-id')).toBe('B');
+    expect(a!.getAttribute('data-dnd-card-issue-id')).toBe('issue-1');
+    expect(b!.getAttribute('data-dnd-card-issue-id')).toBe('issue-2');
     expect(a!.className).toContain('opacity-50');
     expect(b!.className).not.toContain('opacity-50');
   });
@@ -303,14 +102,199 @@ describe('KanbanCard source dim', () => {
   it('no dim when no drag is active (DragSourceContext is null)', () => {
     const { container } = render(
       <DragSourceProvider value={null}>
-        <KanbanCard
-          source={{ kind: 'issue-move', issueId: 'A', projectId: 'p1' }}
-        >
-          A
-        </KanbanCard>
-      </DragSourceProvider>,
+        <KanbanCard source={SOURCE_A}>A</KanbanCard>
+      </DragSourceProvider>
     );
     const card = container.querySelector('[data-dnd-card]')!;
     expect(card.className).not.toContain('opacity-50');
+  });
+});
+
+describe('KanbanCards column drop target', () => {
+  it('renders children directly when no drag is active', () => {
+    const { container } = render(
+      <KanbanCards id="col-1" activeProjectId="p1">
+        <div data-dnd-card="" data-dnd-card-issue-id="a">
+          A
+        </div>
+        <div data-dnd-card="" data-dnd-card-issue-id="b">
+          B
+        </div>
+      </KanbanCards>
+    );
+    const col = container.firstElementChild!;
+    expect(col.children.length).toBe(2);
+  });
+
+  it('exposes data-drop-target-id + project + accept-kinds for the controller (no data-drop-target-status — column marker)', () => {
+    const { container } = render(
+      <KanbanCards id="col-uuid" activeProjectId="p1">
+        {null}
+      </KanbanCards>
+    );
+    const col = container.firstElementChild!;
+    expect(col.getAttribute('data-drop-target-id')).toBe('col-uuid');
+    expect(col.getAttribute('data-drop-target-project')).toBe('p1');
+    expect(col.getAttribute('data-drop-target-accept-kinds')).toBe(
+      'issue-move'
+    );
+    expect(col.hasAttribute('data-drop-target-status')).toBe(false);
+  });
+
+  it('does NOT tint the column with bg-brand/5 when it is the candidate (placeholder replaces the tint)', () => {
+    const { container } = render(
+      <DragActiveProvider value={true}>
+        <DragCandidateProvider value="col-1">
+          <KanbanCards id="col-1" activeProjectId="p1">
+            {null}
+          </KanbanCards>
+        </DragCandidateProvider>
+      </DragActiveProvider>
+    );
+    const col = container.firstElementChild!;
+    expect(col.className).not.toContain('bg-brand/5');
+  });
+});
+
+describe('KanbanCards same-column swap preview', () => {
+  it('visually swaps source card A and target card B in rendered children when candidate is B', () => {
+    const { container } = render(
+      <DragActiveProvider value={true}>
+        <DragSourceProvider value="issue-1">
+          <DragCandidateProvider value="issue-2">
+            <KanbanCards id="status-A" activeProjectId="p1">
+              <KanbanCard key="issue-1" source={SOURCE_A}>
+                A
+              </KanbanCard>
+              <KanbanCard key="issue-2" source={SOURCE_B}>
+                B
+              </KanbanCard>
+            </KanbanCards>
+          </DragCandidateProvider>
+        </DragSourceProvider>
+      </DragActiveProvider>
+    );
+    const col = container.firstElementChild!;
+    const ids = Array.from(
+      col.querySelectorAll<HTMLElement>('[data-dnd-card]')
+    ).map((el) => el.getAttribute('data-dnd-card-issue-id'));
+    expect(ids).toEqual(['issue-2', 'issue-1']);
+  });
+
+  it('keeps original order when no swap is in flight (no candidate set)', () => {
+    const { container } = render(
+      <DragActiveProvider value={false}>
+        <KanbanCards id="status-A" activeProjectId="p1">
+          <KanbanCard key="issue-1" source={SOURCE_A}>
+            A
+          </KanbanCard>
+          <KanbanCard key="issue-2" source={SOURCE_B}>
+            B
+          </KanbanCard>
+        </KanbanCards>
+      </DragActiveProvider>
+    );
+    const col = container.firstElementChild!;
+    const ids = Array.from(
+      col.querySelectorAll<HTMLElement>('[data-dnd-card]')
+    ).map((el) => el.getAttribute('data-dnd-card-issue-id'));
+    expect(ids).toEqual(['issue-1', 'issue-2']);
+  });
+
+  it('does NOT swap when the candidate is the column itself (cross-column move scenario)', () => {
+    const { container } = render(
+      <DragActiveProvider value={true}>
+        <DragSourceProvider value="issue-1">
+          <DragCandidateProvider value="status-B">
+            <KanbanCards id="status-A" activeProjectId="p1">
+              <KanbanCard key="issue-1" source={SOURCE_A}>
+                A
+              </KanbanCard>
+              <KanbanCard key="issue-2" source={SOURCE_B}>
+                B
+              </KanbanCard>
+            </KanbanCards>
+          </DragCandidateProvider>
+        </DragSourceProvider>
+      </DragActiveProvider>
+    );
+    const col = container.firstElementChild!;
+    const ids = Array.from(
+      col.querySelectorAll<HTMLElement>('[data-dnd-card]')
+    ).map((el) => el.getAttribute('data-dnd-card-issue-id'));
+    expect(ids).toEqual(['issue-1', 'issue-2']);
+  });
+});
+
+describe('KanbanCards cross-column move preview', () => {
+  it('appends a dimmed clone of the dragged card when this column is the candidate', async () => {
+    const { container, unmount } = render(
+      <>
+        <div data-dnd-card data-dnd-card-issue-id="issue-1">
+          A
+        </div>
+        <DragActiveProvider value={true}>
+          <DragSourceProvider value="issue-1">
+            <DragCandidateProvider value="status-B">
+              <KanbanCards id="status-B" activeProjectId="p1">
+                <KanbanCard key="issue-2" source={SOURCE_B}>
+                  B
+                </KanbanCard>
+              </KanbanCards>
+            </DragCandidateProvider>
+          </DragSourceProvider>
+        </DragActiveProvider>
+      </>
+    );
+    await waitFor(() => {
+      const col = container.querySelector('[data-drop-target-id="status-B"]')!;
+      const clones = col.querySelectorAll(
+        '[data-dnd-card-issue-id="issue-1"]'
+      );
+      expect(clones.length).toBe(1);
+      expect((clones[0] as HTMLElement).style.opacity).toBe('0.5');
+    });
+    unmount();
+  });
+
+  it('does NOT append a clone when the candidate is a card in this column (swap path)', async () => {
+    const { container, unmount } = render(
+      <DragActiveProvider value={true}>
+        <DragSourceProvider value="issue-1">
+          <DragCandidateProvider value="issue-2">
+            <KanbanCards id="status-A" activeProjectId="p1">
+              <KanbanCard key="issue-1" source={SOURCE_A}>
+                A
+              </KanbanCard>
+              <KanbanCard key="issue-2" source={SOURCE_B}>
+                B
+              </KanbanCard>
+            </KanbanCards>
+          </DragCandidateProvider>
+        </DragSourceProvider>
+      </DragActiveProvider>
+    );
+    await waitFor(() => {
+      const col = container.querySelector('[data-drop-target-id="status-A"]')!;
+      expect(
+        col.querySelectorAll('[data-dnd-card-issue-id="issue-1"]').length
+      ).toBe(1);
+    });
+    unmount();
+  });
+
+  it('does NOT append a clone when no drag is active', () => {
+    const { container, unmount } = render(
+      <KanbanCards id="status-A" activeProjectId="p1">
+        <KanbanCard key="issue-1" source={SOURCE_A}>
+          A
+        </KanbanCard>
+      </KanbanCards>
+    );
+    const col = container.querySelector('[data-drop-target-id="status-A"]')!;
+    expect(
+      col.querySelectorAll('[data-dnd-card-issue-id="issue-1"]').length
+    ).toBe(1);
+    unmount();
   });
 });

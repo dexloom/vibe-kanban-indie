@@ -11,11 +11,9 @@ import { cn } from '../lib/cn';
 import {
   useDragActive,
   useDragCandidate,
-  useDragInsertion,
   useDragSourceIssueId,
 } from './outliner/dragState';
 import { useDraggable, useDropTarget } from './dnd';
-import { adjustInsertionIndex } from './dnd/geometry';
 import type { DragSource } from './dnd';
 
 /** Source shape specific to kanban card drags; narrows `DragSource` for
@@ -23,10 +21,14 @@ import type { DragSource } from './dnd';
  * guard. Project-row drags are bound via the same `DragSource` union but
  * flow through a separate tree-node renderer (see `treeNodes.tsx`). */
 type IssueMoveSource = Extract<DragSource, { kind: 'issue-move' }>;
-import React, {
+import {
+  Children,
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DotsSixVerticalIcon, PlusIcon } from '@phosphor-icons/react';
@@ -69,7 +71,7 @@ export const KanbanBoard = ({ children, className }: KanbanBoardProps) => {
 };
 
 // =============================================================================
-// Kanban Card (Draggable via shared dnd context)
+// Kanban Card (Draggable + Drop target via shared dnd context)
 // =============================================================================
 
 export type KanbanCardProps = {
@@ -101,11 +103,19 @@ export const KanbanCard = ({
 }: KanbanCardProps) => {
   const { onMouseDown } = useDraggable(source, { disabled: dragDisabled });
   // Dim the source card while a drag is in flight; the source card may
-  // be in a column that has no live insertion (the pointer is over a
+  // be in a column that has no live candidate (the pointer is over a
   // different column), so the source id lives in its own context
-  // (`DragSourceContext`), not on `DragInsertionContext`.
+  // (`DragSourceContext`), not on `DragCandidateContext`.
   const dragSourceIssueId = useDragSourceIssueId();
   const isDraggedSource = dragSourceIssueId === source.issueId;
+  // Cards are also drop targets: dropping issue X on issue Y in the
+  // SAME column swaps their status columns. The drop target carries
+  // the issue's id (resolver → issue-swap) and the status it sits in
+  // (controller → same-column filter).
+  const dropTargetAttrs = useDropTarget(source.issueId, source.projectId, {
+    acceptKinds: ['issue-move'],
+    statusId: source.statusId,
+  });
   return (
     <Card
       className={cn(
@@ -114,9 +124,10 @@ export const KanbanCard = ({
           ? 'ring-2 ring-accent ring-inset bg-accent/5'
           : isOpen && 'ring-2 ring-brand ring-inset',
         isDraggedSource && 'opacity-50 transition-opacity',
-        className,
+        className
       )}
       {...(onMouseDown ? { onMouseDown } : {})}
+      {...dropTargetAttrs}
       data-dnd-card=""
       data-dnd-card-issue-id={source.issueId}
       tabIndex={tabIndex}
@@ -153,121 +164,71 @@ export type KanbanCardsProps = {
   /** Project id this column belongs to. Custom drag controller reads
    * `data-drop-target-project` so it skips targets from other projects. */
   activeProjectId?: string | null;
-  /** When false, same-column drags (where the source card already lives in
-   * this column) suppress the insertion indicator — the controller no-ops
-   * the move in non-positional sort modes so the indicator would be a lie. */
-  positionalReorderEnabled?: boolean;
 };
-
-/** Fallback placeholder height when the column has no cards to measure
- * (empty column). Matches the typical card visual height in this app. */
-const FALLBACK_CARD_HEIGHT_PX = 60;
 
 export const KanbanCards = ({
   id,
   children,
   className,
   activeProjectId,
-  positionalReorderEnabled = true,
 }: KanbanCardsProps) => {
   const isDragActive = useDragActive();
   const candidateId = useDragCandidate();
-  const isCustomCandidate = isDragActive && candidateId === id;
+  const sourceIssueId = useDragSourceIssueId();
+  const isSwapPreview =
+    isDragActive && candidateId !== null && candidateId !== id;
+  const isMovePreview = isDragActive && candidateId === id;
   const dropTargetAttrs = useDropTarget(id, activeProjectId ?? '');
-  const insertion = useDragInsertion();
-  // Container ref + effect-based source-card index + placeholder-height
-  // lookup. The render pass would otherwise see `containerRef.current
-  // === null` (refs are set during commit, not render) and resolve the
-  // source index to -1, placing the indicator one slot off. The effect
-  // runs after commit and stashes the resolved index in state; the next
-  // render reads the live value. Skipping the useState-as-ref callback
-  // avoids a re-render per commit (StrictMode would triple-fire it).
-  const containerRef = React.useRef<HTMLDivElement | null>(null);
-  const [sourceFullIndex, setSourceFullIndex] = React.useState(-1);
-  const [cardHeightPx, setCardHeightPx] = React.useState(
-    FALLBACK_CARD_HEIGHT_PX,
-  );
-  // `React.Children.toArray` returns a fresh array every call — keep a
-  // memoized view so downstream slice / array operations don't churn
-  // when the children prop is referentially stable.
-  const cardChildren = React.useMemo(
-    () => React.Children.toArray(children),
-    [children],
-  );
-  // `useLayoutEffect` instead of `useEffect`: the DOM query + state set
-  // must run synchronously BEFORE paint, otherwise the first paint
-  // after a column entry sees `sourceFullIndex === -1` and the
-  // indicator lands one slot off for one frame. The placeholder-height
-  // measurement shares this same query (one DOM pass per effect run).
-  React.useLayoutEffect(() => {
-    const el = containerRef.current;
-    if (!insertion || insertion.targetId !== id) {
-      setSourceFullIndex(-1);
-      setCardHeightPx(FALLBACK_CARD_HEIGHT_PX);
-      return;
-    }
-    if (!el) {
-      setSourceFullIndex(-1);
-      setCardHeightPx(FALLBACK_CARD_HEIGHT_PX);
-      return;
-    }
-    // Locate the dragged source card by DOM order, not React key. React's
-    // `Children.toArray` rewrites every key with an internal `.$` prefix,
-    // so matching against `insertion.sourceIssueId` directly never finds
-    // a hit and the indicator would render one slot off. The container's
-    // `[data-dnd-card]` children are in 1:1 order with `cardChildren`,
-    // and each card carries `data-dnd-card-issue-id` for an exact lookup.
-    const cards = Array.from(
-      el.querySelectorAll<HTMLElement>('[data-dnd-card]'),
+  const columnRef = useRef<HTMLDivElement | null>(null);
+  // Cross-column move preview: append a dimmed clone of the dragged card at
+  // the end of the target column, so the user sees exactly what will land.
+  // Same imperative-clone pattern as the drag ghost (transient, removed on
+  // preview end). The source card stays in its original column (dimmed).
+  useEffect(() => {
+    if (!isMovePreview || !sourceIssueId || !columnRef.current) return;
+    // Issue ids are bare UUIDs (safe selector chars — no CSS escaping needed).
+    const sourceEl = document.querySelector<HTMLElement>(
+      `[data-dnd-card-issue-id="${sourceIssueId}"]`
     );
-    // First card's height = the placeholder slot height. Empty column
-    // falls back to a constant. `getBoundingClientRect` is the live
-    // layout height (border + padding + content), no margins.
-    setCardHeightPx(
-      cards[0]
-        ? cards[0].getBoundingClientRect().height
-        : FALLBACK_CARD_HEIGHT_PX,
+    if (!sourceEl) return;
+    const preview = sourceEl.cloneNode(true) as HTMLElement;
+    preview.style.opacity = '0.5';
+    preview.style.pointerEvents = 'none';
+    preview.removeAttribute('data-dnd-card');
+    preview.removeAttribute('data-drop-target-id');
+    columnRef.current.appendChild(preview);
+    return () => preview.remove();
+  }, [isMovePreview, sourceIssueId]);
+
+  const displayChildren = useMemo(() => {
+    if (!isSwapPreview || !sourceIssueId) return children;
+    const arr = Children.toArray(children);
+    const stripKeyPrefix = (k: string): string => k.replace(/^\.\$/, '');
+    const srcIdx = arr.findIndex(
+      (c) =>
+        stripKeyPrefix(String((c as { key?: string | null }).key ?? '')) ===
+        sourceIssueId
     );
-    if (insertion.sourceIssueId == null) {
-      setSourceFullIndex(-1);
-      return;
-    }
-    const idx = cards.findIndex(
-      (card) => card.dataset.dndCardIssueId === insertion.sourceIssueId,
+    const dstIdx = arr.findIndex(
+      (c) =>
+        stripKeyPrefix(String((c as { key?: string | null }).key ?? '')) ===
+        candidateId
     );
-    setSourceFullIndex(idx);
-  }, [insertion, id]);
-  const fullIndex = adjustInsertionIndex(
-    insertion?.index ?? 0,
-    sourceFullIndex >= 0 ? sourceFullIndex : null,
-  );
-  // Non-positional sort → any insertion would be re-sorted away by the
-  // next shape sync, so the indicator would lie about the landing slot.
-  // Suppress for every column insertion in that mode.
-  const showInsertion = insertion?.targetId === id && positionalReorderEnabled;
+    if (srcIdx === -1 || dstIdx === -1 || srcIdx === dstIdx) return children;
+    const a = arr[srcIdx];
+    const b = arr[dstIdx];
+    if (!a || !b) return children;
+    arr[srcIdx] = b;
+    arr[dstIdx] = a;
+    return arr;
+  }, [children, isSwapPreview, sourceIssueId, candidateId]);
   return (
     <div
-      ref={containerRef}
-      className={cn(
-        'flex flex-1 flex-col transition-colors',
-        isCustomCandidate && 'bg-brand/5',
-        className,
-      )}
+      ref={columnRef}
+      className={cn('flex flex-1 flex-col transition-colors', className)}
       {...dropTargetAttrs}
     >
-      {showInsertion ? (
-        <>
-          {cardChildren.slice(0, fullIndex)}
-          <div
-            data-dnd-insertion-indicator=""
-            className="shrink-0 rounded-md border-2 border-dashed border-brand/60 bg-brand/5 mx-2"
-            style={{ height: `${cardHeightPx}px` }}
-          />
-          {cardChildren.slice(fullIndex)}
-        </>
-      ) : (
-        children
-      )}
+      {displayChildren}
     </div>
   );
 };
@@ -299,7 +260,7 @@ export const KanbanHeader = (props: KanbanHeaderProps) => {
       className={cn(
         'sticky top-0 z-20 flex shrink-0 items-center gap-base p-base flex gap-base',
         'bg-background',
-        props.className,
+        props.className
       )}
       style={{
         backgroundImage: `linear-gradient(hsl(var(${props.color}) / 0.03), hsl(var(${props.color}) / 0.03))`,
@@ -354,7 +315,7 @@ export const KanbanProvider = ({
     <div
       className={cn(
         'inline-grid grid-flow-col auto-cols-[minmax(200px,400px)] divide-x border-x items-stretch min-h-full',
-        className,
+        className
       )}
     >
       {children}

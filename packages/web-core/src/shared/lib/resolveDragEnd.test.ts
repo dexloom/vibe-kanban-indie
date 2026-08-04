@@ -126,7 +126,6 @@ describe('resolveDragEnd', () => {
       fromStatusId: COL_TODO,
       toStatusId: COL_TODO,
       projectId: ACTIVE,
-      destIndex: undefined,
     });
   });
 
@@ -217,7 +216,7 @@ describe('resolveDragEnd', () => {
     });
   });
 
-  it('returns invalid "not a drop target" when targetId resolves to a known issue (cards are no longer drop targets)', () => {
+  it('returns issue-swap when dragging a card onto another known issue (same project, swap status)', () => {
     const completion = makeCompletion(uuid(1), uuid(2));
     const issues = issuesById(
       { id: uuid(1), project_id: ACTIVE, status_id: COL_TODO },
@@ -226,8 +225,39 @@ describe('resolveDragEnd', () => {
     expect(
       resolveDragEnd(completion, ACTIVE, issues, ACTIVE_STATUS_IDS)
     ).toEqual({
+      type: 'issue-swap',
+      sourceIssueId: uuid(1),
+      targetIssueId: uuid(2),
+      projectId: ACTIVE,
+    });
+  });
+
+  it('returns no-op when the drag target equals the source (self-swap)', () => {
+    // The controller already excludes the dragged card from collected
+    // targets, so this path is defensive — but the resolver must still
+    // return a no-op rather than route a self-swap through bulkUpdate.
+    const completion = makeCompletion(uuid(1), uuid(1));
+    const issues = issuesById({
+      id: uuid(1),
+      project_id: ACTIVE,
+      status_id: COL_TODO,
+    });
+    expect(
+      resolveDragEnd(completion, ACTIVE, issues, ACTIVE_STATUS_IDS)
+    ).toEqual({ type: 'no-op' });
+  });
+
+  it('returns invalid "cross-project" when the target issue belongs to a different project', () => {
+    const completion = makeCompletion(uuid(1), uuid(2));
+    const issues = issuesById(
+      { id: uuid(1), project_id: ACTIVE, status_id: COL_TODO },
+      { id: uuid(2), project_id: OTHER_PROJECT, status_id: COL_DONE }
+    );
+    expect(
+      resolveDragEnd(completion, ACTIVE, issues, ACTIVE_STATUS_IDS)
+    ).toEqual({
       type: 'invalid',
-      reason: 'not a valid status target',
+      reason: 'cross-project',
     });
   });
 
@@ -318,48 +348,6 @@ describe('resolveDragEnd', () => {
     ).toEqual({
       type: 'invalid',
       reason: 'not a valid status target',
-    });
-  });
-
-  it('passes through the resolved destIndex on a kanban-internal completion', () => {
-    const completion = makeCompletion(uuid(1), COL_DONE, ACTIVE, 2);
-    const issues = issuesById({
-      id: uuid(1),
-      project_id: ACTIVE,
-      status_id: COL_TODO,
-    });
-    expect(
-      resolveDragEnd(completion, ACTIVE, issues, ACTIVE_STATUS_IDS)
-    ).toEqual({
-      type: 'kanban-internal',
-      issueId: uuid(1),
-      fromStatusId: COL_TODO,
-      toStatusId: COL_DONE,
-      projectId: ACTIVE,
-      destIndex: 2,
-    });
-  });
-
-  it('always carries destIndex on the kanban-internal outcome (undefined when the completion has no index)', () => {
-    const completion = makeCompletion(uuid(1), COL_DONE, ACTIVE, null);
-    const issues = issuesById({
-      id: uuid(1),
-      project_id: ACTIVE,
-      status_id: COL_TODO,
-    });
-    const outcome = resolveDragEnd(
-      completion,
-      ACTIVE,
-      issues,
-      ACTIVE_STATUS_IDS
-    );
-    expect(outcome).toEqual({
-      type: 'kanban-internal',
-      issueId: uuid(1),
-      fromStatusId: COL_TODO,
-      toStatusId: COL_DONE,
-      projectId: ACTIVE,
-      destIndex: undefined,
     });
   });
 

@@ -747,42 +747,21 @@ export function KanbanContainer() {
     []
   );
 
-  // Hoisted once and reused by `handleKanbanMove` (same-status gate) +
-  // the `positionalReorderEnabled` prop on each `KanbanCards` column
-  // (insertion indicator suppression). Otherwise the same expression is
-  // computed twice per render and `KanbanCards` misses a state when the
-  // move handler's deps array excludes a related derivation.
-  const isManualSort = kanbanFilters.sortField === 'sort_order';
-
   // Move-based handler. Called from two paths:
   //   1. The shared custom drag system via KanbanDragHandlerProvider.
-  //      Cross-surface drops land here with a numeric `destIndex` —
-  //      the unified `DragController` ALWAYS emits a numeric
-  //      `completion.index` for kanban-column hits (threaded through
-  //      `kanban-internal.destIndex`), including same-column drags.
-  //      `destIndex` is undefined ONLY when a future shape lands
-  //      without an index, which the unified controller does not
-  //      currently produce — the comment that used to call this an
-  //      "append" path was stale (the unified controller never reaches
-  //      `handleKanbanMove` without a numeric index for kanban hits).
+  //      Cross-surface drops land here when the drop target resolves
+  //      to a bare-UUID kanban column (column move → append).
   //   2. The legacy list-view adapter (IssueListView) which still uses
-  //      hello-pangea for positional reordering inside columns. The
-  //      `DropResult.destination.index` is a numeric hello-pangea
-  //      value; in non-positional sort mode it is `null` and the
-  //      `computeKanbanMove` clamps-to-end behavior applies.
+  //      hello-pangea for positional reordering inside columns.
   // Thin orchestrator: guard → compute next state → build updates →
   // apply (REST + shape refresh).
   const handleKanbanMove = useCallback(
     (move: KanbanMove) => {
       const { fromStatusId, toStatusId } = move;
-
-      // The same-status gate: in non-positional sort mode (the default)
-      // every same-status move is a no-op because the next shape sync
-      // re-sorts the column and the user's intent is "leave it where it
-      // is". This is the sole practical gate for same-status moves
-      // (custom drags always emit a numeric index for kanban-column
-      // hits, so the previous destIndex==null check was unreachable).
-      if (fromStatusId === toStatusId && !isManualSort) return;
+      // Same-status drop is a no-op (computeKanbanMove would return
+      // the prev map unchanged; the early return avoids the bulkUpdate
+      // round-trip too).
+      if (fromStatusId === toStatusId) return;
 
       const newItems = computeKanbanMove(itemsRef.current, move);
       setItems(newItems);
@@ -815,13 +794,7 @@ export function KanbanContainer() {
 
       applyKanbanMove(updates, projectId);
     },
-    [
-      projectId,
-      isManualSort,
-      calculateSortOrder,
-      statusColumnIndexMap,
-      applyKanbanMove,
-    ]
+    [projectId, calculateSortOrder, statusColumnIndexMap, applyKanbanMove]
   );
 
   // Legacy list-view adapter (positional reorder still uses
@@ -841,7 +814,6 @@ export function KanbanContainer() {
         issueId: result.draggableId,
         fromStatusId,
         toStatusId,
-        destIndex: result.destination.index,
       });
     },
     [handleKanbanMove]
@@ -1126,11 +1098,7 @@ export function KanbanContainer() {
                         </button>
                       </div>
                     </KanbanHeader>
-                    <KanbanCards
-                      id={status.id}
-                      activeProjectId={projectId}
-                      positionalReorderEnabled={isManualSort}
-                    >
+                    <KanbanCards id={status.id} activeProjectId={projectId}>
                       {issueIds.map((issueId) => {
                         const issue = issueMap[issueId];
                         if (!issue) return null;
@@ -1158,6 +1126,7 @@ export function KanbanContainer() {
                               kind: 'issue-move',
                               issueId: issue.id,
                               projectId,
+                              statusId: issue.status_id,
                             }}
                             name={issue.title}
                             className="group"

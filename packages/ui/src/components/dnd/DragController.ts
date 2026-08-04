@@ -2,11 +2,8 @@ import {
   DROP_THRESHOLD_PX,
   DRAG_THRESHOLD_PX,
   findBestCandidate,
-  computeInsertIndex,
   type TargetRect,
-  type CardRect,
 } from './geometry';
-import { isColumnLikeTarget } from './targetKind';
 import type { Candidate, DragCompletion, DragSource } from './types';
 
 // Visual tuning for the drag ghost. Kept module-local so they survive any
@@ -58,11 +55,6 @@ type ControllerState =
       ghost: HTMLElement | null;
     };
 
-interface TargetQueryResult {
-  targets: TargetRect[];
-  elements: Map<string, HTMLElement>;
-}
-
 /**
  * State machine: `idle → pressing → dragging → dropping / cancelled`.
  *
@@ -86,9 +78,17 @@ export class DragController {
     targetId: null,
     placement: null,
     index: null,
+    isCard: false,
     sourceIssueId: null,
     sourceProjectId: null,
   };
+  /** Snapshot of the source column's card geometry taken at promote. The
+   * visual swap preview reorders the DOM mid-gesture, which shifts every
+   * card's live `getBoundingClientRect`; resolving card candidates against
+   * this frozen snapshot keeps "the card under the pointer" stable, so the
+   * swap preview never oscillates and any card in the column can be the
+   * target (not just the one first hovered). */
+  private sourceCardRects: Map<string, { left: number; top: number; right: number; bottom: number }> | null = null;
   private rafHandle: number | null = null;
   private lastClientX = 0;
   private lastClientY = 0;
@@ -115,7 +115,7 @@ export class DragController {
   startPress(
     source: DragSource,
     element: HTMLElement | null,
-    e: ManagerMouseEvent,
+    e: ManagerMouseEvent
   ): boolean {
     if (this.state.kind !== 'idle') return false;
 
@@ -163,7 +163,7 @@ export class DragController {
   private addWindowListener(
     type: string,
     listener: EventListener,
-    options?: AddEventListenerOptions | boolean,
+    options?: AddEventListenerOptions | boolean
   ): void {
     window.addEventListener(type, listener, options);
     this.attached.push({ target: window, type, listener, options });
@@ -211,6 +211,9 @@ export class DragController {
       this.rafHandle = requestAnimationFrame(() => {
         this.rafHandle = null;
         this.updateGhostPosition(this.lastClientX, this.lastClientY);
+        // Card candidates resolve against the promote-time geometry snapshot
+        // (see `sourceCardRects`), so the DOM reorder caused by the swap
+        // preview cannot feed back into the candidate — no freeze needed.
         this.recomputeCandidate();
       });
     }
@@ -225,12 +228,27 @@ export class DragController {
     }
     this.lastClientX = e.clientX;
     this.lastClientY = e.clientY;
+    const savedCandidate = this.candidate;
     this.recomputeCandidate();
+    // The visual swap preview may have reordered the DOM, causing the final
+    // recompute to lose a previously-found CARD candidate. Restore it — but
+    // never when the pointer sits on the dragged card itself (dropping on
+    // yourself is a no-op). We do NOT restore a column candidate: returning
+    // to the source column legitimately clears a cross-column move target
+    // (the user changed their mind).
+    if (
+      !this.candidate.targetId &&
+      savedCandidate.targetId &&
+      savedCandidate.isCard &&
+      !this.isPointerOverSource(this.lastClientX, this.lastClientY)
+    ) {
+      this.candidate = savedCandidate;
+    }
     const candidate = this.candidate;
     if (candidate.targetId) {
       const completion = this.buildDragCompletion(
         this.state.source,
-        candidate.targetId,
+        candidate.targetId
       );
       try {
         this.callbacks.onDrop(completion);
@@ -294,6 +312,37 @@ export class DragController {
       once: true,
     });
 
+    // Snapshot the source column's card geometry at promote time. The swap
+    // preview reorders the DOM while dragging, so card candidates must be
+    // resolved against this frozen layout — live rects would shift and the
+    // candidate would oscillate. The source card element was captured at
+    // press time; it itself carries `data-drop-target-id` (it's a card
+    // target), so skip self and find the enclosing column div.
+    if (typeof document !== 'undefined' && this.state.kind === 'dragging') {
+      const sourceEl = this.state.element;
+      const column = sourceEl
+        ?.closest('[data-drop-target-id]')
+        ?.parentElement?.closest('[data-drop-target-id]');
+      const snapshot = new Map<
+        string,
+        { left: number; top: number; right: number; bottom: number }
+      >();
+      column
+        ?.querySelectorAll<HTMLElement>('[data-drop-target-status]')
+        .forEach((card) => {
+          const id = card.dataset.dropTargetId;
+          if (!id) return;
+          const rect = card.getBoundingClientRect();
+          snapshot.set(id, {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+          });
+        });
+      this.sourceCardRects = snapshot;
+    }
+
     this.callbacks.onPromote();
   }
 
@@ -322,60 +371,75 @@ export class DragController {
     }px, 0)`;
   }
 
-  private collectTargets(): TargetQueryResult {
+  private collectTargets(): TargetRect[] {
     if (this.state.kind !== 'dragging') {
-      return { targets: [], elements: new Map() };
+      return [];
     }
     const source = this.state.source;
     if (typeof document === 'undefined') {
-      return { targets: [], elements: new Map() };
+      return [];
     }
 
     const out: TargetRect[] = [];
-    const elements = new Map<string, HTMLElement>();
     const nodes = document.querySelectorAll<HTMLElement>(
-      '[data-drop-target-id][data-drop-target-project][data-drop-target-accept-kinds]',
+      '[data-drop-target-id][data-drop-target-project][data-drop-target-accept-kinds]'
     );
-    const isProjectReorder = source.kind === 'project-reorder';
     nodes.forEach((el) => {
-      if (isProjectReorder) {
+      if (source.kind === 'project-reorder') {
         // Targets are OTHER project rows (each row's data-drop-target-project
         // is its OWN id, which never equals the dragged project's id, so the
         // equality filter would reject every peer). Exclude self so the
         // dragged row never becomes its own candidate.
         if (el.dataset.dropTargetId === source.projectId) return;
       } else {
-        if (el.dataset.dropTargetProject !== source.projectId) return;
+        // Issue-move drags target either a same-column kanban card (swap)
+        // or a different-column kanban column (move). Cards carry
+        // `data-drop-target-status`; columns do not — attribute presence
+        // is the discriminator.
+        if (el.dataset.dropTargetStatus !== undefined) {
+          if (el.dataset.dropTargetStatus !== source.statusId) return;
+          if (el.dataset.dropTargetId === source.issueId) return;
+        } else {
+          if (el.dataset.dropTargetId === source.statusId) return;
+          if (el.dataset.dropTargetProject !== source.projectId) return;
+        }
       }
       const acceptKinds = (el.dataset.dropTargetAcceptKinds ?? '').split(',');
       if (!acceptKinds.includes(source.kind)) return;
       const id = el.dataset.dropTargetId;
       if (!id) return;
-      const rect = el.getBoundingClientRect();
+      // Resolve CARD targets against the promote-time snapshot (stable across
+      // the swap preview's DOM reorder); columns/rows use live rects.
+      const snap =
+        el.dataset.dropTargetStatus !== undefined && this.sourceCardRects
+          ? this.sourceCardRects.get(id)
+          : null;
+      const rect = snap
+        ? { left: snap.left, top: snap.top, right: snap.right, bottom: snap.bottom }
+        : el.getBoundingClientRect();
       out.push({
         droppableId: id,
         left: rect.left,
         top: rect.top,
         right: rect.right,
         bottom: rect.bottom,
+        isCard: el.dataset.dropTargetStatus !== undefined,
       });
-      // The backing element is the SoT for the kanban-column
-      // insertion-index resolver; without this map the resolver would
-      // need a second `document.querySelector` per rAF frame.
-      elements.set(id, el);
     });
-    return { targets: out, elements };
+    return out;
   }
 
   private recomputeCandidate(): void {
     const candidate = this.resolveCandidateAt(
       this.lastClientX,
-      this.lastClientY,
+      this.lastClientY
     );
     if (
       candidate.targetId === this.candidate.targetId &&
       candidate.placement === this.candidate.placement &&
-      candidate.index === this.candidate.index
+      candidate.index === this.candidate.index &&
+      candidate.sourceIssueId === this.candidate.sourceIssueId &&
+      candidate.sourceProjectId === this.candidate.sourceProjectId
     ) {
       return;
     }
@@ -384,13 +448,6 @@ export class DragController {
   }
 
   private resolveCandidateAt(x: number, y: number): Candidate {
-    const { targets, elements } = this.collectTargets();
-    const { targetId, placement } = findBestCandidate(
-      x,
-      y,
-      targets,
-      DROP_THRESHOLD_PX,
-    );
     const sourceIssueId =
       this.state.kind === 'dragging' && this.state.source.kind === 'issue-move'
         ? this.state.source.issueId
@@ -400,41 +457,48 @@ export class DragController {
       this.state.source.kind === 'project-reorder'
         ? this.state.source.projectId
         : null;
-    let index: number | null = null;
-    if (
-      targetId &&
-      isColumnLikeTarget(targetId) &&
-      this.state.kind === 'dragging' &&
-      this.state.source.kind === 'issue-move'
-    ) {
-      index = this.resolveCardIndex(targetId, y, elements);
+    // Pointer over the dragged element itself → no target. Dropping on
+    // yourself is a no-op (the source card stays in the DOM, dimmed).
+    if (this.isPointerOverSource(x, y)) {
+      return {
+        targetId: null,
+        placement: null,
+        index: null,
+        isCard: false,
+        sourceIssueId,
+        sourceProjectId,
+      };
     }
-    return { targetId, placement, index, sourceIssueId, sourceProjectId };
+    const targets = this.collectTargets();
+    const { targetId, placement, isCard } = findBestCandidate(
+      x,
+      y,
+      targets,
+      DROP_THRESHOLD_PX
+    );
+    return {
+      targetId,
+      placement,
+      index: null,
+      isCard,
+      sourceIssueId,
+      sourceProjectId,
+    };
   }
 
-  private resolveCardIndex(
-    targetId: string,
-    pointerY: number,
-    elements: ReadonlyMap<string, HTMLElement>,
-  ): number | null {
-    if (this.state.kind !== 'dragging') return null;
-    if (this.state.source.kind !== 'issue-move') return null;
-    const column = elements.get(targetId);
-    if (!column) return null;
-    const sourceIssueId = this.state.source.issueId;
-    const rects: CardRect[] = [];
-    column.querySelectorAll<HTMLElement>('[data-dnd-card]').forEach((el) => {
-      if (el.dataset.dndCardIssueId === sourceIssueId) return;
-      const rect = el.getBoundingClientRect();
-      rects.push({ top: rect.top, bottom: rect.bottom });
-    });
-    rects.sort((a, b) => a.top - b.top);
-    return computeInsertIndex(pointerY, rects);
+  private isPointerOverSource(x: number, y: number): boolean {
+    if (this.state.kind !== 'dragging') return false;
+    const sourceEl = this.state.element;
+    if (!sourceEl || typeof document === 'undefined') return false;
+    // `elementFromPoint` ignores the ghost (pointer-events: none), so it
+    // returns the real source card when the pointer rests on it.
+    const under = document.elementFromPoint(x, y);
+    return !!under && sourceEl.contains(under);
   }
 
   private buildDragCompletion(
     source: DragSource,
-    targetId: string,
+    targetId: string
   ): DragCompletion {
     // issue-move always lands 'on'; future reorder kinds branch here.
     return { source, targetId, placement: 'on', index: this.candidate.index };
@@ -469,6 +533,7 @@ export class DragController {
   }
 
   private teardown(): void {
+    this.sourceCardRects = null;
     if (this.state.kind === 'dragging' && this.state.ghost) {
       this.state.ghost.remove();
     }
@@ -489,6 +554,7 @@ export class DragController {
         targetId: null,
         placement: null,
         index: null,
+        isCard: false,
         sourceIssueId: null,
         sourceProjectId: null,
       };

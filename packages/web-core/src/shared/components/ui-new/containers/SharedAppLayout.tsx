@@ -273,7 +273,7 @@ export function SharedAppLayout() {
   const issuesById = useMemo(() => {
     const map = new Map<
       string,
-      { id: string; project_id: string; status_id: string }
+      { id: string; project_id: string; status_id: string; sort_order: number }
     >();
     if (!activeProjectId) return map;
     for (const issue of activeProjectIssues.data) {
@@ -284,6 +284,7 @@ export function SharedAppLayout() {
         id: issue.id,
         project_id: issue.project_id,
         status_id: issue.status_id,
+        sort_order: issue.sort_order,
       });
     }
     return map;
@@ -350,9 +351,41 @@ export function SharedAppLayout() {
             issueId: outcome.issueId,
             fromStatusId: outcome.fromStatusId,
             toStatusId: outcome.toStatusId,
-            destIndex: outcome.destIndex,
           });
           return;
+        case 'issue-swap': {
+          const sourceIssue = byId.get(outcome.sourceIssueId);
+          const targetIssue = byId.get(outcome.targetIssueId);
+          if (!sourceIssue || !targetIssue) return;
+          bulkUpdateIssues([
+            {
+              id: outcome.sourceIssueId,
+              changes: {
+                status_id: targetIssue.status_id,
+                sort_order: targetIssue.sort_order,
+              },
+            },
+            {
+              id: outcome.targetIssueId,
+              changes: {
+                status_id: sourceIssue.status_id,
+                sort_order: sourceIssue.sort_order,
+              },
+            },
+          ])
+            .then(() =>
+              refreshShapeSource(PROJECT_ISSUES_SHAPE, {
+                project_id: outcome.projectId,
+              })
+            )
+            .catch((err) => {
+              console.error('[dnd] issue swap failed:', err);
+              refreshShapeSource(PROJECT_ISSUES_SHAPE, {
+                project_id: outcome.projectId,
+              });
+            });
+          return;
+        }
         case 'move-issue':
           bulkUpdateIssues([
             {

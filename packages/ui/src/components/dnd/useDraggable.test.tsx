@@ -30,13 +30,13 @@ function HookHarness({
 
 function renderWithController(
   controller: DragController | null,
-  props: { source: DragSource; disabled?: boolean },
+  props: { source: DragSource; disabled?: boolean }
 ): RenderResult {
   const out: RenderResult = { onMouseDown: null };
   render(
     <DragControllerContext.Provider value={controller}>
       <HookHarness source={props.source} disabled={props.disabled} out={out} />
-    </DragControllerContext.Provider>,
+    </DragControllerContext.Provider>
   );
   return out;
 }
@@ -44,7 +44,7 @@ function renderWithController(
 function fakeMouseEvent(
   button: number,
   target: Element | null = null,
-  currentTarget: HTMLElement | null = null,
+  currentTarget: HTMLElement | null = null
 ): React.MouseEvent<HTMLDivElement> {
   const native = new MouseEvent('mousedown', { button });
   return {
@@ -61,9 +61,14 @@ describe('useDraggable', () => {
     const out: RenderResult = { onMouseDown: () => undefined };
     render(
       <HookHarness
-        source={{ kind: 'issue-move', issueId: 'i1', projectId: 'p1' }}
+        source={{
+          kind: 'issue-move',
+          issueId: 'i1',
+          projectId: 'p1',
+          statusId: 's1',
+        }}
         out={out}
-      />,
+      />
     );
     expect(out.onMouseDown).toBeNull();
   });
@@ -77,6 +82,7 @@ describe('useDraggable', () => {
       kind: 'issue-move',
       issueId: 'i1',
       projectId: 'p1',
+      statusId: 's1',
     };
     const out = renderWithController(controller, { source });
     expect(out.onMouseDown).not.toBeNull();
@@ -85,7 +91,7 @@ describe('useDraggable', () => {
     expect(startPress).toHaveBeenCalledWith(
       source,
       currentTarget,
-      expect.any(MouseEvent),
+      expect.any(MouseEvent)
     );
   });
 
@@ -95,7 +101,12 @@ describe('useDraggable', () => {
       startPress,
     } as unknown as DragController;
     const out = renderWithController(controller, {
-      source: { kind: 'issue-move', issueId: 'i1', projectId: 'p1' },
+      source: {
+        kind: 'issue-move',
+        issueId: 'i1',
+        projectId: 'p1',
+        statusId: 's1',
+      },
       disabled: true,
     });
     out.onMouseDown!(fakeMouseEvent(0));
@@ -108,7 +119,12 @@ describe('useDraggable', () => {
       startPress,
     } as unknown as DragController;
     const out = renderWithController(controller, {
-      source: { kind: 'issue-move', issueId: 'i1', projectId: 'p1' },
+      source: {
+        kind: 'issue-move',
+        issueId: 'i1',
+        projectId: 'p1',
+        statusId: 's1',
+      },
     });
     const button = document.createElement('button');
     document.body.appendChild(button);
@@ -123,7 +139,12 @@ describe('useDraggable', () => {
       startPress,
     } as unknown as DragController;
     const out = renderWithController(controller, {
-      source: { kind: 'issue-move', issueId: 'i1', projectId: 'p1' },
+      source: {
+        kind: 'issue-move',
+        issueId: 'i1',
+        projectId: 'p1',
+        statusId: 's1',
+      },
     });
     out.onMouseDown!(fakeMouseEvent(2));
     expect(startPress).not.toHaveBeenCalled();
@@ -134,10 +155,15 @@ describe('useDraggable', () => {
     render(
       <DragControllerContext.Provider value={null}>
         <HookHarness
-          source={{ kind: 'issue-move', issueId: 'i1', projectId: 'p1' }}
+          source={{
+            kind: 'issue-move',
+            issueId: 'i1',
+            projectId: 'p1',
+            statusId: 's1',
+          }}
           out={out}
         />
-      </DragControllerContext.Provider>,
+      </DragControllerContext.Provider>
     );
     expect(out.onMouseDown).toBeNull();
   });
@@ -157,22 +183,28 @@ describe('useDraggable', () => {
       kind: 'issue-move',
       issueId: 'i1',
       projectId: 'p1',
+      statusId: 's1',
     };
     const out: RenderResult = { onMouseDown: null };
     const { rerender } = render(
       <DragControllerContext.Provider value={controller}>
         <HookHarness source={initial} out={out} />
-      </DragControllerContext.Provider>,
+      </DragControllerContext.Provider>
     );
     const firstHandler = out.onMouseDown;
 
     rerender(
       <DragControllerContext.Provider value={controller}>
         <HookHarness
-          source={{ kind: 'issue-move', issueId: 'i1', projectId: 'p1' }}
+          source={{
+            kind: 'issue-move',
+            issueId: 'i1',
+            projectId: 'p1',
+            statusId: 's1',
+          }}
           out={out}
         />
-      </DragControllerContext.Provider>,
+      </DragControllerContext.Provider>
     );
     expect(out.onMouseDown).toBe(firstHandler);
 
@@ -180,9 +212,14 @@ describe('useDraggable', () => {
     const currentTarget = document.createElement('div');
     out.onMouseDown!(fakeMouseEvent(0, null, currentTarget));
     expect(startPress).toHaveBeenCalledWith(
-      { kind: 'issue-move', issueId: 'i1', projectId: 'p1' },
+      {
+        kind: 'issue-move',
+        issueId: 'i1',
+        projectId: 'p1',
+        statusId: 's1',
+      },
       currentTarget,
-      expect.any(MouseEvent),
+      expect.any(MouseEvent)
     );
   });
 });

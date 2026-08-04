@@ -43,38 +43,16 @@ export function useDragCandidate(): string | null {
 }
 
 /**
- * Point within a kanban column where a drag insertion indicator renders.
- * `index` is the slot computed against the column's cards EXCLUDING the
- * dragged source; consumers translate it to the full children array via
- * `adjustInsertionIndex`. `sourceIssueId` lets them locate (and exclude)
- * the source card when it lives in the same column.
- */
-export interface InsertionPoint {
-  targetId: string;
-  index: number;
-  sourceIssueId: string | null;
-}
-
-export const DragInsertionContext = createContext<InsertionPoint | null>(null);
-
-export const DragInsertionProvider = DragInsertionContext.Provider;
-
-export function useDragInsertion(): InsertionPoint | null {
-  return useContext(DragInsertionContext);
-}
-
-/**
  * Id of the dragged source issue, or `null` when no drag is in flight.
  *
  * Constant for the duration of a single drag — `candidate.sourceIssueId`
  * is set on the first candidate change after promote and never mutates
  * until `onDragEnd` clears it. Source-column cards read this to dim
- * themselves during a drag, even when their column has no live insertion
- * (the source column's `DragInsertionContext` is null while the pointer
- * is over a different column). Kept as its own context — separate from
- * `DragInsertionContext` — so a source-id change does not invalidate
- * insertion consumers (same render-storm discipline as
- * `DragActiveContext` vs `DragCandidateContext`).
+ * themselves during a drag, even when their column has no live candidate
+ * (no card in the column is under the pointer). Kept as its own context
+ * so a source-id change does not invalidate candidate consumers (same
+ * render-storm discipline as `DragActiveContext` vs
+ * `DragCandidateContext`).
  */
 export const DragSourceContext = createContext<string | null>(null);
 

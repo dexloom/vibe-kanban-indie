@@ -11,6 +11,7 @@ function Harness({
   id,
   projectId,
   acceptKinds,
+  statusId,
   out,
 }: {
   id: string;
@@ -20,9 +21,10 @@ function Harness({
       ? A
       : never
     : never;
+  statusId?: string;
   out: { attrs: Record<string, string> | null };
 }) {
-  out.attrs = useDropTarget(id, projectId, { acceptKinds });
+  out.attrs = useDropTarget(id, projectId, { acceptKinds, statusId });
   return <div />;
 }
 
@@ -58,5 +60,19 @@ describe('useDropTarget', () => {
     expect(out.attrs!['data-drop-target-accept-kinds']).toBe(
       'issue-move,column-reorder'
     );
+  });
+
+  it('omits data-drop-target-status when statusId is not provided (column targets)', () => {
+    const out = { attrs: null as Record<string, string> | null };
+    render(<Harness id="status-uuid" projectId="p1" out={out} />);
+    expect(out.attrs).not.toHaveProperty('data-drop-target-status');
+  });
+
+  it('sets data-drop-target-status when statusId is provided (card targets)', () => {
+    const out = { attrs: null as Record<string, string> | null };
+    render(
+      <Harness id="issue-1" projectId="p1" statusId="status-A" out={out} />
+    );
+    expect(out.attrs!['data-drop-target-status']).toBe('status-A');
   });
 });

@@ -12,6 +12,7 @@ export interface IssueDragLookup {
   id: string;
   project_id: string;
   status_id: string;
+  sort_order: number;
 }
 
 export type DragOutcome =
@@ -22,7 +23,12 @@ export type DragOutcome =
       fromStatusId: string;
       toStatusId: string;
       projectId: string;
-      destIndex?: number;
+    }
+  | {
+      type: 'issue-swap';
+      sourceIssueId: string;
+      targetIssueId: string;
+      projectId: string;
     }
   | {
       type: 'move-issue';
@@ -35,13 +41,17 @@ export type DragOutcome =
 
 /**
  * Resolve a `DragCompletion` (the unified custom drag system's drop
- * payload) into one of five outcomes:
+ * payload) into one of six outcomes:
  *
  *  - `no-op`            — nothing meaningful changed (drag kind unsupported,
- *                         same-status drop, no destination, or project-reorder
- *                         onto self / unassigned).
- *  - `kanban-internal`  — destination is a bare-UUID kanban column; delegate
- *                         to the kanban board's existing handler.
+ *                         same-status drop, no destination, project-reorder
+ *                         onto self / unassigned, or an issue-swap onto
+ *                         self).
+ *  - `kanban-internal`  — destination is a bare-UUID kanban column (NOT a
+ *                         known issue); delegate to the kanban board's
+ *                         existing handler.
+ *  - `issue-swap`       — destination is a known issue in the same project;
+ *                         the layout swaps the two issues' `status_id`.
  *  - `move-issue`       — destination is a tree-status row OR a kanban column
  *                         AND the source is an issue-move; the layout fires
  *                         `bulkUpdateIssues` with the resolved target status.
@@ -101,13 +111,35 @@ export function resolveDragEnd(
     return { type: 'invalid', reason: 'cross-project' };
   }
 
-  // 5. Destination must parse as a valid status target.
+  // 5. Self-swap is a no-op (defensive — the controller already excludes
+  //    the dragged card from collected targets).
+  if (targetId === source.issueId) {
+    return { type: 'no-op' };
+  }
+
+  // 6. Card target = a known issue in the same project. SWAP the two
+  //    issues' status_id fields. The target issue must belong to the
+  //    active project (cross-project swap is invalid).
+  const targetIssue = issuesById.get(targetId);
+  if (targetIssue) {
+    if (targetIssue.project_id !== activeProjectId) {
+      return { type: 'invalid', reason: 'cross-project' };
+    }
+    return {
+      type: 'issue-swap',
+      sourceIssueId: source.issueId,
+      targetIssueId: targetIssue.id,
+      projectId: activeProjectId,
+    };
+  }
+
+  // 7. Destination must parse as a valid status target.
   const parsedDest = parseTargetId(targetId, (id) => issuesById.has(id));
   if (!parsedDest) {
     return { type: 'invalid', reason: 'not a valid status target' };
   }
 
-  // 6. Tree-status cross-project guard (parseTargetId doesn't carry the
+  // 8. Tree-status cross-project guard (parseTargetId doesn't carry the
   //    active project; we layer it on here).
   if (
     parsedDest.surface === 'tree-status' &&
@@ -116,7 +148,7 @@ export function resolveDragEnd(
     return { type: 'invalid', reason: 'cross-project' };
   }
 
-  // 7. Reject stale `data-drop-target-id` attrs pointing at a deleted
+  // 9. Reject stale `data-drop-target-id` attrs pointing at a deleted
   //    status (the kanban column was removed but the DOM attr still
   //    references the old UUID). Without this guard the resolver would
   //    happily route the move into a status_id that no longer exists.
@@ -138,7 +170,6 @@ export function resolveDragEnd(
       fromStatusId: issue.status_id,
       toStatusId: parsedDest.statusId,
       projectId: activeProjectId,
-      destIndex: completion.index ?? undefined,
     };
   }
 

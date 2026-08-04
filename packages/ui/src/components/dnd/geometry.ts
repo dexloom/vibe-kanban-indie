@@ -1,53 +1,12 @@
 import type { Placement } from './types';
 
-export interface CardRect {
-  top: number;
-  bottom: number;
-}
-
-/** Subset of {@link Candidate} that the geometry layer can resolve from a
- * pointer position + cached rects. The controller composes the full
- * Candidate (adding index + sourceIssueId) in `resolveCandidateAt` so
- * `findBestCandidate` stays focused on pure geometry. */
 export interface TargetCandidate {
   targetId: string | null;
   placement: Placement | null;
-}
-
-/**
- * Insertion slot for pointerY against sorted card rects (midpoint split):
- * pointerY below a card's midpoint → insert AFTER it, else BEFORE it.
- * Returns 0 when above the first card / when there are no cards, and
- * `cards.length` when below the last card.
- */
-export function computeInsertIndex(
-  pointerY: number,
-  cards: readonly CardRect[],
-): number {
-  if (cards.length === 0) return 0;
-  for (let i = 0; i < cards.length; i++) {
-    const midpoint = (cards[i].top + cards[i].bottom) / 2;
-    if (pointerY < midpoint) return i;
-  }
-  return cards.length;
-}
-
-/**
- * Translate a drop index (computed against the column's cards EXCLUDING the
- * dragged source, which is on its way out) into the indicator's position in
- * the FULL rendered children array. When the source card sits at a lower
- * index than the drop slot, every following child shifts up by one once the
- * source leaves, so the indicator must be placed one slot later.
- *
- * `sourceFullIndex` = index of the source card in the full children array,
- * or `null` when the source is not in this column (cross-column drop).
- */
-export function adjustInsertionIndex(
-  index: number,
-  sourceFullIndex: number | null,
-): number {
-  if (sourceFullIndex === null || sourceFullIndex >= index) return index;
-  return index + 1;
+  /** True when the winning target is a kanban CARD (same-column swap target),
+   * false for a column / tree-status row. The controller freezes card
+   * candidates (their DOM reorders on swap preview). */
+  isCard: boolean;
 }
 
 export interface TargetRect {
@@ -56,6 +15,7 @@ export interface TargetRect {
   top: number;
   right: number;
   bottom: number;
+  isCard: boolean;
 }
 
 export const DRAG_THRESHOLD_PX = 5;
@@ -111,7 +71,7 @@ export function findBestCandidate(
   threshold: number,
 ): TargetCandidate {
   if (targets.length === 0) {
-    return { targetId: null, placement: null };
+    return { targetId: null, placement: null, isCard: false };
   }
 
   let bestTarget: TargetRect | null = null;
@@ -137,10 +97,11 @@ export function findBestCandidate(
   }
 
   if (!bestTarget) {
-    return { targetId: null, placement: null };
+    return { targetId: null, placement: null, isCard: false };
   }
   return {
     targetId: bestTarget.droppableId,
     placement: computePlacement(y, bestTarget),
+    isCard: bestTarget.isCard,
   };
 }

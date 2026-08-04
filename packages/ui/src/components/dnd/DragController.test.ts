@@ -33,8 +33,12 @@ function mouseEvent(type: string, x: number, y: number): MouseEvent {
   });
 }
 
-function makeSource(issueId = 'issue-1', projectId = 'project-1'): DragSource {
-  return { kind: 'issue-move', issueId, projectId };
+function makeSource(
+  issueId = 'issue-1',
+  projectId = 'project-1',
+  statusId = 'status-1'
+): DragSource {
+  return { kind: 'issue-move', issueId, projectId, statusId };
 }
 
 const originalRaf = globalThis.requestAnimationFrame;
@@ -79,11 +83,15 @@ function installDropTarget(
   projectId: string,
   rect: { left: number; top: number; right: number; bottom: number },
   acceptKinds = 'issue-move',
+  statusId?: string
 ): HTMLElement {
   const target = document.createElement('div');
   target.setAttribute('data-drop-target-id', id);
   target.setAttribute('data-drop-target-project', projectId);
   target.setAttribute('data-drop-target-accept-kinds', acceptKinds);
+  if (statusId !== undefined) {
+    target.setAttribute('data-drop-target-status', statusId);
+  }
   target.getBoundingClientRect = () =>
     ({
       left: rect.left,
@@ -106,10 +114,10 @@ describe('DragController', () => {
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     const element = installSourceElement();
     expect(
-      m.startPress(makeSource('issue-1'), element, { clientX: 0, clientY: 0 }),
+      m.startPress(makeSource('issue-1'), element, { clientX: 0, clientY: 0 })
     ).toBe(true);
     expect(
-      m.startPress(makeSource('issue-2'), element, { clientX: 0, clientY: 0 }),
+      m.startPress(makeSource('issue-2'), element, { clientX: 0, clientY: 0 })
     ).toBe(false);
     m.destroy();
   });
@@ -121,7 +129,7 @@ describe('DragController', () => {
     m.startPress(makeSource(), element, { clientX: 100, clientY: 100 });
 
     window.dispatchEvent(
-      mouseEvent('mousemove', 100 + DRAG_THRESHOLD_PX - 1, 100),
+      mouseEvent('mousemove', 100 + DRAG_THRESHOLD_PX - 1, 100)
     );
 
     expect(cb.onPromote).not.toHaveBeenCalled();
@@ -147,11 +155,11 @@ describe('DragController', () => {
     // carries the same [data-source-id] but is a distinct node — assert by
     // pointer-events:none on the new fixed-position element.
     const fixed = document.body.querySelectorAll(
-      'div[data-source-id="issue-1"]',
+      'div[data-source-id="issue-1"]'
     );
     expect(fixed.length).toBe(2);
     const ghost = [...fixed].find(
-      (el) => (el as HTMLElement).style.position === 'fixed',
+      (el) => (el as HTMLElement).style.position === 'fixed'
     );
     expect(ghost).toBeTruthy();
     m.destroy();
@@ -182,6 +190,7 @@ describe('DragController', () => {
       targetId: 'project-1:status:todo',
       placement: 'on',
       index: null,
+      isCard: false,
       sourceIssueId: 'issue-1',
       sourceProjectId: null,
     });
@@ -212,6 +221,7 @@ describe('DragController', () => {
         kind: 'issue-move',
         issueId: 'issue-1',
         projectId: 'project-1',
+        statusId: 'status-1',
       },
       targetId: 'project-1:status:done',
       placement: 'on',
@@ -222,6 +232,7 @@ describe('DragController', () => {
       targetId: null,
       placement: null,
       index: null,
+      isCard: false,
       sourceIssueId: null,
       sourceProjectId: null,
     });
@@ -339,6 +350,7 @@ describe('DragController', () => {
       targetId: 'project-1:status:todo',
       placement: 'on',
       index: null,
+      isCard: false,
       sourceIssueId: 'issue-1',
       sourceProjectId: null,
     });
@@ -381,13 +393,18 @@ describe('DragController', () => {
       targetId: 'project-1:status:done',
       placement: 'on',
       index: null,
+      isCard: false,
       sourceIssueId: 'issue-1',
       sourceProjectId: null,
     });
     m.destroy();
   });
 
-  it('filters drop targets whose project does not match the source project', () => {
+  it('filters cross-project non-card targets at the controller', () => {
+    // Non-card targets (columns, tree-status rows) from a different
+    // project are filtered out by the controller (data-drop-target-project
+    // !== source.projectId). Cross-project rejection for card targets is
+    // unnecessary (cards are status-scoped).
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     installSourceElement();
@@ -407,10 +424,12 @@ describe('DragController', () => {
     window.dispatchEvent(mouseEvent('mousemove', 230, 15));
     flushRaf();
 
-    expect(cb.onCandidateChange).not.toHaveBeenCalledWith({
-      targetId: 'project-2:status:todo',
-      placement: expect.anything(),
-    });
+    const callsWithCrossProject = cb.onCandidateChange.mock.calls.filter(
+      (call: unknown[]) =>
+        (call[0] as { targetId: string | null })?.targetId ===
+        'project-2:status:todo'
+    );
+    expect(callsWithCrossProject.length).toBe(0);
     m.destroy();
   });
 
@@ -427,7 +446,7 @@ describe('DragController', () => {
         right: 260,
         bottom: 30,
       },
-      'other-kind',
+      'other-kind'
     );
 
     m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
@@ -440,7 +459,7 @@ describe('DragController', () => {
     // Assert that onCandidateChange was never called with a non-null targetId.
     const nonNullCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId !== null,
+        (call[0] as { targetId: string | null })?.targetId !== null
     );
     expect(nonNullCalls).toHaveLength(0);
     m.destroy();
@@ -457,7 +476,7 @@ describe('DragController', () => {
     // scroll/resize were only ever attached to invalidate a target
     // rect cache that no longer exists (round-4 #3).
     expect(types).toEqual(
-      expect.arrayContaining(['mousemove', 'mouseup', 'keydown']),
+      expect.arrayContaining(['mousemove', 'mouseup', 'keydown'])
     );
     expect(types).not.toContain('scroll');
     expect(types).not.toContain('resize');
@@ -514,7 +533,7 @@ describe('DragController', () => {
 
     const candidateCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId !== null,
+        (call[0] as { targetId: string | null })?.targetId !== null
     );
     expect(candidateCalls.length).toBe(0);
     m.destroy();
@@ -543,7 +562,7 @@ describe('DragController', () => {
     const wrapped: typeof document.addEventListener = ((
       type: string,
       listener: EventListenerOrEventListenerObject,
-      opts?: boolean | AddEventListenerOptions,
+      opts?: boolean | AddEventListenerOptions
     ) => {
       if (type === 'click') {
         (m as unknown as { __swallower: EventListener }).__swallower =
@@ -585,7 +604,7 @@ describe('DragController', () => {
     document.addEventListener = ((
       type: string,
       listener: EventListenerOrEventListenerObject,
-      opts?: boolean | AddEventListenerOptions,
+      opts?: boolean | AddEventListenerOptions
     ) => {
       if (type === 'click' && !captured) {
         captured = listener as EventListener;
@@ -603,7 +622,7 @@ describe('DragController', () => {
     window.dispatchEvent(mouseEvent('mouseup', 230, 15));
     m.destroy();
     const removedClickCalls = removeDocSpy.mock.calls.filter(
-      (c) => c[0] === 'click',
+      (c) => c[0] === 'click'
     );
     expect(removedClickCalls.length).toBeGreaterThanOrEqual(1);
     // The removed listener must be the one we installed (capture: true to
@@ -631,7 +650,7 @@ describe('DragController', () => {
     document.addEventListener = ((
       type: string,
       listener: EventListenerOrEventListenerObject,
-      opts?: boolean | AddEventListenerOptions,
+      opts?: boolean | AddEventListenerOptions
     ) => {
       if (type === 'click' && !captured) {
         captured = listener as EventListener;
@@ -680,6 +699,7 @@ describe('DragController', () => {
       targetId: 'project-1:status:todo',
       placement: 'before',
       index: null,
+      isCard: false,
       sourceIssueId: 'issue-1',
       sourceProjectId: null,
     });
@@ -818,11 +838,11 @@ describe('DragController', () => {
     // (the spec strips it — see round-3 #17 comment).
     for (const inst of installed) {
       const matched = removed.some(
-        (r) => r.listener === inst.listener && r.capture === inst.capture,
+        (r) => r.listener === inst.listener && r.capture === inst.capture
       );
       expect(
         matched,
-        `click listener installed with capture=${inst.capture} was never removed`,
+        `click listener installed with capture=${inst.capture} was never removed`
       ).toBe(true);
     }
 
@@ -846,14 +866,14 @@ describe('DragController', () => {
       'project-OTHER',
       'project-OTHER',
       { left: 200, top: 0, right: 260, bottom: 30 },
-      'project-reorder',
+      'project-reorder'
     );
     // Dragged source's own row — should be excluded via self-id check.
     installDropTarget(
       'project-1',
       'project-1',
       { left: 0, top: 0, right: 60, bottom: 30 },
-      'project-reorder',
+      'project-reorder'
     );
 
     m.startPress({ kind: 'project-reorder', projectId: 'project-1' }, null, {
@@ -867,21 +887,21 @@ describe('DragController', () => {
 
     const callsWithNonNullTarget = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId !== null,
+        (call[0] as { targetId: string | null })?.targetId !== null
     );
     // Peer project row lands as a candidate (its id is `project-OTHER`).
     expect(callsWithNonNullTarget.length).toBeGreaterThan(0);
     expect(
       callsWithNonNullTarget.some(
         (c) =>
-          (c[0] as { targetId: string | null }).targetId === 'project-OTHER',
-      ),
+          (c[0] as { targetId: string | null }).targetId === 'project-OTHER'
+      )
     ).toBe(true);
     // Self row never appears as a candidate.
     expect(
       callsWithNonNullTarget.some(
-        (c) => (c[0] as { targetId: string | null }).targetId === 'project-1',
-      ),
+        (c) => (c[0] as { targetId: string | null }).targetId === 'project-1'
+      )
     ).toBe(false);
 
     m.destroy();
@@ -895,7 +915,7 @@ describe('DragController', () => {
       'project-OTHER',
       'project-OTHER',
       { left: 200, top: 0, right: 260, bottom: 30 },
-      'project-reorder',
+      'project-reorder'
     );
 
     m.startPress({ kind: 'project-reorder', projectId: 'project-1' }, null, {
@@ -948,234 +968,382 @@ describe('DragController', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Card insertion index resolution (kanban-column positional drops)
+// Self-exclusion: the dragged issue card is never a valid drop target for
+// itself (collected targets must exclude the source id).
 // ---------------------------------------------------------------------------
 
-function installColumnCard(
-  target: HTMLElement,
-  issueId: string,
-  top: number,
-  bottom: number,
-): HTMLElement {
-  const card = document.createElement('div');
-  card.setAttribute('data-dnd-card', '');
-  card.setAttribute('data-dnd-card-issue-id', issueId);
-  card.getBoundingClientRect = () =>
-    ({
-      left: 0,
-      top,
-      right: 200,
-      bottom,
-      width: 200,
-      height: bottom - top,
-      x: 0,
-      y: top,
-      toJSON: () => ({}),
-    }) as DOMRect;
-  target.appendChild(card);
-  return card;
-}
+describe('DragController issue-move self-exclusion', () => {
+  it('excludes the dragged source card from collected targets', () => {
+    // The dragged card itself registers as a drop target (KanbanCard
+    // wires `useDropTarget(source.issueId, source.projectId, …)`).
+    // The controller must filter it out so a card never becomes its
+    // own candidate — same pattern as the project-reorder branch.
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    installSourceElement();
+    const selfCard = installDropTarget(
+      'issue-1',
+      'project-1',
+      {
+        left: 0,
+        top: 0,
+        right: 60,
+        bottom: 30,
+      },
+      'issue-move',
+      'status-1'
+    );
+    // Move the self-card under the pointer so an unfiltered controller
+    // would resolve it as the candidate.
+    selfCard.getBoundingClientRect = () =>
+      ({
+        left: 200,
+        top: 0,
+        right: 260,
+        bottom: 30,
+        width: 60,
+        height: 30,
+        x: 200,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
 
-const KANBAN_COL = '11111111-1111-4111-8111-111111111111';
+    m.startPress(makeSource('issue-1'), null, { clientX: 0, clientY: 0 });
+    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    flushRaf();
+    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    flushRaf();
 
-function promoteOverColumn(
-  m: DragController,
-  column: HTMLElement,
-  x: number,
-  y: number,
-): void {
-  m.startPress(
-    makeSource('issue-1'),
-    document.querySelector('[data-source-id]'),
-    {
+    const callsWithSelf = cb.onCandidateChange.mock.calls.filter(
+      (call: unknown[]) =>
+        (call[0] as { targetId: string | null })?.targetId === 'issue-1'
+    );
+    expect(callsWithSelf).toHaveLength(0);
+    m.destroy();
+  });
+
+  it('still picks up other (peer) issue cards in the same project as candidates', () => {
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    installSourceElement();
+    installDropTarget(
+      'issue-2',
+      'project-1',
+      {
+        left: 200,
+        top: 0,
+        right: 260,
+        bottom: 30,
+      },
+      'issue-move',
+      'status-1'
+    );
+
+    m.startPress(makeSource('issue-1'), null, { clientX: 0, clientY: 0 });
+    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    flushRaf();
+    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    flushRaf();
+
+    const callsWithPeer = cb.onCandidateChange.mock.calls.filter(
+      (call: unknown[]) =>
+        (call[0] as { targetId: string | null })?.targetId === 'issue-2'
+    );
+    expect(callsWithPeer.length).toBeGreaterThan(0);
+    m.destroy();
+  });
+
+  it('always passes index: null on onCandidateChange (no positional slot)', () => {
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    installSourceElement();
+    installDropTarget(
+      'issue-2',
+      'project-1',
+      {
+        left: 200,
+        top: 0,
+        right: 260,
+        bottom: 30,
+      },
+      'issue-move',
+      'status-1'
+    );
+
+    m.startPress(makeSource('issue-1'), null, { clientX: 0, clientY: 0 });
+    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    flushRaf();
+    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    flushRaf();
+
+    for (const call of cb.onCandidateChange.mock.calls) {
+      expect((call[0] as { index: unknown }).index).toBeNull();
+    }
+    m.destroy();
+  });
+
+  it('clears the candidate when the pointer is over the dragged card itself', () => {
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    const sourceEl = installSourceElement();
+    installDropTarget(
+      'issue-2',
+      'project-1',
+      {
+        left: 200,
+        top: 0,
+        right: 260,
+        bottom: 30,
+      },
+      'issue-move',
+      'status-1'
+    );
+
+    // Pointer over the source card → elementFromPoint returns it → no target.
+    const originalFromPoint = document.elementFromPoint;
+    document.elementFromPoint = ((_x: number, _y: number) =>
+      sourceEl) as typeof document.elementFromPoint;
+
+    try {
+      m.startPress(makeSource('issue-1'), sourceEl, { clientX: 0, clientY: 0 });
+      window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+      flushRaf();
+      window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+      flushRaf();
+
+      const selfCandidates = cb.onCandidateChange.mock.calls.filter(
+        (call: unknown[]) =>
+          (call[0] as { targetId: string | null })?.targetId !== null
+      );
+      // elementFromPoint always returns sourceEl → every resolve clears.
+      expect(selfCandidates).toHaveLength(0);
+      m.destroy();
+    } finally {
+      document.elementFromPoint = originalFromPoint;
+    }
+  });
+
+  it('emits no onDrop when mouseup happens over the dragged card itself', () => {
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    const sourceEl = installSourceElement();
+    installDropTarget(
+      'issue-2',
+      'project-1',
+      {
+        left: 200,
+        top: 0,
+        right: 260,
+        bottom: 30,
+      },
+      'issue-move',
+      'status-1'
+    );
+
+    const originalFromPoint = document.elementFromPoint;
+    // Return the source card at the drop point; the peer at the drag point.
+    document.elementFromPoint = ((x: number) =>
+      x >= 200 ? null : sourceEl) as typeof document.elementFromPoint;
+
+    try {
+      m.startPress(makeSource('issue-1'), sourceEl, { clientX: 0, clientY: 0 });
+      window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+      flushRaf();
+      // Establish a peer candidate first.
+      window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+      flushRaf();
+      expect(cb.onDrop).not.toHaveBeenCalled();
+      // Release over the source card → no drop.
+      window.dispatchEvent(mouseEvent('mouseup', 0, 0));
+      expect(cb.onDrop).not.toHaveBeenCalled();
+      m.destroy();
+    } finally {
+      document.elementFromPoint = originalFromPoint;
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Vertical-only swap + cross-column move: target filtering for issue-move
+// drags is now driven by `data-drop-target-status` (presence on cards only)
+// and `data-drop-target-id` (for columns). Same column = swap; different
+// column = move.
+// ---------------------------------------------------------------------------
+
+describe('DragController issue-move target filtering by statusId', () => {
+  it('includes a same-column card (matching data-drop-target-status)', () => {
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    installSourceElement();
+    installDropTarget(
+      'issue-2',
+      'project-1',
+      {
+        left: 200,
+        top: 0,
+        right: 260,
+        bottom: 30,
+      },
+      'issue-move',
+      'status-1'
+    );
+
+    m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
       clientX: 0,
       clientY: 0,
-    },
-  );
-  window.dispatchEvent(mouseEvent('mousemove', 5, 5));
-  flushRaf();
-  window.dispatchEvent(mouseEvent('mousemove', x, y));
-  flushRaf();
-}
-
-describe('DragController card insertion index', () => {
-  it('keeps index null for a tree-status target', () => {
-    const cb = makeCallbacks();
-    const m = new DragController(cb as unknown as DragControllerCallbacks);
-    installSourceElement();
-    installDropTarget('project-1:status:todo', 'project-1', {
-      left: 0,
-      top: 0,
-      right: 200,
-      bottom: 200,
     });
-    promoteOverColumn(m, document.querySelector('div')!, 100, 100);
-    const candidate = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
-      targetId: string;
-      index: number | null;
-    };
-    expect(candidate.targetId).toBe('project-1:status:todo');
-    expect(candidate.index).toBeNull();
+    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    flushRaf();
+    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    flushRaf();
+
+    const peerCalls = cb.onCandidateChange.mock.calls.filter(
+      (call: unknown[]) =>
+        (call[0] as { targetId: string | null })?.targetId === 'issue-2'
+    );
+    expect(peerCalls.length).toBeGreaterThan(0);
     m.destroy();
   });
 
-  it('computes index 0 when the pointer is above the first card midpoint', () => {
+  it('excludes a different-column card (mismatched data-drop-target-status)', () => {
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     installSourceElement();
-    const column = installDropTarget(KANBAN_COL, 'project-1', {
-      left: 0,
-      top: 0,
-      right: 200,
-      bottom: 300,
+    installDropTarget(
+      'issue-2',
+      'project-1',
+      {
+        left: 200,
+        top: 0,
+        right: 260,
+        bottom: 30,
+      },
+      'issue-move',
+      'status-2'
+    );
+
+    m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
+      clientX: 0,
+      clientY: 0,
     });
-    installColumnCard(column, 'card-a', 100, 140); // midpoint 120
-    promoteOverColumn(m, column, 100, 110); // above midpoint
-    const candidate = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
-      index: number | null;
-    };
-    expect(candidate.index).toBe(0);
+    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    flushRaf();
+    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    flushRaf();
+
+    const peerCalls = cb.onCandidateChange.mock.calls.filter(
+      (call: unknown[]) =>
+        (call[0] as { targetId: string | null })?.targetId === 'issue-2'
+    );
+    expect(peerCalls).toHaveLength(0);
     m.destroy();
   });
 
-  it('computes cards.length when the pointer is below the last card midpoint', () => {
+  it('excludes a same-column column target (own status id)', () => {
+    // KanbanCards registers with id=source.statusId and no
+    // data-drop-target-status attr. The filter must treat it as a
+    // column and reject when the id equals the source's status.
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     installSourceElement();
-    const column = installDropTarget(KANBAN_COL, 'project-1', {
-      left: 0,
+    installDropTarget('status-1', 'project-1', {
+      left: 200,
       top: 0,
-      right: 200,
-      bottom: 300,
+      right: 260,
+      bottom: 30,
     });
-    installColumnCard(column, 'card-a', 100, 140); // midpoint 120
-    promoteOverColumn(m, column, 100, 130); // below midpoint
-    const candidate = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
-      index: number | null;
-    };
-    expect(candidate.index).toBe(1);
+
+    m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
+      clientX: 0,
+      clientY: 0,
+    });
+    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    flushRaf();
+    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    flushRaf();
+
+    const sameColumnCalls = cb.onCandidateChange.mock.calls.filter(
+      (call: unknown[]) =>
+        (call[0] as { targetId: string | null })?.targetId === 'status-1'
+    );
+    expect(sameColumnCalls).toHaveLength(0);
     m.destroy();
   });
 
-  it('computes 0 for an empty column', () => {
+  it('includes a different-column column target as a move candidate', () => {
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     installSourceElement();
-    installDropTarget(KANBAN_COL, 'project-1', {
-      left: 0,
+    installDropTarget('status-2', 'project-1', {
+      left: 200,
       top: 0,
-      right: 200,
-      bottom: 300,
+      right: 260,
+      bottom: 30,
     });
-    promoteOverColumn(m, document.querySelector('div')!, 100, 100);
-    const candidate = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
-      index: number | null;
-    };
-    expect(candidate.index).toBe(0);
+
+    m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
+      clientX: 0,
+      clientY: 0,
+    });
+    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    flushRaf();
+    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    flushRaf();
+
+    const moveCalls = cb.onCandidateChange.mock.calls.filter(
+      (call: unknown[]) =>
+        (call[0] as { targetId: string | null })?.targetId === 'status-2'
+    );
+    expect(moveCalls.length).toBeGreaterThan(0);
     m.destroy();
   });
 
-  it('excludes the dragged source card from the count', () => {
-    const cb = makeCallbacks();
-    const m = new DragController(cb as unknown as DragControllerCallbacks);
-    installSourceElement('issue-1');
-    const column = installDropTarget(KANBAN_COL, 'project-1', {
-      left: 0,
-      top: 0,
-      right: 200,
-      bottom: 400,
-    });
-    installColumnCard(column, 'issue-1', 100, 140); // the dragged source
-    installColumnCard(column, 'card-b', 160, 200); // midpoint 180
-    // pointer below card-b's midpoint → only card-b counted → index 1
-    promoteOverColumn(m, column, 100, 190);
-    const candidate = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
-      index: number | null;
-    };
-    expect(candidate.index).toBe(1);
-    m.destroy();
-  });
-
-  it('passes the resolved index through to the drop completion', () => {
+  it('excludes both card and column targets in the same column (peer card ok, own column rejected)', () => {
+    // Dragging within a column must pick up peer cards as swap candidates
+    // but NEVER surface the source column itself as a move target.
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     installSourceElement();
-    const column = installDropTarget(KANBAN_COL, 'project-1', {
-      left: 0,
+    installDropTarget(
+      'issue-2',
+      'project-1',
+      {
+        left: 100,
+        top: 0,
+        right: 160,
+        bottom: 30,
+      },
+      'issue-move',
+      'status-1'
+    );
+    installDropTarget('status-1', 'project-1', {
+      left: 400,
       top: 0,
-      right: 200,
-      bottom: 300,
+      right: 460,
+      bottom: 30,
     });
-    installColumnCard(column, 'card-a', 100, 140);
-    promoteOverColumn(m, column, 100, 110);
-    window.dispatchEvent(mouseEvent('mouseup', 100, 110));
-    const completion = cb.onDrop.mock.calls[0]?.[0] as DragCompletion;
-    expect(completion.targetId).toBe(KANBAN_COL);
-    expect(completion.index).toBe(0);
-    m.destroy();
-  });
 
-  it('resolves midpoint-slot index across a 3-card column', () => {
-    const cb = makeCallbacks();
-    const m = new DragController(cb as unknown as DragControllerCallbacks);
-    installSourceElement();
-    const column = installDropTarget(KANBAN_COL, 'project-1', {
-      left: 0,
-      top: 0,
-      right: 200,
-      bottom: 400,
+    m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
+      clientX: 0,
+      clientY: 0,
     });
-    // card-1 midpoint 120, card-2 midpoint 180, card-3 midpoint 240.
-    installColumnCard(column, 'card-1', 100, 140);
-    installColumnCard(column, 'card-2', 160, 200);
-    installColumnCard(column, 'card-3', 220, 260);
-    // Pointer between card-1 and card-2 midpoints → slot 1.
-    promoteOverColumn(m, column, 100, 150);
-    const candidate = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
-      index: number | null;
+    // First move promotes (rAF NOT scheduled on the promote frame).
+    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    flushRaf();
+    // Second move lands inside issue-2's rect and triggers rAF.
+    window.dispatchEvent(mouseEvent('mousemove', 130, 15));
+    flushRaf();
+
+    const last = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
+      targetId: string | null;
     };
-    expect(candidate.index).toBe(1);
-    m.destroy();
-  });
-
-  it('regression: resolveCardIndex reads the column element from the cached element map, NOT a fresh document.querySelector', () => {
-    // Round-3 finding #14: prior to the fix, `resolveCardIndex` ran a
-    // second `document.querySelector('[data-drop-target-id=…]')` per
-    // rAF frame (the first pass lived in `collectTargets`). Now the
-    // element map is cached alongside the rects. Spy on querySelector
-    // and verify it is NOT called for the column lookup.
-    const cb = makeCallbacks();
-    const m = new DragController(cb as unknown as DragControllerCallbacks);
-    installSourceElement();
-    const column = installDropTarget(KANBAN_COL, 'project-1', {
-      left: 0,
-      top: 0,
-      right: 200,
-      bottom: 300,
-    });
-    installColumnCard(column, 'card-a', 100, 140);
-    const querySpy = vi.spyOn(document, 'querySelector');
-
-    promoteOverColumn(m, column, 100, 110);
-
-    // After the drag, NO querySelector call should have targeted the
-    // column element. The cached map in collectTargets is the SoT.
-    const columnLookups = querySpy.mock.calls.filter((call) => {
-      const sel = call[0];
-      return (
-        typeof sel === 'string' &&
-        sel.includes(`[data-drop-target-id="${KANBAN_COL}"]`)
-      );
-    });
-    expect(columnLookups).toHaveLength(0);
-
-    // Sanity: the index was still resolved correctly.
-    const candidate = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
-      index: number | null;
-    };
-    expect(candidate.index).toBe(0);
-
-    querySpy.mockRestore();
+    expect(last.targetId).toBe('issue-2');
+    // No emit with targetId=status-1 (same-column column filtered out).
+    const ownColumnCalls = cb.onCandidateChange.mock.calls.filter(
+      (call: unknown[]) =>
+        (call[0] as { targetId: string | null })?.targetId === 'status-1'
+    );
+    expect(ownColumnCalls).toHaveLength(0);
     m.destroy();
   });
 });

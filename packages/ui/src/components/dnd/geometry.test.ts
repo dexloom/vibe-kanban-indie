@@ -2,13 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   DRAG_THRESHOLD_PX,
   DROP_THRESHOLD_PX,
-  adjustInsertionIndex,
   computePlacement,
   findBestCandidate,
   manhattanDistanceToRect,
   type TargetRect,
-  computeInsertIndex,
-  type CardRect,
 } from './geometry';
 
 function rect(
@@ -18,27 +15,9 @@ function rect(
   right: number,
   bottom: number,
 ): TargetRect {
-  return { droppableId, left, top, right, bottom };
+  return { droppableId, left, top, right, bottom, isCard: false };
 }
 
-describe('computeInsertIndex', () => {
-  const cards: CardRect[] = [
-    { top: 0, bottom: 10 },
-    { top: 20, bottom: 30 },
-  ];
-  it('returns 0 for empty cards', () =>
-    expect(computeInsertIndex(5, [])).toBe(0));
-  it('splits single card at midpoint', () => {
-    expect(computeInsertIndex(4, [{ top: 0, bottom: 10 }])).toBe(0);
-    expect(computeInsertIndex(6, [{ top: 0, bottom: 10 }])).toBe(1);
-  });
-  it('returns slots across two cards and appends below all', () => {
-    expect(computeInsertIndex(-1, cards)).toBe(0);
-    expect(computeInsertIndex(15, cards)).toBe(1);
-    expect(computeInsertIndex(31, cards)).toBe(2);
-    expect(computeInsertIndex(1000, cards)).toBe(cards.length);
-  });
-});
 describe('DRAG_THRESHOLD_PX / DROP_THRESHOLD_PX constants', () => {
   it('exposes the documented promote threshold (5px)', () => {
     expect(DRAG_THRESHOLD_PX).toBe(5);
@@ -121,6 +100,7 @@ describe('findBestCandidate', () => {
     expect(findBestCandidate(0, 0, [], 100)).toEqual({
       targetId: null,
       placement: null,
+      isCard: false,
     });
   });
 
@@ -132,6 +112,7 @@ describe('findBestCandidate', () => {
     expect(findBestCandidate(0, 0, targets, 100)).toEqual({
       targetId: null,
       placement: null,
+      isCard: false,
     });
   });
 
@@ -206,21 +187,5 @@ describe('findBestCandidate', () => {
     const result = findBestCandidate(50, 25, targets, 100);
     expect(result.targetId).toBe('a');
     expect(result.placement).toBe('after');
-  });
-});
-
-describe('adjustInsertionIndex', () => {
-  it('passes through when the source is not in the column', () => {
-    expect(adjustInsertionIndex(2, null)).toBe(2);
-  });
-
-  it('passes through when the source sits at or after the drop slot', () => {
-    expect(adjustInsertionIndex(1, 1)).toBe(1);
-    expect(adjustInsertionIndex(0, 0)).toBe(0);
-  });
-
-  it('shifts by one when the source sits before the drop slot', () => {
-    expect(adjustInsertionIndex(1, 0)).toBe(2);
-    expect(adjustInsertionIndex(2, 1)).toBe(3);
   });
 });
