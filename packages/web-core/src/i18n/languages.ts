@@ -1,39 +1,16 @@
 /**
  * Centralized language configuration for the i18n system.
- * This eliminates duplicate language names in translation files and provides
- * a single source of truth for supported languages.
  */
 
 export const UI_TO_I18N = {
   EN: 'en',
-  FR: 'fr',
-  JA: 'ja',
-  ES: 'es',
-  KO: 'ko',
-  ZH_HANS: 'zh-Hans',
-  ZH_HANT: 'zh-Hant',
 } as const;
 
-const SUPPORTED_UI_LANGUAGES = [
-  'BROWSER',
-  'EN',
-  'FR',
-  'JA',
-  'ES',
-  'KO',
-  'ZH_HANS',
-  'ZH_HANT',
-] as const;
+const SUPPORTED_UI_LANGUAGES = ['BROWSER', 'EN'] as const;
 export const SUPPORTED_I18N_CODES = Object.values(UI_TO_I18N);
 
 const FALLBACK_ENDONYMS = {
   en: 'English',
-  fr: 'Français',
-  ja: '日本語',
-  es: 'Español',
-  ko: '한국어',
-  'zh-Hans': '简体中文',
-  'zh-Hant': '繁體中文',
 } as const;
 
 /**

@@ -1,4 +1,4 @@
-import { cn } from "../lib/cn";
+import { cn } from '../lib/cn';
 
 export interface PulsingDotProps {
   className?: string;
@@ -10,7 +10,7 @@ export interface PulsingDotProps {
  */
 export function PulsingDot({ className }: PulsingDotProps) {
   return (
-    <span className={cn("relative flex size-2 shrink-0", className)}>
+    <span className={cn('relative flex size-2 shrink-0', className)}>
       <span className="absolute inline-flex h-full w-full rounded-full bg-brand opacity-75 animate-ping" />
       <span className="relative inline-flex size-2 rounded-full bg-brand" />
     </span>

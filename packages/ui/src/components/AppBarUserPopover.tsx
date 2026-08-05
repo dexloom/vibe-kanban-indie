@@ -1,9 +1,4 @@
-import {
-  BuildingsIcon,
-  GearIcon,
-  SignOutIcon,
-  UserIcon,
-} from '@phosphor-icons/react';
+import { GearIcon, SignOutIcon, UserIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../lib/cn';
 import {
@@ -38,8 +33,6 @@ interface AppBarUserPopoverProps {
 export function AppBarUserPopover({
   avatarUrl,
   avatarError,
-  organizations,
-  selectedOrgId,
   open,
   onOpenChange,
   onSettings,
@@ -50,8 +43,6 @@ export function AppBarUserPopover({
   const settingsLabel = t('settings:settings.layout.nav.title', {
     defaultValue: 'Settings',
   });
-  const selectedOrg =
-    organizations.find((org) => org.id === selectedOrgId) ?? organizations[0];
 
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
@@ -83,12 +74,6 @@ export function AppBarUserPopover({
       <DropdownMenuContent side="right" align="end" className="min-w-[200px]">
         <DropdownMenuLabel>{t('orgSwitcher.organizations')}</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {selectedOrg && (
-          <div className="px-3 py-2 text-sm text-fg-muted flex items-center gap-2">
-            <BuildingsIcon className="size-icon-xs" weight="bold" />
-            <span className="truncate">{selectedOrg.name}</span>
-          </div>
-        )}
         {onSettings && (
           <>
             <DropdownMenuSeparator />

@@ -1,17 +1,8 @@
 import { useState } from 'react';
-import type { OrganizationWithRole } from 'shared/types';
 import { AppBarUserPopover } from '@vibe/ui/components/AppBarUserPopover';
 import { SettingsDialog } from '@/shared/dialogs/settings/SettingsDialog';
 
-interface AppBarUserPopoverContainerProps {
-  organizations: OrganizationWithRole[];
-  selectedOrgId: string;
-}
-
-export function AppBarUserPopoverContainer({
-  organizations,
-  selectedOrgId,
-}: AppBarUserPopoverContainerProps) {
+export function AppBarUserPopoverContainer() {
   const [open, setOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
 
@@ -24,8 +15,8 @@ export function AppBarUserPopoverContainer({
     <AppBarUserPopover
       avatarUrl={null}
       avatarError={avatarError}
-      organizations={organizations}
-      selectedOrgId={selectedOrgId}
+      organizations={[]}
+      selectedOrgId=""
       open={open}
       onOpenChange={setOpen}
       onAvatarError={() => setAvatarError(true)}

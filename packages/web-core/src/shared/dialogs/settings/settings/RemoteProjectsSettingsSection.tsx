@@ -1299,7 +1299,7 @@ export function RemoteProjectsSettingsSection({
                                     </span>
                                     <div className="flex items-center gap-1 shrink-0">
                                       {branch.is_current && (
-                                        <span className="text-[10px] text-low bg-secondary border border-border rounded-sm px-1">
+                                        <span className="text-2xs text-low bg-secondary border border-border rounded-sm px-1">
                                           current
                                         </span>
                                       )}

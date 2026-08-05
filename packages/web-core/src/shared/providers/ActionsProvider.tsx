@@ -11,11 +11,7 @@ import type { Workspace } from 'shared/types';
 import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import { useHostId } from '@/shared/providers/HostIdProvider';
-import {
-  buildKanbanIssueComposerKey,
-  openKanbanIssueComposer,
-  type ProjectIssueCreateOptions,
-} from '@/shared/stores/useKanbanIssueComposerStore';
+import { type ProjectIssueCreateOptions } from '@/shared/stores/useKanbanIssueComposerStore';
 import {
   type ActionDefinition,
   type ActionExecutorContext,
@@ -72,19 +68,15 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
     []
   );
 
-  // Navigate to create issue mode (URL-based navigation)
-  const navigateToCreateIssue = useCallback(
-    (options?: ProjectIssueCreateOptions) => {
-      if (!projectId) {
-        return;
-      }
-
-      openKanbanIssueComposer(
-        buildKanbanIssueComposerKey(hostId, projectId),
-        options
-      );
-    },
-    [projectId, hostId]
+  // Open the lightweight Create Issue modal. Delegates to the bridge
+  // component (ProjectMutationsRegistration) that lives INSIDE
+  // ProjectProvider. When no project context is registered, this is a no-op
+  // returning null. Imperative call from action executors / event handlers —
+  // never from useEffect.
+  const createIssue = useCallback(
+    (options?: ProjectIssueCreateOptions) =>
+      projectMutations?.createIssue?.(options) ?? Promise.resolve(null),
+    [projectMutations]
   );
 
   // Get logs panel state
@@ -220,7 +212,7 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
       openSubIssueSelection,
       openWorkspaceSelection,
       openRelationshipSelection,
-      navigateToCreateIssue,
+      createIssue,
       defaultCreateStatusId,
       kanbanOrgId: selectedOrgId ?? undefined,
       kanbanProjectId: projectId,
@@ -253,7 +245,7 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
     openSubIssueSelection,
     openWorkspaceSelection,
     openRelationshipSelection,
-    navigateToCreateIssue,
+    createIssue,
     defaultCreateStatusId,
     selectedOrgId,
     projectId,
@@ -346,6 +338,7 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
       openSubIssueSelection,
       openWorkspaceSelection,
       openRelationshipSelection,
+      createIssue,
       setDefaultCreateStatusId,
       registerProjectMutations,
       executorContext,
@@ -359,6 +352,7 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
       openSubIssueSelection,
       openWorkspaceSelection,
       openRelationshipSelection,
+      createIssue,
       registerProjectMutations,
       executorContext,
     ]

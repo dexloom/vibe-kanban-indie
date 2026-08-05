@@ -150,6 +150,7 @@ fn to_api_project(p: DbProject) -> ApiProject {
         name: p.name,
         color: p.color,
         sort_order: p.sort_order as i32,
+        parent_id: p.parent_id,
         created_at: p.created_at,
         updated_at: p.updated_at,
     }

@@ -141,7 +141,24 @@
       "deleteBranchLabel": "Delete branch",
       "cannotDeleteOpenPr": "Cannot delete branch while PR is open",
       "unlinkFromIssueLabel": "Also unlink from issue"
-    }
+    },
+    "dashboard": {
+      "title": "Workspaces",
+      "sectionNeedsAttention": "Needs Attention",
+      "sectionRunning": "Running",
+      "sectionRecentlyActive": "Recently Active",
+      "sectionArchived": "Archived",
+      "emptyNeedsAttention": "Nothing needs your attention.",
+      "emptyRunning": "No workspaces running.",
+      "emptyRecentlyActive": "No recent activity.",
+      "emptyArchived": "No archived workspaces.",
+      "summary": "{{active}} active · {{archived}} archived · {{running}} running · {{attention}} need attention"
+    },
+    "outliner": {
+      "attention": "Attention"
+    },
+    "bucketEmpty": "No workspaces",
+    "bucketBarLabel": "Workspace buckets"
   },
   "fileTree": {
     "searchPlaceholder": "Search files...",
@@ -369,24 +386,6 @@
     "filterByPriority": "Filter by priority",
     "tags": "Tags",
     "sortBy": "Sort",
-    "workspaceSidebar": {
-      "sortDialogTitle": "Sort workspaces",
-      "sortDialogDescription": "Choose how workspaces are ordered in the sidebar.",
-      "sortByLabel": "Sort by",
-      "sortOrderLabel": "Sort order",
-      "sortUpdatedAt": "Updated at",
-      "sortCreatedAt": "Created at",
-      "filterDialogTitle": "Filter workspaces",
-      "filterDialogDescription": "Narrow down workspaces by project and PR state.",
-      "projectFilterLabel": "Project",
-      "prFilterLabel": "PR",
-      "prFilterAll": "All",
-      "prFilterHasPr": "Has PR",
-      "prFilterNoPr": "No PR",
-      "noProject": "No project",
-      "sortButtonTitle": "Sort workspaces",
-      "filterButtonTitle": "Filter workspaces"
-    },
     "sortAscending": "Ascending",
     "sortDescending": "Descending",
     "assignee": "Assignee",
@@ -504,5 +503,45 @@
     "progressHeader": "Stage {{n}} of {{total}} — {{label}}",
     "progressNotStarted": "{{total}} stages, not started yet",
     "heavyBadge": "heavy"
+  },
+  "createIssueDialog": {
+    "title": "Create Issue",
+    "titlePlaceholder": "Issue title",
+    "descriptionPlaceholder": "Add a description (optional)",
+    "statusLabel": "Status",
+    "priorityLabel": "Priority",
+    "workspaceLabel": "Workspace",
+    "workspaceNone": "None",
+    "workspaceCreateNew": "Create new workspace",
+    "workspaceWillCreate": "A new workspace will be created after the issue is added.",
+    "workspaceClearSelection": "Clear",
+    "workspaceArchived": "archived",
+    "priority": {
+      "urgent": "Urgent",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "create": "Create",
+    "cancel": "Cancel",
+    "parentHint": "Parent: {{id}}",
+    "errorCreateFailed": "Failed to create the issue. Please try again."
+  },
+  "appBar": {
+    "projects": "Projects"
+  },
+  "sidebar": {
+    "workspacesSection": "Workspaces",
+    "tasksSection": "Tasks",
+    "tasksLoading": "Loading tasks…",
+    "tasksEmpty": "No statuses yet",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "unassigned": "Unassigned",
+    "openProjectKanban": "Open project kanban",
+    "createProject": "Create project",
+    "notifications": "Notifications",
+    "settings": "Settings",
+    "bottomBarLabel": "Sidebar actions"
   }
 }

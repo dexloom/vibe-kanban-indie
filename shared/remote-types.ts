@@ -4,7 +4,7 @@
 // Electric row types
 export type JsonValue = number | string | boolean | Array<JsonValue> | { [key in string]?: JsonValue } | null;
 
-export type Project = { id: string, organization_id: string, name: string, color: string, sort_order: number, created_at: string, updated_at: string, };
+export type Project = { id: string, organization_id: string, name: string, color: string, sort_order: number, parent_id: string | null, created_at: string, updated_at: string, };
 
 export type Notification = { id: string, organization_id: string, user_id: string, notification_type: NotificationType, payload: NotificationPayload, issue_id: string | null, comment_id: string | null, seen: boolean, dismissed_at: string | null, created_at: string, };
 
@@ -71,14 +71,14 @@ export enum MemberRole { ADMIN = "ADMIN", MEMBER = "MEMBER" }
 
 export type OrganizationMember = { organization_id: string, user_id: string, role: MemberRole, joined_at: string, last_seen_at: string | null, };
 
-export type CreateProjectRequest = { 
-/**
+export type CreateProjectRequest = {
+ /**
  * Optional client-generated ID. If not provided, server generates one.
  * Using client-generated IDs enables stable optimistic updates.
  */
-id?: string, organization_id: string, name: string, color: string, };
+id?: string, organization_id: string, name: string, color: string, parent_id?: string | null, };
 
-export type UpdateProjectRequest = { name: string | null, color: string | null, sort_order: number | null, };
+export type UpdateProjectRequest = { name: string | null, color: string | null, sort_order: number | null, parent_id?: string | null, };
 
 export type UpdateNotificationRequest = { seen: boolean | null, };
 

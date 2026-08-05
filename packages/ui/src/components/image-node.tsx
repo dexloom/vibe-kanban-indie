@@ -221,13 +221,7 @@ export function createImageNode(options: CreateImageNodeOptions) {
           }
         }
       },
-      [
-        isDirectAttachmentUrl,
-        metadata,
-        isWorkspaceImage,
-        altText,
-        src,
-      ]
+      [isDirectAttachmentUrl, metadata, isWorkspaceImage, altText, src]
     );
 
     const handleDownload = useCallback(
@@ -373,7 +367,7 @@ export function createImageNode(options: CreateImageNodeOptions) {
             {displayName}
           </span>
           {metadataLine && (
-            <span className="text-[10px] text-muted-foreground/70 truncate max-w-[120px]">
+            <span className="text-2xs text-muted-foreground/70 truncate max-w-[120px]">
               {metadataLine}
             </span>
           )}

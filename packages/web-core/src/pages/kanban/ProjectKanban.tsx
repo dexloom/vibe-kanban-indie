@@ -1,5 +1,9 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import {
+  PROJECT_WORKSPACES_SHAPE,
+  type IssuePriority,
+} from 'shared/remote-types';
 import { Group, Layout, Panel, Separator } from 'react-resizable-panels';
 import { OrgProvider } from '@/shared/providers/remote/OrgProvider';
 import { useOrgContext } from '@/shared/hooks/useOrgContext';
@@ -9,6 +13,7 @@ import { useActions } from '@/shared/hooks/useActions';
 import { usePageTitle } from '@/shared/hooks/usePageTitle';
 import { KanbanContainer } from '@/features/kanban/ui/KanbanContainer';
 import { useIsMobile } from '@/shared/hooks/useIsMobile';
+import { useHostId } from '@/shared/providers/HostIdProvider';
 import { ProjectRightSidebarContainer } from './ProjectRightSidebarContainer';
 import {
   PERSIST_KEYS,
@@ -20,24 +25,255 @@ import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentKanbanRouteState } from '@/shared/hooks/useCurrentKanbanRouteState';
+import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
+import { useUserContext } from '@/shared/hooks/useUserContext';
+import { useProjectWorkspaceCreateDraft } from '@/shared/hooks/useProjectWorkspaceCreateDraft';
+import { workspacesApi } from '@/shared/lib/api';
+import { getWorkspaceDefaults } from '@/shared/lib/workspaceDefaults';
+import {
+  buildLinkedIssueCreateState,
+  buildLocalWorkspaceIdSet,
+  buildWorkspaceCreateInitialState,
+  buildWorkspaceCreatePrompt,
+} from '@/shared/lib/workspaceCreateState';
+import {
+  getLinkWorkspaceErrorMessage,
+  WORKSPACE_ALREADY_LINKED_MESSAGE,
+} from '@/shared/lib/workspaces';
+import { refreshShapeSource } from '@/shared/lib/electric/collections';
+import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import {
   buildKanbanIssueComposerKey,
   closeKanbanIssueComposer,
+  type ProjectIssueCreateOptions,
 } from '@/shared/stores/useKanbanIssueComposerStore';
+import {
+  CreateIssueDialog,
+  type CreateIssueDialogPriorityOption,
+  type CreateIssueDialogStatusOption,
+} from '@/shared/dialogs/kanban/CreateIssueDialog';
+
+const PRIORITY_ORDER: IssuePriority[] = ['urgent', 'high', 'medium', 'low'];
 /**
  * Component that registers project mutations with ActionsContext.
  * Must be rendered inside both ActionsProvider and ProjectProvider.
  */
 function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
   const { registerProjectMutations } = useActions();
-  const { removeIssue, insertIssue, getIssue, getAssigneesForIssue, issues } =
-    useProjectContext();
+  const { t } = useTranslation('common');
+  const appNavigation = useAppNavigation();
+  const hostId = useHostId();
+  const { activeWorkspaces, archivedWorkspaces } = useWorkspaceContext();
+  const { workspaces: remoteWorkspaces } = useUserContext();
+  const { openWorkspaceCreateFromState } = useProjectWorkspaceCreateDraft();
+  const {
+    projectId,
+    statuses,
+    issues,
+    issuesById,
+    getIssue,
+    insertIssue,
+    insertIssueAssignee,
+    removeIssue,
+    getAssigneesForIssue,
+  } = useProjectContext();
 
   // Use ref to always access latest issues (avoid stale closure)
   const issuesRef = useRef(issues);
   useEffect(() => {
     issuesRef.current = issues;
   }, [issues]);
+
+  const statusOptions: CreateIssueDialogStatusOption[] = useMemo(
+    () =>
+      [...statuses]
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((status) => ({ id: status.id, name: status.name })),
+    [statuses]
+  );
+
+  const priorityOptions: CreateIssueDialogPriorityOption[] = useMemo(
+    () =>
+      PRIORITY_ORDER.map((value) => ({
+        value,
+        label: t(`createIssueDialog.priority.${value}`),
+      })),
+    [t]
+  );
+
+  const workspaceOptions = useMemo(() => {
+    const active = activeWorkspaces.map((workspace) => ({
+      id: workspace.id,
+      name: workspace.name,
+      branch: workspace.branch,
+      isArchived: false,
+    }));
+    const archived = archivedWorkspaces.map((workspace) => ({
+      id: workspace.id,
+      name: workspace.name,
+      branch: workspace.branch,
+      isArchived: true,
+    }));
+    return [...active, ...archived];
+  }, [activeWorkspaces, archivedWorkspaces]);
+
+  const openCreateIssue = useCallback(
+    async (options?: ProjectIssueCreateOptions): Promise<string | null> => {
+      const defaultStatusId = options?.statusId ?? statusOptions[0]?.id ?? '';
+
+      // Resolve parent issue's simple_id for the dialog hint.
+      const parentIssueSimpleId = options?.parentIssueId
+        ? (issuesById.get(options.parentIssueId)?.simple_id ??
+          getIssue(options.parentIssueId)?.simple_id ??
+          null)
+        : null;
+
+      // Close any open composer for this project so the right sidebar doesn't
+      // collide with the modal. We close BEFORE awaiting creation so the
+      // modal flow is unblocked by the existing sidebar.
+      const composerKey = buildKanbanIssueComposerKey(hostId, projectId);
+      closeKanbanIssueComposer(composerKey);
+
+      const res = await CreateIssueDialog.show({
+        statuses: statusOptions,
+        defaultStatusId,
+        priorities: priorityOptions,
+        workspaces: workspaceOptions,
+        parentIssueSimpleId,
+        onCreate: async ({
+          title,
+          description,
+          statusId,
+          priority,
+        }): Promise<string> => {
+          // Top-of-column sort_order: min sort_order of issues in the target
+          // status, minus 1 (so the new card lands at the top). Fall back to
+          // 0 when the column is empty.
+          const statusIssues = issuesRef.current.filter(
+            (issue) => issue.status_id === statusId
+          );
+          const minSortOrder =
+            statusIssues.length > 0
+              ? Math.min(...statusIssues.map((issue) => issue.sort_order))
+              : 0;
+
+          const { persisted } = insertIssue({
+            project_id: projectId,
+            status_id: statusId,
+            title,
+            description,
+            priority,
+            sort_order: minSortOrder - 1,
+            start_date: null,
+            target_date: null,
+            completed_at: null,
+            parent_issue_id: options?.parentIssueId ?? null,
+            parent_issue_sort_order: null,
+            extension_metadata: {},
+          });
+
+          const syncedIssue = await persisted;
+
+          if (options?.assigneeIds && options.assigneeIds.length > 0) {
+            for (const userId of options.assigneeIds) {
+              insertIssueAssignee({
+                issue_id: syncedIssue.id,
+                user_id: userId,
+              });
+            }
+          }
+
+          return syncedIssue.id;
+        },
+      });
+
+      if (res.action === 'created') {
+        if (res.workspace.kind === 'none') {
+          appNavigation.goToProjectIssue(projectId, res.issueId);
+          return res.issueId;
+        }
+
+        if (res.workspace.kind === 'existing') {
+          appNavigation.goToProjectIssue(projectId, res.issueId);
+          void workspacesApi
+            .linkToIssue(res.workspace.id, projectId, res.issueId)
+            .then(() => {
+              refreshShapeSource(PROJECT_WORKSPACES_SHAPE, {
+                project_id: projectId,
+              });
+            })
+            .catch((error: unknown) => {
+              const errorMessage =
+                getLinkWorkspaceErrorMessage(error) ??
+                t('workspaces.linkError', 'Failed to link workspace');
+
+              if (errorMessage !== WORKSPACE_ALREADY_LINKED_MESSAGE) {
+                console.error('Failed to link workspace to issue:', error);
+              }
+
+              void ConfirmDialog.show({
+                title: t('common:error'),
+                message: errorMessage,
+                confirmText: t('common:ok'),
+                showCancelButton: false,
+              });
+            });
+          return res.issueId;
+        }
+
+        const issue = getIssue(res.issueId);
+        const prompt = buildWorkspaceCreatePrompt(
+          issue?.title ?? null,
+          issue?.description ?? null
+        );
+        const defaults = await getWorkspaceDefaults(
+          remoteWorkspaces,
+          buildLocalWorkspaceIdSet(activeWorkspaces, archivedWorkspaces),
+          projectId
+        );
+        const createState = buildWorkspaceCreateInitialState({
+          prompt,
+          defaults,
+          linkedIssue: buildLinkedIssueCreateState(issue, projectId),
+        });
+        const draftId = await openWorkspaceCreateFromState(createState, {
+          issueId: res.issueId,
+        });
+
+        if (!draftId) {
+          appNavigation.goToProjectIssue(projectId, res.issueId);
+          await ConfirmDialog.show({
+            title: t('common:error'),
+            message: t(
+              'workspaces.createDraftError',
+              'Failed to prepare workspace draft. Please try again.'
+            ),
+            confirmText: t('common:ok'),
+            showCancelButton: false,
+          });
+        }
+        return res.issueId;
+      }
+      return null;
+    },
+    [
+      statusOptions,
+      priorityOptions,
+      workspaceOptions,
+      issuesById,
+      getIssue,
+      insertIssue,
+      insertIssueAssignee,
+      appNavigation,
+      hostId,
+      projectId,
+      remoteWorkspaces,
+      activeWorkspaces,
+      archivedWorkspaces,
+      openWorkspaceCreateFromState,
+      t,
+    ]
+  );
 
   useEffect(() => {
     registerProjectMutations({
@@ -75,6 +311,7 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
       },
       getIssue,
       getAssigneesForIssue,
+      createIssue: openCreateIssue,
     });
 
     return () => {
@@ -86,6 +323,7 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
     insertIssue,
     getIssue,
     getAssigneesForIssue,
+    openCreateIssue,
   ]);
 
   return <>{children}</>;

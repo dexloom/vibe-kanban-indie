@@ -21,7 +21,6 @@ import {
 } from '@/features/create-mode/model/createModeSeedStore';
 import { ReviewProvider } from '@/shared/hooks/ReviewProvider';
 import { ChangesViewProvider } from '@/shared/hooks/ChangesViewProvider';
-import { WorkspacesSidebarContainer } from './WorkspacesSidebarContainer';
 import { LogsContentContainer } from './LogsContentContainer';
 import {
   WorkspacesMainContainer,
@@ -107,13 +106,6 @@ export function WorkspacesLayout() {
   const [mobileTab] = useMobileActiveTab();
   const mainContainerRef = useRef<WorkspacesMainContainerHandle>(null);
 
-  const handleScrollToBottom = useCallback(
-    (behavior: 'auto' | 'smooth' = 'smooth') => {
-      mainContainerRef.current?.scrollToBottom(behavior);
-    },
-    []
-  );
-
   const handleWorkspaceCreated = useCallback(
     (workspaceId: string) => {
       appNavigation.goToWorkspace(workspaceId);
@@ -121,28 +113,24 @@ export function WorkspacesLayout() {
     [appNavigation]
   );
 
-  // Use workspace-specific panel state (pass undefined when in create mode)
+  // Use workspace-specific panel state (pass undefined when in create mode).
+  // ADR-007: the view-local outliner that previously gated on
+  // `isLeftSidebarVisible` has moved to the global sidebar; the panel state
+  // itself stays intact (the `ToggleLeftSidebar` action still toggles the
+  // flag in case a future panel reuses it).
   const {
-    isLeftSidebarVisible,
     isLeftMainPanelVisible,
     isRightSidebarVisible,
     rightMainPanelMode,
-    setLeftSidebarVisible,
     setLeftMainPanelVisible,
   } = useWorkspacePanelState(isCreateMode ? undefined : workspaceId);
 
-  // Ensure left panels visible when right main panel hidden
+  // Ensure left panel visible when right main panel hidden.
   useEffect(() => {
-    if (rightMainPanelMode === null) {
-      setLeftSidebarVisible(true);
-      if (!isLeftMainPanelVisible) setLeftMainPanelVisible(true);
+    if (rightMainPanelMode === null && !isLeftMainPanelVisible) {
+      setLeftMainPanelVisible(true);
     }
-  }, [
-    isLeftMainPanelVisible,
-    rightMainPanelMode,
-    setLeftSidebarVisible,
-    setLeftMainPanelVisible,
-  ]);
+  }, [isLeftMainPanelVisible, rightMainPanelMode, setLeftMainPanelVisible]);
 
   const [rightMainPanelSize, setRightMainPanelSize] = usePaneSize(
     PERSIST_KEYS.rightMainPanel,
@@ -185,19 +173,9 @@ export function WorkspacesLayout() {
       <ReviewProvider workspaceId={selectedWorkspace?.id}>
         <ChangesViewProvider>
           <div className="flex flex-col h-full min-h-0">
-            {/* Workspaces tab */}
-            <div
-              className={cn(
-                'flex-1 min-h-0 overflow-hidden',
-                mobileTab !== 'workspaces' && 'hidden'
-              )}
-            >
-              <WorkspacesSidebarContainer
-                onScrollToBottom={handleScrollToBottom}
-              />
-            </div>
-
-            {/* Chat tab */}
+            {/* Chat tab — the Workspaces tab from ADR-006 has been removed
+                along with the view-local outliner; navigation lives in the
+                global sidebar now (ADR-007). */}
             <div
               className={cn(
                 'flex-1 min-h-0 overflow-hidden',
@@ -375,7 +353,7 @@ export function WorkspacesLayout() {
             )}
           </Group>
 
-          {isRightSidebarVisible && !isCreateMode && (
+          {isRightSidebarVisible && !isCreateMode && selectedWorkspace && (
             <div className="w-[300px] shrink-0 h-full overflow-hidden">
               <RightSidebar
                 rightMainPanelMode={rightMainPanelMode}
@@ -391,12 +369,6 @@ export function WorkspacesLayout() {
 
   return (
     <div className="flex flex-1 min-h-0 h-full">
-      {isLeftSidebarVisible && (
-        <div className="w-[300px] shrink-0 h-full overflow-hidden">
-          <WorkspacesSidebarContainer onScrollToBottom={handleScrollToBottom} />
-        </div>
-      )}
-
       <div className="flex-1 min-w-0 h-full">
         {isCreateMode ? (
           <CreateModeProvider

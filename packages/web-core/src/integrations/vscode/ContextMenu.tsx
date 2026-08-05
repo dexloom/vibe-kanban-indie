@@ -242,7 +242,7 @@ export const WebviewContextMenu: React.FC = () => {
         top: (adjustedPos ?? pos).y,
         zIndex: 99999,
       }}
-      className="min-w-[160px] rounded-md border border-gray-300 bg-white text-gray-900 shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+      className="min-w-[160px] rounded-md border border-gray-300 bg-overlay text-gray-900 shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
       onContextMenu={(e) => e.preventDefault()}
     >
       <MenuItem label="Copy" onClick={onCopy} />

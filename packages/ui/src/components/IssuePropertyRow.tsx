@@ -102,7 +102,7 @@ export function IssuePropertyRow({
             </span>
             <UserAvatar
               user={creatorUser}
-              className="h-5 w-5 text-[9px] border border-border"
+              className="h-5 w-5 text-micro border border-border"
             />
             <span className="text-normal truncate max-w-[120px]">
               {creatorUser.first_name?.trim() || creatorUser.username?.trim()}

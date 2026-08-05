@@ -76,7 +76,7 @@ const AssigneeAvatar = ({ user }: { user: KanbanAssigneeUser }) => {
       <div
         className={cn(
           'flex size-icon-base shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-secondary text-xs font-medium text-low',
-          'h-5 w-5 text-[10px] ring-1 ring-background'
+          'h-5 w-5 text-2xs ring-1 ring-background'
         )}
         aria-label={label}
       >

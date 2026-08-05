@@ -286,7 +286,7 @@ function CommentItem({
           {comment.author ? (
             <UserAvatar user={comment.author} className="size-4" />
           ) : (
-            <div className="size-4 rounded-full bg-secondary border border-border flex items-center justify-center text-[10px] text-low">
+            <div className="size-4 rounded-full bg-secondary border border-border flex items-center justify-center text-2xs text-low">
               {comment.authorName.charAt(0).toUpperCase()}
             </div>
           )}

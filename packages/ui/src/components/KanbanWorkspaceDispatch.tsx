@@ -1,14 +1,14 @@
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
-import { PlayIcon } from "@phosphor-icons/react";
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { PlayIcon } from '@phosphor-icons/react';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "./Select";
-import { cn } from "../lib/cn";
+} from './Select';
+import { cn } from '../lib/cn';
 
 export interface DispatchWorkspaceOption {
   id: string;
@@ -37,7 +37,7 @@ export function KanbanWorkspaceDispatch({
   className,
   currentWorkspaceIds,
 }: KanbanWorkspaceDispatchProps) {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation('common');
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
 
   const value = selectedId ?? workspaces[0]?.id;
@@ -45,7 +45,7 @@ export function KanbanWorkspaceDispatch({
 
   return (
     <div
-      className={cn("flex items-center gap-half min-w-0", className)}
+      className={cn('flex items-center gap-half min-w-0', className)}
       onMouseUp={(e) => e.stopPropagation()}
     >
       <Select
@@ -55,17 +55,17 @@ export function KanbanWorkspaceDispatch({
       >
         <SelectTrigger
           className="h-6 min-w-0 flex-1 rounded-sm border-0 bg-secondary/60 px-1.5 py-0 text-xs data-[placeholder]:text-low"
-          aria-label={t("kanban.selectWorkspace")}
+          aria-label={t('kanban.selectWorkspace')}
         >
-          <SelectValue placeholder={t("kanban.selectWorkspace")} />
+          <SelectValue placeholder={t('kanban.selectWorkspace')} />
         </SelectTrigger>
         <SelectContent>
           {workspaces.map((workspace) => (
             <SelectItem key={workspace.id} value={workspace.id}>
               {workspace.name ?? workspace.id}
               {currentWorkspaceIds?.has(workspace.id)
-                ? ` (${t("kanban.currentWorkspace")})`
-                : ""}
+                ? ` (${t('kanban.currentWorkspace')})`
+                : ''}
             </SelectItem>
           ))}
         </SelectContent>
@@ -75,8 +75,8 @@ export function KanbanWorkspaceDispatch({
         disabled={disabled || empty || !value}
         onClick={() => value && onDispatch(value)}
         className="rounded p-half -m-half shrink-0 text-low transition-colors hover:bg-secondary hover:text-normal disabled:cursor-not-allowed disabled:opacity-40"
-        aria-label={t("kanban.dispatchIssue")}
-        title={t("kanban.dispatchIssue")}
+        aria-label={t('kanban.dispatchIssue')}
+        title={t('kanban.dispatchIssue')}
       >
         <PlayIcon className="size-icon-xs" weight="fill" />
       </button>

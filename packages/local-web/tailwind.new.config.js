@@ -7,20 +7,30 @@ const sizes = {
   base: 1,
   lg: 1.125,
   xl: 1.25,
-}
+};
 
-const lineHeightMultiplier = 1.5;
-const radiusMultiplier = 0.25;
 const iconMultiplier = 1.25;
 const chatMaxWidth = '48rem';
 
 function getSize(sizeLabel, multiplier = 1) {
+  return sizes[sizeLabel] * multiplier + 'rem';
+}
 
-  return sizes[sizeLabel] * multiplier + "rem";
+function getMutedColor({ opacityValue, opacityVariable } = {}) {
+  const token =
+    opacityVariable === '--tw-text-opacity' ? '--fg-muted' : '--muted';
+
+  if (opacityValue !== undefined) {
+    return `hsl(var(${token}) / ${opacityValue})`;
+  }
+  if (opacityVariable !== undefined) {
+    return `hsl(var(${token}) / var(${opacityVariable}))`;
+  }
+  return `hsl(var(${token}))`;
 }
 
 module.exports = {
-  darkMode: ["class"],
+  darkMode: ['class'],
   important: false,
   content: [
     './pages/**/*.{ts,tsx}',
@@ -29,7 +39,7 @@ module.exports = {
     './src/**/*.{ts,tsx}',
     '../web-core/src/**/*.{ts,tsx}',
     '../ui/src/**/*.{ts,tsx}',
-    "node_modules/@rjsf/shadcn/src/**/*.{js,ts,jsx,tsx,mdx}"
+    'node_modules/@rjsf/shadcn/src/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   safelist: [
     'xl:hidden',
@@ -45,21 +55,21 @@ module.exports = {
     'xl:opacity-100',
     'xl:pointer-events-auto',
   ],
-  prefix: "",
+  prefix: '',
   theme: {
     container: {
       center: true,
-      padding: "2rem",
+      padding: '2rem',
       screens: {
-        "2xl": "1400px",
+        '2xl': '1400px',
       },
     },
     extend: {
       height: {
-        'cta': '29px',
+        cta: '29px',
       },
       minHeight: {
-        'cta': '29px',
+        cta: '29px',
       },
       width: {
         chat: chatMaxWidth,
@@ -74,7 +84,7 @@ module.exports = {
         'icon-base': getSize('base', iconMultiplier),
         'icon-lg': getSize('lg', iconMultiplier),
         'icon-xl': getSize('xl', iconMultiplier),
-        'dot': '0.3rem', // 6px - for animated indicator dots
+        dot: '0.3rem', // 6px - for animated indicator dots
       },
       backgroundImage: {
         'diagonal-lines': `
@@ -86,50 +96,91 @@ module.exports = {
         DEFAULT: 'hsl(var(--brand))',
       },
       fontSize: {
-        xs: [getSize('xs'), { lineHeight: getSize('xs', lineHeightMultiplier) }],      // 8px
-        sm: [getSize('sm'), { lineHeight: getSize('sm', lineHeightMultiplier) }],   // 10px
-        base: [getSize('base'), { lineHeight: getSize('base', lineHeightMultiplier) }],  // 12px (base)
-        lg: [getSize('lg'), { lineHeight: getSize('lg', lineHeightMultiplier) }],    // 14px
-        xl: [getSize('xl'), { lineHeight: getSize('xl', lineHeightMultiplier) }],         // 16px
-        cta: [getSize('base'), { lineHeight: getSize('base') }],         // 16px
+        micro: ['0.5625rem', { lineHeight: '0.75rem' }],
+        '2xs': ['0.6875rem', { lineHeight: '1rem' }],
+        xs: ['0.75rem', { lineHeight: '1.0625rem' }],
+        sm: ['0.875rem', { lineHeight: '1.25rem' }],
+        base: ['1rem', { lineHeight: '1.5rem' }],
+        lg: ['1.125rem', { lineHeight: '1.625rem' }],
+        xl: ['1.25rem', { lineHeight: '1.75rem' }],
+        '2xl': ['1.5rem', { lineHeight: '2rem' }],
+        cta: ['1rem', { lineHeight: '1rem' }],
       },
       spacing: {
-        'half': getSize('base', 0.25),
-        'base': getSize('base', 0.5),
-        'plusfifty': getSize('base', 0.75),
-        'double': getSize('base', 1),
+        1: '0.25rem',
+        2: '0.5rem',
+        3: '0.75rem',
+        4: '1rem',
+        5: '1.25rem',
+        6: '1.5rem',
+        8: '2rem',
+        half: '0.5rem',
+        base: '0.75rem',
+        plusfifty: '0.75rem',
+        double: '1rem',
       },
       colors: {
-        // Text colors: text-high, text-normal, text-low
-        high: "hsl(var(--text-high))",
-        normal: "hsl(var(--text-normal))",
-        low: "hsl(var(--text-low))",
-        // Background colors: bg-primary, bg-secondary, bg-panel
-        primary: "hsl(var(--bg-primary))",
-        secondary: "hsl(var(--bg-secondary))",
-        panel: "hsl(var(--bg-panel))",
+        // Legacy text colors: text-high, text-normal, text-low
+        high: 'hsl(var(--text-high))',
+        normal: 'hsl(var(--text-normal))',
+        low: 'hsl(var(--text-low))',
+        // Legacy background colors: bg-primary, bg-secondary, bg-panel
+        primary: 'hsl(var(--bg-primary))',
+        secondary: 'hsl(var(--bg-secondary))',
+        panel: 'hsl(var(--bg-panel))',
+        // Surface and text namespace
+        canvas: 'hsl(var(--bg-canvas))',
+        surface: 'hsl(var(--bg-surface))',
+        sunken: 'hsl(var(--bg-sunken))',
+        overlay: 'hsl(var(--bg-overlay))',
+        strong: 'hsl(var(--fg-strong))',
+        default: 'hsl(var(--fg-default))',
+        muted: getMutedColor,
+        'fg-muted': 'hsl(var(--fg-muted))',
+        subtle: 'hsl(var(--fg-subtle))',
+        'border-strong': 'hsl(var(--border-strong))',
+        tertiary: 'hsl(var(--tertiary))',
         // Accent colors
-        brand: "hsl(var(--brand))",
-        'brand-hover': "hsl(var(--brand-hover))",
-        'brand-secondary': "hsl(var(--brand-secondary))",
-        error: "hsl(var(--error))",
-        success: "hsl(var(--success))",
-        merged: "hsl(var(--merged))",
+        brand: 'hsl(var(--brand))',
+        'brand-hover': 'hsl(var(--brand-hover))',
+        'brand-active': 'hsl(var(--brand-active))',
+        'brand-secondary': 'hsl(var(--brand-secondary))',
+        error: 'hsl(var(--error))',
+        success: 'hsl(var(--success))',
+        warning: 'hsl(var(--warning))',
+        merged: 'hsl(var(--merged))',
         // Text on accent
-        'on-brand': "hsl(var(--text-on-brand))",
-        // shadcn-style colors (used by @apply in CSS base layer)
-        background: "hsl(var(--bg-primary))",
-        foreground: "hsl(var(--text-normal))",
-        border: "hsl(var(--border))",
+        'on-brand': 'hsl(var(--text-on-brand))',
+        // shadcn-style colors
+        background: 'hsl(var(--bg-primary))',
+        foreground: 'hsl(var(--text-normal))',
+        'primary-foreground': 'hsl(var(--primary-foreground))',
+        'secondary-foreground': 'hsl(var(--secondary-foreground))',
+        'muted-foreground': 'hsl(var(--muted-foreground))',
+        accent: 'hsl(var(--accent))',
+        'accent-foreground': 'hsl(var(--accent-foreground))',
+        popover: 'hsl(var(--popover))',
+        'popover-foreground': 'hsl(var(--popover-foreground))',
+        card: 'hsl(var(--card))',
+        'card-foreground': 'hsl(var(--card-foreground))',
+        destructive: 'hsl(var(--destructive))',
+        'destructive-foreground': 'hsl(var(--destructive-foreground))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        border: 'hsl(var(--border))',
       },
       borderColor: {
-        DEFAULT: "hsl(var(--border))",
-        border: "hsl(var(--border))",
+        DEFAULT: 'hsl(var(--border))',
+        border: 'hsl(var(--border))',
       },
       borderRadius: {
-        lg: getSize('lg', radiusMultiplier),
-        md: getSize('sm', radiusMultiplier),
-        sm: getSize('xs', radiusMultiplier),
+        none: '0',
+        sm: '0.25rem',
+        DEFAULT: '0.375rem',
+        md: '0.5rem',
+        lg: '0.625rem',
+        xl: '0.75rem',
+        full: '9999px',
       },
       borderWidth: {
         base: getSize('base'),
@@ -140,13 +191,13 @@ module.exports = {
         'ibm-plex-mono': ['"IBM Plex Mono"', 'monospace'],
       },
       keyframes: {
-        "accordion-down": {
-          from: { height: "0" },
-          to: { height: "var(--radix-accordion-content-height)" },
+        'accordion-down': {
+          from: { height: '0' },
+          to: { height: 'var(--radix-accordion-content-height)' },
         },
-        "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" },
+        'accordion-up': {
+          from: { height: 'var(--radix-accordion-content-height)' },
+          to: { height: '0' },
         },
         pill: {
           '0%': { opacity: '0' },
@@ -169,8 +220,8 @@ module.exports = {
         },
       },
       animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
+        'accordion-down': 'accordion-down 0.2s ease-out',
+        'accordion-up': 'accordion-up 0.2s ease-out',
         pill: 'pill 2s ease-in-out forwards',
         'running-dot-1': 'running-dot 1.4s ease-in-out infinite',
         'running-dot-2': 'running-dot 1.4s ease-in-out 0.2s infinite',
@@ -180,5 +231,9 @@ module.exports = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate"), require("@tailwindcss/container-queries"), require("tailwind-scrollbar")({ nocompatible: true })],
-}
+  plugins: [
+    require('tailwindcss-animate'),
+    require('@tailwindcss/container-queries'),
+    require('tailwind-scrollbar')({ nocompatible: true }),
+  ],
+};

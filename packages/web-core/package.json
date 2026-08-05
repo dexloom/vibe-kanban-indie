@@ -96,8 +96,7 @@
     "check": "tsc --noEmit",
     "test": "vitest run",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
-    "test": "vitest run"
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\""
   },
   "devDependencies": {
     "@rjsf/core": "6.1.1",

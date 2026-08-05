@@ -40,6 +40,8 @@ function resolveLocalDestinationFromPath(path: string): AppDestination | null {
       return { kind: 'onboarding' };
     case '/_app/workspaces':
       return { kind: 'workspaces' };
+    case '/_app/chat':
+      return { kind: 'chat' };
     case '/_app/common-tasks':
       return { kind: 'common-tasks' };
     case '/_app/hosts/$hostId/workspaces': {
@@ -183,6 +185,8 @@ function destinationToLocalTarget(
       return { to: '/' } as const;
     case 'onboarding':
       return { to: '/onboarding' } as const;
+    case 'chat':
+      return { to: '/chat' } as const;
     case 'workspaces':
       if (effectiveHostId) {
         return {
@@ -328,6 +332,7 @@ export function createLocalAppNavigation(): AppNavigation {
       navigateTo({ kind: 'onboarding' }, transition),
     goToWorkspaces: (transition) =>
       navigateTo({ kind: 'workspaces' }, transition),
+    goToChat: (transition) => navigateTo({ kind: 'chat' }, transition),
     goToWorkspacesCreate: (transition) =>
       navigateTo({ kind: 'workspaces-create' }, transition),
     goToWorkspace: (workspaceId, transition) =>

@@ -111,7 +111,7 @@ export function KanbanFiltersDialog({
         renderOption: () => (
           <div className="flex items-center gap-base">
             {currentUser ? (
-              <UserAvatar user={currentUser} className="h-4 w-4 text-[8px]" />
+              <UserAvatar user={currentUser} className="h-4 w-4 text-micro" />
             ) : (
               <UsersIcon className="size-icon-xs text-low" weight="bold" />
             )}

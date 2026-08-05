@@ -1,4 +1,9 @@
-import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
+import {
+  forwardRef,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from 'react';
 import { useEffect, useState } from 'react';
 import type { Icon } from '@phosphor-icons/react';
 import { CaretDownIcon } from '@phosphor-icons/react';
@@ -39,28 +44,92 @@ interface CollapsibleSectionHeaderProps {
   headerExtra?: ReactNode;
   children?: ReactNode;
   className?: string;
+  /**
+   * id for the controls/aria relationship between the header button and its
+   * collapsible panel. Defaults to the `persistKey` so call sites that only
+   * pass `persistKey` get correct a11y wiring for free. Stable string only —
+   * changing this on every render will re-key the DOM region.
+   */
+  controlsId?: string;
+  /**
+   * Forwarded to the toggle button when `collapsible` is true. Used by tree
+   * outliners (WorkspaceOutliner) to participate in a roving tabIndex.
+   */
+  tabIndex?: number;
+  /**
+   * Forwarded to the toggle button's `role` attribute. Defaults to undefined
+   * (the implicit `button` role). Tree parents pass `role="treeitem"` so the
+   * header participates in tree keyboard navigation.
+   */
+  role?: string;
+  /**
+   * Controlled expanded state. When provided, the header ignores its own
+   * localStorage-backed state and renders strictly from this prop. Pair with
+   * {@link onToggle} to update the parent. Use this when a sibling component
+   * needs to read the current expanded state (e.g. the WorkspaceOutliner's
+   * keyboard navigation hook).
+   */
+  expanded?: boolean;
+  /**
+   * Called when the user clicks the toggle button. When `expanded` is
+   * controlled (`expanded` prop provided), the parent MUST update it; the
+   * header will not toggle its own state.
+   */
+  onToggle?: () => void;
 }
 
-export function CollapsibleSectionHeader({
-  persistKey,
-  title,
-  defaultExpanded = true,
-  collapsible = true,
-  actions = [],
-  headerExtra,
-  children,
-  className,
-}: CollapsibleSectionHeaderProps) {
-  const [expanded, setExpanded] = useState(() =>
+export const CollapsibleSectionHeader = forwardRef<
+  HTMLButtonElement,
+  CollapsibleSectionHeaderProps
+>(function CollapsibleSectionHeader(
+  {
+    persistKey,
+    title,
+    defaultExpanded = true,
+    collapsible = true,
+    actions = [],
+    headerExtra,
+    children,
+    className,
+    controlsId,
+    tabIndex,
+    role,
+    expanded: expandedProp,
+    onToggle,
+  },
+  ref
+) {
+  const isControlled = expandedProp !== undefined;
+
+  // `useState` with a lazy initializer is the single source of truth for the
+  // initial expanded state. Do NOT add a `useEffect` that re-derives the
+  // initial value on prop changes — that would clobber a user's manual toggle
+  // when the parent re-renders with a fresh (but identical) `defaultExpanded`
+  // identity. Callers MUST pass stable identities for `persistKey` and
+  // `defaultExpanded`.
+  const [internalExpanded, setInternalExpanded] = useState(() =>
     getInitialExpanded(persistKey, defaultExpanded)
   );
 
-  useEffect(() => {
-    setExpanded(getInitialExpanded(persistKey, defaultExpanded));
-  }, [persistKey, defaultExpanded]);
+  const expanded = isControlled ? expandedProp : internalExpanded;
+  const setExpanded = (next: boolean | ((prev: boolean) => boolean)) => {
+    if (isControlled) {
+      // Controlled mode: defer to the parent's toggle handler (the prop
+      // update will arrive on the next render). We still synchronously invoke
+      // the callback so the parent can update its state in response to the
+      // user click — without this, controlled mode would never toggle.
+      if (typeof onToggle === 'function') {
+        onToggle();
+      }
+      return;
+    }
+    setInternalExpanded((prev) =>
+      typeof next === 'function' ? next(prev) : next
+    );
+  };
 
   useEffect(() => {
-    if (!persistKey) return;
+    if (!persistKey || isControlled) return;
     try {
       window.localStorage.setItem(
         `${STORAGE_KEY_PREFIX}${persistKey}`,
@@ -69,7 +138,7 @@ export function CollapsibleSectionHeader({
     } catch {
       // Ignore localStorage failures (private mode/quota/security errors).
     }
-  }, [persistKey, expanded]);
+  }, [persistKey, expanded, isControlled]);
 
   const handleActionClick = (
     e: MouseEvent<HTMLSpanElement>,
@@ -90,6 +159,7 @@ export function CollapsibleSectionHeader({
   };
 
   const isExpanded = collapsible ? expanded : true;
+  const regionId = controlsId ?? persistKey;
 
   const headerContent = (
     <>
@@ -134,8 +204,13 @@ export function CollapsibleSectionHeader({
       <div className="">
         {collapsible ? (
           <button
+            ref={ref}
             type="button"
             onClick={() => setExpanded((prev) => !prev)}
+            aria-expanded={isExpanded}
+            aria-controls={regionId}
+            tabIndex={tabIndex}
+            role={role}
             className={cn(
               'flex items-center justify-between w-full px-base py-half cursor-pointer'
             )}
@@ -152,7 +227,12 @@ export function CollapsibleSectionHeader({
           </div>
         )}
       </div>
-      {isExpanded && children}
+      {isExpanded && children && regionId && (
+        <div id={regionId} role="group">
+          {children}
+        </div>
+      )}
+      {isExpanded && children && !regionId && children}
     </div>
   );
-}
+});
