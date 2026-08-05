@@ -98,6 +98,11 @@ pub struct Config {
     /// instead of opening a new window per session.
     #[serde(default = "default_iterm_tabs")]
     pub iterm_tabs: bool,
+    /// User-configured extra origins allowed by the origin-check middleware
+    /// (in addition to loopback + same-origin). Each entry is a full URL
+    /// like `http://192.168.1.50:3001`. Editable via Settings UI.
+    #[serde(default)]
+    pub allowed_origins: Vec<String>,
     /// Deprecated and ignored. Pipelines are now file-based
     /// (`~/.vibe-kanban/pipelines/*.toml`, see `services::services::pipelines`);
     /// this field is retained only so pre-existing configs still deserialise. It
@@ -132,6 +137,7 @@ impl Config {
             host_nickname: old_config.host_nickname,
             terminal: default_terminal(),
             iterm_tabs: default_iterm_tabs(),
+            allowed_origins: Vec::new(),
             pipeline_steps: None,
         }
     }
@@ -189,6 +195,7 @@ impl Default for Config {
             host_nickname: None,
             terminal: default_terminal(),
             iterm_tabs: default_iterm_tabs(),
+            allowed_origins: Vec::new(),
             pipeline_steps: None,
         }
     }
@@ -269,5 +276,42 @@ mod tests {
         assert_eq!(steps[0].label, "Spec");
         assert_eq!(steps[0].prompt_fragment, "Write a spec.");
         assert!(steps[0].default_enabled);
+    }
+
+    #[test]
+    fn v9_round_trips_allowed_origins() {
+        let cfg = Config {
+            allowed_origins: vec![
+                "http://192.168.1.50:3001".to_string(),
+                "https://lan.example.com".to_string(),
+            ],
+            ..Default::default()
+        };
+        let raw = serde_json::to_string(&cfg).unwrap();
+        let back = Config::from(raw);
+        assert_eq!(
+            back.allowed_origins,
+            vec![
+                "http://192.168.1.50:3001".to_string(),
+                "https://lan.example.com".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn v9_config_without_allowed_origins_defaults_to_empty() {
+        // A v9 blob that predates the allowed_origins field must deserialise
+        // with allowed_origins == [] (serde default), so the env var seed
+        // (if any) remains the only allow-list at runtime.
+        let cfg = Config::default();
+        let mut value = serde_json::to_value(&cfg).unwrap();
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("allowed_origins")
+            .unwrap();
+        let back = Config::from(value.to_string());
+        assert!(back.allowed_origins.is_empty());
+        assert_eq!(back.config_version, "v9");
     }
 }

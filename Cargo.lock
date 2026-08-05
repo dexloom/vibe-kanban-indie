@@ -7951,6 +7951,7 @@ dependencies = [
  "http",
  "local-deployment",
  "mime_guess",
+ "once_cell",
  "os_info",
  "preview-proxy",
  "rand 0.8.5",

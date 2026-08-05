@@ -1,4 +1,4 @@
-use std::{net::IpAddr, sync::OnceLock};
+use std::{net::IpAddr, sync::RwLock};
 
 use axum::{
     body::Body,
@@ -6,6 +6,7 @@ use axum::{
     http::{StatusCode, header},
     response::Response,
 };
+use once_cell::sync::Lazy;
 use url::Url;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -57,7 +58,13 @@ pub fn validate_origin<B>(req: &mut Request<B>) -> Result<(), Response> {
         return Err(forbidden());
     };
 
-    if allowed_origins()
+    // Loopback origins are always trusted (locks the user out of Settings
+    // otherwise).
+    if origin_key.host == "localhost" {
+        return Ok(());
+    }
+
+    if allowed_origins_snapshot()
         .iter()
         .any(|allowed| allowed == &origin_key)
     {
@@ -122,26 +129,54 @@ fn default_port(https: bool) -> u16 {
     if https { 443 } else { 80 }
 }
 
-fn allowed_origins() -> &'static Vec<OriginKey> {
-    static ALLOWED: OnceLock<Vec<OriginKey>> = OnceLock::new();
-    ALLOWED.get_or_init(|| {
-        let value = match std::env::var("VK_ALLOWED_ORIGINS") {
-            Ok(value) => value,
-            Err(_) => return Vec::new(),
-        };
-
-        value
+fn env_origins() -> Vec<OriginKey> {
+    match std::env::var("VK_ALLOWED_ORIGINS") {
+        Ok(value) => value
             .split(',')
-            .filter_map(|origin| OriginKey::from_origin(origin.trim()))
-            .collect()
-    })
+            .filter_map(|o| OriginKey::from_origin(o.trim()))
+            .collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+static ALLOWED: Lazy<RwLock<Vec<OriginKey>>> = Lazy::new(|| {
+    // Seed from env on first access (preserves existing VK_ALLOWED_ORIGINS
+    // behavior for setups that never touch the UI). Subsequent calls to
+    // set_allowed_origins overwrite this from the saved Config.
+    RwLock::new(env_origins())
+});
+
+fn allowed_origins_snapshot() -> Vec<OriginKey> {
+    ALLOWED.read().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+/// Called by `update_config` after a successful save. Accepts raw strings
+/// from Config; unparseable entries are silently dropped (same as env path).
+/// An empty list is a no-op — keeps the env seed as the fallback.
+pub fn set_allowed_origins(origins: &[String]) {
+    if origins.is_empty() {
+        return;
+    }
+    let parsed = origins
+        .iter()
+        .filter_map(|o| OriginKey::from_origin(o.trim()))
+        .collect();
+    let mut guard = ALLOWED.write().unwrap_or_else(|e| e.into_inner());
+    *guard = parsed;
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
     use axum::http::{Request, header};
 
     use super::*;
+
+    // Tests share the module-level `ALLOWED` cache. Serialise the ones that
+    // mutate it so they don't race each other when `cargo test` runs in
+    // parallel.
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
 
     fn make_request(origin: Option<&str>, host: Option<&str>) -> Request<Body> {
         let mut builder = Request::builder().uri("/test").method("GET");
@@ -242,5 +277,57 @@ mod tests {
         // Explicit default port matches implicit
         let mut req = make_request(Some("http://example.com:80"), Some("example.com"));
         assert!(validate_origin(&mut req).is_ok());
+    }
+
+    #[test]
+    fn loopback_origin_allowed_even_when_config_list_is_empty() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // Reset to an empty list (no env seed in the test process unless
+        // VK_ALLOWED_ORIGINS is set). Loopback must still pass.
+        set_allowed_origins(&[]);
+        let mut req = make_request(Some("http://localhost:3001"), Some("example.com:80"));
+        assert!(validate_origin(&mut req).is_ok());
+        let mut req = make_request(Some("http://127.0.0.1:3001"), Some("example.com:80"));
+        assert!(validate_origin(&mut req).is_ok());
+        // Sanity: an unrelated cross-origin is still rejected.
+        let mut req = make_request(Some("http://lan.example:3001"), Some("example.com:80"));
+        assert!(is_forbidden(validate_origin(&mut req)));
+    }
+
+    #[test]
+    fn config_list_origin_is_allowed_after_set_allowed_origins() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let list = vec!["http://192.168.1.50:3001".to_string()];
+        set_allowed_origins(&list);
+
+        let mut req = make_request(Some("http://192.168.1.50:3001"), Some("example.com:80"));
+        assert!(validate_origin(&mut req).is_ok());
+    }
+
+    #[test]
+    fn unlisted_cross_origin_still_forbidden_after_set_allowed_origins() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let list = vec!["http://192.168.1.50:3001".to_string()];
+        set_allowed_origins(&list);
+
+        let mut req = make_request(Some("http://192.168.1.99:3001"), Some("example.com:80"));
+        assert!(is_forbidden(validate_origin(&mut req)));
+    }
+
+    #[test]
+    fn set_allowed_origins_with_empty_list_is_noop() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // First seed a non-empty list...
+        set_allowed_origins(&["http://192.168.1.50:3001".to_string()]);
+        let mut req = make_request(Some("http://192.168.1.50:3001"), Some("example.com:80"));
+        assert!(validate_origin(&mut req).is_ok());
+
+        // ...then call with an empty list: the previous list should be preserved.
+        set_allowed_origins(&[]);
+        let mut req = make_request(Some("http://192.168.1.50:3001"), Some("example.com:80"));
+        assert!(
+            validate_origin(&mut req).is_ok(),
+            "empty set_allowed_origins must keep the prior config list"
+        );
     }
 }

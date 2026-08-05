@@ -149,6 +149,9 @@ async fn update_config(
         Ok(_) => {
             let mut config = deployment.config().write().await;
             *config = new_config.clone();
+            // Hot-reload the origin-check middleware cache with the new list.
+            // Empty list is a no-op inside the middleware (env seed stays).
+            crate::middleware::origin::set_allowed_origins(&new_config.allowed_origins);
             drop(config);
 
             // Track config events when fields transition from false → true and run side effects

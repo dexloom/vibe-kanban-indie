@@ -701,6 +701,12 @@ terminal: TerminalKind,
  */
 iterm_tabs: boolean, 
 /**
+ * User-configured extra origins allowed by the origin-check middleware
+ * (in addition to loopback + same-origin). Each entry is a full URL
+ * like `http://192.168.1.50:3001`. Editable via Settings UI.
+ */
+allowed_origins: Array<string>, 
+/**
  * Deprecated and ignored. Pipelines are now file-based
  * (`~/.vibe-kanban/pipelines/*.toml`, see `services::services::pipelines`);
  * this field is retained only so pre-existing configs still deserialise. It
