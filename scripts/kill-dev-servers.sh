@@ -11,22 +11,18 @@
 #   - vibe-kanban-mcp stdio connectors attached to live Claude Code sessions
 #   - running Claude Code / orchestrator agents and their tmux sessions
 #
-# Always clears the cached .dev-ports.json after killing, so the next
-# `pnpm run dev` re-scans from 3000. Pass --keep-ports to preserve the cache.
+# Dev ports are fixed (3001/3002/3003) — no port cache to reset.
 #
 # Usage:
-#   scripts/kill-dev-servers.sh              # kill dev servers + reset port cache
-#   scripts/kill-dev-servers.sh --dry-run    # show what would be killed/cleared
-#   scripts/kill-dev-servers.sh --keep-ports # kill but leave .dev-ports.json alone
+#   scripts/kill-dev-servers.sh              # kill dev servers
+#   scripts/kill-dev-servers.sh --dry-run    # show what would be killed
 #
 set -uo pipefail
 
 DRY_RUN=0
-RESET_PORTS=1
 for arg in "$@"; do
   case "$arg" in
     --dry-run|-n)     DRY_RUN=1 ;;
-    --keep-ports|-k)  RESET_PORTS=0 ;;
   esac
 done
 
@@ -41,7 +37,6 @@ PATTERNS=(
   'cargo run --bin server'
   'target/debug/server'
   'vite/bin/vite'
-  'setup-dev-environment.js'
 )
 
 # Collect candidate PIDs, excluding this script and the running shell.
@@ -74,19 +69,8 @@ done
 # De-duplicate.
 UNIQUE=$(printf '%s\n' "${PIDS[@]:-}" | grep -E '^[0-9]+$' | sort -un)
 
-# Clear the cached port allocation so the next `pnpm run dev` re-scans from 3000.
-reset_ports() {
-  [[ "$RESET_PORTS" == "1" ]] || return 0
-  if [[ "$DRY_RUN" == "1" ]]; then
-    echo "(dry run — would clear $REPO_ROOT/.dev-ports.json)"
-    return 0
-  fi
-  node "$REPO_ROOT/scripts/setup-dev-environment.js" clear
-}
-
 if [[ -z "$UNIQUE" ]]; then
   echo "No vibe-kanban dev servers running."
-  reset_ports
   exit 0
 fi
 
@@ -97,7 +81,6 @@ done
 
 if [[ "$DRY_RUN" == "1" ]]; then
   echo "(dry run — nothing killed)"
-  reset_ports
   exit 0
 fi
 
@@ -114,8 +97,6 @@ if [[ -n "${SURVIVORS// }" ]]; then
   echo "Force-killing survivors:$SURVIVORS"
   echo "$SURVIVORS" | xargs kill -9 2>/dev/null
 fi
-
-reset_ports
 
 echo "Done. Listeners remaining on 3000-3015:"
 lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | grep -E ':(300[0-9]|301[0-5])\b' || echo "  (none)"
