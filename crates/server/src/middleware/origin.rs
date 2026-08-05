@@ -152,15 +152,17 @@ fn allowed_origins_snapshot() -> Vec<OriginKey> {
 
 /// Called by `update_config` after a successful save. Accepts raw strings
 /// from Config; unparseable entries are silently dropped (same as env path).
-/// An empty list is a no-op — keeps the env seed as the fallback.
+/// An empty list resets the cache to the env seed (the config list is the
+/// source of truth; clearing it means "no extra origins").
 pub fn set_allowed_origins(origins: &[String]) {
-    if origins.is_empty() {
-        return;
-    }
-    let parsed = origins
-        .iter()
-        .filter_map(|o| OriginKey::from_origin(o.trim()))
-        .collect();
+    let parsed = if origins.is_empty() {
+        env_origins()
+    } else {
+        origins
+            .iter()
+            .filter_map(|o| OriginKey::from_origin(o.trim()))
+            .collect()
+    };
     let mut guard = ALLOWED.write().unwrap_or_else(|e| e.into_inner());
     *guard = parsed;
 }
@@ -315,19 +317,20 @@ mod tests {
     }
 
     #[test]
-    fn set_allowed_origins_with_empty_list_is_noop() {
+    fn set_allowed_origins_with_empty_list_resets_to_env_seed() {
         let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // First seed a non-empty list...
         set_allowed_origins(&["http://192.168.1.50:3001".to_string()]);
         let mut req = make_request(Some("http://192.168.1.50:3001"), Some("example.com:80"));
         assert!(validate_origin(&mut req).is_ok());
 
-        // ...then call with an empty list: the previous list should be preserved.
+        // ...then call with an empty list: the config list is cleared, so the
+        // cache falls back to the env seed and the prior entry no longer passes.
         set_allowed_origins(&[]);
         let mut req = make_request(Some("http://192.168.1.50:3001"), Some("example.com:80"));
         assert!(
-            validate_origin(&mut req).is_ok(),
-            "empty set_allowed_origins must keep the prior config list"
+            is_forbidden(validate_origin(&mut req)),
+            "empty set_allowed_origins must drop the prior config list"
         );
     }
 }

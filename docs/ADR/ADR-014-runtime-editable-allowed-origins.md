@@ -24,7 +24,7 @@ Make the allowed-origin list runtime-editable from the Settings UI while keeping
 
 3. **Hot reload**: `update_config` (`crates/server/src/routes/config.rs`) calls `set_allowed_origins(&new_config.allowed_origins)` after a successful save, while holding the config write lock — no restart needed, no torn reads.
 
-4. **Precedence**: the config list is the source of truth. If the config field is empty, the env seed is kept (preserves existing env-only setups). `set_allowed_origins` with an empty list is a no-op.
+4. **Precedence**: the config list is the source of truth. If the config field is empty, the cache falls back to the env seed (`VK_ALLOWED_ORIGINS`), preserving existing env-only setups. `set_allowed_origins(&[])` resets the cache to that env seed — clearing the list in the UI really removes the extra origins.
 
 5. **Lockout safety**: loopback origins (`host == "localhost"`, which `normalize_host` also maps loopback IPs to) and same-origin requests are always allowed, regardless of the config list. A user cannot lock themselves out of the Settings UI.
 
