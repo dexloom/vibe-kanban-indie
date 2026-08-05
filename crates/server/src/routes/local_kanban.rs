@@ -850,8 +850,31 @@ pub(crate) async fn merge_and_update_issue(
         Some(v) => v,
         None => existing.parent_issue_sort_order,
     };
+    // Deep-merge incoming extension_metadata over the existing object instead
+    // of replacing it wholesale. A partial PATCH (e.g. a status reflection
+    // from the orchestrator carrying an empty or partial metadata object) must
+    // never drop sibling keys like `pipeline` provenance or intake metadata.
+    // Semantics: null value removes that key; object/array/scalar replaces it.
     let ext = match req.extension_metadata {
-        Some(v) => serde_json::to_string(&v).unwrap_or_else(|_| "{}".to_string()),
+        Some(v) => {
+            let mut base = existing.extension_metadata.clone();
+            if let Some(incoming) = v.as_object() {
+                if let Some(base_obj) = base.as_object_mut() {
+                    for (key, val) in incoming {
+                        if val.is_null() {
+                            base_obj.remove(key);
+                        } else {
+                            base_obj.insert(key.clone(), val.clone());
+                        }
+                    }
+                    serde_json::to_string(&base).unwrap_or_else(|_| "{}".to_string())
+                } else {
+                    serde_json::to_string(&v).unwrap_or_else(|_| "{}".to_string())
+                }
+            } else {
+                serde_json::to_string(&v).unwrap_or_else(|_| "{}".to_string())
+            }
+        }
         None => {
             serde_json::to_string(&existing.extension_metadata).unwrap_or_else(|_| "{}".to_string())
         }
@@ -1140,7 +1163,7 @@ pub fn router() -> Router<DeploymentImpl> {
 #[cfg(test)]
 mod tests {
     use api_types::UpdateProjectRequest;
-    use db::models::issue::{Issue as DbIssue, NewIssue};
+    use db::models::issue::{Issue as DbIssue, IssueUpdate, NewIssue};
     use db::models::project::{NewProject, Project as DbProject};
     use db::models::project_status::ProjectStatus as DbProjectStatus;
     use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
@@ -1497,5 +1520,103 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
+    }
+
+    /// A partial issue PATCH carrying an (empty or partial) extension_metadata
+    /// must deep-merge over the stored object, never replace it — otherwise a
+    /// status reflection (e.g. from the orchestrator) silently wipes the
+    /// `pipeline` provenance and the card's ticked stages reset.
+    #[tokio::test]
+    async fn update_issue_deep_merges_extension_metadata() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let project = create_project_record(&pool, Uuid::new_v4(), "Merge", "#6366f1", None)
+            .await
+            .unwrap();
+        let status = DbProjectStatus::create(
+            &pool,
+            Uuid::new_v4(),
+            project.id,
+            "Todo",
+            "#6366f1",
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let mut issue = create_issue_for(&pool, &project, &status, "Card with pipeline")
+            .await
+            .unwrap();
+        // Seed pipeline provenance.
+        let seeded = serde_json::json!({ "pipeline": { "enabledIds": ["s1"] } });
+        issue.extension_metadata = seeded.clone();
+        let _ = DbIssue::update(
+            &pool,
+            issue.id,
+            IssueUpdate {
+                status_id: status.id,
+                title: &issue.title,
+                description: None,
+                priority: None,
+                start_date: None,
+                target_date: None,
+                completed_at: None,
+                sort_order: 0.0,
+                parent_issue_id: None,
+                parent_issue_sort_order: None,
+                extension_metadata: &serde_json::to_string(&seeded).unwrap(),
+            },
+        )
+        .await
+        .unwrap();
+
+        // Simulate an orchestrator status reflection carrying an EMPTY metadata
+        // object — must NOT drop the pipeline provenance.
+        let patch = |metadata: serde_json::Value| api_types::UpdateIssueRequest {
+            status_id: None,
+            title: None,
+            description: None,
+            priority: None,
+            start_date: None,
+            target_date: None,
+            completed_at: None,
+            sort_order: None,
+            parent_issue_id: None,
+            parent_issue_sort_order: None,
+            extension_metadata: Some(metadata),
+        };
+        let updated = super::merge_and_update_issue(&pool, issue.id, patch(serde_json::json!({})))
+            .await
+            .unwrap()
+            .expect("issue exists");
+        assert_eq!(
+            updated.extension_metadata["pipeline"]["enabledIds"][0], "s1",
+            "empty metadata PATCH must preserve pipeline provenance"
+        );
+
+        // A partial metadata PATCH with a sibling key must keep BOTH.
+        let updated = super::merge_and_update_issue(
+            &pool,
+            issue.id,
+            patch(serde_json::json!({ "intake": { "id": "x" } })),
+        )
+        .await
+        .unwrap()
+        .expect("issue exists");
+        assert!(updated.extension_metadata.get("pipeline").is_some());
+        assert!(updated.extension_metadata.get("intake").is_some());
+
+        // null value removes that key deliberately.
+        let updated = super::merge_and_update_issue(
+            &pool,
+            issue.id,
+            patch(serde_json::json!({ "pipeline": null })),
+        )
+        .await
+        .unwrap()
+        .expect("issue exists");
+        assert!(updated.extension_metadata.get("pipeline").is_none());
+        assert!(updated.extension_metadata.get("intake").is_some());
     }
 }
