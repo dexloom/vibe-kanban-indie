@@ -1,57 +1,93 @@
-# CONTEXT — vibe-kanban-indie session handoff (compaction checkpoint, 2026-08-03)
+# CONTEXT — vibe-kanban-indie session dump (2026-08-05)
 
-## Project
-`vibe-kanban-indie` — local-only single-dev fork of vibe-kanban (no cloud/auth/team). Rust backend (crates/server + deployment) + web frontend (packages/local-web entry, packages/web-core shared lib, packages/ui design system). Tailwind v3 + CSS custom properties theme. react-i18next (**ENGLISH-ONLY** — 6 other locales deleted). react-arborist 3.16 (pinned exact) sidebar tree. Vitest+jsdom test setup in packages/ui.
+Резюме всей сессии для восстановления контекста на удалённой машине (mini).
+Описание состояния репозитория, всех ADR, ревью-проходов, инцидента, текущего статуса
+и НЕЗАКОНЧЕННОЙ работы.
 
-## Environment
-- **Laptop (active)**: repo `~/yt/vibe-kanban-indie`. Branch `feat/ui-modernization`.
-- **mini (remote Mac)**: `vladimir@mini` (192.168.1.218), repo `~/yt/vibe-kanban-indie`, cargo target on `/Volumes/Data/vk-target`. Not active.
-- **Deploy**: `~/.vibe-kanban/bin/v0.2.23/macos-arm64/vibe-kanban`, running with `VK_FRONTEND_DIR=$PWD/packages/local-web/dist` → frontend-only iterate = `pnpm --filter @vibe/local-web run build` (no cargo). Port file: `/var/folders/.../vibe-kanban/vibe-kanban.port` (`main_port`), current **62253**.
-- Checks: `pnpm --filter @vibe/{ui,web-core,local-web} run check` (tsc), `pnpm --filter @vibe/ui run test` (52 tests), `pnpm --filter @vibe/local-web run lint:i18n`, build. Playwright available: `NODE_PATH=/Users/vladimir/node_modules node <script>` (Brave executable path needed). Smoke scripts in `/var/folders/.../T/opencode/`.
+## Репозиторий
 
-## Git state (branch feat/ui-modernization) — WORKTREE CLEAN except transient
-- `HEAD dd3859cc` — fix(ui): Tasks section review bugs (B1-B8) + cross-cutting hardening.
-- Prior (all committed): `c0c6e640` (separator+margin), `1fd45821` (ADR-010 bar generalize + bottom bar), `9b610012` (badge 12px), `acd57b21` (solid badges), `517a65d0` (ADR-009 bucket bar), `c892d293` (i18n en-only), `c18852ef` (Active→Attention), `af30c0a9` (ADR-008 header+create), `e29bdee7` (sweep 3 hygiene), `3ed0bf1e` (review doc), `cb3ce353` (ADR-007 tree).
-- The **Tasks section (ADR-011) Phase 1+2 was committed together with dd3859cc** (buildTreeData, node types, renderers, useProjectTasks, registry, SharedAppLayout wiring, tests, ADR-011).
-- Transient (never commit): CONTEXT.md, SPEC-conversation-list.md, TODO.md.
+- Path: `~/yt/vibe-kanban-indie` (на mini — `~/yt/vibe...`, уточнить точное имя)
+- Branch: `feat/ui-modernization`
+- Remote: `origin` = `git@github.com:vlat456/vibe-kanban-indie.git`; `dexloom` = `git@github.com:dexloom/vibe-kanban-indie.git`
+- PR #11 open (dexloom/vibe-kanban-indie), head `feat/ui-modernization`
+- Fork solo-dev (локальный kanban, no cloud/auth). Backend Rust (axum + sqlx + SQLite), frontend React/Vite (`packages/ui`, `packages/web-core`, `packages/local-web`).
+- Layer rule: `packages/ui` NEVER imports web-core. `shared/types.ts` + `shared/remote-types.ts` — generated/hand-maintained wire contracts.
 
-## Session history (built so far)
-1. **PR #9** (upstream) MERGED: dispatch issue→workspace.
-2. **Cloud removal** (Phase 1-3): crates/remote, relay-*, remote-web, sentry/posthog/telemetry gone (~70k LOC). `shared/remote-types.ts` = live hand-maintained wire contract (kanban data layer, fallback-REST). Synthetic "Local" org.
-3. **ADR-001 modal** (defineModal pure props/result, ProjectMutationsRegistration bridge), **ADR-002 centralized theme** (CSS vars → tailwind bridge; alpha modifiers `bg-x/15` DO work for hsl vars — verified).
-4. **ADR-003** /workspaces dashboard + /chat smart redirect, workspaceStatus domain module.
-5. **ADR-005** (amended) 256px global sidebar; **ADR-006** (superseded) view-local outliner.
-6. **ADR-007** project-scoped workspace tree: Project → Workspaces section → buckets (Attention/Running/Idle/Archived) → leaves. Membership M:N frontend-derived (useWorkspaceProjectMembership from remote shapes), Unassigned pseudo-project. Persistence: versioned localStorage blob `vibe.ui.sidebarTree.openState` `{v:1,state}` + read-time project GC + legacy bucket migration. `activeWorkspaceId` highlight. react-arborist pinned + seed-once test.
-7. **ADR-008** SidebarSectionHeader (h2 + actions slot) above tree as single a11y label source (aria-labelledby). Sidebar `headerActions` slot; CreateProjectButton (web-core) + restored handleCreateProject; `sidebar.createProject`.
-8. **ADR-009** top bucket bar: 3 global buckets, `workspaceBuckets.ts` config SSOT (icon/color/labelKey/badgeClass/hideBadge); Attention=WarningIcon text-warning (new token), Running=ClockIcon, Idle=MoonIcon; icons+small labels, per-bucket SOLID badges (Idle none), dropdown down, newest-first. `WorkspaceActivityText` + `CountBadge` (color-agnostic) extracted.
-9. **ADR-010** bar generalize: `SidebarBar` (toolbar-row container widget) + `SidebarBarButton` (forwardRef, spreads rest for Radix asChild) shared by top bucket bar AND bottom bar. Bottom = `SidebarBottomActions` (Notifications+Settings); org/user/version removed; drag strip + top padding removed then pt-2 + SidebarSeparator added back.
-10. **ADR-011** Tasks section in tree (ABOVE Workspaces): Project → Tasks → status columns → issue card rows (simpleId+title+priority dot, title-row only, NO full card) → NESTED sub-issues. Lazy per-project loading via useProjectTasks (useShape PROJECT_PROJECT_STATUSES_SHAPE + PROJECT_ISSUES_SHAPE) gated on Tasks-section toggle. SidebarProjectTasksRegistry (web-core, per-project loaders). `openByDefault={false}` + new-project auto-open effect (preserves ADR-007). Statuses/cards collapsed by default. activeIssueId highlight, onSelectIssue → goToProjectIssue. i18n `sidebar.tasksSection`. TDD: 52 tests total.
+## Git состояние на момент дампа
 
-## ADRs (docs/ADR/) — all Accepted
-001 modal-system, 002 centralized-theme, 003 workspaces-chat-split, 004 local-only-cloud-removal, 005 left-sidebar-chats-tree (amended), 006 workspaces-outliner (superseded by 007), 007 sidebar-project-workspaces-tree, 008 sidebar-section-header, 009 sidebar-bucket-bar, 010 sidebar-bar-buttons, 011 sidebar-tasks-section.
-Plans: `docs/PLAN-sidebar-*-2026-08-03.md`. Review consensus: `docs/REVIEW-sidebar-tree-2026-08-03.md`. Phase-2 TODO: `docs/TODO/phase2-workspaces-project-id.md`.
+- Закоммичено: `6e6824bf` (unified custom DnD), `00f6e626` (DnD polish + project reorder), `123cb0bd` (swap-model + snapshot), `2a5456c0` (positional cross-column move + swap fixes), `414625c4` (DnD hardening — 6 review passes, ui 219 / web-core 142).
+- НЕ закоммичено (после `414625c4`): ADR-013 имплементация (subprojects) + migration fix + все review-fixes work. Всё это — в рабочем дереве на момент дампа.
+- `CONTEXT.md` (этот файл) — transient, НЕ коммитить.
+- `CODE-OF-CONDUCT.md` заменён на "Don't be an asshole."
 
-## Key architecture rules
-- **Slots over prop-per-action callbacks** (headerActions, bottomActions, notificationBell...) — packages/ui stays agnostic; web-core composes buttons.
-- **Layer rule**: packages/ui must NOT import web-core (types flow web-core→@vibe/ui). Domain module `workspaceStatus.ts` (ui) is shared.
-- **Persistence**: one versioned blob; `buildSidebarTreeInitialOpenState` walks built tree (tree-walk), status/card ids NOT seeded (unknown at mount → openByDefault=false closes them); `readOpenTasksProjectIds` hydrates the lazy-loader gate on reload.
-- **Dialogs pure** (ADR-001); **data lazy** (Tasks) via useShape gated on expansion; shape collections cache dedup (collections.ts) so sidebar shares streams with the board.
-- **react-arborist seed-once**: initialOpenState consumed only at mount; post-mount its store owns state; new lazy nodes default per openByDefault.
-- **i18n**: English-only; new keys → `packages/web-core/src/i18n/locales/en/common.json` only.
+## ADR-012 — Unified custom drag-and-drop (завершён, 9.5/10)
 
-## Agents (how we work)
-- `@escalate-glm` / `@escalate-deepseek` — parallel design/architecture variants; `@review-glm`/`@review-deepseek` — parallel code review (bugs/edge cases); `@boring_work` — implementation (TDD, slow); `@typewriter` — dumb mechanical only.
-- Flow: design → ADR → escalate (parallel) → review → plan .md → TDD implement (red tests first) → verify myself → commit.
-- Configs in ~/.config/opencode/agent/*.md (task:true everywhere; AGENTS.md delegation guide). boring_work CANNOT spawn typewriter at runtime (subagent-depth limit). consult agent deleted. Prettier has NO repo config → always `--single-quote`.
-- Review bugs B1-B8 (Tasks): gate hydration, cycle guard, registry prune, type dedup, projectKey memo, seeded-only persistence, caret a11y. False positive: "double-action click" (react-arborist RowContainer has no onClick).
+- Файл: `docs/ADR/ADR-012-unified-custom-drag.md`
+- Заменил hello-pangea на собственный pointer-based DnD (kanban board + sidebar tree).
+- hello-pangea ОСТАЁТСЯ для: list view, sub-issues, settings status reorder (удаление — отдельный PR).
+- 6 ревью-раундов (pass 1 → 7/10, pass 2 → 8.5, pass 3 → 9.0, pass 4 → 9.3, pass 5 → 9.4, pass 6 → 9.5 ✓).
+- Архитектура: `packages/ui/src/components/dnd/DragController.ts` (state machine, Pointer Events, activePointerId, snapshots sourceCardRects/targetColumnRects, isPointerOverSource, sticky-restore, click-swallower, ESC), `geometry.ts`, `targetKind.ts`, `useDraggable.ts`, `KanbanBoard.tsx` (KanbanCard/KanbanCards), `sourceAttrs.ts` (SOURCE_DATA_ATTRS).
+- web-core: `resolveDragEnd.ts` (классификатор), `persistIssues.ts` (persistIssues/persistIssueSwap/persistProjectReorder), `issueLookup.ts`, `KanbanContainer.tsx` (handleKanbanMove: swap/move/legacy, isManualSort, isSyncingCountRef + syncGuard), `SharedAppLayout.tsx` (dispatch).
+- Interaction model: same-column card = SWAP (gated on sort_order); cross-column = MOVE с insertion index (manual sort) / append + status-only (non-manual); tree-status = move-issue.
+- Тесты: ui 220, web-core 149 на момент ADR-013.
+- Deferred (записано в ADR, TO RESOLVE): A2 (end-to-end integration test), A3 (snapshot lifecycle), KanbanContainer monolith split, dndPersisters extraction.
 
-## Open items / next steps
-1. Deferred Tasks follow-ups: deep-link to issue → auto-open Tasks section; loader-per-project perf at scale; bucket badge semantics (statuses count vs issue count).
-2. Consider: push feat/ui-modernization / PR; run full `pnpm run lint` (clippy) + `pnpm run check` before merge.
-3. Known debt: alpha modifiers OK for hsl vars (revisit ADR-002 note); two collapsible-state systems; Phase-2 workspaces.project_id migration.
-4. MobileDrawer always in DOM → TWO `<aside aria-label="Primary sidebar">` (desktop + hidden drawer). Playwright smokes MUST scope: `aside:has([role="tree"])` + `.first()`, or native JS visibility check, or you click the hidden drawer's controls.
+## ADR-013 — Project subprojects (имплементирован TDD, migration-fix внесён)
 
-## Gotchas
-- prettier: `pnpm exec prettier --write --single-quote <files>` (default flips to double quotes).
-- react-arborist needs explicit width+height; height=0 → 0 rows (fixed via callback-ref + height>0 gate).
-- Don't commit: CONTEXT.md, SPEC-conversation-list.md, TODO.md, opencode config/secrets, .env.
+- Файл: `docs/ADR/ADR-013-projects-subprojects.md`
+- Решения (owner): subproject key `ACME-SUB-1` (parent key prefix chain + per-subproject issue_number), parent имеет свой kanban (kanban = attachable entity), можно ломать API/schema ради элегантности НО обязательны миграции.
+- Синтез (escalate-glm + escalate-deepseek + review-glm): key separator `-` подтверждён (derive_key стрипает не-алфанум, `.` не нужен); NO key_path column (derive on demand); `ON DELETE RESTRICT`; DnD issue-move cross-project BLOCKED; project-reorder sibling-only; router UNCHANGED (leaf `/projects/:projectId`), breadcrumb в kanban header.
+- Имплементация: `crates/db/migrations/20260805000001_add_project_parent_id.sql`, `Project.parent_id` + count_children/find_parent_chain_keys, `derive_key_chain` (walk parent_id, join `-`, cap 16), sibling_key_exists (400), delete_project 409 `{error:"project_has_children", children}`, recursive buildTreeData, DnD sibling filter, `swapProjectSiblings`, breadcrumb.
+- Тесты после ADR-013: cargo 40 crates ok, ui 220, web-core 149.
+
+## ⚠️ ИНЦИДЕНТ — каскадное удаление данных (важно для future safety)
+
+- Исходная миграция использовала table-recreation (`DROP TABLE projects`). sqlx оборачивает миграции в транзакцию → `PRAGMA foreign_keys = OFF` внутри транзакции **no-op** → DROP TABLE при active FK выполняет неявный DELETE → каскад `ON DELETE CASCADE` снёс issues/project_statuses/project_repos/kanban_tags для одного пользователя. Воркспейсы осиротели (unassigned).
+- ИСПРАВЛЕНО: миграция переписана на безопасный `ALTER TABLE ADD COLUMN parent_id BLOB REFERENCES projects(id) ON DELETE RESTRICT` (данные не трогаются, FK enforced). Проверено на чистой базе.
+- Локальная база юзера: project_repos связь (repo rustlogic → project) восстановлена вручную; issues/statuses потеряны (юзер сказал не париться, мало данных; scratch содержит 3 заголовка).
+- Локальный `_sqlx_migrations.checksum` для 20260805000001 обновлён вручную под новый файл. Сервер на порту 62253 работает (release build).
+- **УРОК (записать в ADR)**: миграционный файл FROZEN — любая правка меняет SHA-384 checksum → VersionMismatch → macOS/Linux сервер не стартует. Не редактировать применённые миграции.
+
+## ОБРАЗОВАЛСЯ review pass на ADR-013 (два ревью, НЕ починено — главный TODO на remote)
+
+Два независимых critical-safety review (review-glm + review-deepseek) дали:
+- glm: 7.5/10 — миграция SAFE (9.5), реализация нет. 3 ship-blocker: B-1 (wire contract drift — shared/remote-types.ts Project без parent_id, unsafe casts), B-2 (bySidebarProjectOrderAsc сортирует по UUID а не sort_order — DnD reorder сломан для подпроектов), B-3 (update_project silently ignores parent_id — reparent footgun).
+- deepseek: 8.5/10 — миграция SAFE. 2 medium (persistProjectReorder rewrite-bombs ALL projects, resolveDragEnd нет parent_id guard), + HIGH (checksum trap), + minors.
+
+### Полный список фиксов (задачи F-1..F-13) — НЕ ВЫПОЛНЕНЫ, надо запустить boring_work на mini:
+
+- **F-1** SidebarProject.sortOrder + bySidebarProjectOrderAsc → sort по sort_order (BUG: reorder сломан). Files: `packages/ui/src/components/outliner/types.ts`, `buildTreeData.ts`, `SharedAppLayout.tsx` sidebarProjects memo.
+- **F-2** Migration freeze warning → в ADR + CI-check `scripts/check-migration-frozen.sh` (`git diff --exit-code` на миграцию). НЕ редактировать сам .sql файл (checksum!).
+- **F-3** Wire contract: добавить `parent_id` в `shared/remote-types.ts` Project/CreateProjectRequest/UpdateProjectRequest; убрать unsafe casts (`SharedAppLayout.tsx:466`, `buildProjectBreadcrumb.ts`, `projectOrder.ts`).
+- **F-4** `update_project` + `bulk_projects` reject parent_id changes (BadRequest) — reparent deferred.
+- **F-5** `delete_project_record` race → транзакция (count_children + delete в tx) или FK-violation → ConflictPayload. File: `crates/server/src/routes/local_kanban.rs:425`.
+- **F-6** `ApiError::ConflictPayload` error_type не хардкодить "ProjectHasChildren" — выводить из payload["error"]. File: `crates/server/src/error.rs:358`.
+- **F-7** `persistProjectReorder` scoped to sibling group (не rewrite-bomb все проекты). Files: `persistIssues.ts`, `SharedAppLayout.tsx` case 'project-reorder'.
+- **F-8** SharedAppLayout: если swapProjectSiblings no-op (cross-parent) — не вызывать persistProjectReorder.
+- **F-9** ADR-013 internal contradiction: Synthesis point 3 ложно ("ADD COLUMN не enforce FK" — на самом деле enforce; инцидент был про DROP+active FK). Поправить текст.
+- **F-10** derive_key_chain N-query walk → лёгкий LRU cache (Mutex<HashMap<Uuid,(Instant,Vec<String>)>>, cap 128, TTL 60s). File: `local_kanban.rs`.
+- **F-11** CREATE INDEX IF NOT EXISTS в миграции — НЕЛЬЗЯ (frozen). Просто note в ADR про recovery corrupted _sqlx_migrations.
+- **F-12** useDraggable `[tabindex]` greediness — verify+document (grep tabindex в outliner/kanban).
+- **F-13** bulk_projects unknown id silently dropped — warning log + comment (glm B-5).
+
+Для F-фиксов: после них прогнать `cargo test -p db -p server`, `pnpm --filter @vibe/ui run test`, `pnpm --filter @vibe/web-core run test`, `pnpm run check`, `pnpm run generate-types:check`, `cargo fmt`, prettier. Тесты сейчас: cargo 40 crates ok, ui 220, web-core 149.
+
+## Сервер / окружение
+
+- Сервер: порт 62253, `VK_FRONTEND_DIR=$PWD/packages/local-web/dist`, бинарь `./target/release/server` (собран на локальной машине). На mini надо пересобрать (`cargo build --release -p server`) + frontend (`pnpm --filter @vibe/local-web run build`).
+- База: `~/Library/Application Support/ai.bloop.vibe-kanban/db.v2.sqlite` (macOS). На mini путь может отличаться (ProjectDirs).
+- Playwright smoke-скрипты в `/var/folders/.../T/opencode/` (dnd-swap-flake.js, dnd-hmove2.js, dnd-checkcols.js и т.д.) — временные, на mini не переносятся обязательно.
+
+## OpenCode агенты / конфиг
+
+- `~/.config/opencode/` — глобальный конфиг + AGENTS.md (caveman режим, делегирование boring_work/typewriter).
+- `.agents/skills/` в репо (caveman, cavecrew, caveman-commit и др.).
+- Агенты в opencode config (boring_work, typewriter, escalate-*, review-*, vk-*) — перекинуть на mini (см. шаг 4 юзера).
+
+## Следующие шаги (план юзера)
+
+0. Контекст в CONTEXT.md (этот файл) — done.
+1. `git add .` (всё), 2. commit, 3. push (НЕ PR) на origin.
+4. ssh mini (`ssh://vladimir@mini`), `~/yt/vibe...`, sync pushed branch, checkout `feat/ui-modernization`.
+5. Перекинуть opencode-агентов + конфиг на mini.
+6. На mini: запустить boring_work на F-1..F-13 (TODO выше).

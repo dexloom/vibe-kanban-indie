@@ -92,7 +92,7 @@ export function SidebarProjectTree({
     const push = (
       map: Map<string, OutlinerWorkspace[]>,
       key: string,
-      ws: OutlinerWorkspace,
+      ws: OutlinerWorkspace
     ) => {
       const arr = map.get(key);
       if (arr) {
@@ -152,7 +152,7 @@ export function SidebarProjectTree({
       tasksByProject,
       loadingTasksProjectIds,
       t,
-    ],
+    ]
   );
 
   const liveProjectIds = useMemo(
@@ -160,9 +160,9 @@ export function SidebarProjectTree({
       new Set(
         treeData
           .filter((n): n is ProjectNode => n.type === 'project')
-          .map((n) => n.id),
+          .map((n) => n.id)
       ),
-    [treeData],
+    [treeData]
   );
 
   // Stable key of the live project set. initialOpenState and the new-project
@@ -174,7 +174,7 @@ export function SidebarProjectTree({
         .filter((node): node is ProjectNode => node.type === 'project')
         .map((node) => node.id)
         .join(','),
-    [treeData],
+    [treeData]
   );
 
   // Seed the open-state map from persistence + defaults. Recomputed only when
@@ -185,21 +185,21 @@ export function SidebarProjectTree({
   const initialOpenState = useMemo(
     () => buildSidebarTreeInitialOpenState(treeData),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once per project-set change; treeData grows (lazily-loaded statuses/cards) but the seed never should.
-    [projectKey],
+    [projectKey]
   );
 
   // In-memory mirror of persisted open state. Kept in a ref so toggles don't
   // trigger re-renders — the Tree re-renders itself via its store
   // subscription; we only persist on the side.
   const openStateRef = useRef<Record<string, boolean>>(
-    readSidebarTreeOpenState(liveProjectIds),
+    readSidebarTreeOpenState(liveProjectIds)
   );
   // Snapshot of the PERSISTED open state used as the replay source for
   // lazily-loaded status/card ids (their ids are unknown when initialOpenState
   // was seeded). Frozen at mount, but refreshed when a new project appears
   // mid-session (auto-open effect) so its stored-open values replay too.
   const persistedOpenRef = useRef<Record<string, boolean>>(
-    openStateRef.current,
+    openStateRef.current
   );
   const appliedOpenRef = useRef<Set<string>>(new Set());
   const writeScheduled = useRef(false);
@@ -292,7 +292,7 @@ export function SidebarProjectTree({
     const ids = pendingOpenStatusCardIds(
       persistedOpenRef.current,
       appliedOpenRef.current,
-      (id) => findTreeNodeById(treeData, id),
+      (id) => findTreeNodeById(treeData, id)
     );
     for (const id of ids) {
       api.open(id);
@@ -339,7 +339,7 @@ export function SidebarProjectTree({
         onSelectIssue?.(data.issue.projectId, data.issue.id);
       }
     },
-    [onSelectWorkspace, onSelectProject, onSelectIssue],
+    [onSelectWorkspace, onSelectProject, onSelectIssue]
   );
 
   const handleToggle = useCallback(
@@ -361,7 +361,7 @@ export function SidebarProjectTree({
         onTasksExpansionChange?.(node.data.projectId, node.isOpen);
       }
     },
-    [scheduleOpenStateWrite, onTasksExpansionChange],
+    [scheduleOpenStateWrite, onTasksExpansionChange]
   );
 
   const hasAnyContent =

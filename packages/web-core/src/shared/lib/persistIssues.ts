@@ -81,6 +81,15 @@ export function persistIssueSwap(
  * shape sync restores authoritative state when the bulk write failed.
  * Matches the `persistIssues` contract (shape refresh on success and
  * failure, non-callback error/success handling).
+ *
+ * ADR-013 / F-7: the caller MUST pass only the swapped sibling group
+ * — never the whole project list. Reassigning every project's
+ * `sort_order` would rewrite unrelated sibling groups (other parents'
+ * children) with a fresh `i * STEP` ladder, drifting them away from
+ * what the user actually moved. The DnD call site (`SharedAppLayout`'s
+ * `case 'project-reorder'`) already slices the sibling group; this
+ * helper just rewrites whatever it's given. Do not loosen that
+ * contract without updating the call site.
  */
 export function persistProjectReorder(
   swapped: { id: string }[],

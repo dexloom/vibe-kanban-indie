@@ -6,7 +6,11 @@ const navigation = {
 };
 
 let workspaceContext = {
-  activeWorkspaces: [] as Array<{ id: string; createdAt: string; hasPendingApproval?: boolean }>,
+  activeWorkspaces: [] as Array<{
+    id: string;
+    createdAt: string;
+    hasPendingApproval?: boolean;
+  }>,
   isWorkspacesListLoading: true,
 };
 
@@ -53,14 +57,20 @@ describe('ChatLanding', () => {
     workspaceContext = { ...workspaceContext, isWorkspacesListLoading: false };
     ChatLanding();
 
-    expect(navigation.goToWorkspacesCreate).toHaveBeenCalledWith({ replace: true });
+    expect(navigation.goToWorkspacesCreate).toHaveBeenCalledWith({
+      replace: true,
+    });
     expect(navigation.goToWorkspace).not.toHaveBeenCalled();
   });
 
   it('navigates to needs-attention workspace after loading finishes', () => {
     workspaceContext = {
       activeWorkspaces: [
-        { id: 'workspace-1', createdAt: '2024-01-01', hasPendingApproval: true },
+        {
+          id: 'workspace-1',
+          createdAt: '2024-01-01',
+          hasPendingApproval: true,
+        },
       ],
       isWorkspacesListLoading: true,
     };
@@ -68,7 +78,9 @@ describe('ChatLanding', () => {
     workspaceContext = { ...workspaceContext, isWorkspacesListLoading: false };
     ChatLanding();
 
-    expect(navigation.goToWorkspace).toHaveBeenCalledWith('workspace-1', { replace: true });
+    expect(navigation.goToWorkspace).toHaveBeenCalledWith('workspace-1', {
+      replace: true,
+    });
     expect(navigation.goToWorkspacesCreate).not.toHaveBeenCalled();
   });
 });

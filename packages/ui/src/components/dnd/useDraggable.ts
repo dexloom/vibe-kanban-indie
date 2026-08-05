@@ -12,7 +12,7 @@ export interface UseDraggableOptions {
 
 export function useDraggable(
   source: DragSource,
-  options?: UseDraggableOptions,
+  options?: UseDraggableOptions
 ): {
   onPointerDown: ((e: ReactPointerEvent<HTMLElement>) => void) | null;
 } {
@@ -44,7 +44,7 @@ export function useDraggable(
       while (node && node !== current) {
         if (
           node.matches(
-            'button, a, input, textarea, select, [contenteditable], [tabindex]',
+            'button, a, input, textarea, select, [contenteditable], [tabindex]'
           )
         ) {
           return;
@@ -57,7 +57,7 @@ export function useDraggable(
       e.preventDefault();
       controller.startPress(sourceRef.current, e.currentTarget, e.nativeEvent);
     },
-    [controller, options?.disabled],
+    [controller, options?.disabled]
   );
   return { onPointerDown: controller ? onPointerDown : null };
 }

@@ -376,10 +376,7 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WysiwygProps>(
         }),
       []
     );
-    const attachmentNodeDefinition = useMemo(
-      () => createAttachmentNode(),
-      []
-    );
+    const attachmentNodeDefinition = useMemo(() => createAttachmentNode(), []);
     const { ImageNode, IMAGE_TRANSFORMER, $isImageNode } = imageNodeDefinition;
     const { AttachmentNode, ATTACHMENT_TRANSFORMER } = attachmentNodeDefinition;
 

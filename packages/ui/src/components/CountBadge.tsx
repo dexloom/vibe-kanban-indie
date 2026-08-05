@@ -39,7 +39,7 @@ export function CountBadge({
         'absolute -top-2 -right-2 flex items-center',
         'justify-center rounded-full font-medium',
         SIZE_CLASSES[size],
-        className,
+        className
       )}
     >
       {count > cap ? `${cap}+` : count}

@@ -29,7 +29,7 @@ afterEach(cleanup);
 
 function renderNode(
   data: SidebarTreeNode,
-  overrides: Record<string, unknown> = {},
+  overrides: Record<string, unknown> = {}
 ) {
   const node = {
     data,
@@ -141,8 +141,8 @@ describe('TreeNodeRouter cross-surface DnD wrapping', () => {
     const { container } = renderNode(status);
     expect(
       container.querySelector(
-        '[data-drop-target-id="project-1:status:00000000-0000-4000-8000-000000000010"]',
-      ),
+        '[data-drop-target-id="project-1:status:00000000-0000-4000-8000-000000000010"]'
+      )
     ).toBeTruthy();
     // No hello-pangea Droppable wrapper anymore.
     expect(container.querySelector('[data-rfd-droppable-id]')).toBeNull();
@@ -152,8 +152,10 @@ describe('TreeNodeRouter cross-surface DnD wrapping', () => {
     const project = {
       id: 'project-1',
       type: 'project',
-      name: 'Demo',
+      name: 'Project One',
       color: '210 50% 50%',
+      parentId: null,
+      sortOrder: 0,
       children: [],
     } satisfies ProjectNode;
     const { container } = renderNode(project);
@@ -208,7 +210,7 @@ interface ProjectDnDContextOverrides {
 
 function renderProjectWithDndContext(
   projectId: string,
-  overrides: ProjectDnDContextOverrides = {},
+  overrides: ProjectDnDContextOverrides = {}
 ) {
   const {
     controller = null,
@@ -221,6 +223,8 @@ function renderProjectWithDndContext(
     type: 'project',
     name: 'Demo',
     color: '210 50% 50%',
+    parentId: null,
+    sortOrder: 0,
     children: [],
   };
   const node = {
@@ -269,7 +273,7 @@ describe('TreeNodeRouter project-reorder wrapping', () => {
     expect(row).toBeTruthy();
     expect(row!.getAttribute('data-drop-target-project')).toBe('project-1');
     expect(row!.getAttribute('data-drop-target-accept-kinds')).toBe(
-      'project-reorder',
+      'project-reorder'
     );
   });
 
@@ -279,10 +283,10 @@ describe('TreeNodeRouter project-reorder wrapping', () => {
     // drag handle and outerProps spread no `dropTargetAttrs`. Only the
     // OWN-id-equality fallback would land an attribute, so assert none.
     expect(
-      container.querySelector('[data-drop-target-id="unassigned"]'),
+      container.querySelector('[data-drop-target-id="unassigned"]')
     ).toBeNull();
     expect(
-      container.querySelector('[data-drop-target-accept-kinds]'),
+      container.querySelector('[data-drop-target-accept-kinds]')
     ).toBeNull();
   });
 
@@ -312,7 +316,7 @@ describe('TreeNodeRouter project-reorder wrapping', () => {
     // arborist's positional style.
     const { container } = renderProjectWithDndContext('project-1');
     const row = container.querySelector(
-      '[data-drop-target-id="project-1"]',
+      '[data-drop-target-id="project-1"]'
     ) as HTMLElement;
     expect(row).toBeTruthy();
     expect(row.style.touchAction).toBe('none');

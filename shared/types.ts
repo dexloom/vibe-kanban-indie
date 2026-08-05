@@ -10,7 +10,7 @@ export type Project = { id: string, name: string,
 /**
  * Per-project issue prefix (e.g. "ACME" -> "ACME-5"). Defaults from name.
  */
-key: string | null, color: string, sort_order: bigint, default_agent_working_dir: string | null, remote_project_id: string | null, created_at: Date, updated_at: Date, };
+key: string | null, color: string, sort_order: bigint, parent_id: string | null, default_agent_working_dir: string | null, remote_project_id: string | null, created_at: Date, updated_at: Date, };
 
 export type UpdateRepo = { display_name?: string | null, setup_script?: string | null, cleanup_script?: string | null, archive_script?: string | null, copy_files?: string | null, parallel_setup_script?: boolean | null, dev_server_script?: string | null, default_target_branch?: string | null, default_working_dir?: string | null, };
 

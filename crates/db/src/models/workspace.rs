@@ -1048,15 +1048,13 @@ mod tests {
         // filter did not exclude non-card kinds.
         let old_updated_at = Utc::now() - Duration::hours(100);
         let container_ref = "/tmp/does-not-matter".to_string();
-        sqlx::query(
-            "UPDATE workspaces SET container_ref = ?, updated_at = ? WHERE id = ?",
-        )
-        .bind(container_ref)
-        .bind(old_updated_at)
-        .bind(created.id)
-        .execute(&pool)
-        .await
-        .unwrap();
+        sqlx::query("UPDATE workspaces SET container_ref = ?, updated_at = ? WHERE id = ?")
+            .bind(container_ref)
+            .bind(old_updated_at)
+            .bind(created.id)
+            .execute(&pool)
+            .await
+            .unwrap();
 
         let expired = Workspace::find_expired_for_cleanup(&pool).await.unwrap();
         let expired_ids: Vec<Uuid> = expired.iter().map(|w| w.id).collect();

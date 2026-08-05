@@ -65,6 +65,8 @@ pub enum ApiError {
     BadRequest(String),
     #[error("Conflict: {0}")]
     Conflict(String),
+    #[error("Conflict payload")]
+    ConflictPayload(serde_json::Value),
     #[error("Forbidden: {0}")]
     Forbidden(String),
     #[error("Payload too large")]
@@ -145,47 +147,51 @@ impl From<ContainerError> for ApiError {
 
 struct ErrorInfo {
     status: StatusCode,
-    error_type: &'static str,
+    error_type: String,
     message: Option<String>,
 }
 
 impl ErrorInfo {
-    fn internal(error_type: &'static str) -> Self {
+    fn internal(error_type: impl Into<String>) -> Self {
         Self {
             status: StatusCode::INTERNAL_SERVER_ERROR,
-            error_type,
+            error_type: error_type.into(),
             message: Some("An internal error occurred. Please try again.".into()),
         }
     }
 
-    fn not_found(error_type: &'static str, msg: impl Into<String>) -> Self {
+    fn not_found(error_type: impl Into<String>, msg: impl Into<String>) -> Self {
         Self {
             status: StatusCode::NOT_FOUND,
-            error_type,
+            error_type: error_type.into(),
             message: Some(msg.into()),
         }
     }
 
-    fn bad_request(error_type: &'static str, msg: impl Into<String>) -> Self {
+    fn bad_request(error_type: impl Into<String>, msg: impl Into<String>) -> Self {
         Self {
             status: StatusCode::BAD_REQUEST,
-            error_type,
+            error_type: error_type.into(),
             message: Some(msg.into()),
         }
     }
 
-    fn conflict(error_type: &'static str, msg: impl Into<String>) -> Self {
+    fn conflict(error_type: impl Into<String>, msg: impl Into<String>) -> Self {
         Self {
             status: StatusCode::CONFLICT,
-            error_type,
+            error_type: error_type.into(),
             message: Some(msg.into()),
         }
     }
 
-    fn with_status(status: StatusCode, error_type: &'static str, msg: impl Into<String>) -> Self {
+    fn with_status(
+        status: StatusCode,
+        error_type: impl Into<String>,
+        msg: impl Into<String>,
+    ) -> Self {
         Self {
             status,
-            error_type,
+            error_type: error_type.into(),
             message: Some(msg.into()),
         }
     }
@@ -320,7 +326,7 @@ impl IntoResponse for ApiError {
             }
             ApiError::File(_) => ErrorInfo {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
-                error_type: "FileError",
+                error_type: "FileError".to_string(),
                 message: Some("Failed to process file. Please try again.".into()),
             },
 
@@ -341,6 +347,35 @@ impl IntoResponse for ApiError {
 
             ApiError::BadRequest(msg) => ErrorInfo::bad_request("BadRequest", msg.clone()),
             ApiError::Conflict(msg) => ErrorInfo::conflict("ConflictError", msg.clone()),
+            ApiError::ConflictPayload(_) => {
+                let payload = match &self {
+                    ApiError::ConflictPayload(payload) => payload.clone(),
+                    _ => serde_json::Value::Null,
+                };
+                // Derive BOTH `message` and `error_type` from the payload's
+                // `error` field. The original hardcoded "ProjectHasChildren"
+                // lied for any future caller — e.g. a `bulk_limit_exceeded`
+                // variant would surface as `error_type: ProjectHasChildren`
+                // in the wire response. Genericising here keeps the
+                // existing payload (`payload["error"] == "project_has_children"`)
+                // intact while letting new callers reuse this variant
+                // without touching the error mapper.
+                let message = payload
+                    .get("error")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("Conflict")
+                    .to_string();
+                let error_type = payload
+                    .get("error")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("Conflict")
+                    .to_string();
+                ErrorInfo {
+                    status: StatusCode::CONFLICT,
+                    error_type,
+                    message: Some(message),
+                }
+            }
             ApiError::Forbidden(msg) => {
                 ErrorInfo::with_status(StatusCode::FORBIDDEN, "ForbiddenError", msg.clone())
             }
@@ -384,7 +419,12 @@ impl IntoResponse for ApiError {
         let message = info
             .message
             .unwrap_or_else(|| format!("{}: {}", info.error_type, self));
-        let response = ApiResponse::<()>::error(&message);
+        let response = if let ApiError::ConflictPayload(payload) = &self {
+            ApiResponse::<(), serde_json::Value>::error_with_data(payload.clone())
+                .with_message(message)
+        } else {
+            ApiResponse::<(), serde_json::Value>::error(&message)
+        };
         (info.status, Json(response)).into_response()
     }
 }

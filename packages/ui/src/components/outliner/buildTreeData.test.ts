@@ -13,6 +13,8 @@ const project = (
   id,
   name: id,
   color: '0 0% 50%',
+  parentId: null,
+  sortOrder: 0,
   ...overrides,
 });
 
@@ -85,8 +87,16 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     expect(projectNode.type).toBe('project');
     if (projectNode.type !== 'project') return;
-    expect(projectNode.children[0]!.kind).toBe('tasks');
-    expect(projectNode.children[1]!.kind).toBe('workspaces');
+    const tasksSection = projectNode.children[0]!;
+    const workspacesSection = projectNode.children[1]!;
+    if (
+      tasksSection.type !== 'section' ||
+      workspacesSection.type !== 'section'
+    ) {
+      throw new Error('expected section children');
+    }
+    expect(tasksSection.kind).toBe('tasks');
+    expect(workspacesSection.kind).toBe('workspaces');
   });
 
   it('always renders a Tasks section for a real project (empty when no data)', () => {
@@ -95,6 +105,9 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
+    if (tasksSection.type !== 'section') {
+      throw new Error('expected section');
+    }
     expect(tasksSection.kind).toBe('tasks');
     expect(tasksSection.type).toBe('section');
     expect(tasksSection.children).toEqual([]);
@@ -106,7 +119,7 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
-    if (tasksSection.kind !== 'tasks')
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
       throw new Error('expected tasks section');
     expect(tasksSection.id).toBe('p1:tasks');
     expect(tasksSection.label).toBe('sidebar.tasksSection');
@@ -127,7 +140,8 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
-    if (tasksSection.kind !== 'tasks') throw new Error('expected tasks');
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
     const statusIds = tasksSection.children.map((c) => c.statusId);
     expect(statusIds).toEqual(['s1', 's2', 's3']);
   });
@@ -142,7 +156,8 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
-    if (tasksSection.kind !== 'tasks') throw new Error('expected tasks');
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
     const statusIds = tasksSection.children.map((c) => c.statusId);
     expect(statusIds).toEqual(['s-visible']);
     expect(tasksSection.children.every((c) => c.children.length === 0)).toBe(
@@ -164,7 +179,8 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
-    if (tasksSection.kind !== 'tasks') throw new Error('expected tasks');
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
     const byStatus = Object.fromEntries(
       tasksSection.children.map((s) => [
         s.statusId,
@@ -188,7 +204,8 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
-    if (tasksSection.kind !== 'tasks') throw new Error('expected tasks');
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
     const ids = tasksSection.children[0]!.children.map((c) => c.issue.id);
     expect(ids).toEqual(['i1', 'i3', 'i5']);
   });
@@ -206,7 +223,8 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
-    if (tasksSection.kind !== 'tasks') throw new Error('expected tasks');
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
     const allIds = tasksSection.children.flatMap((s) =>
       s.children.map((c) => c.issue.id)
     );
@@ -237,7 +255,8 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
-    if (tasksSection.kind !== 'tasks') throw new Error('expected tasks');
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
     const parent = tasksSection.children[0]!.children[0]!;
     expect(parent.issue.id).toBe('p1');
     expect(parent.children).toHaveLength(1);
@@ -261,12 +280,11 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
-    if (tasksSection.kind !== 'tasks') throw new Error('expected tasks');
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
     const collectIds = (cards: CardNode[]): string[] =>
       cards.flatMap((c) => [c.issue.id, ...collectIds(c.children)]);
-    const allIds = tasksSection.children.flatMap((s) =>
-      collectIds(s.children)
-    );
+    const allIds = tasksSection.children.flatMap((s) => collectIds(s.children));
     expect(allIds).toEqual(expect.arrayContaining(['a', 'b']));
     expect(new Set(allIds).size).toBe(allIds.length); // no duplicate ids
   });
@@ -281,7 +299,8 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
-    if (tasksSection.kind !== 'tasks') throw new Error('expected tasks');
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
     const allIds = tasksSection.children.flatMap((s) =>
       s.children.map((c) => c.issue.id)
     );
@@ -318,7 +337,8 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
-    if (tasksSection.kind !== 'tasks') throw new Error('expected tasks');
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
     const parent = tasksSection.children[0]!.children[0]!;
     expect(parent.children.map((c) => c.issue.id)).toEqual(['c1', 'c2', 'c3']);
   });
@@ -340,7 +360,8 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
-    if (tasksSection.kind !== 'tasks') throw new Error('expected tasks');
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
     const tops = tasksSection.children[0]!.children;
     expect(tops).toHaveLength(1);
     expect(tops[0]!.issue.id).toBe('orphan-child');
@@ -365,7 +386,8 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
-    if (tasksSection.kind !== 'tasks') throw new Error('expected tasks');
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
     const parent = tasksSection.children[0]!.children[0]!;
     expect(parent.issue.parentIssueId).toBeNull();
     const child = parent.children[0]!;
@@ -382,7 +404,8 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
-    if (tasksSection.kind !== 'tasks') throw new Error('expected tasks');
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
     const leaf = tasksSection.children[0]!.children[0]!;
     expect(leaf.children).toEqual([]);
   });
@@ -405,7 +428,11 @@ describe('buildTreeData', () => {
       throw new Error('expected unassigned project');
     }
     expect(unassigned.children).toHaveLength(1);
-    expect(unassigned.children[0]!.kind).toBe('workspaces');
+    const unassignedSection = unassigned.children[0]!;
+    if (unassignedSection.type !== 'section') {
+      throw new Error('expected section');
+    }
+    expect(unassignedSection.kind).toBe('workspaces');
   });
 
   it('mirrors isLoading onto the Tasks section from loadingTasksProjectIds', () => {
@@ -416,7 +443,8 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
-    if (tasksSection.kind !== 'tasks') throw new Error('expected tasks');
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
     expect(tasksSection.isLoading).toBe(true);
 
     const input2 = baseInput();
@@ -424,7 +452,8 @@ describe('buildTreeData', () => {
     const projectNode2 = tree2[0]!;
     if (projectNode2.type !== 'project') throw new Error('expected project');
     const tasksSection2 = projectNode2.children[0]!;
-    if (tasksSection2.kind !== 'tasks') throw new Error('expected tasks');
+    if (tasksSection2.type !== 'section' || tasksSection2.kind !== 'tasks')
+      throw new Error('expected tasks');
     expect(tasksSection2.isLoading).toBeFalsy();
   });
 
@@ -444,7 +473,8 @@ describe('buildTreeData', () => {
     const projectNode = tree[0]!;
     if (projectNode.type !== 'project') throw new Error('expected project');
     const tasksSection = projectNode.children[0]!;
-    if (tasksSection.kind !== 'tasks') throw new Error('expected tasks');
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
     const card = tasksSection.children[0]!.children[0]!;
     expect(card.issue).toEqual({
       id: 'i1',
@@ -489,7 +519,12 @@ describe('buildTreeData', () => {
     }
     const tasksA_node = projectA.children[0]!;
     const tasksB_node = projectB.children[0]!;
-    if (tasksA_node.kind !== 'tasks' || tasksB_node.kind !== 'tasks') {
+    if (
+      tasksA_node.type !== 'section' ||
+      tasksA_node.kind !== 'tasks' ||
+      tasksB_node.type !== 'section' ||
+      tasksB_node.kind !== 'tasks'
+    ) {
       throw new Error('expected tasks sections');
     }
     expect(tasksA_node.id).toBe('pA:tasks');
@@ -502,5 +537,81 @@ describe('buildTreeData', () => {
     );
     expect(idsA).toEqual(['iA']);
     expect(idsB).toEqual(['iB']);
+  });
+
+  it('groups nested subprojects under their parent after the sections', () => {
+    const input = baseInput({
+      projects: [
+        project('p-root', { name: 'root' }),
+        project('p-child-a', {
+          name: 'child-a',
+          parentId: 'p-root',
+        }),
+        project('p-child-b', {
+          name: 'child-b',
+          parentId: 'p-root',
+        }),
+        project('p-grand', {
+          name: 'grand',
+          parentId: 'p-child-a',
+        }),
+      ],
+    });
+    const tree = buildTreeData(input);
+    const root = tree[0]!;
+    if (root.type !== 'project') throw new Error('expected project');
+    expect(root.children).toHaveLength(4);
+    expect(root.children[0]!.type).toBe('section');
+    expect(root.children[1]!.type).toBe('section');
+    const childA = root.children[2]!;
+    const childB = root.children[3]!;
+    if (childA.type !== 'project' || childB.type !== 'project') {
+      throw new Error('expected nested project children');
+    }
+    expect(childA.id).toBe('p-child-a');
+    expect(childB.id).toBe('p-child-b');
+    const nestedAChildren = childA.children.filter((c) => c.type === 'project');
+    expect(nestedAChildren).toHaveLength(1);
+    expect(nestedAChildren[0]!.id).toBe('p-grand');
+  });
+
+  it('F-1: sibling projects sort by sortOrder (not UUID), so reorder survives refresh', () => {
+    // Regression for the silent reorder bug: `bySidebarProjectOrderAsc`
+    // used to compare by `id.localeCompare(id)`, which made sibling order
+    // follow UUID order and silently undid every drag-reorder on refresh.
+    const input = baseInput({
+      projects: [
+        project('p-b', { sortOrder: 200 }),
+        project('p-a', { sortOrder: 100 }),
+        project('p-c', { sortOrder: 300 }),
+      ],
+    });
+    const tree = buildTreeData(input);
+    expect(tree.map((node) => node.id)).toEqual(['p-a', 'p-b', 'p-c']);
+  });
+
+  it('F-1: a root sorts before its child even when the child has higher sortOrder', () => {
+    // Roots render as the top-level list; their children render nested
+    // inside the parent. A root with sortOrder=0 should still appear
+    // before its child with sortOrder=9999 because the child is nested,
+    // not in the top-level ordering.
+    const input = baseInput({
+      projects: [
+        project('p-root', { name: 'root', sortOrder: 0 }),
+        project('p-child', {
+          name: 'child',
+          parentId: 'p-root',
+          sortOrder: 9999,
+        }),
+      ],
+    });
+    const tree = buildTreeData(input);
+    expect(tree).toHaveLength(1);
+    const root = tree[0]!;
+    if (root.type !== 'project') throw new Error('expected root project');
+    expect(root.id).toBe('p-root');
+    const nested = root.children.filter((c) => c.type === 'project');
+    expect(nested).toHaveLength(1);
+    expect(nested[0]!.id).toBe('p-child');
   });
 });

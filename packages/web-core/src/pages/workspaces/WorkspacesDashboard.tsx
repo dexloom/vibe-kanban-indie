@@ -20,13 +20,18 @@ function DashboardWorkspaceRow({
       onClick={() => onOpen(workspace.id)}
       className="flex w-full items-center gap-3 rounded-md border border-border bg-overlay px-3 py-2 text-left transition-colors hover:border-border-strong hover:bg-surface/60"
     >
-      <FolderSimpleIcon className="size-icon-base shrink-0 text-low" weight="duotone" />
+      <FolderSimpleIcon
+        className="size-icon-base shrink-0 text-low"
+        weight="duotone"
+      />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-sm font-medium text-default">
           {workspace.name}
         </span>
         {workspace.branch ? (
-          <span className="truncate text-xs text-muted">{workspace.branch}</span>
+          <span className="truncate text-xs text-muted">
+            {workspace.branch}
+          </span>
         ) : null}
       </div>
       <WorkspaceStatusIcons

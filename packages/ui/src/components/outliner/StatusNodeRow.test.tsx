@@ -10,7 +10,7 @@ afterEach(cleanup);
 function withDragState(
   node: React.ReactNode,
   isDragActive: boolean,
-  candidateId: string | null = null,
+  candidateId: string | null = null
 ) {
   return (
     <DragActiveProvider value={isDragActive}>
@@ -55,7 +55,7 @@ function statusNode(): NodeApi<StatusNode> {
 describe('StatusNodeRow', () => {
   it('shows the status color dot, name, and child count', () => {
     const { container } = render(
-      <StatusNodeRow node={statusNode()} style={{}} />,
+      <StatusNodeRow node={statusNode()} style={{}} />
     );
 
     expect(screen.getByText('Todo')).toBeTruthy();
@@ -63,35 +63,35 @@ describe('StatusNodeRow', () => {
     const dot = container.querySelector('.rounded-full');
     expect(dot).toBeTruthy();
     expect((dot as HTMLElement).style.backgroundColor).toBe(
-      'rgb(64, 128, 191)',
+      'rgb(64, 128, 191)'
     );
   });
 
   it('tags the wrapper with data-drop-target-id + project + accept-kinds for the drag controller', () => {
     const { container } = render(
-      <StatusNodeRow node={statusNode()} style={{}} />,
+      <StatusNodeRow node={statusNode()} style={{}} />
     );
     const expectedId = makeStatusNodeId('project-1', 'todo');
     const target = container.querySelector(
-      `[data-drop-target-id="${expectedId}"]`,
+      `[data-drop-target-id="${expectedId}"]`
     );
     expect(target).toBeTruthy();
     expect(target?.getAttribute('data-drop-target-project')).toBe('project-1');
     expect(target?.getAttribute('data-drop-target-accept-kinds')).toBe(
-      'issue-move',
+      'issue-move'
     );
   });
 
   it('does NOT render a hello-pangea Droppable wrapper', () => {
     const { container } = render(
-      <StatusNodeRow node={statusNode()} style={{}} />,
+      <StatusNodeRow node={statusNode()} style={{}} />
     );
     expect(container.querySelector('[data-rfd-droppable-id]')).toBeNull();
   });
 
   it('fills the status row with a subtle tertiary background while a drag is active', () => {
     const { container } = render(
-      withDragState(<StatusNodeRow node={statusNode()} style={{}} />, true),
+      withDragState(<StatusNodeRow node={statusNode()} style={{}} />, true)
     );
     const row = container.querySelector('.bg-tertiary\\/40');
     expect(row).toBeTruthy();
@@ -105,8 +105,8 @@ describe('StatusNodeRow', () => {
       withDragState(
         <StatusNodeRow node={statusNode()} style={{}} />,
         true,
-        expectedId,
-      ),
+        expectedId
+      )
     );
     const row = container.querySelector('.bg-brand\\/20');
     expect(row).toBeTruthy();
@@ -119,8 +119,8 @@ describe('StatusNodeRow', () => {
       withDragState(
         <StatusNodeRow node={statusNode()} style={{}} />,
         true,
-        'project-1:status:done',
-      ),
+        'project-1:status:done'
+      )
     );
     expect(container.querySelector('.bg-tertiary\\/40')).toBeTruthy();
     expect(container.querySelector('.bg-brand\\/20')).toBeNull();
@@ -128,7 +128,7 @@ describe('StatusNodeRow', () => {
 
   it('renders no drop-target fill when no drag is active', () => {
     const { container } = render(
-      withDragState(<StatusNodeRow node={statusNode()} style={{}} />, false),
+      withDragState(<StatusNodeRow node={statusNode()} style={{}} />, false)
     );
     expect(container.querySelector('.bg-tertiary\\/40')).toBeNull();
     expect(container.querySelector('.bg-brand\\/20')).toBeNull();

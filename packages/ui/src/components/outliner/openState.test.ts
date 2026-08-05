@@ -37,6 +37,8 @@ const projectNode = (id: string): SidebarTreeNode => ({
   type: 'project',
   name: id,
   color: '0 0% 50%',
+  parentId: null,
+  sortOrder: 0,
   children: [],
 });
 

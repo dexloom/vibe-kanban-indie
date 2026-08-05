@@ -27,7 +27,7 @@ function pointerEvent(
   type: string,
   x: number,
   y: number,
-  pointerId: number = 1,
+  pointerId: number = 1
 ): PointerEvent {
   return new PointerEvent(type, {
     bubbles: true,
@@ -42,7 +42,7 @@ function pointerEvent(
 function makeSource(
   issueId = 'issue-1',
   projectId = 'project-1',
-  statusId = 'status-1',
+  statusId = 'status-1'
 ): DragSource {
   return { kind: 'issue-move', issueId, projectId, statusId };
 }
@@ -126,7 +126,7 @@ function installDropTarget(
   projectId: string,
   rect: { left: number; top: number; right: number; bottom: number },
   acceptKinds = 'issue-move',
-  statusId?: string,
+  statusId?: string
 ): HTMLElement {
   const target = document.createElement('div');
   target.setAttribute('data-drop-target-id', id);
@@ -161,14 +161,14 @@ describe('DragController', () => {
         clientX: 0,
         clientY: 0,
         pointerId: 1,
-      }),
+      })
     ).toBe(true);
     expect(
       m.startPress(makeSource('issue-2'), element, {
         clientX: 0,
         clientY: 0,
         pointerId: 1,
-      }),
+      })
     ).toBe(false);
     m.destroy();
   });
@@ -184,7 +184,7 @@ describe('DragController', () => {
     });
 
     window.dispatchEvent(
-      pointerEvent('pointermove', 100 + DRAG_THRESHOLD_PX - 1, 100),
+      pointerEvent('pointermove', 100 + DRAG_THRESHOLD_PX - 1, 100)
     );
 
     expect(cb.onPromote).not.toHaveBeenCalled();
@@ -203,7 +203,7 @@ describe('DragController', () => {
     });
 
     window.dispatchEvent(
-      pointerEvent('pointermove', 100 + DRAG_THRESHOLD_PX, 100),
+      pointerEvent('pointermove', 100 + DRAG_THRESHOLD_PX, 100)
     );
 
     expect(cb.onPromote).toHaveBeenCalledTimes(1);
@@ -216,11 +216,11 @@ describe('DragController', () => {
     // carries the same [data-source-id] but is a distinct node — assert by
     // pointer-events:none on the new fixed-position element.
     const fixed = document.body.querySelectorAll(
-      'div[data-source-id="issue-1"]',
+      'div[data-source-id="issue-1"]'
     );
     expect(fixed.length).toBe(2);
     const ghost = [...fixed].find(
-      (el) => (el as HTMLElement).style.position === 'fixed',
+      (el) => (el as HTMLElement).style.position === 'fixed'
     );
     expect(ghost).toBeTruthy();
     m.destroy();
@@ -247,13 +247,13 @@ describe('DragController', () => {
       pointerId: 1,
     });
     window.dispatchEvent(
-      pointerEvent('pointermove', 100 + DRAG_THRESHOLD_PX, 100),
+      pointerEvent('pointermove', 100 + DRAG_THRESHOLD_PX, 100)
     );
     // The ghost is appended to document.body and is the fixed-position
     // clone — query `body > [style*="pointer-events: none"]` and check
     // the data attributes are absent.
     const ghost = document.body.querySelector<HTMLElement>(
-      'body > [style*="pointer-events: none"]',
+      'body > [style*="pointer-events: none"]'
     );
     expect(ghost).toBeTruthy();
     expect(ghost!.hasAttribute('data-dnd-card')).toBe(false);
@@ -545,7 +545,7 @@ describe('DragController', () => {
     const callsWithCrossProject = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
         (call[0] as { targetId: string | null })?.targetId ===
-        'project-2:status:todo',
+        'project-2:status:todo'
     );
     expect(callsWithCrossProject.length).toBe(0);
     m.destroy();
@@ -564,7 +564,7 @@ describe('DragController', () => {
         right: 260,
         bottom: 30,
       },
-      'other-kind',
+      'other-kind'
     );
 
     m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
@@ -577,7 +577,7 @@ describe('DragController', () => {
     // Assert that onCandidateChange was never called with a non-null targetId.
     const nonNullCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId !== null,
+        (call[0] as { targetId: string | null })?.targetId !== null
     );
     expect(nonNullCalls).toHaveLength(0);
     m.destroy();
@@ -598,7 +598,7 @@ describe('DragController', () => {
         'pointerup',
         'pointercancel',
         'keydown',
-      ]),
+      ])
     );
     expect(types).not.toContain('scroll');
     expect(types).not.toContain('resize');
@@ -659,7 +659,7 @@ describe('DragController', () => {
 
     const candidateCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId !== null,
+        (call[0] as { targetId: string | null })?.targetId !== null
     );
     expect(candidateCalls.length).toBe(0);
     m.destroy();
@@ -688,7 +688,7 @@ describe('DragController', () => {
     const wrapped: typeof document.addEventListener = ((
       type: string,
       listener: EventListenerOrEventListenerObject,
-      opts?: boolean | AddEventListenerOptions,
+      opts?: boolean | AddEventListenerOptions
     ) => {
       if (type === 'click') {
         (m as unknown as { __swallower: EventListener }).__swallower =
@@ -739,7 +739,7 @@ describe('DragController', () => {
     document.addEventListener = ((
       type: string,
       listener: EventListenerOrEventListenerObject,
-      opts?: boolean | AddEventListenerOptions,
+      opts?: boolean | AddEventListenerOptions
     ) => {
       if (type === 'click' && !captured) {
         captured = listener as EventListener;
@@ -757,7 +757,7 @@ describe('DragController', () => {
     m.destroy();
     expect(cb.onDragEnd).toHaveBeenCalledTimes(1);
     const removedClickCalls = removeDocSpy.mock.calls.filter(
-      (c) => c[0] === 'click',
+      (c) => c[0] === 'click'
     );
     expect(removedClickCalls.length).toBe(0);
     // The captured swallower still swallows a synthetic click fired
@@ -796,7 +796,7 @@ describe('DragController', () => {
     document.addEventListener = ((
       type: string,
       listener: EventListenerOrEventListenerObject,
-      opts?: boolean | AddEventListenerOptions,
+      opts?: boolean | AddEventListenerOptions
     ) => {
       if (type === 'click' && !captured) {
         captured = listener as EventListener;
@@ -814,7 +814,7 @@ describe('DragController', () => {
     // swallower. The one-shot still swallows the synthetic click that
     // follows pointerup.
     const removedClickCalls = removeDocSpy.mock.calls.filter(
-      (c) => c[0] === 'click',
+      (c) => c[0] === 'click'
     );
     expect(removedClickCalls.length).toBe(0);
 
@@ -838,7 +838,7 @@ describe('DragController', () => {
     document.addEventListener = ((
       type: string,
       listener: EventListenerOrEventListenerObject,
-      opts?: boolean | AddEventListenerOptions,
+      opts?: boolean | AddEventListenerOptions
     ) => {
       if (type === 'click' && !captured) {
         captured = listener as EventListener;
@@ -1036,11 +1036,11 @@ describe('DragController', () => {
     const lastInst = installed[installed.length - 1]!;
     const firstMatched = removed.some(
       (r) =>
-        r.listener === firstInst.listener && r.capture === firstInst.capture,
+        r.listener === firstInst.listener && r.capture === firstInst.capture
     );
     expect(firstMatched).toBe(true);
     const lastMatchedBeforeNextStart = removed.some(
-      (r) => r.listener === lastInst.listener && r.capture === lastInst.capture,
+      (r) => r.listener === lastInst.listener && r.capture === lastInst.capture
     );
     expect(lastMatchedBeforeNextStart).toBe(false);
 
@@ -1055,10 +1055,10 @@ describe('DragController', () => {
           ({
             listener: c[1] as EventListener,
             capture: captureOf(c[2] as boolean | AddEventListenerOptions),
-          }) as Triple,
+          }) as Triple
       );
     const lastMatchedAfterNextStart = removedAfter.some(
-      (r) => r.listener === lastInst.listener && r.capture === lastInst.capture,
+      (r) => r.listener === lastInst.listener && r.capture === lastInst.capture
     );
     expect(lastMatchedAfterNextStart).toBe(true);
 
@@ -1083,21 +1083,25 @@ describe('DragController', () => {
       'project-OTHER',
       'project-OTHER',
       { left: 200, top: 0, right: 260, bottom: 30 },
-      'project-reorder',
+      'project-reorder'
     );
     // Dragged source's own row — should be excluded via self-id check.
     installDropTarget(
       'project-1',
       'project-1',
       { left: 0, top: 0, right: 60, bottom: 30 },
-      'project-reorder',
+      'project-reorder'
     );
 
-    m.startPress({ kind: 'project-reorder', projectId: 'project-1' }, null, {
-      clientX: 0,
-      clientY: 0,
-      pointerId: 1,
-    });
+    m.startPress(
+      { kind: 'project-reorder', projectId: 'project-1', parentId: null },
+      null,
+      {
+        clientX: 0,
+        clientY: 0,
+        pointerId: 1,
+      }
+    );
     window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     window.dispatchEvent(pointerEvent('pointermove', 230, 15));
@@ -1105,21 +1109,21 @@ describe('DragController', () => {
 
     const callsWithNonNullTarget = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId !== null,
+        (call[0] as { targetId: string | null })?.targetId !== null
     );
     // Peer project row lands as a candidate (its id is `project-OTHER`).
     expect(callsWithNonNullTarget.length).toBeGreaterThan(0);
     expect(
       callsWithNonNullTarget.some(
         (c) =>
-          (c[0] as { targetId: string | null }).targetId === 'project-OTHER',
-      ),
+          (c[0] as { targetId: string | null }).targetId === 'project-OTHER'
+      )
     ).toBe(true);
     // Self row never appears as a candidate.
     expect(
       callsWithNonNullTarget.some(
-        (c) => (c[0] as { targetId: string | null }).targetId === 'project-1',
-      ),
+        (c) => (c[0] as { targetId: string | null }).targetId === 'project-1'
+      )
     ).toBe(false);
 
     m.destroy();
@@ -1133,14 +1137,18 @@ describe('DragController', () => {
       'project-OTHER',
       'project-OTHER',
       { left: 200, top: 0, right: 260, bottom: 30 },
-      'project-reorder',
+      'project-reorder'
     );
 
-    m.startPress({ kind: 'project-reorder', projectId: 'project-1' }, null, {
-      clientX: 0,
-      clientY: 0,
-      pointerId: 1,
-    });
+    m.startPress(
+      { kind: 'project-reorder', projectId: 'project-1', parentId: null },
+      null,
+      {
+        clientX: 0,
+        clientY: 0,
+        pointerId: 1,
+      }
+    );
     window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     window.dispatchEvent(pointerEvent('pointermove', 230, 15));
@@ -1210,7 +1218,7 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1',
+      'status-1'
     );
     // Move the self-card under the pointer so an unfiltered controller
     // would resolve it as the candidate.
@@ -1239,7 +1247,7 @@ describe('DragController issue-move self-exclusion', () => {
 
     const callsWithSelf = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId === 'issue-1',
+        (call[0] as { targetId: string | null })?.targetId === 'issue-1'
     );
     expect(callsWithSelf).toHaveLength(0);
     m.destroy();
@@ -1259,7 +1267,7 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1',
+      'status-1'
     );
 
     m.startPress(makeSource('issue-1'), null, {
@@ -1274,7 +1282,7 @@ describe('DragController issue-move self-exclusion', () => {
 
     const callsWithPeer = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId === 'issue-2',
+        (call[0] as { targetId: string | null })?.targetId === 'issue-2'
     );
     expect(callsWithPeer.length).toBeGreaterThan(0);
     m.destroy();
@@ -1294,7 +1302,7 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1',
+      'status-1'
     );
 
     m.startPress(makeSource('issue-1'), null, {
@@ -1328,7 +1336,7 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1',
+      'status-1'
     );
 
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), card, {
@@ -1402,7 +1410,7 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1',
+      'status-1'
     );
 
     // Polyfill elementFromPoint: at (200, 0)–(260, 30) return the
@@ -1489,7 +1497,7 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1',
+      'status-1'
     );
 
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), card, {
@@ -1524,7 +1532,7 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1',
+      'status-1'
     );
 
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), card, {
@@ -1558,7 +1566,7 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1',
+      'status-1'
     );
 
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), card, {
@@ -1603,7 +1611,7 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1',
+      'status-1'
     );
 
     // Polyfill elementFromPoint: at (30, 15) return the source card
@@ -1695,7 +1703,7 @@ describe('DragController issue-move target filtering by statusId', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1',
+      'status-1'
     );
 
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
@@ -1710,7 +1718,7 @@ describe('DragController issue-move target filtering by statusId', () => {
 
     const peerCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId === 'issue-2',
+        (call[0] as { targetId: string | null })?.targetId === 'issue-2'
     );
     expect(peerCalls.length).toBeGreaterThan(0);
     m.destroy();
@@ -1730,7 +1738,7 @@ describe('DragController issue-move target filtering by statusId', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-2',
+      'status-2'
     );
 
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
@@ -1745,7 +1753,7 @@ describe('DragController issue-move target filtering by statusId', () => {
 
     const peerCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId === 'issue-2',
+        (call[0] as { targetId: string | null })?.targetId === 'issue-2'
     );
     expect(peerCalls).toHaveLength(0);
     m.destroy();
@@ -1777,7 +1785,7 @@ describe('DragController issue-move target filtering by statusId', () => {
 
     const sameColumnCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId === 'status-1',
+        (call[0] as { targetId: string | null })?.targetId === 'status-1'
     );
     expect(sameColumnCalls).toHaveLength(0);
     m.destroy();
@@ -1806,7 +1814,7 @@ describe('DragController issue-move target filtering by statusId', () => {
 
     const moveCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId === 'status-2',
+        (call[0] as { targetId: string | null })?.targetId === 'status-2'
     );
     expect(moveCalls.length).toBeGreaterThan(0);
     m.destroy();
@@ -1837,7 +1845,7 @@ describe('DragController issue-move target filtering by statusId', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-2',
+      'status-2'
     );
     installDropTarget(
       'issue-3',
@@ -1849,7 +1857,7 @@ describe('DragController issue-move target filtering by statusId', () => {
         bottom: 90,
       },
       'issue-move',
-      'status-2',
+      'status-2'
     );
 
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
@@ -1985,7 +1993,7 @@ describe('DragController issue-move target filtering by statusId', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1',
+      'status-1'
     );
     installDropTarget('status-1', 'project-1', {
       left: 400,
@@ -2013,7 +2021,7 @@ describe('DragController issue-move target filtering by statusId', () => {
     // No emit with targetId=status-1 (same-column column filtered out).
     const ownColumnCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId === 'status-1',
+        (call[0] as { targetId: string | null })?.targetId === 'status-1'
     );
     expect(ownColumnCalls).toHaveLength(0);
     m.destroy();

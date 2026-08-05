@@ -33,13 +33,17 @@ export function OutlinerLeafNode({
       isActive={isActive}
       rowClassName={cn(
         'text-sm leading-tight',
-        isActive ? 'text-high font-semibold' : 'text-normal font-light hover:text-high',
+        isActive
+          ? 'text-high font-semibold'
+          : 'text-normal font-light hover:text-high'
       )}
     >
       <div className="flex min-w-0 flex-col justify-center gap-0">
         <span className="flex min-w-0 items-baseline gap-1.5">
           <span className="truncate">{ws.name}</span>
-          {elapsed && <span className="shrink-0 text-xs text-low">{elapsed}</span>}
+          {elapsed && (
+            <span className="shrink-0 text-xs text-low">{elapsed}</span>
+          )}
         </span>
         <WorkspaceActivityText
           filesChanged={ws.filesChanged}

@@ -10,7 +10,7 @@ afterEach(cleanup);
 
 function withController(
   node: React.ReactNode,
-  controller: DragController | null = null,
+  controller: DragController | null = null
 ) {
   return (
     <DragControllerContext.Provider value={controller}>
@@ -22,7 +22,7 @@ function withController(
 function cardNode(
   overrides: Partial<CardNode['issue']> = {},
   children: CardNode[] = [],
-  isOpen = false,
+  isOpen = false
 ) {
   const activate = vi.fn();
   const toggle = vi.fn();
@@ -53,8 +53,8 @@ describe('CardNodeRow', () => {
   it('renders the issue title', () => {
     const { container } = render(
       withController(
-        <CardNodeRow node={cardNode().node} style={{ paddingLeft: 36 }} />,
-      ),
+        <CardNodeRow node={cardNode().node} style={{ paddingLeft: 36 }} />
+      )
     );
 
     expect(container.textContent).toBe('Fix auth');
@@ -68,8 +68,8 @@ describe('CardNodeRow', () => {
           node={cardNode().node}
           style={{}}
           activeIssueId="issue-1"
-        />,
-      ),
+        />
+      )
     );
 
     const row = container.querySelector('[aria-current]') as HTMLElement;
@@ -81,7 +81,7 @@ describe('CardNodeRow', () => {
   it('does not toggle or activate when a leaf card row is clicked', () => {
     const { node, activate, toggle } = cardNode();
     const { container } = render(
-      withController(<CardNodeRow node={node} style={{}} />),
+      withController(<CardNodeRow node={node} style={{}} />)
     );
 
     const row = container.querySelector('.cursor-pointer') as HTMLElement;
@@ -96,7 +96,7 @@ describe('CardNodeRow', () => {
     const child = cardNode({ id: 'issue-2' }).node.data;
     const { node, activate, toggle } = cardNode({}, [child], true);
     const { container } = render(
-      withController(<CardNodeRow node={node} style={{}} />),
+      withController(<CardNodeRow node={node} style={{}} />)
     );
 
     const caret = container.querySelector('button') as HTMLButtonElement;
@@ -111,7 +111,7 @@ describe('CardNodeRow', () => {
   it('renders leaf cards without a caret or aria-expanded', () => {
     const { node, activate, toggle } = cardNode();
     const { container } = render(
-      withController(<CardNodeRow node={node} style={{}} />),
+      withController(<CardNodeRow node={node} style={{}} />)
     );
 
     expect(container.querySelector('button')).toBeNull();
@@ -128,8 +128,8 @@ describe('CardNodeRow', () => {
     const { container } = render(
       withController(
         <CardNodeRow node={cardNode().node} style={{}} />,
-        controller,
-      ),
+        controller
+      )
     );
     const row = container.querySelector('.cursor-pointer') as HTMLElement;
     fireEvent.pointerDown(row, { button: 0 });
@@ -141,7 +141,7 @@ describe('CardNodeRow', () => {
         statusId: 'todo',
       },
       row,
-      expect.any(PointerEvent),
+      expect.any(PointerEvent)
     );
   });
 
@@ -151,8 +151,8 @@ describe('CardNodeRow', () => {
     const { container } = render(
       withController(
         <CardNodeRow node={cardNode().node} style={{}} isMultiSelectActive />,
-        controller,
-      ),
+        controller
+      )
     );
     const row = container.querySelector('.cursor-pointer') as HTMLElement;
     fireEvent.pointerDown(row, { button: 0 });
@@ -165,7 +165,7 @@ describe('CardNodeRow', () => {
     const child = cardNode({ id: 'issue-2' }).node.data;
     const { node } = cardNode({}, [child], true);
     const { container } = render(
-      withController(<CardNodeRow node={node} style={{}} />, controller),
+      withController(<CardNodeRow node={node} style={{}} />, controller)
     );
     const caret = container.querySelector('button') as HTMLButtonElement;
     expect(caret).toBeTruthy();
@@ -180,7 +180,7 @@ describe('CardNodeRow', () => {
     // merged over arborist's positional style via TreeRow's
     // outerProps.style → outerStyle spread).
     const { container } = render(
-      withController(<CardNodeRow node={cardNode().node} style={{}} />),
+      withController(<CardNodeRow node={cardNode().node} style={{}} />)
     );
     const row = container.querySelector('.cursor-pointer') as HTMLElement;
     expect(row).toBeTruthy();

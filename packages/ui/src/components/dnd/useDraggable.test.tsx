@@ -30,13 +30,13 @@ function HookHarness({
 
 function renderWithController(
   controller: DragController | null,
-  props: { source: DragSource; disabled?: boolean },
+  props: { source: DragSource; disabled?: boolean }
 ): RenderResult {
   const out: RenderResult = { onPointerDown: null };
   render(
     <DragControllerContext.Provider value={controller}>
       <HookHarness source={props.source} disabled={props.disabled} out={out} />
-    </DragControllerContext.Provider>,
+    </DragControllerContext.Provider>
   );
   return out;
 }
@@ -45,7 +45,7 @@ function fakePointerEvent(
   button: number,
   target: Element | null = null,
   currentTarget: HTMLElement | null = null,
-  pointerType = 'mouse',
+  pointerType = 'mouse'
 ): React.PointerEvent<HTMLDivElement> {
   const native = new PointerEvent('pointerdown', { button, pointerType });
   return {
@@ -70,7 +70,7 @@ describe('useDraggable', () => {
           statusId: 's1',
         }}
         out={out}
-      />,
+      />
     );
     expect(out.onPointerDown).toBeNull();
   });
@@ -93,7 +93,7 @@ describe('useDraggable', () => {
     expect(startPress).toHaveBeenCalledWith(
       source,
       currentTarget,
-      expect.any(PointerEvent),
+      expect.any(PointerEvent)
     );
   });
 
@@ -273,7 +273,7 @@ describe('useDraggable', () => {
           }}
           out={out}
         />
-      </DragControllerContext.Provider>,
+      </DragControllerContext.Provider>
     );
     expect(out.onPointerDown).toBeNull();
   });
@@ -373,7 +373,7 @@ describe('useDraggable', () => {
     const { rerender } = render(
       <DragControllerContext.Provider value={controller}>
         <HookHarness source={initial} out={out} />
-      </DragControllerContext.Provider>,
+      </DragControllerContext.Provider>
     );
     const firstHandler = out.onPointerDown;
 
@@ -388,7 +388,7 @@ describe('useDraggable', () => {
           }}
           out={out}
         />
-      </DragControllerContext.Provider>,
+      </DragControllerContext.Provider>
     );
     expect(out.onPointerDown).toBe(firstHandler);
 
@@ -403,7 +403,7 @@ describe('useDraggable', () => {
         statusId: 's1',
       },
       currentTarget,
-      expect.any(PointerEvent),
+      expect.any(PointerEvent)
     );
   });
 });

@@ -13,6 +13,7 @@ import {
   type OutlinerWorkspace,
   type ProjectNode,
   type ProjectTasksData,
+  type SectionNode,
   type SidebarProject,
   type SidebarTreeNode,
   type StatusNode,
@@ -53,8 +54,20 @@ export interface BuildTreeDataInput {
  */
 export function buildTreeData(input: BuildTreeDataInput): SidebarTreeNode[] {
   const { t } = input;
-  const projectNodes: ProjectNode[] = input.projects.map((project) =>
-    buildProjectNode(project, input, t)
+  const childrenByParent = new Map<string | null, SidebarProject[]>();
+  for (const project of input.projects) {
+    const key = project.parentId ?? null;
+    const list = childrenByParent.get(key) ?? [];
+    list.push(project);
+    childrenByParent.set(key, list);
+  }
+  for (const list of childrenByParent.values()) {
+    list.sort(bySidebarProjectOrderAsc);
+  }
+  const realProjectIds = new Set(input.projects.map((project) => project.id));
+  const rootProjects = childrenByParent.get(null) ?? [];
+  const projectNodes: ProjectNode[] = rootProjects.map((project) =>
+    buildProjectNode(project, input, t, childrenByParent, realProjectIds)
   );
 
   if (
@@ -69,7 +82,10 @@ export function buildTreeData(input: BuildTreeDataInput): SidebarTreeNode[] {
 function buildProjectNode(
   project: SidebarProject,
   input: BuildTreeDataInput,
-  t: (k: string) => string
+  t: (k: string) => string,
+  childrenByParent: Map<string | null, SidebarProject[]>,
+  realProjectIds: Set<string>,
+  seen: Set<string> = new Set()
 ): ProjectNode {
   const tasks = buildTasksSection(project.id, input, t);
   const workspaces = buildWorkspacesSection(
@@ -78,13 +94,34 @@ function buildProjectNode(
     input.archivedWorkspacesByProject.get(project.id) ?? [],
     t
   );
-  // Tasks ABOVE Workspaces.
+  // Sections first (Tasks above Workspaces), then nested subprojects.
+  const children: (SectionNode | ProjectNode)[] = [tasks, workspaces];
+  if (!seen.has(project.id)) {
+    const nextSeen = new Set(seen);
+    nextSeen.add(project.id);
+    const subprojects = childrenByParent.get(project.id) ?? [];
+    for (const sub of subprojects) {
+      if (!realProjectIds.has(sub.id) || nextSeen.has(sub.id)) continue;
+      children.push(
+        buildProjectNode(
+          sub,
+          input,
+          t,
+          childrenByParent,
+          realProjectIds,
+          nextSeen
+        )
+      );
+    }
+  }
   return {
     id: project.id,
     type: 'project',
     name: project.name,
     color: project.color,
-    children: [tasks, workspaces],
+    parentId: project.parentId,
+    sortOrder: project.sortOrder,
+    children,
   };
 }
 
@@ -97,7 +134,7 @@ function buildTasksSection(
   const visibleStatuses = (data?.statuses ?? [])
     .filter((s) => !s.hidden)
     .slice()
-    .sort(bySortOrderAsc);
+    .sort((a, b) => a.sort_order - b.sort_order);
   const statusById = new Set(visibleStatuses.map((s) => s.id));
 
   const issuesByStatus = new Map<string, Issue[]>();
@@ -108,15 +145,18 @@ function buildTasksSection(
     else issuesByStatus.set(issue.status_id, [issue]);
   }
 
-  const statusNodes: StatusNode[] = visibleStatuses.map((status) => ({
-    id: makeStatusNodeId(projectId, status.id),
-    type: 'status',
-    projectId,
-    statusId: status.id,
-    name: status.name,
-    color: status.color,
-    children: buildCardForest(issuesByStatus.get(status.id) ?? []),
-  }));
+  const statusNodes: StatusNode[] = visibleStatuses
+    .slice()
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((status) => ({
+      id: makeStatusNodeId(projectId, status.id),
+      type: 'status',
+      projectId,
+      statusId: status.id,
+      name: status.name,
+      color: status.color,
+      children: buildCardForest(issuesByStatus.get(status.id) ?? []),
+    }));
 
   return {
     id: makeTasksSectionId(projectId),
@@ -153,11 +193,13 @@ function buildWorkspacesSection(
         : bucketId === 'idle'
           ? idle
           : archivedBucket
-    ).map((workspace): LeafNode => ({
-      id: workspace.id,
-      type: 'leaf',
-      workspace,
-    })),
+    ).map(
+      (workspace): LeafNode => ({
+        id: workspace.id,
+        type: 'leaf',
+        workspace,
+      })
+    ),
   }));
   return {
     id: makeWorkspacesSectionId(projectId),
@@ -232,7 +274,7 @@ function buildCardForest(issues: readonly Issue[]): CardNode[] {
 
   const tree = roots
     .slice()
-    .sort(bySortOrderAsc)
+    .sort((a, b) => a.sort_order - b.sort_order)
     .map(toCardNode)
     .filter((node): node is CardNode => node !== null);
 
@@ -241,7 +283,7 @@ function buildCardForest(issues: readonly Issue[]): CardNode[] {
     tree.push(
       ...unplaced
         .slice()
-        .sort(bySortOrderAsc)
+        .sort((a, b) => a.sort_order - b.sort_order)
         .map(toCardNode)
         .filter((node): node is CardNode => node !== null)
     );
@@ -266,10 +308,24 @@ function buildUnassignedNode(
     type: 'project',
     name: t('sidebar.unassigned'),
     color: '0 0% 60%',
+    parentId: null,
+    // Unassigned is a pseudo-project; the user never drags it, so its
+    // sort_order is meaningless. `0` matches the default in
+    // `create_project`.
+    sortOrder: 0,
     children: [workspaces],
   };
 }
 
-function bySortOrderAsc<T extends { sort_order: number }>(a: T, b: T): number {
-  return a.sort_order - b.sort_order;
+function bySidebarProjectOrderAsc(
+  a: SidebarProject,
+  b: SidebarProject
+): number {
+  // ADR-013: sibling projects sort by `sort_order` first (user intent), then
+  // `id` as a stable tiebreak. The old `localeCompare(id)` only order — which
+  // looked like UUID sort — silently broke sibling reorder: a swap moved the
+  // rows visually back to UUID order on every refresh.
+  const byOrder = a.sortOrder - b.sortOrder;
+  if (byOrder !== 0) return byOrder;
+  return a.id.localeCompare(b.id);
 }

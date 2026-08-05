@@ -25,7 +25,7 @@ export const DROP_THRESHOLD_PX = 32;
 export function manhattanDistanceToRect(
   x: number,
   y: number,
-  r: TargetRect,
+  r: TargetRect
 ): number {
   if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
     return 0;
@@ -76,7 +76,7 @@ export function findBestCandidate(
   x: number,
   y: number,
   targets: readonly TargetRect[],
-  threshold: number,
+  threshold: number
 ): TargetCandidate {
   if (targets.length === 0) {
     return { targetId: null, placement: null, isCard: false };
@@ -142,7 +142,7 @@ export interface CardExtent {
  */
 export function computeCardInsertionIndex(
   y: number,
-  cards: readonly CardExtent[],
+  cards: readonly CardExtent[]
 ): number {
   for (let i = 0; i < cards.length; i++) {
     const mid = (cards[i].top + cards[i].bottom) / 2;

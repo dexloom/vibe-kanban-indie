@@ -1,8 +1,4 @@
-import {
-  GearIcon,
-  SignOutIcon,
-  UserIcon,
-} from '@phosphor-icons/react';
+import { GearIcon, SignOutIcon, UserIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../lib/cn';
 import {

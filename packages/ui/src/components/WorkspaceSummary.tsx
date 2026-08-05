@@ -1,8 +1,4 @@
-import {
-  FileIcon,
-  DotsThreeIcon,
-  RobotIcon,
-} from '@phosphor-icons/react';
+import { FileIcon, DotsThreeIcon, RobotIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import type { WorkspaceKind } from 'shared/types';
 import { cn } from '../lib/cn';

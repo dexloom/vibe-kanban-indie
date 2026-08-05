@@ -146,7 +146,7 @@ export class DragController {
   startPress(
     source: DragSource,
     element: HTMLElement | null,
-    e: ManagerMouseEvent,
+    e: ManagerMouseEvent
   ): boolean {
     if (this.state.kind !== 'idle') return false;
 
@@ -215,7 +215,7 @@ export class DragController {
   private addWindowListener(
     type: string,
     listener: EventListener,
-    options?: AddEventListenerOptions | boolean,
+    options?: AddEventListenerOptions | boolean
   ): void {
     window.addEventListener(type, listener, options);
     this.attached.push({ target: window, type, listener, options });
@@ -311,7 +311,7 @@ export class DragController {
     if (candidate.targetId) {
       const completion = this.buildDragCompletion(
         this.state.source,
-        candidate.targetId,
+        candidate.targetId
       );
       try {
         this.callbacks.onDrop(completion);
@@ -385,11 +385,11 @@ export class DragController {
     if (typeof document !== 'undefined' && this.state.kind === 'dragging') {
       const sourceEl = this.state.element;
       const sourceTarget = sourceEl?.closest<HTMLElement>(
-        '[data-drop-target-id]',
+        '[data-drop-target-id]'
       );
       this.sourceColumnEl =
         sourceTarget?.parentElement?.closest<HTMLElement>(
-          '[data-drop-target-id]',
+          '[data-drop-target-id]'
         ) ?? null;
       this.captureSourceCardRects();
     }
@@ -484,7 +484,7 @@ export class DragController {
 
     const out: TargetRect[] = [];
     const nodes = document.querySelectorAll<HTMLElement>(
-      '[data-drop-target-id][data-drop-target-project][data-drop-target-accept-kinds]',
+      '[data-drop-target-id][data-drop-target-project][data-drop-target-accept-kinds]'
     );
     nodes.forEach((el) => {
       if (source.kind === 'project-reorder') {
@@ -493,6 +493,11 @@ export class DragController {
         // equality filter would reject every peer). Exclude self so the
         // dragged row never becomes its own candidate.
         if (el.dataset.dropTargetId === source.projectId) return;
+        // Sibling-only reorder: only collect targets sharing the same
+        // parent_id as the source row. Cross-parent drag is rejected
+        // before it ever reaches `resolveDragEnd`.
+        const targetParent = el.dataset.dropTargetParentId ?? '';
+        if (targetParent !== (source.parentId ?? '')) return;
       } else {
         // Issue-move drags target either a same-column kanban card (swap)
         // or a different-column kanban column (move). Cards carry
@@ -539,7 +544,7 @@ export class DragController {
   private recomputeCandidate(): void {
     const candidate = this.resolveCandidateAt(
       this.lastClientX,
-      this.lastClientY,
+      this.lastClientY
     );
     if (
       candidate.targetId === this.candidate.targetId &&
@@ -583,7 +588,7 @@ export class DragController {
       x,
       y,
       targets,
-      DROP_THRESHOLD_PX,
+      DROP_THRESHOLD_PX
     );
     // Cross-column move onto a kanban column: resolve the insertion slot
     // against the target column's promote-time card snapshot. Tree-status
@@ -622,7 +627,7 @@ export class DragController {
   private resolveColumnInsertIndex(columnId: string, y: number): number | null {
     if (typeof document !== 'undefined') {
       const el = document.querySelector(
-        `[data-drop-target-id="${columnId}"]`,
+        `[data-drop-target-id="${columnId}"]`
       ) as HTMLElement | null;
       if (!el) return null;
       // Cards share the target-id namespace; only resolve an index for
@@ -720,7 +725,7 @@ export class DragController {
 
   private buildDragCompletion(
     source: DragSource,
-    targetId: string,
+    targetId: string
   ): DragCompletion {
     // issue-move always lands 'on'; future reorder kinds branch here.
     return { source, targetId, placement: 'on', index: this.candidate.index };

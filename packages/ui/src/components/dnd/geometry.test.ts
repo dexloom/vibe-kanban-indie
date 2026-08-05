@@ -14,7 +14,7 @@ function rect(
   left: number,
   top: number,
   right: number,
-  bottom: number,
+  bottom: number
 ): TargetRect {
   return { droppableId, left, top, right, bottom, isCard: false };
 }

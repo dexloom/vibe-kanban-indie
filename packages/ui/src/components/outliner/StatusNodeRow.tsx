@@ -39,7 +39,7 @@ export function StatusNodeRow({
         rowClassName={cn(
           'text-xs font-medium uppercase tracking-wide text-low',
           isDragActive && !isCandidate && 'rounded-sm bg-tertiary/40',
-          isDragActive && isCandidate && 'rounded-sm bg-brand/20',
+          isDragActive && isCandidate && 'rounded-sm bg-brand/20'
         )}
       >
         <div className="flex items-center gap-1">

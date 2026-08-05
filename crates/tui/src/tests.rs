@@ -266,6 +266,7 @@ fn sample_kanban() -> KanbanView {
             name: "Acme".into(),
             color: "#6366f1".into(),
             sort_order: 0,
+            parent_id: None,
         }],
         project_idx: 0,
         statuses: vec![ProjectStatus {

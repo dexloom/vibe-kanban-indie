@@ -9,7 +9,7 @@ export type DragSource =
       projectId: string;
       statusId: string;
     }
-  | { kind: 'project-reorder'; projectId: string };
+  | { kind: 'project-reorder'; projectId: string; parentId: string | null };
 
 export type Placement = 'on' | 'before' | 'after';
 

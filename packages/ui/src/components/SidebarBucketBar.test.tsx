@@ -30,7 +30,7 @@ afterEach(cleanup);
 
 function workspace(
   id: string,
-  overrides: Partial<OutlinerWorkspace> = {},
+  overrides: Partial<OutlinerWorkspace> = {}
 ): OutlinerWorkspace {
   return {
     id,
@@ -43,14 +43,14 @@ function workspace(
 function renderBar(
   workspaces: readonly OutlinerWorkspace[],
   activeWorkspaceId: string | null = null,
-  onSelectWorkspace = vi.fn(),
+  onSelectWorkspace = vi.fn()
 ) {
   return render(
     <SidebarBucketBar
       workspaces={workspaces}
       activeWorkspaceId={activeWorkspaceId}
       onSelectWorkspace={onSelectWorkspace}
-    />,
+    />
   );
 }
 
@@ -70,7 +70,7 @@ describe('SidebarBucketBar', () => {
     });
     expect(within(toolbar).getAllByRole('button')).toHaveLength(3);
     expect(toolbar.querySelectorAll('span[aria-hidden="true"]')).toHaveLength(
-      0,
+      0
     );
   });
 
@@ -84,13 +84,11 @@ describe('SidebarBucketBar', () => {
 
     expect(
       within(screen.getByRole('button', { name: 'Attention — 2' })).getByText(
-        '2',
-      ),
+        '2'
+      )
     ).toBeTruthy();
     expect(
-      within(screen.getByRole('button', { name: 'Running — 1' })).getByText(
-        '1',
-      ),
+      within(screen.getByRole('button', { name: 'Running — 1' })).getByText('1')
     ).toBeTruthy();
     // Idle hides its badge (owner: counts there are noise), so the button's
     // accessible name is just the visible label and it has no badge text.
@@ -125,7 +123,7 @@ describe('SidebarBucketBar', () => {
     renderBar(
       [workspace('Selected', { hasPendingApproval: true })],
       null,
-      onSelectWorkspace,
+      onSelectWorkspace
     );
 
     openBucket(/Attention/);
@@ -144,8 +142,8 @@ describe('SidebarBucketBar', () => {
 
     expect(
       (await screen.findByRole('menuitem', { name: /Active/ })).getAttribute(
-        'aria-current',
-      ),
+        'aria-current'
+      )
     ).toBe('page');
   });
 
@@ -153,7 +151,7 @@ describe('SidebarBucketBar', () => {
     renderBar([]);
 
     expect(
-      screen.getByRole('toolbar', { name: 'Workspace buckets' }),
+      screen.getByRole('toolbar', { name: 'Workspace buckets' })
     ).toBeTruthy();
   });
 });

@@ -80,6 +80,7 @@ import { BulkActionBarContainer } from './BulkActionBarContainer';
 import { computeKanbanMove } from '../model/computeKanbanMove';
 import { buildKanbanMoveUpdates } from '../model/buildKanbanMoveUpdates';
 import { createSyncGuard } from '../model/syncGuard';
+import { buildProjectBreadcrumb } from '../model/buildProjectBreadcrumb';
 import {
   useKanbanDragHandler,
   type KanbanDragHandler,
@@ -1062,7 +1063,14 @@ export function KanbanContainer() {
       >
         <div className="flex items-center gap-half">
           <h2 className={cn('text-2xl font-medium', isMobile && 'text-lg')}>
-            {projectName}
+            {buildProjectBreadcrumb(
+              projects as unknown as Parameters<
+                typeof buildProjectBreadcrumb
+              >[0],
+              projectId
+            )
+              .map((entry) => entry.name)
+              .join(' / ') || projectName}
           </h2>
 
           <DropdownMenu>

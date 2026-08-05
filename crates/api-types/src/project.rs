@@ -12,6 +12,8 @@ pub struct Project {
     pub name: String,
     pub color: String,
     pub sort_order: i32,
+    #[ts(optional)]
+    pub parent_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -25,6 +27,8 @@ pub struct CreateProjectRequest {
     pub organization_id: Uuid,
     pub name: String,
     pub color: String,
+    #[ts(optional)]
+    pub parent_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -35,6 +39,8 @@ pub struct UpdateProjectRequest {
     pub color: Option<String>,
     #[serde(default, deserialize_with = "some_if_present")]
     pub sort_order: Option<i32>,
+    #[serde(default, deserialize_with = "some_if_present")]
+    pub parent_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

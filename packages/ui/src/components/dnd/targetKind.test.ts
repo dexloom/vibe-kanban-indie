@@ -5,7 +5,7 @@ import { SHARED_TARGET_ID_FIXTURE } from './targetKind.fixture';
 describe('isColumnLikeTarget', () => {
   it('returns true for a bare UUID kanban column', () => {
     expect(isColumnLikeTarget('11111111-1111-4111-8111-111111111111')).toBe(
-      true,
+      true
     );
   });
 

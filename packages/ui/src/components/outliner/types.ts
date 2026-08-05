@@ -83,6 +83,8 @@ export interface SidebarProject {
   id: string;
   name: string;
   color: string;
+  parentId: string | null;
+  sortOrder: number;
 }
 
 export interface ProjectNode {
@@ -90,7 +92,9 @@ export interface ProjectNode {
   type: 'project';
   name: string;
   color: string;
-  children: SectionNode[];
+  parentId: string | null;
+  sortOrder: number;
+  children: (SectionNode | ProjectNode)[];
 }
 
 /**
@@ -150,7 +154,12 @@ export interface CardNode {
 }
 
 export type SidebarTreeNode =
-  ProjectNode | SectionNode | BucketNode | StatusNode | CardNode | LeafNode;
+  | ProjectNode
+  | SectionNode
+  | BucketNode
+  | StatusNode
+  | CardNode
+  | LeafNode;
 
 // --- id factories (moved here from SidebarProjectTree.tsx so the open-state
 //     builder in this same file can use them) ---

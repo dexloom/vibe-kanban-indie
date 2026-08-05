@@ -29,21 +29,12 @@ export const SidebarBarButton = forwardRef<
   HTMLButtonElement,
   SidebarBarButtonProps
 >(function SidebarBarButton(
-  {
-    label,
-    icon: Icon,
-    iconClass,
-    badgeCount,
-    badgeClass,
-    className,
-    ...rest
-  },
+  { label, icon: Icon, iconClass, badgeCount, badgeClass, className, ...rest },
   ref
 ) {
   const count = badgeCount ?? 0;
   const ariaLabel =
-    rest['aria-label'] ??
-    (count > 0 ? `${label} — ${count}` : undefined);
+    rest['aria-label'] ?? (count > 0 ? `${label} — ${count}` : undefined);
   return (
     <button
       ref={ref}

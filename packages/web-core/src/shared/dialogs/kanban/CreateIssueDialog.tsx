@@ -52,7 +52,9 @@ export interface CreateIssueDialogWorkspaceOption {
 }
 
 export type CreateIssueDialogWorkspaceSelection =
-  { kind: 'none' } | { kind: 'existing'; id: string } | { kind: 'new' };
+  | { kind: 'none' }
+  | { kind: 'existing'; id: string }
+  | { kind: 'new' };
 
 export interface CreateIssueDialogProps {
   statuses: CreateIssueDialogStatusOption[];

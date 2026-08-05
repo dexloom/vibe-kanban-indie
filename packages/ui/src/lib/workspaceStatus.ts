@@ -39,7 +39,10 @@ function compareDesc(a: string | undefined, b: string | undefined): number {
   return bt - at;
 }
 
-function compareCreated(a: WorkspaceStatusItem, b: WorkspaceStatusItem): number {
+function compareCreated(
+  a: WorkspaceStatusItem,
+  b: WorkspaceStatusItem
+): number {
   return compareDesc(a.createdAt, b.createdAt) || b.id.localeCompare(a.id);
 }
 
@@ -64,14 +67,16 @@ export interface CategorizedWorkspaces<T extends WorkspaceStatusItem> {
   idle: T[];
 }
 
-export function categorizeWorkspacesForDashboard<
-  T extends WorkspaceStatusItem,
->(active: readonly T[]): CategorizedWorkspaces<T> {
+export function categorizeWorkspacesForDashboard<T extends WorkspaceStatusItem>(
+  active: readonly T[]
+): CategorizedWorkspaces<T> {
   const needsAttention = active
     .filter(isWorkspaceNeedsAttention)
     .sort(compareCreated);
   const running = active.filter(isWorkspaceRunning).sort(compareCreated);
-  const idle = active.filter(isWorkspaceIdle).sort(compareWorkspaceDashboardRecency);
+  const idle = active
+    .filter(isWorkspaceIdle)
+    .sort(compareWorkspaceDashboardRecency);
   return { needsAttention, running, idle };
 }
 
@@ -89,9 +94,7 @@ export interface CategorizedOutlinerWorkspaces<T extends WorkspaceStatusItem> {
   archived: T[];
 }
 
-export function categorizeWorkspacesForOutliner<
-  T extends WorkspaceStatusItem,
->(
+export function categorizeWorkspacesForOutliner<T extends WorkspaceStatusItem>(
   active: readonly T[],
   archived: readonly T[]
 ): CategorizedOutlinerWorkspaces<T> {

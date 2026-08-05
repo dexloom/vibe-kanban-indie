@@ -28,7 +28,10 @@ import {
 import { CreateProjectButton } from './CreateProjectButton';
 import { useCommandBarShortcut } from '@/shared/hooks/useCommandBarShortcut';
 import { useShape } from '@/shared/integrations/electric/hooks';
-import { sortProjectsByOrder } from '@/shared/lib/projectOrder';
+import {
+  sortProjectsByOrder,
+  swapProjectSiblings,
+} from '@/shared/lib/projectOrder';
 import {
   PROJECT_ISSUES_SHAPE,
   PROJECT_MUTATION,
@@ -412,20 +415,31 @@ export function SharedAppLayout() {
           const aId = outcome.projectId;
           const bId = outcome.targetProjectId;
           const cur = orderedProjectsRef.current;
-          const ia = cur.findIndex((p) => p.id === aId);
-          const ib = cur.findIndex((p) => p.id === bId);
-          if (ia === -1 || ib === -1) return;
-          const swapped = cur.slice();
-          [swapped[ia], swapped[ib]] = [swapped[ib], swapped[ia]];
-          orderedProjectsRef.current = swapped;
-          setOrderedProjects(swapped);
-          // P4-D3: persistProjectReorder recomputes sort_order for the
-          // WHOLE ordered list (not just the swapped pair). The default
-          // `sort_order=0` on every project makes a pairwise swap a
-          // no-op under the created_at tiebreak in `sortProjectsByOrder`;
-          // rewriting all rows normalizes the field and lets the
-          // tiebreak yield to the swap.
-          persistProjectReorder(swapped, orgId, {
+          const swappedAll = swapProjectSiblings(cur, aId, bId);
+          // F-8: cross-parent swap returns the array unchanged — that's
+          // our no-op signal. Skip BOTH the local state update and the
+          // DB write; cross-parent reorder is out of scope.
+          if (swappedAll === cur) return;
+          orderedProjectsRef.current = swappedAll;
+          setOrderedProjects(swappedAll);
+          // ADR-013 / F-7: persist ONLY the swapped sibling group, not the
+          // whole project list. Reassigning every project's sort_order
+          // would rewrite unrelated sibling groups (other parents'
+          // children) with a fresh i*STEP ladder and drift them away
+          // from what the user actually moved. Slice to siblings of the
+          // swapped pair's shared parent.
+          const parentId =
+            swappedAll.find((p) => p.id === aId)?.parent_id ?? null;
+          const siblingGroup = swappedAll.filter(
+            (p) => (p.parent_id ?? null) === parentId
+          );
+          // Renumber the sibling group's sort_order to a fresh ladder
+          // (i*STEP). The default sort_order=0 on every project makes a
+          // pairwise swap a no-op under the created_at tiebreak in
+          // `sortProjectsByOrder`; rewriting just this group's rows
+          // normalises the field and lets the tiebreak yield to the
+          // swap. (P4-D3.)
+          persistProjectReorder(siblingGroup, orgId, {
             onError: (err) =>
               console.error(
                 '[dnd] project reorder failed:',
@@ -459,7 +473,13 @@ export function SharedAppLayout() {
 
   const sidebarProjects = useMemo(
     () =>
-      orderedProjects.map((p) => ({ id: p.id, name: p.name, color: p.color })),
+      orderedProjects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        color: p.color,
+        parentId: p.parent_id ?? null,
+        sortOrder: p.sort_order,
+      })),
     [orderedProjects]
   );
   const realProjectIds = useMemo(

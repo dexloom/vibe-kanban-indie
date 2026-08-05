@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id as \"id!: Uuid\",\n                      name,\n                      key,\n                      color,\n                      sort_order,\n                      default_agent_working_dir,\n                      remote_project_id as \"remote_project_id: Uuid\",\n                      created_at as \"created_at!: DateTime<Utc>\",\n                      updated_at as \"updated_at!: DateTime<Utc>\"\n               FROM projects\n               ORDER BY sort_order ASC, created_at DESC",
+  "query": "INSERT INTO projects (id, name, key, color, sort_order, default_agent_working_dir, parent_id)\n               VALUES ($1, $2, $3, $4, $5, $6, $7)\n               RETURNING id as \"id!: Uuid\",\n                         name,\n                         key,\n                         color,\n                          sort_order,\n                          parent_id as \"parent_id: Uuid\",\n                          default_agent_working_dir,\n                         remote_project_id as \"remote_project_id: Uuid\",\n                         created_at as \"created_at!: DateTime<Utc>\",\n                         updated_at as \"updated_at!: DateTime<Utc>\"",
   "describe": {
     "columns": [
       {
@@ -29,28 +29,33 @@
         "type_info": "Integer"
       },
       {
-        "name": "default_agent_working_dir",
+        "name": "parent_id: Uuid",
         "ordinal": 5,
+        "type_info": "Blob"
+      },
+      {
+        "name": "default_agent_working_dir",
+        "ordinal": 6,
         "type_info": "Text"
       },
       {
         "name": "remote_project_id: Uuid",
-        "ordinal": 6,
+        "ordinal": 7,
         "type_info": "Blob"
       },
       {
         "name": "created_at!: DateTime<Utc>",
-        "ordinal": 7,
+        "ordinal": 8,
         "type_info": "Text"
       },
       {
         "name": "updated_at!: DateTime<Utc>",
-        "ordinal": 8,
+        "ordinal": 9,
         "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 7
     },
     "nullable": [
       true,
@@ -60,9 +65,10 @@
       false,
       true,
       true,
+      true,
       false,
       false
     ]
   },
-  "hash": "28f9407ab229585a8b4cc0b5606c97be5c4bd21fed2454c7f3855fa3d561c313"
+  "hash": "0aa23b9319b02b5ca78a95ea4f8df3d8e2ec2e902e89380130d636cf6f98779a"
 }

@@ -221,13 +221,7 @@ export function createImageNode(options: CreateImageNodeOptions) {
           }
         }
       },
-      [
-        isDirectAttachmentUrl,
-        metadata,
-        isWorkspaceImage,
-        altText,
-        src,
-      ]
+      [isDirectAttachmentUrl, metadata, isWorkspaceImage, altText, src]
     );
 
     const handleDownload = useCallback(

@@ -279,6 +279,7 @@ async fn import_project(pool: &SqlitePool, cfg: &ProjectConfig) -> anyhow::Resul
                 &color,
                 existing.sort_order,
                 working_dir,
+                existing.parent_id,
             )
             .await?
         }
@@ -291,6 +292,7 @@ async fn import_project(pool: &SqlitePool, cfg: &ProjectConfig) -> anyhow::Resul
                 &color,
                 0,
                 working_dir,
+                None,
             )
             .await?
         }
@@ -560,6 +562,7 @@ mod tests {
             "#123456",
             0,
             Some("/src"),
+            None,
         )
         .await
         .unwrap();
@@ -614,7 +617,7 @@ mod tests {
         let pool = pool().await;
         ensure_local_user(&pool).await.unwrap();
         let id = Uuid::new_v4();
-        Project::create(&pool, id, "Old", Some("OLD"), "#000000", 0, None)
+        Project::create(&pool, id, "Old", Some("OLD"), "#000000", 0, None, None)
             .await
             .unwrap();
 

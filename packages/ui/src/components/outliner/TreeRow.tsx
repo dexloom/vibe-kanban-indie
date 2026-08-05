@@ -72,7 +72,7 @@ export function TreeRow({
       className={cn(
         'relative flex w-full cursor-pointer items-center gap-1 overflow-hidden pr-1.5 text-left',
         'focus:outline-none',
-        rowClassName,
+        rowClassName
       )}
       {...passthroughProps}
     >
@@ -90,7 +90,7 @@ export function TreeRow({
           <CaretRightIcon
             className={cn(
               'size-2.5 transition-transform duration-150',
-              node.isOpen && 'rotate-90',
+              node.isOpen && 'rotate-90'
             )}
             weight="bold"
           />

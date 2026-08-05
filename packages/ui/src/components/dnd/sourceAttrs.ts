@@ -20,6 +20,7 @@ export const SOURCE_DATA_ATTRS = [
   'data-drop-target-project',
   'data-drop-target-status',
   'data-drop-target-accept-kinds',
+  'data-drop-target-parent-id',
 ] as const;
 
 export type SourceDataAttr = (typeof SOURCE_DATA_ATTRS)[number];

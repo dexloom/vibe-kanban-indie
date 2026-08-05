@@ -45,6 +45,8 @@ const projectNode = (id: string): SidebarTreeNode => ({
   type: 'project',
   name: id,
   color: '0 0% 50%',
+  parentId: null,
+  sortOrder: 0,
   children: [],
 });
 
@@ -161,8 +163,10 @@ describe('findTreeNodeById', () => {
     {
       id: 'p1',
       type: 'project',
+      parentId: null,
       name: 'P1',
       color: '0 0% 50%',
+      sortOrder: 0,
       children: [
         {
           id: 'p1:tasks',

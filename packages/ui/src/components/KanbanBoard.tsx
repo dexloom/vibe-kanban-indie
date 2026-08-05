@@ -140,7 +140,7 @@ export const KanbanCard = ({
           ? 'ring-2 ring-accent ring-inset bg-accent/5'
           : isOpen && 'ring-2 ring-brand ring-inset',
         isDraggedSource && 'opacity-50 transition-opacity',
-        className,
+        className
       )}
       {...cardPointerProps}
       {...dropTargetAttrs}
@@ -244,7 +244,7 @@ export const KanbanCards = ({
     if (!preview) {
       // Issue ids are bare UUIDs (safe selector chars — no CSS escaping needed).
       const sourceEl = document.querySelector<HTMLElement>(
-        `[data-dnd-card-issue-id="${sourceIssueId}"]`,
+        `[data-dnd-card-issue-id="${sourceIssueId}"]`
       );
       if (!sourceEl) return;
       preview = sourceEl.cloneNode(true) as HTMLElement;
@@ -290,12 +290,12 @@ export const KanbanCards = ({
       srcIdx = arr.findIndex(
         (c) =>
           stripKeyPrefix(String((c as { key?: string | null }).key ?? '')) ===
-          sourceIssueId,
+          sourceIssueId
       );
       dstIdx = arr.findIndex(
         (c) =>
           stripKeyPrefix(String((c as { key?: string | null }).key ?? '')) ===
-          candidateId,
+          candidateId
       );
     }
     if (srcIdx === -1 || dstIdx === -1 || srcIdx === dstIdx) return children;
@@ -344,7 +344,7 @@ export const KanbanHeader = (props: KanbanHeaderProps) => {
       className={cn(
         'sticky top-0 z-20 flex shrink-0 items-center gap-base p-base flex gap-base',
         'bg-background',
-        props.className,
+        props.className
       )}
       style={{
         backgroundImage: `linear-gradient(hsl(var(${props.color}) / 0.03), hsl(var(${props.color}) / 0.03))`,
@@ -399,7 +399,7 @@ export const KanbanProvider = ({
     <div
       className={cn(
         'inline-grid grid-flow-col auto-cols-[minmax(200px,400px)] divide-x border-x items-stretch min-h-full',
-        className,
+        className
       )}
     >
       {children}

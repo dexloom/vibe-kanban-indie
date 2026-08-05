@@ -109,11 +109,15 @@ const projectOne: SidebarProject = {
   id: 'project-1',
   name: 'Project One',
   color: '210 50% 50%',
+  parentId: null,
+  sortOrder: 0,
 };
 const projectTwo: SidebarProject = {
   id: 'project-2',
   name: 'Project Two',
   color: '10 50% 50%',
+  parentId: null,
+  sortOrder: 1,
 };
 
 const BLOB_KEY = 'vibe.ui.sidebarTree.openState';

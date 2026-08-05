@@ -39,6 +39,12 @@ impl<T, E> ApiResponse<T, E> {
         }
     }
 
+    /// Sets the human-readable `message` field on this response.
+    pub fn with_message(mut self, message: impl Into<String>) -> Self {
+        self.message = Some(message.into());
+        self
+    }
+
     /// Returns true if the response was successful.
     pub fn is_success(&self) -> bool {
         self.success

@@ -186,6 +186,8 @@ pub const EXECUTORS: &[&str] = &[
 /// per-project issue `key` is not exposed by that endpoint, so it is omitted.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Project {
+    #[serde(default)]
+    pub parent_id: Option<Uuid>,
     pub id: Uuid,
     pub name: String,
     #[serde(default)]

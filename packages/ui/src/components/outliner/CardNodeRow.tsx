@@ -41,7 +41,7 @@ export function CardNodeRow({
       projectId: issue.projectId,
       statusId: issue.statusId,
     },
-    { disabled: isMultiSelectActive },
+    { disabled: isMultiSelectActive }
   );
 
   return (
@@ -54,7 +54,7 @@ export function CardNodeRow({
         'text-sm leading-tight',
         isActive
           ? 'text-high font-semibold'
-          : 'text-normal font-light hover:text-high',
+          : 'text-normal font-light hover:text-high'
       )}
       outerProps={{
         style: { touchAction: 'none' },

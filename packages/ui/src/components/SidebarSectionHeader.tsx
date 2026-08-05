@@ -26,7 +26,7 @@ export function SidebarSectionHeader({
     <div
       className={cn(
         'flex h-7 shrink-0 items-center justify-between gap-1',
-        className,
+        className
       )}
     >
       <div className="flex min-w-0 items-center gap-1">
@@ -38,9 +38,7 @@ export function SidebarSectionHeader({
           {title}
         </h2>
       </div>
-      {actions && (
-        <div className="flex items-center gap-0.5">{actions}</div>
-      )}
+      {actions && <div className="flex items-center gap-0.5">{actions}</div>}
     </div>
   );
 }
