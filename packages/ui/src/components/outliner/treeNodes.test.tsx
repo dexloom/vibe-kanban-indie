@@ -45,13 +45,11 @@ function renderNode(
     tree: node.tree,
     dragHandle: undefined,
     preview: null,
-    onSelectProject: vi.fn(),
     activeProjectId: null,
     activeWorkspaceId: null,
     activeIssueId: null,
     onSelectIssue: vi.fn(),
   } as unknown as NodeRendererProps<SidebarTreeNode> & {
-    onSelectProject: (id: string) => void;
     activeProjectId: string | null;
     activeWorkspaceId: string | null;
     activeIssueId: string | null;
@@ -240,14 +238,12 @@ function renderProjectWithDndContext(
     tree: node.tree,
     dragHandle: undefined,
     preview: null,
-    onSelectProject: vi.fn(),
     onCreateChildBoard: vi.fn(),
     activeProjectId: null,
     activeWorkspaceId: null,
     activeIssueId: null,
     onSelectIssue: vi.fn(),
   } as unknown as NodeRendererProps<SidebarTreeNode> & {
-    onSelectProject: (id: string) => void;
     onCreateChildBoard: (parentId: string) => void;
     activeProjectId: string | null;
     activeWorkspaceId: string | null;
@@ -380,14 +376,12 @@ describe('TreeNodeRouter ADR-015 row interactions', () => {
       tree: node.tree,
       dragHandle: undefined,
       preview: null,
-      onSelectProject: vi.fn(),
       activeProjectId: null,
       activeWorkspaceId: null,
       activeIssueId: null,
       onSelectIssue: vi.fn(),
       onCreateChildBoard,
     } as unknown as NodeRendererProps<SidebarTreeNode> & {
-      onSelectProject: (id: string) => void;
       activeProjectId: string | null;
       activeWorkspaceId: string | null;
       activeIssueId: string | null;

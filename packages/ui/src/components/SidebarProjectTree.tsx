@@ -257,23 +257,19 @@ export function SidebarProjectTree({
       return;
     }
 
-    // ADR-015: only ROOT projects (parentId === null) render a Workspaces
-    // section. Auto-opening the section for a nested board is a no-op on the
-    // tree (node doesn't exist) but would persist a phantom
-    // `<childId>:workspaces` key forever. Restrict to roots.
-    const parentIdById = new Map<string, string | null>();
-    for (const project of projects) {
-      parentIdById.set(project.id, project.parentId);
-    }
-
+    // ADR-015: only ROOT projects render a Workspaces section, and only when
+    // the aggregate is non-empty. Whether this project actually has one is a
+    // property of the BUILT tree, not of `parentId` — Unassigned (parentId
+    // null, but not a real project) and empty-aggregate roots must be handled
+    // by the same rule. Gate on the node existing in the live tree.
     let addedProject = false;
     for (const projectId of currentProjectIds) {
       if (seenProjectIdsRef.current.has(projectId)) continue;
       seenProjectIdsRef.current.add(projectId);
       api.open(projectId);
-      const isRoot = parentIdById.get(projectId) === null;
-      if (isRoot) {
-        api.open(makeWorkspacesSectionId(projectId));
+      const wsNodeId = makeWorkspacesSectionId(projectId);
+      if (liveTreeNodeIdsSet.has(wsNodeId)) {
+        api.open(wsNodeId);
       }
       // A persisted-open Tasks section must restore too. initialOpenState is
       // seed-once, and when projects arrive asynchronously after the Tree
@@ -288,7 +284,9 @@ export function SidebarProjectTree({
       openStateRef.current = {
         ...openStateRef.current,
         [projectId]: true,
-        ...(isRoot ? { [makeWorkspacesSectionId(projectId)]: true } : {}),
+        ...(liveTreeNodeIdsSet.has(wsNodeId)
+          ? { [wsNodeId]: true }
+          : {}),
       };
       addedProject = true;
     }
@@ -300,7 +298,7 @@ export function SidebarProjectTree({
       persistedOpenRef.current = readSidebarTreeOpenState(currentProjectIds);
       scheduleOpenStateWrite();
     }
-  }, [projectKey, projects, scheduleOpenStateWrite]);
+  }, [projectKey, liveTreeNodeIdsSet, scheduleOpenStateWrite]);
 
   // Replay persisted status/card open state onto lazily-loaded nodes. Statuses
   // only mount after the Tasks section opens (lazy gate), so their ids are not

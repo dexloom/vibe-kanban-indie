@@ -1,6 +1,6 @@
 # ADR-015: Sidebar — root-only Workspaces section and Main-board navigation
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Date**: 2026-08-05
 - **Refines**: ADR-013 §Sidebar tree (line 95)
 - **Relates to**: ADR-007 (sidebar tree), ADR-011 (Tasks section)
@@ -39,4 +39,4 @@ ADR-013 shipped hierarchical projects where every project node (root or nested b
 - **Aggregation correctness**: a workspace linked to multiple subtree projects must appear exactly once. Mitigated by id-dedupe + tests.
 - **Active/archived bucketing**: aggregator must keep active and archived arrays separate so `categorizeWorkspacesForOutliner` buckets correctly. Mitigated by two-pass dedupe + test.
 - **Row-click semantics change**: existing test `SidebarProjectTree.test.tsx:241-252` asserts row-click both navigates AND toggles; that test must be rewritten to assert navigation only. Caret handles toggle.
-- **Open-state GC**: stale keys must be pruned against full node ids, not just project prefixes; otherwise child-board workspace keys survive forever.
+- **Open-state GC**: stale keys must be pruned against full node ids, not just project prefixes; otherwise child-board workspace keys survive forever. The full-id check is scoped to **workspace structural keys only** (`<id>:workspaces`, `<id>:bucket:*`). Status/card keys (`<P>:status:*`, `<P>:card:*`) are exempt because their nodes only appear in the live tree once Tasks data loads — applying the full-id check to them would prune a status the user expanded in a prior session before its data arrives, silently losing expansion state across restarts.

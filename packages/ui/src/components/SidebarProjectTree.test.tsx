@@ -16,7 +16,6 @@ vi.mock('react-i18next', () => ({
       ({
         'sidebar.tasksSection': 'Tasks',
         'sidebar.workspacesSection': 'Workspaces',
-        'sidebar.openProjectKanban': 'Open project kanban',
         'sidebar.tasksEmpty': 'No statuses yet',
         'workspaces.outliner.attention': 'Attention',
         'workspaces.running': 'Running',
@@ -490,5 +489,41 @@ describe('SidebarProjectTree open-state persistence', () => {
       expect(readBlob()['project-1:workspaces']).toBeUndefined()
     );
     unmount2();
+  });
+
+  it('auto-opens Unassigned Workspaces section when it first appears mid-session (ADR-015)', async () => {
+    // Start with no orphan workspaces: Unassigned absent.
+    const { rerender } = renderTree({
+      projects: [projectOne],
+      workspaces: [],
+      membership: new Map(),
+    });
+    expect(screen.queryByText('Unassigned')).toBeNull();
+
+    // A workspace loses its membership → Unassigned appears mid-session.
+    rerender(
+      <SidebarProjectTree
+        projects={[projectOne]}
+        activeProjectId={null}
+        workspaces={[
+          {
+            id: 'ws-orphan',
+            name: 'ws-orphan',
+            createdAt: '2026-08-03T00:00:00.000Z',
+          },
+        ]}
+        membership={new Map()}
+        activeWorkspaceId={null}
+        onSelectWorkspace={vi.fn()}
+        onSelectProject={vi.fn()}
+        tasksByProject={new Map()}
+        loadingTasksProjectIds={new Set()}
+        activeIssueId={null}
+      />
+    );
+
+    // Unassigned row auto-opened, and its Workspaces section auto-opened —
+    // bucket labels visible without any caret click.
+    await waitFor(() => expect(screen.getByText('Idle')).toBeTruthy());
   });
 });
