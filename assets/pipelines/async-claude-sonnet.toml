@@ -1,0 +1,50 @@
+name = "Async Sonnet"
+description = "Subagent fan-out flow on an Opus main loop: Sonnet subagents write the spec, plan, and code; Codex reviews the plan and the diff. Run this pipeline with a Claude Code (Opus) execution agent."
+
+[[stage]]
+id = "orchestrate"
+label = "Orchestrate (auto-drive)"
+default_enabled = false
+prompt = "Have the orchestrator agent pick this card up and drive it to done autonomously, running the card's pipeline stages in order — regardless of which board column the card is in (it may be started even from Todo)."
+
+[[stage]]
+id = "spec"
+label = "Spec via Sonnet subagent"
+default_enabled = true
+prompt = "FIRST, check the card description: if it already contains the full spec — meaning `### Outcome`, `### Scope`, and `### Testing & acceptance criteria` EACH occur at the START of a line (prefix match, so `### Outcome — what's different when this is done` counts), and NOT inside a fenced code block or a block quote; ALL THREE are required and if any one is missing take the OTHERWISE path — then do NOT spawn the subagent. Instead write `SPEC.md` at the workspace root as exactly: the line `## Task: <the card's title, verbatim>`, then a blank line, then the card description verbatim (the description does NOT carry the title — it begins at the `**In one sentence:**` line — so reconstruct that first line from the card's title field). Strip the `## Pipeline` block from the body, anchored to STANDALONE marker lines: take the LAST line whose entire content is exactly `<!-- vk:pipeline:start -->`, and the first line after it whose entire content is exactly `<!-- vk:pipeline:end -->`, and delete everything between them including both marker lines. A marker mentioned inside a prose line is not a delimiter — leave that line alone, since a spec may legitimately quote the markers while describing them. Then collapse the blank run the strip leaves behind so the file ends with a single trailing newline. Also sweep out any stray executor-pin bullet (a line matching `- Run this card with the ... execution agent: pass ...`) left outside the block — it normally sits inside the block and goes with it, so this is just a safety net. Do not edit, re-author, or re-verify the copied text: adopt the card's decisions as settled. Then report \"spec adopted from card description\" and move on to the next stage. (The card description is already in your task context; if you were given only the card title/id, `get_issue` the card to fetch it.) OTHERWISE, run the full spec stage: Do NOT write the spec yourself. Spawn the `vibe-kanban-indie:product` subagent on the Sonnet model (Agent tool with model: 'sonnet'; fall back to a generic Agent with model: 'sonnet' if the plugin agent is unavailable) to write the technical spec for this card to `SPEC.md` at the workspace root — pass the workspace-root path plus the card description in the subagent prompt. When it returns, verify `SPEC.md` exists and covers the card's outcome, scope, and acceptance criteria; if it is missing or thin, re-spawn the subagent with the concrete gaps rather than writing the spec in the main loop."
+
+[[stage]]
+id = "plan"
+label = "Plan via Sonnet subagent"
+default_enabled = true
+prompt = "Do NOT write the plan yourself. Spawn the `vibe-kanban-indie:planner` subagent on the Sonnet model (Agent tool with model: 'sonnet'; fall back to a generic Agent with model: 'sonnet' if the plugin agent is unavailable) to turn `SPEC.md` into a step-by-step `IMPLEMENTATION_PLAN.md` at the workspace root — pass the workspace-root path plus the card description in the subagent prompt. When it returns, verify the plan's steps are grounded in real repo files; if not, re-spawn the subagent with the concrete gaps rather than writing the plan in the main loop. When the plan is verified, measure it and report the single line `PLAN-FACTS: <size> KB, <n> steps, <n> files, <n> open decisions` — the byte size of `IMPLEMENTATION_PLAN.md`, its numbered steps, the distinct files its steps name, and the open items in its Risks / open questions section; the next two stages read this line."
+
+[[stage]]
+id = "plan-review-codex"
+label = "Codex plan review"
+default_enabled = true
+prompt = "GATE FIRST — read the plan stage's PLAN-FACTS line (measure `IMPLEMENTATION_PLAN.md` yourself if it is missing): if the plan is under 40 KB AND has 0 open decisions AND the card's **Routing:** line (when it carries one) does not force the review with plan-review: yes, SKIP this stage — report the single line `PLAN-GATE: plan-review skipped (<size> KB, <n> open decisions)` and move on; a small, closed plan does not repay an independent review, which routinely costs more than the plan itself. Otherwise report `PLAN-GATE: plan-review running (<size> KB, <n> open decisions)` and proceed: have Codex independently review `IMPLEMENTATION_PLAN.md`. Run Codex as the reviewer (`codex exec --sandbox read-only` over the plan, or the `codex-review-plan` skill if available) — do NOT review the plan yourself. Iterate until Codex reports no significant findings, capped at TWO review passes — findings still open after the second pass mean the plan (or the spec above it) is mis-scoped: revise the plan (re-run the planning stage) or escalate; never pay a third pass. Resolve confirmed findings by revising the plan (re-run the planner subagent, or edit `IMPLEMENTATION_PLAN.md` directly) before proceeding to the coding stage. This is a read-only plan review: do not modify code here."
+
+[[stage]]
+id = "code-subagent"
+label = "Code via Sonnet subagent"
+default_enabled = true
+prompt = "MODEL CHECK FIRST — pick the coder model WITHIN this pipeline's own family before delegating: if the plan blew its envelope (PLAN-FACTS at or above 40 KB, or open design decisions surfaced during planning), step the coder model up one tier inside the family — on a Claude Code pipeline sonnet steps up to opus; a coder already at its family ceiling stays put. NEVER cross families: OpenCode pipelines run MiniMax / GLM / Kimi models only, Claude Code pipelines run Sonnet / Opus / Fable models only — Codex appears on both, but only ever as the reviewer, never as a build model. An operator's card-level model pin always beats this advice. Report the single line `CODER-MODEL: <model> — <one-phrase reason>`. Then: Do NOT write the implementation yourself. Spawn the `vibe-kanban-indie:coder` subagent (Sonnet model; fall back to a generic Agent with model: 'sonnet' if the plugin agent is unavailable) to implement the card strictly from `SPEC.md` and `IMPLEMENTATION_PLAN.md` — pass the workspace-root path plus the card description in the subagent prompt, and instruct it to follow the plan step by step and report what it changed. When it returns, verify the result compiles and passes checks (`pnpm run check` / `cargo test` as applicable); if the subagent's work is incomplete or broken, spawn a follow-up coder subagent with the concrete gaps rather than fixing the code in the main loop."
+
+[[stage]]
+id = "code-review"
+label = "Review via Codex"
+default_enabled = false
+prompt = "After implementing, run an independent Codex review of the card's diff (the `codex-review` skill / Codex CLI), iterating until it reports no significant findings. Address confirmed findings and re-verify before marking the card ready."
+
+[[stage]]
+id = "merge"
+label = "Merge to base"
+default_enabled = true
+prompt = "When the work is implemented and reviewed, squash-merge this card's branch into the base branch yourself — this stage being listed is your authorization, so do not wait for a go-ahead; gating, when wanted, is the Wait-for-approval stage's job."
+
+[[stage]]
+id = "pr"
+label = "Open pull request"
+default_enabled = false
+prompt = "When the work is implemented and reviewed, open a pull request for this card against the base branch."
