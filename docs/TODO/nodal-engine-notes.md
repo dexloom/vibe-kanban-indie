@@ -4,7 +4,7 @@
 
 ## The proposal (considered, rejected as full rewrite)
 
-Make the entire engine nodal — "everything is a node": project, subproject,
+Make the entire engine nodal — "everything is a node": project, board,
 kanban board, status column, issue, sub-issue, comment, tag, workspace all
 live in one connected graph starting from a root. Uniform traversal, uniform
 DnD, infinite nesting, one breadcrumb, one tree builder.

@@ -1,4 +1,4 @@
--- Add parent_id (self-FK, ON DELETE RESTRICT) to projects for subprojects
+-- Add parent_id (self-FK, ON DELETE RESTRICT) to projects for nested boards
 -- (ADR-013).
 --
 -- SAFETY NOTE: this deliberately uses `ALTER TABLE ADD COLUMN`, NOT the
@@ -12,7 +12,7 @@
 -- idempotent-safe for existing installs.
 --
 -- SQLite supports a REFERENCES clause on ADD COLUMN when the column has
--- a NULL default (it does here — subprojects are optional), and foreign
+-- a NULL default (it does here — nested boards are optional), and foreign
 -- key enforcement applies normally.
 ALTER TABLE projects ADD COLUMN parent_id BLOB REFERENCES projects(id) ON DELETE RESTRICT;
 

@@ -94,7 +94,7 @@ function buildProjectNode(
     input.archivedWorkspacesByProject.get(project.id) ?? [],
     t
   );
-  // Sections first (Tasks above Workspaces), then nested subprojects.
+  // Sections first (Tasks above Workspaces), then nested boards.
   const children: (SectionNode | ProjectNode)[] = [tasks, workspaces];
   if (!seen.has(project.id)) {
     const nextSeen = new Set(seen);
