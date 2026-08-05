@@ -269,14 +269,8 @@ export function liveTreeNodeIds(
   const walk = (list: readonly SidebarTreeNode[]): void => {
     for (const node of list) {
       out.add(node.id);
-      if (
-        'children' in node &&
-        Array.isArray((node as { children?: unknown }).children) &&
-        (node as { children: unknown[] }).children.length > 0
-      ) {
-        walk(
-          (node as { children: readonly SidebarTreeNode[] }).children
-        );
+      if (node.type !== 'leaf' && node.children.length > 0) {
+        walk(node.children);
       }
     }
   };

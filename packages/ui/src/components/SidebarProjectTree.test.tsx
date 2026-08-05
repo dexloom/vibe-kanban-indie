@@ -462,4 +462,33 @@ describe('SidebarProjectTree open-state persistence', () => {
 
     await waitFor(() => expect(Object.keys(readBlob())).toHaveLength(0));
   });
+
+  it('preserves persisted status keys when Tasks data is not loaded (ADR-015 prune scope)', async () => {
+    // Regression for the over-broad ADR-015 prune: status/card keys must
+    // survive even when their project's Tasks section is closed (so no
+    // status nodes exist in treeData). Seeding a closed Tasks section means
+    // `tasksByProject` is absent → the live-tree full-id check must NOT drop
+    // `project-1:status:todo`.
+    seedBlob({
+      'project-1': true,
+      'project-1:tasks': false,
+      'project-1:status:todo': true,
+    });
+    const { unmount } = renderTree({
+      projects: [projectOne],
+      tasksByProject: new Map(), // Tasks data never loads for closed section
+    });
+    await waitFor(() =>
+      expect(screen.queryByText('Todo')).toBeNull()
+    );
+    unmount();
+    expect(readBlob()['project-1:status:todo']).toBe(true);
+    // Workspace structural keys are still pruned when the section is gone.
+    seedBlob({ 'project-1': true, 'project-1:workspaces': true });
+    const { unmount: unmount2 } = renderTree({ projects: [projectOne] });
+    await waitFor(() =>
+      expect(readBlob()['project-1:workspaces']).toBeUndefined()
+    );
+    unmount2();
+  });
 });

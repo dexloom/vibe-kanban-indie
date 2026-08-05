@@ -148,7 +148,6 @@ function SectionTreeNode(
 
 export function TreeNodeRouter(
   props: NodeRendererProps<SidebarTreeNode> & {
-    onSelectProject: (id: string) => void;
     onCreateChildBoard?: (parentId: string) => void;
     activeProjectId: string | null;
     activeWorkspaceId: string | null;

@@ -188,10 +188,6 @@ export function SidebarProjectTree({
   // root-only-Workspaces change). Recomputed on every treeData change —
   // short-circuit the work when the tree shape didn't change.
   const liveTreeNodeIdsSet = useMemo(() => liveTreeNodeIds(treeData), [treeData]);
-  const liveTreeNodeIdsKey = useMemo(
-    () => Array.from(liveTreeNodeIdsSet).join(','),
-    [liveTreeNodeIdsSet]
-  );
 
   // Seed the open-state map from persistence + defaults. Recomputed only when
   // the project set changes; react-arborist consumes it exactly once at Tree
@@ -340,11 +336,13 @@ export function SidebarProjectTree({
   // genuinely removed them and pruning is legitimate.
   //
   // ADR-015: a second pass drops keys whose FULL node id is not in the live
-  // tree. The project-prefix prune above catches the deleted-project case
-  // cheaply; this catches the case where a nested board's Workspaces section
-  // (or any other section) no longer renders — a key like `<childId>:workspaces`
+  // tree, scoped to workspace structural keys (`<id>:workspaces`,
+  // `<id>:bucket:*`). The project-prefix prune above catches the
+  // deleted-project case cheaply; this catches the case where a nested board's
+  // Workspaces section no longer renders — a key like `<childId>:workspaces`
   // survives the prefix prune because its project prefix is still live, even
-  // though the section node itself is gone.
+  // though the section node itself is gone. Status/card keys are exempt (their
+  // nodes only appear once Tasks data loads; see the loop body).
   const seenAnyProjectRef = useRef(false);
   useEffect(() => {
     if (projectKey) seenAnyProjectRef.current = true;
@@ -360,9 +358,17 @@ export function SidebarProjectTree({
         continue;
       }
       // The project is still live; but the specific node id might not be (a
-      // nested board's Workspaces section, a deleted status, etc.). Drop
-      // those keys here so they don't accumulate.
-      if (!liveTreeNodeIdsSet.has(key)) {
+      // nested board's Workspaces section no longer renders post-ADR-015).
+      // Drop those keys here so they don't accumulate.
+      //
+      // Scope the full-id check to workspace structural keys only
+      // (`<id>:workspaces`, `<id>:bucket:*`). Status/card keys are excluded
+      // because their nodes only appear in treeData when the project's Tasks
+      // section is OPEN (lazy loader gate) — a status the user expanded in a
+      // prior session would otherwise be pruned before its Tasks data loads.
+      const isWorkspaceStructuralKey =
+        key.endsWith(':workspaces') || key.includes(':bucket:');
+      if (isWorkspaceStructuralKey && !liveTreeNodeIdsSet.has(key)) {
         changed = true;
         continue;
       }
@@ -371,7 +377,7 @@ export function SidebarProjectTree({
     if (!changed) return;
     openStateRef.current = pruned;
     scheduleOpenStateWrite();
-  }, [projectKey, liveTreeNodeIdsKey, liveTreeNodeIdsSet, scheduleOpenStateWrite]);
+  }, [projectKey, liveTreeNodeIdsSet, scheduleOpenStateWrite]);
 
   const handleActivate = useCallback(
     (node: NodeApi<SidebarTreeNode>) => {
@@ -460,7 +466,6 @@ export function SidebarProjectTree({
               {(props) => (
                 <TreeNodeRouter
                   {...props}
-                  onSelectProject={onSelectProject}
                   onCreateChildBoard={onCreateChildBoard}
                   activeProjectId={activeProjectId}
                   activeWorkspaceId={activeWorkspaceId}

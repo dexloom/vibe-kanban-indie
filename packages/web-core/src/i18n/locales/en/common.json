@@ -538,7 +538,6 @@
     "collapse": "Collapse",
     "expand": "Expand",
     "unassigned": "Unassigned",
-    "openProjectKanban": "Open project kanban",
     "createChildBoard": "Create child board",
     "createProject": "Create project",
     "notifications": "Notifications",
