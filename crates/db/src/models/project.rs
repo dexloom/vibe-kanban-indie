@@ -26,6 +26,32 @@ pub fn derive_key(name: &str) -> String {
     }
 }
 
+/// Inputs for `Project::create`. Bundling the eight fields into a struct keeps
+/// the call site readable and keeps `too_many_arguments` from firing when a
+/// future field is added.
+#[derive(Debug, Clone)]
+pub struct NewProject<'a> {
+    pub id: Uuid,
+    pub name: &'a str,
+    pub key: Option<&'a str>,
+    pub color: &'a str,
+    pub sort_order: i64,
+    pub default_agent_working_dir: Option<&'a str>,
+    pub parent_id: Option<Uuid>,
+}
+
+/// Editable presentation fields for `Project::update_fields`. Bundling the
+/// seven fields keeps call sites readable.
+#[derive(Debug, Clone)]
+pub struct ProjectUpdate<'a> {
+    pub name: &'a str,
+    pub key: Option<&'a str>,
+    pub color: &'a str,
+    pub sort_order: i64,
+    pub default_agent_working_dir: Option<&'a str>,
+    pub parent_id: Option<Uuid>,
+}
+
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize, TS)]
 pub struct Project {
     pub id: Uuid,
@@ -107,16 +133,7 @@ impl Project {
         .await
     }
 
-    pub async fn create(
-        pool: &SqlitePool,
-        id: Uuid,
-        name: &str,
-        key: Option<&str>,
-        color: &str,
-        sort_order: i64,
-        default_agent_working_dir: Option<&str>,
-        parent_id: Option<Uuid>,
-    ) -> Result<Self, sqlx::Error> {
+    pub async fn create(pool: &SqlitePool, project: NewProject<'_>) -> Result<Self, sqlx::Error> {
         sqlx::query_as!(
             Project,
             r#"INSERT INTO projects (id, name, key, color, sort_order, default_agent_working_dir, parent_id)
@@ -131,13 +148,13 @@ impl Project {
                          remote_project_id as "remote_project_id: Uuid",
                          created_at as "created_at!: DateTime<Utc>",
                          updated_at as "updated_at!: DateTime<Utc>""#,
-            id,
-            name,
-            key,
-            color,
-            sort_order,
-            default_agent_working_dir,
-            parent_id,
+            project.id,
+            project.name,
+            project.key,
+            project.color,
+            project.sort_order,
+            project.default_agent_working_dir,
+            project.parent_id,
         )
         .fetch_one(pool)
         .await
@@ -147,12 +164,7 @@ impl Project {
     pub async fn update_fields(
         pool: &SqlitePool,
         id: Uuid,
-        name: &str,
-        key: Option<&str>,
-        color: &str,
-        sort_order: i64,
-        default_agent_working_dir: Option<&str>,
-        parent_id: Option<Uuid>,
+        changes: ProjectUpdate<'_>,
     ) -> Result<Self, sqlx::Error> {
         sqlx::query_as!(
             Project,
@@ -176,12 +188,12 @@ impl Project {
                          created_at as "created_at!: DateTime<Utc>",
                          updated_at as "updated_at!: DateTime<Utc>""#,
             id,
-            name,
-            key,
-            color,
-            sort_order,
-            default_agent_working_dir,
-            parent_id,
+            changes.name,
+            changes.key,
+            changes.color,
+            changes.sort_order,
+            changes.default_agent_working_dir,
+            changes.parent_id,
         )
         .fetch_one(pool)
         .await
@@ -262,7 +274,7 @@ mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
     use uuid::Uuid;
 
-    use super::{Project, SqlitePool};
+    use super::{NewProject, Project, SqlitePool};
 
     async fn pool() -> SqlitePool {
         let pool = SqlitePoolOptions::new()
@@ -289,25 +301,29 @@ mod tests {
 
         Project::create(
             &pool,
-            root_id,
-            "Root",
-            Some("ROOT"),
-            "#6366f1",
-            0,
-            None,
-            None,
+            NewProject {
+                id: root_id,
+                name: "Root",
+                key: Some("ROOT"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: None,
+            },
         )
         .await
         .unwrap();
         Project::create(
             &pool,
-            child_id,
-            "Child",
-            Some("CHILD"),
-            "#6366f1",
-            0,
-            None,
-            Some(root_id),
+            NewProject {
+                id: child_id,
+                name: "Child",
+                key: Some("CHILD"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: Some(root_id),
+            },
         )
         .await
         .unwrap();
@@ -345,26 +361,30 @@ mod tests {
 
         Project::create(
             &pool,
-            root_id,
-            "Acme",
-            Some("ACME"),
-            "#6366f1",
-            0,
-            None,
-            None,
+            NewProject {
+                id: root_id,
+                name: "Acme",
+                key: Some("ACME"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: None,
+            },
         )
         .await
         .unwrap();
         Project::create(
             &pool,
-            child_id,
-            "Acme Sub",
-            // Simulate a legacy / hand-edited row with NULL key.
-            None,
-            "#6366f1",
-            0,
-            None,
-            Some(root_id),
+            NewProject {
+                id: child_id,
+                name: "Acme Sub",
+                // Simulate a legacy / hand-edited row with NULL key.
+                key: None,
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: Some(root_id),
+            },
         )
         .await
         .unwrap();

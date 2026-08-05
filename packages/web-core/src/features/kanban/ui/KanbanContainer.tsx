@@ -1049,6 +1049,11 @@ export function KanbanContainer() {
 
   const isLoading = projectLoading || orgLoading;
 
+  const breadcrumb = useMemo(
+    () => buildProjectBreadcrumb(projects, projectId),
+    [projects, projectId]
+  );
+
   if (isLoading) {
     return <LoadingState />;
   }
@@ -1064,12 +1069,11 @@ export function KanbanContainer() {
         <div className="flex items-center gap-half">
           <h2 className={cn('text-2xl font-medium', isMobile && 'text-lg')}>
             {(() => {
-              const entries = buildProjectBreadcrumb(projects, projectId);
-              if (entries.length === 0) {
+              if (breadcrumb.length === 0) {
                 return projectName;
               }
-              return entries.map((entry, index) => {
-                const isLast = index === entries.length - 1;
+              return breadcrumb.map((entry, index) => {
+                const isLast = index === breadcrumb.length - 1;
                 return (
                   <span key={entry.id} className="inline-flex items-center">
                     {index > 0 && <span className="px-half text-low">/</span>}

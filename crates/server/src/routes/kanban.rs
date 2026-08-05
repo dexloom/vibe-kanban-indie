@@ -880,7 +880,8 @@ pub fn router(_deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
 
 #[cfg(test)]
 mod tests {
-    use db::models::project::Project as DbProject;
+    use super::super::local_kanban::clear_key_chain_cache;
+    use db::models::project::{NewProject, Project as DbProject};
     use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
     use uuid::Uuid;
 
@@ -901,6 +902,7 @@ mod tests {
     /// function the handler relies on now; assert it walks the parent chain.
     #[tokio::test]
     async fn mcp_create_issue_uses_chain_key_for_nested_projects() {
+        clear_key_chain_cache();
         let pool = pool().await;
         let root_id = Uuid::new_v4();
         let sub_id = Uuid::new_v4();
@@ -908,37 +910,43 @@ mod tests {
 
         DbProject::create(
             &pool,
-            root_id,
-            "Acme",
-            Some("ACME"),
-            "#6366f1",
-            0,
-            None,
-            None,
+            NewProject {
+                id: root_id,
+                name: "Acme",
+                key: Some("ACME"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: None,
+            },
         )
         .await
         .unwrap();
         DbProject::create(
             &pool,
-            sub_id,
-            "Sub",
-            Some("SUB"),
-            "#6366f1",
-            0,
-            None,
-            Some(root_id),
+            NewProject {
+                id: sub_id,
+                name: "Sub",
+                key: Some("SUB"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: Some(root_id),
+            },
         )
         .await
         .unwrap();
         DbProject::create(
             &pool,
-            leaf_id,
-            "X",
-            Some("X"),
-            "#6366f1",
-            0,
-            None,
-            Some(sub_id),
+            NewProject {
+                id: leaf_id,
+                name: "X",
+                key: Some("X"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: Some(sub_id),
+            },
         )
         .await
         .unwrap();

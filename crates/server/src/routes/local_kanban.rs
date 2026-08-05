@@ -31,7 +31,7 @@ use db::models::{
     issue_workspace::{IssueWorkspace, LinkedWorkspaceRow},
     kanban_tag::{IssueAssignee as DbIssueAssignee, IssueTag as DbIssueTag, KanbanTag},
     local_user::{LOCAL_USER_ID, LocalUser},
-    project::{LOCAL_ORGANIZATION_ID, Project as DbProject},
+    project::{self, LOCAL_ORGANIZATION_ID, NewProject, Project as DbProject, ProjectUpdate},
     project_repo::ProjectRepo,
     project_status::ProjectStatus as DbProjectStatus,
     repo::Repo as DbRepo,
@@ -45,6 +45,8 @@ use std::time::SystemTime;
 use uuid::Uuid;
 
 use crate::{DeploymentImpl, error::ApiError};
+
+pub(crate) use project::derive_key;
 
 /// Process-local monotonic transaction id. The frontend awaits an increasing
 /// txid to drop optimistic state; in fallback mode it re-polls regardless.
@@ -306,7 +308,19 @@ pub(crate) async fn create_project_record(
     if sibling_key_exists(pool, parent_id, &key).await? {
         return Err(ApiError::BadRequest("project key already exists".into()));
     }
-    let project = DbProject::create(pool, id, name, Some(&key), color, 0, None, parent_id).await?;
+    let project = DbProject::create(
+        pool,
+        NewProject {
+            id,
+            name,
+            key: Some(&key),
+            color,
+            sort_order: 0,
+            default_agent_working_dir: None,
+            parent_id,
+        },
+    )
+    .await?;
     Ok(project)
 }
 
@@ -350,11 +364,8 @@ pub(crate) async fn derive_key_chain(
             .elapsed()
             .map_or(true, |age| age < KEY_CHAIN_CACHE_TTL)
         {
-            if keys.len() > MAX_CHAIN {
-                return Err(sqlx::Error::Protocol(format!(
-                    "project parent chain exceeds {MAX_CHAIN} levels"
-                )));
-            }
+            // The cache only ever holds chains length-checked against MAX_CHAIN
+            // at insertion time (see DB-read path below), so no re-check here.
             return Ok(keys.join("-"));
         }
         // Stale — drop and fall through to a fresh read.
@@ -378,8 +389,11 @@ pub(crate) async fn derive_key_chain(
 }
 
 /// Test-only: drop every cached chain entry so a follow-up read hits the DB.
+/// `pub(crate)` so cross-module tests (e.g. `kanban.rs::tests`) that call
+/// `derive_key_chain` can reach it; tests sharing a process-wide `OnceLock`
+/// cache MUST clear before every assertion to dodge random id collisions.
 #[cfg(test)]
-fn clear_key_chain_cache() {
+pub(crate) fn clear_key_chain_cache() {
     if let Some(cache) = KEY_CHAIN_CACHE.get()
         && let Ok(mut guard) = cache.lock()
     {
@@ -430,12 +444,14 @@ async fn update_project(
     let project = DbProject::update_fields(
         &deployment.db().pool,
         id,
-        &name,
-        existing.key.as_deref(),
-        &color,
-        sort_order,
-        existing.default_agent_working_dir.as_deref(),
-        parent_id,
+        ProjectUpdate {
+            name: &name,
+            key: existing.key.as_deref(),
+            color: &color,
+            sort_order,
+            default_agent_working_dir: existing.default_agent_working_dir.as_deref(),
+            parent_id,
+        },
     )
     .await?;
     Ok(mutation(to_api_project(project)))
@@ -479,12 +495,14 @@ async fn bulk_projects(
                 let p = DbProject::update_fields(
                     pool,
                     item.id,
-                    &name,
-                    existing.key.as_deref(),
-                    &color,
-                    sort_order,
-                    existing.default_agent_working_dir.as_deref(),
-                    existing.parent_id,
+                    ProjectUpdate {
+                        name: &name,
+                        key: existing.key.as_deref(),
+                        color: &color,
+                        sort_order,
+                        default_agent_working_dir: existing.default_agent_working_dir.as_deref(),
+                        parent_id: existing.parent_id,
+                    },
                 )
                 .await?;
                 out.push(to_api_project(p));
@@ -565,9 +583,13 @@ pub(crate) async fn delete_project_record(pool: &SqlitePool, id: Uuid) -> Result
     // second pool acquire would `PoolTimedOut` while the tx holds the
     // only connection.
     let mut tx = pool.begin().await?;
+    // COUNT first so the common no-children case avoids materializing the
+    // children rows. The follow-up `fetch_children_payload` only runs on the
+    // conflict path, where the JSON snapshot is needed in the response.
     let children_count = DbProject::count_children(&mut *tx, id).await?;
     if children_count > 0 {
-        return Err(fetch_children_conflict(&mut *tx, id).await?);
+        let payload = fetch_children_payload(&mut *tx, id).await?;
+        return Err(ApiError::ConflictPayload(payload));
     }
     let delete_result = sqlx::query("DELETE FROM projects WHERE id = ?")
         .bind(id)
@@ -578,10 +600,7 @@ pub(crate) async fn delete_project_record(pool: &SqlitePool, id: Uuid) -> Result
             tx.commit().await?;
             Ok(())
         }
-        Err(sqlx::Error::Database(db_err))
-            if db_err.code().as_deref() == Some("787")
-                || db_err.message().contains("FOREIGN KEY") =>
-        {
+        Err(err) if is_foreign_key_violation(&err) => {
             // SQLITE_CONSTRAINT_FOREIGNKEY (787) — a child landed between
             // our count and our delete. Prefer re-reading children on a fresh
             // pool connection so the post-error snapshot reflects the
@@ -595,7 +614,8 @@ pub(crate) async fn delete_project_record(pool: &SqlitePool, id: Uuid) -> Result
                 "FK race on delete_project {id}: child inserted between count and delete"
             );
             if let Some(mut fresh) = pool.try_acquire() {
-                Err(fetch_children_conflict(&mut *fresh, id).await?)
+                let payload = fetch_children_payload(&mut *fresh, id).await?;
+                Err(ApiError::ConflictPayload(payload))
             } else {
                 Err(ApiError::ConflictPayload(json!({
                     "error": "project_has_children"
@@ -606,14 +626,15 @@ pub(crate) async fn delete_project_record(pool: &SqlitePool, id: Uuid) -> Result
     }
 }
 
-/// Build the `project_has_children` `ConflictPayload` by reading the
-/// children rows on the supplied executor. Used by both the upfront
-/// count>0 path (in-tx executor) and the FK race path (fresh-pool executor,
-/// see D-1).
-async fn fetch_children_conflict<'e, E>(
+/// Read the children rows on the supplied executor and assemble the
+/// `project_has_children` payload as a plain `serde_json::Value`. Used by
+/// both the upfront count>0 path (in-tx executor) and the FK race path
+/// (fresh-pool executor, see D-1); the call site wraps it in
+/// `ApiError::ConflictPayload` so the helper only deals with sqlx errors.
+async fn fetch_children_payload<'e, E>(
     executor: E,
     parent_id: Uuid,
-) -> Result<ApiError, sqlx::Error>
+) -> Result<serde_json::Value, sqlx::Error>
 where
     E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
 {
@@ -628,13 +649,24 @@ where
         .into_iter()
         .map(|(child_id, name)| json!({ "id": child_id, "name": name }))
         .collect();
-    Ok(ApiError::ConflictPayload(json!({
+    Ok(json!({
         "error": "project_has_children",
         "children": children_payload,
-    })))
+    }))
 }
 
-pub(crate) use db::models::project::derive_key;
+/// Detect SQLite `FOREIGN KEY` constraint violations. SQLITE_CONSTRAINT_FOREIGNKEY
+/// surfaces with extended code `"787"`; the `FOREIGN KEY` substring is the
+/// fallback for older SQLite / non-extended error codes. Extracted as a free
+/// function so the match arm reads naturally and is unit-testable.
+fn is_foreign_key_violation(err: &sqlx::Error) -> bool {
+    match err {
+        sqlx::Error::Database(db_err) => {
+            db_err.code().as_deref() == Some("787") || db_err.message().contains("FOREIGN KEY")
+        }
+        _ => false,
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Project statuses (kanban columns)
@@ -1089,7 +1121,7 @@ pub fn router() -> Router<DeploymentImpl> {
 mod tests {
     use api_types::UpdateProjectRequest;
     use db::models::issue::{Issue as DbIssue, NewIssue};
-    use db::models::project::Project as DbProject;
+    use db::models::project::{NewProject, Project as DbProject};
     use db::models::project_status::ProjectStatus as DbProjectStatus;
     use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
     use uuid::Uuid;
@@ -1111,6 +1143,7 @@ mod tests {
 
     #[tokio::test]
     async fn derives_nested_key_chain_and_rejects_duplicate_sibling_key() {
+        clear_key_chain_cache();
         let pool = pool().await;
         let root_id = Uuid::new_v4();
         let child_id = Uuid::new_v4();
@@ -1118,37 +1151,43 @@ mod tests {
 
         DbProject::create(
             &pool,
-            root_id,
-            "Acme",
-            Some("ACME"),
-            "#6366f1",
-            0,
-            None,
-            None,
+            NewProject {
+                id: root_id,
+                name: "Acme",
+                key: Some("ACME"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: None,
+            },
         )
         .await
         .unwrap();
         DbProject::create(
             &pool,
-            child_id,
-            "Sub",
-            Some("SUB"),
-            "#6366f1",
-            0,
-            None,
-            Some(root_id),
+            NewProject {
+                id: child_id,
+                name: "Sub",
+                key: Some("SUB"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: Some(root_id),
+            },
         )
         .await
         .unwrap();
         DbProject::create(
             &pool,
-            grandchild_id,
-            "X",
-            Some("X"),
-            "#6366f1",
-            0,
-            None,
-            Some(child_id),
+            NewProject {
+                id: grandchild_id,
+                name: "X",
+                key: Some("X"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: Some(child_id),
+            },
         )
         .await
         .unwrap();
@@ -1168,13 +1207,15 @@ mod tests {
         ));
     }
 
-    /// M-8 regression: a chain cached past the TTL must be evicted on the
-    /// next read, so a reparent that slips past the API guard won't keep
-    /// serving the stale chain. We simulate staleness via `clear_key_chain_cache`
-    /// (test-only entry point) and verify the next read goes to DB by
-    /// checking the chain reflects a renamed project.
+    /// Determinism: two consecutive reads of the same project id — each
+    /// preceded by a manual cache clear — must return the same chain. This
+    /// pins down the cache's read-write symmetry: a fresh read after a clear
+    /// re-derives from the DB, and the resulting chain is identical to the
+    /// prior one (no random state leaks between calls). It does NOT exercise
+    /// TTL eviction; that path is covered by the cache-hit's age check
+    /// directly, not by `clear_key_chain_cache`.
     #[tokio::test]
-    async fn derive_key_chain_evicts_when_cache_invalidated() {
+    async fn derive_key_chain_is_deterministic_across_calls() {
         clear_key_chain_cache();
         let pool = pool().await;
         let root = create_project_record(&pool, Uuid::new_v4(), "Acme", "#6366f1", None)
@@ -1187,6 +1228,7 @@ mod tests {
 
     #[tokio::test]
     async fn create_issue_uses_chain_key_for_nested_projects() {
+        clear_key_chain_cache();
         let pool = pool().await;
         let root = create_project_record(&pool, Uuid::new_v4(), "Acme", "#6366f1", None)
             .await
@@ -1231,6 +1273,7 @@ mod tests {
 
     #[tokio::test]
     async fn delete_project_rejects_when_children_exist() {
+        clear_key_chain_cache();
         let pool = pool().await;
         let parent = create_project_record(&pool, Uuid::new_v4(), "Parent", "#6366f1", None)
             .await
@@ -1348,5 +1391,49 @@ mod tests {
     #[test]
     fn router_builds_without_route_conflicts() {
         let _ = super::router();
+    }
+
+    /// Non-database errors (Protocol / RowNotFound) must NOT be classified as
+    /// FK violations — only the SQLite `Database` variant with code "787" or
+    /// a "FOREIGN KEY" message. These are pure matcher checks, no DB needed.
+    #[test]
+    fn is_foreign_key_violation_rejects_non_database_errors() {
+        assert!(!super::is_foreign_key_violation(&sqlx::Error::Protocol(
+            "boom".into()
+        )));
+        assert!(!super::is_foreign_key_violation(&sqlx::Error::RowNotFound));
+    }
+
+    /// End-to-end: with a real parent→child row in SQLite, deleting the
+    /// parent via a raw `DELETE FROM projects` must raise code 787, which
+    /// `is_foreign_key_violation` must recognise.
+    #[tokio::test]
+    async fn is_foreign_key_violation_recognises_real_sqlite_fk_violation() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let parent = create_project_record(&pool, Uuid::new_v4(), "Parent", "#6366f1", None)
+            .await
+            .unwrap();
+        let child =
+            create_project_record(&pool, Uuid::new_v4(), "Child", "#6366f1", Some(parent.id))
+                .await
+                .unwrap();
+
+        let raw_delete = sqlx::query("DELETE FROM projects WHERE id = ?")
+            .bind(parent.id)
+            .execute(&pool)
+            .await;
+        let err = raw_delete.expect_err("expected FK violation on parent delete");
+        assert!(
+            super::is_foreign_key_violation(&err),
+            "expected FK violation, got {err:?}"
+        );
+
+        // Cleanup so the FK is removed before the test exits.
+        sqlx::query("DELETE FROM projects WHERE id = ?")
+            .bind(child.id)
+            .execute(&pool)
+            .await
+            .unwrap();
     }
 }

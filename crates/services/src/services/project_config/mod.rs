@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 
 use db::models::{
     local_user::LocalUser,
-    project::{self, Project},
+    project::{self, NewProject, Project, ProjectUpdate},
     project_repo::ProjectRepo,
     project_status::ProjectStatus,
     repo::{Repo, UpdateRepo},
@@ -263,25 +263,29 @@ async fn import_project(pool: &SqlitePool, cfg: &ProjectConfig) -> anyhow::Resul
             Project::update_fields(
                 pool,
                 existing.id,
-                &cfg.name,
-                Some(&key),
-                &color,
-                existing.sort_order,
-                working_dir,
-                existing.parent_id,
+                ProjectUpdate {
+                    name: &cfg.name,
+                    key: Some(&key),
+                    color: &color,
+                    sort_order: existing.sort_order,
+                    default_agent_working_dir: working_dir,
+                    parent_id: existing.parent_id,
+                },
             )
             .await?
         }
         None => {
             Project::create(
                 pool,
-                cfg.id.unwrap_or_else(Uuid::new_v4),
-                &cfg.name,
-                Some(&key),
-                &color,
-                0,
-                working_dir,
-                None,
+                NewProject {
+                    id: cfg.id.unwrap_or_else(Uuid::new_v4),
+                    name: &cfg.name,
+                    key: Some(&key),
+                    color: &color,
+                    sort_order: 0,
+                    default_agent_working_dir: working_dir,
+                    parent_id: None,
+                },
             )
             .await?
         }
@@ -538,13 +542,15 @@ mod tests {
             .unwrap();
         let project = Project::create(
             &src,
-            Uuid::new_v4(),
-            "Acme",
-            Some("ACME"),
-            "#123456",
-            0,
-            Some("/src"),
-            None,
+            NewProject {
+                id: Uuid::new_v4(),
+                name: "Acme",
+                key: Some("ACME"),
+                color: "#123456",
+                sort_order: 0,
+                default_agent_working_dir: Some("/src"),
+                parent_id: None,
+            },
         )
         .await
         .unwrap();
@@ -599,9 +605,20 @@ mod tests {
         let pool = pool().await;
         ensure_local_user(&pool).await.unwrap();
         let id = Uuid::new_v4();
-        Project::create(&pool, id, "Old", Some("OLD"), "#000000", 0, None, None)
-            .await
-            .unwrap();
+        Project::create(
+            &pool,
+            NewProject {
+                id,
+                name: "Old",
+                key: Some("OLD"),
+                color: "#000000",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: None,
+            },
+        )
+        .await
+        .unwrap();
 
         let toml = format!(
             "[[project]]\nid = \"{id}\"\nname = \"New\"\nkey = \"NEW\"\ncolor = \"#ffffff\"\n"

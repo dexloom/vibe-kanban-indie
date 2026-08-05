@@ -359,13 +359,12 @@ impl IntoResponse for ApiError {
                 let label = payload
                     .get("error")
                     .and_then(|value| value.as_str())
-                    .unwrap_or("Conflict");
-                let error_type = label.to_string();
-                let message = label.to_string();
+                    .unwrap_or("Conflict")
+                    .to_string();
                 ErrorInfo {
                     status: StatusCode::CONFLICT,
-                    error_type,
-                    message: Some(message),
+                    error_type: label.clone(),
+                    message: Some(label),
                 }
             }
             ApiError::Forbidden(msg) => {
