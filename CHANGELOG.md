@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.24-beta.1] - 2026-08-05
+
 ### Added
 
 - **Two pipeline families, never mixed.** Bundled pipelines now split by
