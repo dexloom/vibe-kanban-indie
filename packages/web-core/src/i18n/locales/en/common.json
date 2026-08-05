@@ -386,24 +386,6 @@
     "filterByPriority": "Filter by priority",
     "tags": "Tags",
     "sortBy": "Sort",
-    "workspaceSidebar": {
-      "sortDialogTitle": "Sort workspaces",
-      "sortDialogDescription": "Choose how workspaces are ordered in the sidebar.",
-      "sortByLabel": "Sort by",
-      "sortOrderLabel": "Sort order",
-      "sortUpdatedAt": "Updated at",
-      "sortCreatedAt": "Created at",
-      "filterDialogTitle": "Filter workspaces",
-      "filterDialogDescription": "Narrow down workspaces by project and PR state.",
-      "projectFilterLabel": "Project",
-      "prFilterLabel": "PR",
-      "prFilterAll": "All",
-      "prFilterHasPr": "Has PR",
-      "prFilterNoPr": "No PR",
-      "noProject": "No project",
-      "sortButtonTitle": "Sort workspaces",
-      "filterButtonTitle": "Filter workspaces"
-    },
     "sortAscending": "Ascending",
     "sortDescending": "Descending",
     "assignee": "Assignee",
@@ -546,9 +528,7 @@
     "errorCreateFailed": "Failed to create the issue. Please try again."
   },
   "appBar": {
-    "projects": "Projects",
-    "notifications": "Notifications",
-    "organizations": "Organizations"
+    "projects": "Projects"
   },
   "sidebar": {
     "workspacesSection": "Workspaces",
