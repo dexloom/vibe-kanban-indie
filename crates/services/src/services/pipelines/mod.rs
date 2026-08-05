@@ -31,7 +31,17 @@ use super::config::PipelineStep;
 /// Bundled default pipeline files, seeded to `pipelines_dir()` on first run and
 /// used by the reset actions. Order here defines the display order of bundled
 /// pipelines in the UI.
+/// The Async files are split by **execution family** and the split is
+/// absolute: `async-claude-*` bind Claude Code models (sonnet / opus / fable),
+/// `async-opencode-*` bind OpenCode models (glm / minimax / kimi), and no
+/// pipeline ever mixes the two. Codex is the shared *reviewer* in both
+/// families and is never a build model. `quick.toml` is the trivial-tier
+/// pipeline (implement + merge, no spec/plan).
 const BUNDLED: &[(&str, &str)] = &[
+    (
+        "quick.toml",
+        include_str!("../../../../../assets/pipelines/quick.toml"),
+    ),
     (
         "basic.toml",
         include_str!("../../../../../assets/pipelines/basic.toml"),
@@ -45,16 +55,20 @@ const BUNDLED: &[(&str, &str)] = &[
         include_str!("../../../../../assets/pipelines/speckit.toml"),
     ),
     (
-        "async-opus.toml",
-        include_str!("../../../../../assets/pipelines/async-opus.toml"),
+        "async-claude-opus.toml",
+        include_str!("../../../../../assets/pipelines/async-claude-opus.toml"),
     ),
     (
-        "async-sonnet.toml",
-        include_str!("../../../../../assets/pipelines/async-sonnet.toml"),
+        "async-claude-sonnet.toml",
+        include_str!("../../../../../assets/pipelines/async-claude-sonnet.toml"),
     ),
     (
-        "async-fable.toml",
-        include_str!("../../../../../assets/pipelines/async-fable.toml"),
+        "async-claude-fable.toml",
+        include_str!("../../../../../assets/pipelines/async-claude-fable.toml"),
+    ),
+    (
+        "async-opencode-glm.toml",
+        include_str!("../../../../../assets/pipelines/async-opencode-glm.toml"),
     ),
 ];
 
@@ -71,13 +85,37 @@ const LEGACY_BASELINE: &[&str] = &["basic.toml", "wikillm.toml", "speckit.toml",
 /// user content and left alone. To retire a bundled file, add it here with
 /// every version of its contents this project has ever shipped.
 ///
-/// Empty by design, not by oversight. The sole entry was `async.toml` (split
-/// into `async-sonnet.toml` + `async-fable.toml` in 0.2.14); its retirement
-/// cycle has run, so the entry and its four preserved version files are gone.
-/// Nothing is swept while this list is empty: an install still holding a
-/// pristine `async.toml` keeps it, and deletes it by hand from the Settings
-/// pipeline list. Accepted — this is a single-developer fork.
-const RETIRED: &[(&str, &[&str])] = &[];
+/// Current entries: the three pre-family `async-{opus,sonnet,fable}.toml`
+/// names, renamed to `async-claude-*` when the OpenCode family landed. Both
+/// names carry the same `name =` ("Async Opus"/"Async Sonnet"/"Async Fable"),
+/// so leaving a pristine old copy behind would show the pipeline twice in the
+/// picker — hence the sweep. Two shipped versions are preserved per file
+/// (`f7b50cad` = the last one, `3585c785` = the one before it); an install
+/// holding anything older, or an edited copy, keeps its file and removes it by
+/// hand from the Settings pipeline list. Accepted — single-developer fork.
+const RETIRED: &[(&str, &[&str])] = &[
+    (
+        "async-opus.toml",
+        &[
+            include_str!("../../../../../assets/pipelines/retired/async-opus-f7b50cad.toml"),
+            include_str!("../../../../../assets/pipelines/retired/async-opus-3585c785.toml"),
+        ],
+    ),
+    (
+        "async-sonnet.toml",
+        &[
+            include_str!("../../../../../assets/pipelines/retired/async-sonnet-f7b50cad.toml"),
+            include_str!("../../../../../assets/pipelines/retired/async-sonnet-3585c785.toml"),
+        ],
+    ),
+    (
+        "async-fable.toml",
+        &[
+            include_str!("../../../../../assets/pipelines/retired/async-fable-f7b50cad.toml"),
+            include_str!("../../../../../assets/pipelines/retired/async-fable-3585c785.toml"),
+        ],
+    ),
+];
 
 /// On-disk seed manifest (`.seed-manifest.json`): the set of bundled
 /// filenames seeding has handled at least once. Dotted/non-`.toml` so it is
@@ -761,12 +799,14 @@ mod tests {
         assert_eq!(
             ids,
             vec![
+                "quick",
                 "basic",
                 "wikillm",
                 "speckit",
-                "async-opus",
-                "async-sonnet",
-                "async-fable"
+                "async-claude-opus",
+                "async-claude-sonnet",
+                "async-claude-fable",
+                "async-opencode-glm"
             ]
         );
         assert!(d.path().join(".seed-manifest.json").exists());

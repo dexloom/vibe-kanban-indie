@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Two pipeline families, never mixed.** Bundled pipelines now split by
+  execution family: `async-claude-{opus,sonnet,fable}` bind Claude Code models
+  (Sonnet / Opus / Fable), the new `async-opencode-glm` binds OpenCode models
+  (GLM / MiniMax / Kimi), and no pipeline mixes the two. Codex remains the
+  shared *reviewer* for both families and is never a build model.
+- **`quick.toml`** — the trivial-tier pipeline (implement + merge; no spec, no
+  plan, no subagent fan-out), with an inline escalation tripwire for work that
+  turns out not to be trivial.
+- **Late-binding gates in the Async pipelines.** The plan stage reports a
+  `PLAN-FACTS:` line (size / steps / files / open decisions); the Codex plan
+  review now runs only when the plan is ≥ 40 KB, carries open decisions, or the
+  card's routing forces it (a `PLAN-GATE:` line either way), capped at two
+  passes; the coder stage binds its model **within the pipeline's family**
+  before delegating (`CODER-MODEL:` line). Measured on real boards, a Codex
+  plan review routinely costs more than the plan it reviews, and plan size is
+  the strongest predictor of a card blowing up.
+
+### Changed
+
+- **`async-{opus,sonnet,fable}.toml` renamed to `async-claude-*.toml`.**
+  Display names are unchanged. A pristine copy of an old file is swept from
+  `~/.vibe-kanban/pipelines/` on the next backend start (two shipped versions
+  are recognised) so the same pipeline is never listed twice; an edited copy is
+  treated as user content and kept.
+- The Settings pipeline list now offers **Reset** for every bundled pipeline —
+  the `async-*` and `quick` ids were missing from the frontend's bundled set
+  even though the server accepted them.
+- The bundled OpenCode subagents learned the new board conventions:
+  `vk-intake` routes a card to a family + tier and can file dependent/parallel
+  **lanes** (`blocking` edges); `vk-sweeper` gates dispatch on those edges,
+  takes lighter tiers first, and treats a `VK-ESCALATE:` final message as a
+  park.
+
 ## [0.2.23] - 2026-07-17
 
 ### Fixed

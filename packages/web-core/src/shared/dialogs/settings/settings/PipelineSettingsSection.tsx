@@ -13,7 +13,19 @@ import { IconButton } from '@vibe/ui/components/IconButton';
 import { SettingsCard, SettingsTextarea } from './SettingsComponents';
 import { useSettingsDirty } from './SettingsDirtyContext';
 
-const BUNDLED_IDS = new Set(['basic', 'wikillm', 'speckit']);
+// Must match BUNDLED in crates/services/src/services/pipelines/mod.rs — it
+// gates the per-pipeline Reset button, and the server's reset_one accepts
+// exactly these ids. A missing id silently hides a Reset that would work.
+const BUNDLED_IDS = new Set([
+  'quick',
+  'basic',
+  'wikillm',
+  'speckit',
+  'async-claude-opus',
+  'async-claude-sonnet',
+  'async-claude-fable',
+  'async-opencode-glm',
+]);
 const VALIDATE_DEBOUNCE_MS = 400;
 
 function errorMessage(err: unknown, fallback: string): string {

@@ -1,0 +1,32 @@
+name = "Quick"
+description = "Minimal flow for trivial cards: no spec, no plan, no subagent fan-out — the execution agent implements directly from the card, verifies, and merges. Routed by classify-task for tier `trivial`; anything that grows beyond a trivial change escalates instead of pushing through."
+
+[[stage]]
+id = "orchestrate"
+label = "Orchestrate (auto-drive)"
+default_enabled = false
+prompt = "Have the orchestrator agent pick this card up and drive it to done autonomously, running the card's pipeline stages in order — regardless of which board column the card is in (it may be started even from Todo)."
+
+[[stage]]
+id = "implement"
+label = "Implement directly"
+default_enabled = true
+prompt = "Implement this card directly from its description — do NOT write SPEC.md or IMPLEMENTATION_PLAN.md and do NOT spawn spec/plan subagents; this card was classified trivial, so the description itself is the work order. Keep the diff minimal and focused on exactly what the card names. Then verify: run the project's standard checks (build, tests, lint — whatever the repo's guides name) plus the most direct manual check of the card's own claim, and fix what you broke. ESCALATION TRIPWIRE: if while working you discover this is NOT trivial — the root cause lives elsewhere, more than ~3 files need changing, or an open design decision appears — STOP instead of pushing through: commit any safe work-in-progress so nothing is lost, leave the tree otherwise clean, and make the FIRST line of your final message exactly `VK-ESCALATE: trivial->light — <one-line evidence>` (or `trivial->medium` if the discovery is clearly larger) so the orchestrator can surface it and the card can be re-routed to a fuller pipeline. Do not advance any later stage after emitting the marker."
+
+[[stage]]
+id = "code-review"
+label = "Review via Codex"
+default_enabled = false
+prompt = "After implementing, run an independent Codex review of the card's diff (the `codex-review` skill / Codex CLI), iterating until it reports no significant findings. Address confirmed findings and re-verify before marking the card ready."
+
+[[stage]]
+id = "merge"
+label = "Merge to base"
+default_enabled = true
+prompt = "When the work is implemented and verified, squash-merge this card's branch into the base branch yourself — this stage being listed is your authorization, so do not wait for a go-ahead; gating, when wanted, is the Wait-for-approval stage's job."
+
+[[stage]]
+id = "pr"
+label = "Open pull request"
+default_enabled = false
+prompt = "When the work is implemented and reviewed, open a pull request for this card against the base branch."

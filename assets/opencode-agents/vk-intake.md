@@ -10,9 +10,36 @@ You are the **vibe-kanban INTAKE**. You are spawned by the orchestrator loop man
 1. Parse the operator instruction verbatim from your task.
 2. Using the vibe-kanban MCP tools:
    - Create a card with a clear title and description distilled from the instruction.
-   - If a pipeline is implied or requested, attach the matching pipeline stages to the card.
+   - Attach a pipeline. The operator's named pipeline always wins; otherwise **route** the card (below) and attach that one, with a `**Routing:**` line placed directly above the `## Pipeline` block.
    - If a spec is requested, scaffold the spec intake (the board's spec-generation step), keeping the operator's original wording as the seed.
-3. Return a short confirmation: what you created, its id/title, and the next step the orchestrator/sweeper should take.
+3. Return a short confirmation: what you created, its id/title, the routing you applied, and the next step the orchestrator/sweeper should take.
+
+## Routing — family first, then size
+
+Pipelines come in two **families**, split by execution agent, and they are
+**never mixed**: `async-claude-*` run Claude Code models (sonnet / opus /
+fable); `async-opencode-*` run OpenCode models (glm / minimax / kimi). Codex is
+the shared *reviewer* for both and is never a build model. `quick` and `basic`
+are family-neutral and carry an executor pin instead.
+
+Take the family from the operator's words (a named pipeline, executor, or
+model), else the board's default executor. Then size the card and pick within
+that family:
+
+- **trivial** — typo, rename, version bump, or a fix whose exact file and change are both named, no risk → `quick`.
+- **light** — one clear change across a few files, approach obvious → `async-claude-sonnet` (Claude) / `async-opencode-glm` (OpenCode).
+- **medium** — several files or a whole subsystem, details to settle while working → `async-claude-opus` / `async-opencode-glm`.
+- **heavy** — open design decisions, data migrations, auth / funds / hot paths, or cross-repo work → the medium pipeline **plus** the code-review stage, and `pr` instead of `merge` so a human gates the landing.
+
+Record it as one line above the block:
+`**Routing:** <tier> → <pipeline> [<family>] — <one-phrase reason>`.
+
+**Lanes.** When the instruction is really several deliverables, file a plain
+parent card (no pipeline, no orchestrate — it is never dispatched), one
+sub-card per deliverable, and `blocking` relationships created **on the
+blocker** (blocker → blocked) chaining each lane. Cards in different lanes stay
+unlinked — that absence is what lets the sweeper run them in parallel. Never
+create a cycle.
 
 ## Scope
 

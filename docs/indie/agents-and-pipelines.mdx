@@ -44,12 +44,40 @@ written, and the diff review runs only after the coder stage. All three
 pipelines review with Codex only — there is no Fable diff-review stage.
 </Note>
 
-## The Async pipelines
+## Two pipeline families — Claude Code and OpenCode
 
-All three Async pipelines fan work out to subagents instead of doing it in the
-main loop: an Opus main loop coordinates, verifies, and reviews, while separate
-subagents write the spec, the plan, and the code. They differ in which model does
-that subagent work, trading cost for thoroughness:
+Bundled pipelines split by **execution family**, and the split is absolute:
+
+| Family | Files | Execution agent | Build models |
+|---|---|---|---|
+| **Claude Code** | `async-claude-opus`, `async-claude-sonnet`, `async-claude-fable` | Claude Code | Sonnet / Opus / Fable only |
+| **OpenCode** | `async-opencode-glm` | OpenCode | GLM / MiniMax / Kimi only |
+
+**Codex is the shared reviewer** — the plan-review and diff-review stages run
+Codex in *both* families, and Codex is never a build model. No pipeline mixes
+models across families: a Claude Code card never runs a GLM coder, an OpenCode
+card never runs an Opus coder. `quick` (trivial cards: implement + merge, no
+spec or plan) and `basic` are family-neutral and take whichever execution agent
+the card pins.
+
+The OpenCode pipeline is **self-drive**: an OpenCode session cannot spawn the
+Claude plugin's subagents, so its main loop writes the spec, plan, and code
+itself instead of fanning out.
+
+<Note>
+The Claude-family files were named `async-{opus,sonnet,fable}.toml` before the
+OpenCode family landed. Their display names are unchanged; only the filenames
+gained the `async-claude-` prefix. A pristine copy of an old file is swept from
+your pipelines directory on the next backend start, so the same pipeline never
+appears twice in the list — an *edited* copy is treated as yours and left alone.
+</Note>
+
+## The Async Claude pipelines
+
+All three Claude-family pipelines fan work out to subagents instead of doing it
+in the main loop: an Opus main loop coordinates, verifies, and reviews, while
+separate subagents write the spec, the plan, and the code. They differ in which
+model does that subagent work, trading cost for thoroughness:
 
 | Stage | Async Opus | Async Sonnet | Async Fable |
 |---|---|---|---|
