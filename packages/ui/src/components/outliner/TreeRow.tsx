@@ -5,7 +5,8 @@ import type { NodeApi } from 'react-arborist';
 import { cn } from '../../lib/cn';
 
 interface TreeRowProps {
-  node: NodeApi<unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  node: NodeApi<any>;
   style: CSSProperties;
   dragHandle?: Ref<HTMLDivElement>;
   isActive?: boolean;
