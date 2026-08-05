@@ -16,7 +16,7 @@
 ## Git состояние на момент дампа
 
 - Закоммичено: `6e6824bf` (unified custom DnD), `00f6e626` (DnD polish + project reorder), `123cb0bd` (swap-model + snapshot), `2a5456c0` (positional cross-column move + swap fixes), `414625c4` (DnD hardening — 6 review passes, ui 219 / web-core 142).
-- НЕ закоммичено (после `414625c4`): ADR-013 имплементация (subprojects) + migration fix + все review-fixes work. Всё это — в рабочем дереве на момент дампа.
+- НЕ закоммичено (после `414625c4`): ADR-013 имплементация (project boards) + migration fix + все review-fixes work. Всё это — в рабочем дереве на момент дампа.
 - `CONTEXT.md` (этот файл) — transient, НЕ коммитить.
 - `CODE-OF-CONDUCT.md` заменён на "Don't be an asshole."
 
@@ -32,10 +32,10 @@
 - Тесты: ui 220, web-core 149 на момент ADR-013.
 - Deferred (записано в ADR, TO RESOLVE): A2 (end-to-end integration test), A3 (snapshot lifecycle), KanbanContainer monolith split, dndPersisters extraction.
 
-## ADR-013 — Project subprojects (имплементирован TDD, migration-fix внесён)
+## ADR-013 — Project boards (имплементирован TDD, migration-fix внесён)
 
-- Файл: `docs/ADR/ADR-013-projects-subprojects.md`
-- Решения (owner): subproject key `ACME-SUB-1` (parent key prefix chain + per-subproject issue_number), parent имеет свой kanban (kanban = attachable entity), можно ломать API/schema ради элегантности НО обязательны миграции.
+- Файл: `docs/ADR/ADR-013-project-boards.md`
+- Решения (owner): board key `ACME-SUB-1` (parent key prefix chain + per-board issue_number), parent имеет свой kanban (kanban = attachable entity), можно ломать API/schema ради элегантности НО обязательны миграции.
 - Синтез (escalate-glm + escalate-deepseek + review-glm): key separator `-` подтверждён (derive_key стрипает не-алфанум, `.` не нужен); NO key_path column (derive on demand); `ON DELETE RESTRICT`; DnD issue-move cross-project BLOCKED; project-reorder sibling-only; router UNCHANGED (leaf `/projects/:projectId`), breadcrumb в kanban header.
 - Имплементация: `crates/db/migrations/20260805000001_add_project_parent_id.sql`, `Project.parent_id` + count_children/find_parent_chain_keys, `derive_key_chain` (walk parent_id, join `-`, cap 16), sibling_key_exists (400), delete_project 409 `{error:"project_has_children", children}`, recursive buildTreeData, DnD sibling filter, `swapProjectSiblings`, breadcrumb.
 - Тесты после ADR-013: cargo 40 crates ok, ui 220, web-core 149.

@@ -225,6 +225,31 @@ export function SharedAppLayout() {
     }
   }, [selectedOrgId, appNavigation]);
 
+  // ADR-015: open the project-create dialog with `parentId` set so the new
+  // project is created as a child board of the supplied project id. The
+  // returned project is the child (regardless of depth), so navigation
+  // targets the child's kanban directly.
+  const handleCreateChildBoard = useCallback(
+    async (parentId: string) => {
+      if (!selectedOrgId) return;
+
+      try {
+        const result: CreateRemoteProjectResult =
+          await CreateRemoteProjectDialog.show({
+            organizationId: selectedOrgId,
+            parentId,
+          });
+
+        if (result.action === 'created' && result.project) {
+          appNavigation.goToProject(result.project.id);
+        }
+      } catch {
+        // Dialog cancelled — no-op.
+      }
+    },
+    [selectedOrgId, appNavigation]
+  );
+
   // ADR-007: project reorder is disabled tree-wide (see PLAN-sidebar-kanban-cross-dnd);
   // project order is set by the sorted-projects effect below only.
 
@@ -415,10 +440,20 @@ export function SharedAppLayout() {
           const aId = outcome.projectId;
           const bId = outcome.targetProjectId;
           const cur = orderedProjectsRef.current;
+          const a = cur.find((p) => p.id === aId);
+          const b = cur.find((p) => p.id === bId);
+          // F-8: cross-parent reorder is out of scope (DnD's
+          // `collectTargets` sibling filter currently screens this, but
+          // a future relaxed filter would otherwise flow into a no-op
+          // optimistic update + wasted DB write). Bail before the swap.
+          if (!a || !b || (a.parent_id ?? null) !== (b.parent_id ?? null)) {
+            return;
+          }
           const swappedAll = swapProjectSiblings(cur, aId, bId);
-          // F-8: cross-parent swap returns the array unchanged — that's
-          // our no-op signal. Skip BOTH the local state update and the
-          // DB write; cross-parent reorder is out of scope.
+          // Belt-and-suspenders: `swapProjectSiblings` always returns a
+          // fresh array (see `projectOrder.test.ts`), so this identity
+          // check is currently dead. Kept so a future change to its
+          // contract (return-on-no-op) keeps the no-op behaviour intact.
           if (swappedAll === cur) return;
           orderedProjectsRef.current = swappedAll;
           setOrderedProjects(swappedAll);
@@ -571,6 +606,7 @@ export function SharedAppLayout() {
                   isLoadingWorkspaces={isWorkspacesListLoading}
                   onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
                   onSelectProject={handleProjectClick}
+                  onCreateChildBoard={handleCreateChildBoard}
                   isMultiSelectActive={isMultiSelectActive}
                   headerActions={
                     <CreateProjectButton onClick={handleCreateProject} />
@@ -642,6 +678,7 @@ export function SharedAppLayout() {
                       handleProjectClick(id);
                       setIsDrawerOpen(false);
                     }}
+                    onCreateChildBoard={handleCreateChildBoard}
                     isMultiSelectActive={isMultiSelectActive}
                     headerActions={
                       <CreateProjectButton onClick={handleCreateProject} />

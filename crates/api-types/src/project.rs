@@ -12,7 +12,13 @@ pub struct Project {
     pub name: String,
     pub color: String,
     pub sort_order: i32,
-    #[ts(optional)]
+    // F-N7: `parent_id` is `Option<Uuid>` but always populated by the
+    // server (rows with no parent use `None`, which ts-rs renders as
+    // `string | null`, NOT `undefined`). Marking it `#[ts(optional)]` would
+    // generate `parent_id?: string | null` and contradict the wire
+    // contract (`shared/remote-types.ts:7` has `parent_id: string | null`
+    // required). Drop the marker so the response type matches the always-
+    // present shape the server emits.
     pub parent_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

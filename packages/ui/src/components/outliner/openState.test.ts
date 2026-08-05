@@ -185,3 +185,78 @@ describe('deriveOpenTasksProjectIds integration with persisted blob', () => {
     expect(deriveOpenTasksProjectIds(stored, live)).toEqual(new Set(['p1']));
   });
 });
+
+// ADR-015: stale-key GC. Nested boards no longer render a Workspaces
+// section (only roots do). The prune effect must drop persisted keys
+// whose FULL node id is no longer in the live tree — not just keys whose
+// project prefix is missing — so `<childId>:workspaces` and
+// `<childId>:bucket:*` keys don't accumulate forever.
+describe('liveTreeNodeIds (ADR-015 stale-key GC)', () => {
+  it('returns a Set of every node id reachable in the built tree', async () => {
+    const { liveTreeNodeIds } = await import('./openState');
+    const tree: readonly SidebarTreeNode[] = [
+      {
+        id: 'p1',
+        type: 'project',
+        name: 'p1',
+        color: '0 0% 50%',
+        parentId: null,
+        sortOrder: 0,
+        children: [
+          {
+            id: 'p1:tasks',
+            type: 'section',
+            kind: 'tasks',
+            projectId: 'p1',
+            label: 'Tasks',
+            children: [],
+          },
+          {
+            id: 'p1:workspaces',
+            type: 'section',
+            kind: 'workspaces',
+            label: 'Workspaces',
+            children: [
+              {
+                id: 'p1:bucket:idle',
+                type: 'bucket',
+                bucketId: 'idle',
+                name: 'Idle',
+                children: [],
+              },
+            ],
+          },
+          {
+            id: 'p2',
+            type: 'project',
+            name: 'p2',
+            color: '0 0% 50%',
+            parentId: 'p1',
+            sortOrder: 0,
+            children: [
+              {
+                id: 'p2:tasks',
+                type: 'section',
+                kind: 'tasks',
+                projectId: 'p2',
+                label: 'Tasks',
+                children: [],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    const ids = liveTreeNodeIds(tree);
+    expect(ids).toEqual(
+      new Set([
+        'p1',
+        'p1:tasks',
+        'p1:workspaces',
+        'p1:bucket:idle',
+        'p2',
+        'p2:tasks',
+      ])
+    );
+  });
+});

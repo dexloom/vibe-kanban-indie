@@ -1,4 +1,4 @@
-# ADR-013: Project subprojects — nested projects with per-scope kanban
+# ADR-013: Project boards — nested projects with per-scope kanban
 
 - **Status**: Accepted
 - **Date**: 2026-08-05
@@ -9,7 +9,7 @@
 
 Projects are currently a **flat** list: `projects` has no `parent_id`, the sidebar tree
 renders `projects.map(...)` as a single level, the router is `/projects/:projectId`, and
-project reorder is a global flat swap. A "big project made of small subprojects" requires
+project reorder is a global flat swap. A "big project made of small boards" requires
 hierarchical projects, each scope owning its own kanban.
 
 The existing model already anticipates hierarchy in two places:
@@ -24,13 +24,13 @@ builder, the router, the DnD cross-project guard, and `sort_order` reordering.
 
 ## Owner decisions (2026-08-05)
 
-1. **Subproject key format**: `ACME-SUB-1` — the subproject inherits its parent key as a
-   prefix, appends its own key segment, and numbers issues per subproject. Format:
+1. **Board key format**: `ACME-SUB-1` — a board inherits its parent key as a
+   prefix, appends its own key segment, and numbers issues per board. Format:
    `<parent-key>-<sub-key>-<n>`. Root projects stay `ACME-1`. Deeper nesting:
    `ACME-SUB-X-1` (prefix chain).
 2. **Parent projects have their own kanban**: a project with children is still a kanban
    scope. Kanban is an **attachable entity** — any project node (root or nested) owns a
-   board; subprojects nest under it in the tree but do not replace it.
+   board; boards nest under it in the tree but do not replace it.
 3. **Break API + schema freely for elegance, but ship migration scripts** for existing
    users. Existing flat projects become roots with no parent. No data loss: existing
    issues keep their `simple_id` / `issue_number`.
@@ -93,7 +93,7 @@ Add hierarchical projects with per-scope kanban, keeping issues hierarchical as 
 
 - `buildTreeData` becomes recursive: group `projects` by `parent_id`, build nested
   `ProjectNode`s. A root renders its own Tasks + Workspaces sections, then child
-  subprojects as nested project rows.
+  boards as nested project rows.
 - `SidebarProject` gains `parentId: string | null`; `ProjectNode.children` widens from
   `SectionNode[]` to `(SectionNode | ProjectNode)[]`.
 - Node ids stay `${projectId}` (UUID — unique across the tree); open-state persistence
@@ -108,7 +108,7 @@ Add hierarchical projects with per-scope kanban, keeping issues hierarchical as 
 ### Kanban (attachable entity)
 
 - No change to `KanbanContainer`'s per-project contract — each project id (root or
-  subproject) already renders its own board. Zero board change.
+  board) already renders its own board. Zero board change.
 
 ### DnD
 
@@ -165,7 +165,7 @@ Add hierarchical projects with per-scope kanban, keeping issues hierarchical as 
 
 `ALTER TABLE ADD COLUMN` with an inline `REFERENCES` — NOT the table-recreation
 pattern. SQLite supports a `REFERENCES` clause on `ADD COLUMN` when the column
-defaults to `NULL` (it does — subprojects are optional), and FK enforcement
+defaults to `NULL` (it does — boards are optional), and FK enforcement
 applies normally. Existing rows are untouched (all current projects become
 roots with `parent_id = NULL`).
 

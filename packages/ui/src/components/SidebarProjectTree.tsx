@@ -16,6 +16,7 @@ import {
   buildSidebarTreeInitialOpenState,
   findTreeNodeById,
   isTasksSectionOpen,
+  liveTreeNodeIds,
   pendingOpenStatusCardIds,
   projectIdFromOpenStateKey,
   readSidebarTreeOpenState,
@@ -42,6 +43,9 @@ interface SidebarProjectTreeProps {
   isLoading?: boolean;
   onSelectWorkspace: (id: string) => void;
   onSelectProject: (id: string) => void;
+  /** ADR-015: opens `CreateRemoteProjectDialog` with `parentId` set so the
+   *  new project is created as a child board of the supplied project id. */
+  onCreateChildBoard?: (parentId: string) => void;
   /** When >1 issues are selected, disable card drag-and-drop (PLAN §7.5). */
   isMultiSelectActive?: boolean;
   /** Id of the external <h2> that labels this section. Replaces the old aria-label. */
@@ -68,6 +72,7 @@ export function SidebarProjectTree({
   isLoading = false,
   onSelectWorkspace,
   onSelectProject,
+  onCreateChildBoard,
   isMultiSelectActive = false,
   ariaLabelledBy,
   width = 256,
@@ -177,6 +182,13 @@ export function SidebarProjectTree({
     [treeData]
   );
 
+  // ADR-015: every node id reachable in the BUILT tree. Used by the prune
+  // effect to drop persisted keys whose full node id is no longer present
+  // (e.g. a nested-board `<childId>:workspaces` key from before the
+  // root-only-Workspaces change). Recomputed on every treeData change —
+  // short-circuit the work when the tree shape didn't change.
+  const liveTreeNodeIdsSet = useMemo(() => liveTreeNodeIds(treeData), [treeData]);
+
   // Seed the open-state map from persistence + defaults. Recomputed only when
   // the project set changes; react-arborist consumes it exactly once at Tree
   // mount (provider.js: createStore inside useRef). Status/card ids are NOT
@@ -245,12 +257,20 @@ export function SidebarProjectTree({
       return;
     }
 
+    // ADR-015: only ROOT projects render a Workspaces section, and only when
+    // the aggregate is non-empty. Whether this project actually has one is a
+    // property of the BUILT tree, not of `parentId` — Unassigned (parentId
+    // null, but not a real project) and empty-aggregate roots must be handled
+    // by the same rule. Gate on the node existing in the live tree.
     let addedProject = false;
     for (const projectId of currentProjectIds) {
       if (seenProjectIdsRef.current.has(projectId)) continue;
       seenProjectIdsRef.current.add(projectId);
       api.open(projectId);
-      api.open(makeWorkspacesSectionId(projectId));
+      const wsNodeId = makeWorkspacesSectionId(projectId);
+      if (liveTreeNodeIdsSet.has(wsNodeId)) {
+        api.open(wsNodeId);
+      }
       // A persisted-open Tasks section must restore too. initialOpenState is
       // seed-once, and when projects arrive asynchronously after the Tree
       // consumed its mount-time map (empty), the stored-open Tasks id was
@@ -264,7 +284,9 @@ export function SidebarProjectTree({
       openStateRef.current = {
         ...openStateRef.current,
         [projectId]: true,
-        [makeWorkspacesSectionId(projectId)]: true,
+        ...(liveTreeNodeIdsSet.has(wsNodeId)
+          ? { [wsNodeId]: true }
+          : {}),
       };
       addedProject = true;
     }
@@ -276,7 +298,7 @@ export function SidebarProjectTree({
       persistedOpenRef.current = readSidebarTreeOpenState(currentProjectIds);
       scheduleOpenStateWrite();
     }
-  }, [projectKey, scheduleOpenStateWrite]);
+  }, [projectKey, liveTreeNodeIdsSet, scheduleOpenStateWrite]);
 
   // Replay persisted status/card open state onto lazily-loaded nodes. Statuses
   // only mount after the Tasks section opens (lazy gate), so their ids are not
@@ -310,6 +332,15 @@ export function SidebarProjectTree({
   // Tasks section) before any project arrives. Only prune once we have seen
   // at least one project — after that, an empty projectKey means the user
   // genuinely removed them and pruning is legitimate.
+  //
+  // ADR-015: a second pass drops keys whose FULL node id is not in the live
+  // tree, scoped to workspace structural keys (`<id>:workspaces`,
+  // `<id>:bucket:*`). The project-prefix prune above catches the
+  // deleted-project case cheaply; this catches the case where a nested board's
+  // Workspaces section no longer renders — a key like `<childId>:workspaces`
+  // survives the prefix prune because its project prefix is still live, even
+  // though the section node itself is gone. Status/card keys are exempt (their
+  // nodes only appear once Tasks data loads; see the loop body).
   const seenAnyProjectRef = useRef(false);
   useEffect(() => {
     if (projectKey) seenAnyProjectRef.current = true;
@@ -320,13 +351,31 @@ export function SidebarProjectTree({
     const pruned: Record<string, boolean> = {};
     for (const [key, open] of entries) {
       const projectId = projectIdFromOpenStateKey(key);
-      if (live.has(projectId)) pruned[key] = open;
-      else changed = true;
+      if (!live.has(projectId)) {
+        changed = true;
+        continue;
+      }
+      // The project is still live; but the specific node id might not be (a
+      // nested board's Workspaces section no longer renders post-ADR-015).
+      // Drop those keys here so they don't accumulate.
+      //
+      // Scope the full-id check to workspace structural keys only
+      // (`<id>:workspaces`, `<id>:bucket:*`). Status/card keys are excluded
+      // because their nodes only appear in treeData when the project's Tasks
+      // section is OPEN (lazy loader gate) — a status the user expanded in a
+      // prior session would otherwise be pruned before its Tasks data loads.
+      const isWorkspaceStructuralKey =
+        key.endsWith(':workspaces') || key.includes(':bucket:');
+      if (isWorkspaceStructuralKey && !liveTreeNodeIdsSet.has(key)) {
+        changed = true;
+        continue;
+      }
+      pruned[key] = open;
     }
     if (!changed) return;
     openStateRef.current = pruned;
     scheduleOpenStateWrite();
-  }, [projectKey, scheduleOpenStateWrite]);
+  }, [projectKey, liveTreeNodeIdsSet, scheduleOpenStateWrite]);
 
   const handleActivate = useCallback(
     (node: NodeApi<SidebarTreeNode>) => {
@@ -415,7 +464,7 @@ export function SidebarProjectTree({
               {(props) => (
                 <TreeNodeRouter
                   {...props}
-                  onSelectProject={onSelectProject}
+                  onCreateChildBoard={onCreateChildBoard}
                   activeProjectId={activeProjectId}
                   activeWorkspaceId={activeWorkspaceId}
                   activeIssueId={activeIssueId}

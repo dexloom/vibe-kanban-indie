@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 
 use db::models::{
     local_user::LocalUser,
-    project::Project,
+    project::{self, NewProject, Project, ProjectUpdate},
     project_repo::ProjectRepo,
     project_status::ProjectStatus,
     repo::{Repo, UpdateRepo},
@@ -119,20 +119,6 @@ fn expand_tilde(input: &str) -> String {
         return home.join(rest).to_string_lossy().to_string();
     }
     input.to_string()
-}
-
-fn derive_key(name: &str) -> String {
-    let key: String = name
-        .chars()
-        .filter(|c| c.is_alphanumeric())
-        .take(4)
-        .collect::<String>()
-        .to_uppercase();
-    if key.is_empty() {
-        "PRJ".to_string()
-    } else {
-        key
-    }
 }
 
 /// Ensure the single predefined local user exists. Called at startup now that the
@@ -253,7 +239,10 @@ async fn import_repo(pool: &SqlitePool, cfg: &RepoConfig) -> anyhow::Result<()> 
 /// Upsert a project and link its declared repos. Returns the number of links
 /// established. Links are only added, never pruned (import is non-destructive).
 async fn import_project(pool: &SqlitePool, cfg: &ProjectConfig) -> anyhow::Result<usize> {
-    let key = cfg.key.clone().unwrap_or_else(|| derive_key(&cfg.name));
+    let key = cfg
+        .key
+        .clone()
+        .unwrap_or_else(|| project::derive_key(&cfg.name));
     let color = cfg
         .color
         .clone()
@@ -274,25 +263,29 @@ async fn import_project(pool: &SqlitePool, cfg: &ProjectConfig) -> anyhow::Resul
             Project::update_fields(
                 pool,
                 existing.id,
-                &cfg.name,
-                Some(&key),
-                &color,
-                existing.sort_order,
-                working_dir,
-                existing.parent_id,
+                ProjectUpdate {
+                    name: &cfg.name,
+                    key: Some(&key),
+                    color: &color,
+                    sort_order: existing.sort_order,
+                    default_agent_working_dir: working_dir,
+                    parent_id: existing.parent_id,
+                },
             )
             .await?
         }
         None => {
             Project::create(
                 pool,
-                cfg.id.unwrap_or_else(Uuid::new_v4),
-                &cfg.name,
-                Some(&key),
-                &color,
-                0,
-                working_dir,
-                None,
+                NewProject {
+                    id: cfg.id.unwrap_or_else(Uuid::new_v4),
+                    name: &cfg.name,
+                    key: Some(&key),
+                    color: &color,
+                    sort_order: 0,
+                    default_agent_working_dir: working_dir,
+                    parent_id: None,
+                },
             )
             .await?
         }
@@ -522,13 +515,6 @@ mod tests {
         pool
     }
 
-    #[test]
-    fn derive_key_is_uppercase_alnum() {
-        assert_eq!(derive_key("Acme Corp"), "ACME");
-        assert_eq!(derive_key("a-b-c-d-e"), "ABCD");
-        assert_eq!(derive_key("!!!"), "PRJ");
-    }
-
     /// Exported config must be valid TOML: top-level scalar keys (local_user_name,
     /// profiles_json) have to precede the `[[repo]]`/`[[project]]` arrays, or they
     /// would parse into the last table.
@@ -556,13 +542,15 @@ mod tests {
             .unwrap();
         let project = Project::create(
             &src,
-            Uuid::new_v4(),
-            "Acme",
-            Some("ACME"),
-            "#123456",
-            0,
-            Some("/src"),
-            None,
+            NewProject {
+                id: Uuid::new_v4(),
+                name: "Acme",
+                key: Some("ACME"),
+                color: "#123456",
+                sort_order: 0,
+                default_agent_working_dir: Some("/src"),
+                parent_id: None,
+            },
         )
         .await
         .unwrap();
@@ -617,9 +605,20 @@ mod tests {
         let pool = pool().await;
         ensure_local_user(&pool).await.unwrap();
         let id = Uuid::new_v4();
-        Project::create(&pool, id, "Old", Some("OLD"), "#000000", 0, None, None)
-            .await
-            .unwrap();
+        Project::create(
+            &pool,
+            NewProject {
+                id,
+                name: "Old",
+                key: Some("OLD"),
+                color: "#000000",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: None,
+            },
+        )
+        .await
+        .unwrap();
 
         let toml = format!(
             "[[project]]\nid = \"{id}\"\nname = \"New\"\nkey = \"NEW\"\ncolor = \"#ffffff\"\n"

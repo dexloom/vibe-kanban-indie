@@ -74,12 +74,17 @@ function baseInput(
 
 describe('buildTreeData', () => {
   it('places the Tasks section above the Workspaces section', () => {
+    // ADR-015: root's Workspaces section is now only rendered when the
+    // aggregate is non-empty (mirrors the Unassigned gate). Seed one
+    // workspace so the section appears.
     const tasks: ProjectTasksData = {
       statuses: [status('s1')],
       issues: [],
     };
     const input = baseInput({
-      workspacesByProject: new Map([['p1', [] as OutlinerWorkspace[]]]),
+      workspacesByProject: new Map([
+        ['p1', [{ id: 'w1', name: 'w1', createdAt: '2026-08-01T00:00:00.000Z' } as OutlinerWorkspace]],
+      ]),
       tasksByProject: new Map([['p1', tasks]]),
     });
 
@@ -539,7 +544,10 @@ describe('buildTreeData', () => {
     expect(idsB).toEqual(['iB']);
   });
 
-  it('groups nested subprojects under their parent after the sections', () => {
+  it('groups nested boards under their parent after the sections', () => {
+    // ADR-015: Workspace section only renders when aggregate is non-empty.
+    // Seed a workspace so the section renders; ordering is
+    // [Tasks, ...childBoards, Workspaces].
     const input = baseInput({
       projects: [
         project('p-root', { name: 'root' }),
@@ -556,20 +564,28 @@ describe('buildTreeData', () => {
           parentId: 'p-child-a',
         }),
       ],
+      workspacesByProject: new Map([
+        ['p-root', [ws('w-root')]],
+      ]),
     });
     const tree = buildTreeData(input);
     const root = tree[0]!;
     if (root.type !== 'project') throw new Error('expected project');
     expect(root.children).toHaveLength(4);
     expect(root.children[0]!.type).toBe('section');
-    expect(root.children[1]!.type).toBe('section');
-    const childA = root.children[2]!;
-    const childB = root.children[3]!;
+    expect(root.children[1]!.type).toBe('project');
+    expect(root.children[2]!.type).toBe('project');
+    const childA = root.children[1]!;
+    const childB = root.children[2]!;
     if (childA.type !== 'project' || childB.type !== 'project') {
       throw new Error('expected nested project children');
     }
     expect(childA.id).toBe('p-child-a');
     expect(childB.id).toBe('p-child-b');
+    const lastChild = root.children[3]!;
+    if (lastChild.type !== 'section' || lastChild.kind !== 'workspaces') {
+      throw new Error('expected workspaces section at the bottom');
+    }
     const nestedAChildren = childA.children.filter((c) => c.type === 'project');
     expect(nestedAChildren).toHaveLength(1);
     expect(nestedAChildren[0]!.id).toBe('p-grand');
@@ -613,5 +629,240 @@ describe('buildTreeData', () => {
     const nested = root.children.filter((c) => c.type === 'project');
     expect(nested).toHaveLength(1);
     expect(nested[0]!.id).toBe('p-child');
+  });
+});
+
+// ============================================================================
+// ADR-015: root-only Workspaces aggregation
+// ============================================================================
+//
+// 1. Only ROOT projects (parentId === null) render a Workspaces section.
+// 2. The root's Workspaces section aggregates active + archived workspaces of
+//    the entire subtree (root + all descendants), deduped by workspace.id.
+// 3. The Workspaces section is hidden when the aggregate is empty.
+// 4. Children order at the root: [Tasks, ...childBoards, Workspaces].
+// 5. Unassigned is unchanged (keeps its own Workspaces section).
+// 6. Tasks section is unchanged (toggle-only).
+
+function ws(id: string, overrides: Partial<OutlinerWorkspace> = {}): OutlinerWorkspace {
+  return {
+    id,
+    name: id,
+    createdAt: '2026-08-01T00:00:00.000Z',
+    ...overrides,
+  } as OutlinerWorkspace;
+}
+
+describe('buildTreeData ADR-015 root-only Workspaces', () => {
+  it('root with no workspace memberships has NO Workspaces section in its children', () => {
+    const input = baseInput({
+      projects: [project('p-root')],
+    });
+    const tree = buildTreeData(input);
+    const root = tree.find((n) => n.type === 'project' && n.id === 'p-root');
+    if (!root || root.type !== 'project') throw new Error('expected root');
+    // Sections: only the Tasks section (kind === 'tasks'); no workspaces.
+    const sections = root.children.filter((c) => c.type === 'section');
+    expect(sections).toHaveLength(1);
+    expect(sections[0]!.type === 'section' && sections[0]!.kind).toBe('tasks');
+  });
+
+  it('root aggregates own + child-board workspaces deduplicated by id', () => {
+    const input = baseInput({
+      projects: [
+        project('p-root'),
+        project('p-child', { parentId: 'p-root' }),
+      ],
+      workspacesByProject: new Map([
+        ['p-root', [ws('w1'), ws('w2')]],
+        ['p-child', [ws('w2'), ws('w3')]],
+      ]),
+    });
+    const tree = buildTreeData(input);
+    const root = tree.find((n) => n.type === 'project' && n.id === 'p-root');
+    if (!root || root.type !== 'project') throw new Error('expected root');
+    const wsSection = root.children.find(
+      (c) => c.type === 'section' && c.kind === 'workspaces'
+    );
+    expect(wsSection).toBeDefined();
+    if (!wsSection || wsSection.type !== 'section' || wsSection.kind !== 'workspaces') {
+      throw new Error('expected workspaces section');
+    }
+    const allBuckets = wsSection.children.flatMap((b) =>
+      b.children.map((leaf) => leaf.workspace.id)
+    );
+    // w1, w2, w3 — each appears exactly once.
+    expect(new Set(allBuckets)).toEqual(new Set(['w1', 'w2', 'w3']));
+    expect(allBuckets).toHaveLength(3);
+  });
+
+  it('a workspace linked to both root AND a child appears exactly once', () => {
+    // Membership is M:N; a workspace linked to root + child must dedupe by id.
+    const input = baseInput({
+      projects: [
+        project('p-root'),
+        project('p-child', { parentId: 'p-root' }),
+      ],
+      workspacesByProject: new Map([
+        ['p-root', [ws('w-shared')]],
+        ['p-child', [ws('w-shared')]],
+      ]),
+    });
+    const tree = buildTreeData(input);
+    const root = tree.find((n) => n.type === 'project' && n.id === 'p-root');
+    if (!root || root.type !== 'project') throw new Error('expected root');
+    const wsSection = root.children.find(
+      (c) => c.type === 'section' && c.kind === 'workspaces'
+    );
+    expect(wsSection).toBeDefined();
+    if (!wsSection || wsSection.type !== 'section' || wsSection.kind !== 'workspaces') {
+      throw new Error('expected workspaces section');
+    }
+    const ids = wsSection.children.flatMap((b) =>
+      b.children.map((leaf) => leaf.workspace.id)
+    );
+    expect(ids.filter((id) => id === 'w-shared')).toHaveLength(1);
+
+    // The child board itself has NO Workspaces section (ADR-015 §4).
+    const child = root.children.find((c) => c.type === 'project' && c.id === 'p-child');
+    if (!child || child.type !== 'project') throw new Error('expected child');
+    const childSections = child.children.filter((c) => c.type === 'section');
+    expect(childSections).toHaveLength(1);
+    expect(childSections[0]!.type === 'section' && childSections[0]!.kind).toBe('tasks');
+  });
+
+  it('child board (non-root) has NO Workspaces section in its children', () => {
+    const input = baseInput({
+      projects: [
+        project('p-root'),
+        project('p-child', { parentId: 'p-root' }),
+      ],
+      workspacesByProject: new Map([
+        ['p-child', [ws('w-only-on-child')]],
+      ]),
+    });
+    const tree = buildTreeData(input);
+    const root = tree.find((n) => n.type === 'project' && n.id === 'p-root');
+    if (!root || root.type !== 'project') throw new Error('expected root');
+    const child = root.children.find((c) => c.type === 'project' && c.id === 'p-child');
+    if (!child || child.type !== 'project') throw new Error('expected child');
+    const wsSection = child.children.find(
+      (c) => c.type === 'section' && c.kind === 'workspaces'
+    );
+    expect(wsSection).toBeUndefined();
+  });
+
+  it('root children order is [Tasks, ...childBoards, Workspaces]', () => {
+    const input = baseInput({
+      projects: [
+        project('p-root'),
+        project('p-child-a', { parentId: 'p-root' }),
+        project('p-child-b', { parentId: 'p-root' }),
+      ],
+      workspacesByProject: new Map([['p-root', [ws('w1')]]]),
+    });
+    const tree = buildTreeData(input);
+    const root = tree.find((n) => n.type === 'project' && n.id === 'p-root');
+    if (!root || root.type !== 'project') throw new Error('expected root');
+    const tags = root.children.map((c) => {
+      if (c.type === 'section') {
+        return `section:${c.kind}`;
+      }
+      return `project:${c.id}`;
+    });
+    expect(tags).toEqual([
+      'section:tasks',
+      'project:p-child-a',
+      'project:p-child-b',
+      'section:workspaces',
+    ]);
+  });
+
+  it('archived workspaces in subtree land in the root\'s archived bucket', () => {
+    // Two passes: aggregate active and aggregate archived separately, dedupe
+    // each by id. A workspace is "archived" iff it appears in the
+    // archivedWorkspacesByProject map; the active list must not include it.
+    const input = baseInput({
+      projects: [
+        project('p-root'),
+        project('p-child', { parentId: 'p-root' }),
+      ],
+      workspacesByProject: new Map([
+        ['p-root', [ws('w-active')]],
+        ['p-child', [ws('w-active'), ws('w-other-active')]],
+      ]),
+      archivedWorkspacesByProject: new Map([
+        ['p-root', [ws('w-archived')]],
+        ['p-child', [ws('w-archived-2')]],
+      ]),
+    });
+    const tree = buildTreeData(input);
+    const root = tree.find((n) => n.type === 'project' && n.id === 'p-root');
+    if (!root || root.type !== 'project') throw new Error('expected root');
+    const wsSection = root.children.find(
+      (c) => c.type === 'section' && c.kind === 'workspaces'
+    );
+    expect(wsSection).toBeDefined();
+    if (!wsSection || wsSection.type !== 'section' || wsSection.kind !== 'workspaces') {
+      throw new Error('expected workspaces section');
+    }
+    const archivedBucket = wsSection.children.find((b) => b.bucketId === 'archived');
+    expect(archivedBucket).toBeDefined();
+    const archivedIds = (archivedBucket?.children ?? []).map(
+      (leaf) => leaf.workspace.id
+    );
+    expect(new Set(archivedIds)).toEqual(new Set(['w-archived', 'w-archived-2']));
+    // The active workspaces must NOT appear in the archived bucket.
+    expect(archivedIds).not.toContain('w-active');
+  });
+
+  it('depth-2 grandchild board workspace aggregates into the root', () => {
+    const input = baseInput({
+      projects: [
+        project('p-root'),
+        project('p-child', { parentId: 'p-root' }),
+        project('p-grand', { parentId: 'p-child' }),
+      ],
+      workspacesByProject: new Map([
+        ['p-root', [ws('w-root')]],
+        ['p-child', [ws('w-child')]],
+        ['p-grand', [ws('w-grand')]],
+      ]),
+    });
+    const tree = buildTreeData(input);
+    const root = tree.find((n) => n.type === 'project' && n.id === 'p-root');
+    if (!root || root.type !== 'project') throw new Error('expected root');
+    const wsSection = root.children.find(
+      (c) => c.type === 'section' && c.kind === 'workspaces'
+    );
+    expect(wsSection).toBeDefined();
+    if (!wsSection || wsSection.type !== 'section' || wsSection.kind !== 'workspaces') {
+      throw new Error('expected workspaces section');
+    }
+    const ids = wsSection.children.flatMap((b) =>
+      b.children.map((leaf) => leaf.workspace.id)
+    );
+    expect(new Set(ids)).toEqual(new Set(['w-root', 'w-child', 'w-grand']));
+  });
+
+  it('Unassigned pseudo-project still renders its own Workspaces section', () => {
+    // ADR-015 §6: Unassigned is unchanged. Keep its own Workspaces section.
+    const input = baseInput({
+      projects: [],
+      unassignedActive: [ws('w-orphaned')],
+    });
+    const tree = buildTreeData(input);
+    const unassigned = tree.find((n) => n.id === UNASSIGNED_PROJECT_ID);
+    if (!unassigned || unassigned.type !== 'project') {
+      throw new Error('expected unassigned');
+    }
+    const wsSection = unassigned.children.find(
+      (c) => c.type === 'section' && c.kind === 'workspaces'
+    );
+    expect(wsSection).toBeDefined();
+    const taskSection = unassigned.children.find(
+      (c) => c.type === 'section' && c.kind === 'tasks'
+    );
+    expect(taskSection).toBeUndefined();
   });
 });

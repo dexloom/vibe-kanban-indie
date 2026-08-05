@@ -1,7 +1,9 @@
 {
   "createProjectDialog": {
     "title": "Create Project",
+    "titleChildBoard": "Create child board",
     "description": "Create a new project in this organization.",
+    "descriptionChildBoard": "Create a new child board under this project.",
     "nameLabel": "Project name",
     "namePlaceholder": "Enter project name",
     "selectColor": "Select project color",

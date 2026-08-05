@@ -1,5 +1,5 @@
 import type { NodeApi, NodeRendererProps } from 'react-arborist';
-import { ArrowSquareOutIcon } from '@phosphor-icons/react';
+import { PlusIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/cn';
 import { useDraggable, useDropTarget } from '../dnd';
@@ -39,11 +39,17 @@ function getProjectInitials(name: string): string {
 
 function ProjectTreeNode(
   props: TreeNodeRenderProps<ProjectNode> & {
-    onSelectProject: (id: string) => void;
+    onCreateChildBoard?: (parentId: string) => void;
     activeProjectId: string | null;
   }
 ) {
-  const { node, style, dragHandle, onSelectProject, activeProjectId } = props;
+  const {
+    node,
+    style,
+    dragHandle,
+    onCreateChildBoard,
+    activeProjectId,
+  } = props;
   const { t } = useTranslation('common');
   const project = node.data;
   const isActive = project.id === activeProjectId;
@@ -72,7 +78,8 @@ function ProjectTreeNode(
       style={style}
       dragHandle={dragHandle}
       isActive={isActive}
-      onRowClick={() => node.toggle()}
+      // ADR-015: row click navigates via react-arborist's onActivate
+      // (handleActivate → onSelectProject); the caret handles toggle.
       outerProps={{
         style: { touchAction: 'none' },
         ...(onPointerDown ? { onPointerDown } : {}),
@@ -101,20 +108,22 @@ function ProjectTreeNode(
           {getProjectInitials(project.name)}
         </span>
         <span className="truncate">{project.name}</span>
-        <button
-          aria-label={t('sidebar.openProjectKanban')}
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelectProject(project.id);
-          }}
-          className={cn(
-            'pointer-events-auto ml-auto shrink-0 rounded-sm p-0.5',
-            'text-low hover:text-high hover:bg-tertiary',
-            'transition-opacity focus:outline-none'
-          )}
-        >
-          <ArrowSquareOutIcon className="size-4.5" weight="bold" />
-        </button>
+        {!isUnassigned && onCreateChildBoard && (
+          <button
+            aria-label={t('sidebar.createChildBoard', 'Create child board')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCreateChildBoard(project.id);
+            }}
+            className={cn(
+              'pointer-events-auto ml-auto shrink-0 rounded-sm p-0.5',
+              'text-low hover:text-high hover:bg-tertiary',
+              'transition-opacity focus:outline-none'
+            )}
+          >
+            <PlusIcon className="size-4.5" weight="bold" />
+          </button>
+        )}
       </div>
     </TreeRow>
   );
@@ -139,7 +148,7 @@ function SectionTreeNode(
 
 export function TreeNodeRouter(
   props: NodeRendererProps<SidebarTreeNode> & {
-    onSelectProject: (id: string) => void;
+    onCreateChildBoard?: (parentId: string) => void;
     activeProjectId: string | null;
     activeWorkspaceId: string | null;
     onSelectIssue?: (projectId: string, issueId: string) => void;
@@ -153,7 +162,7 @@ export function TreeNodeRouter(
     node,
     style,
     dragHandle,
-    onSelectProject,
+    onCreateChildBoard,
     activeProjectId,
     activeWorkspaceId,
     activeIssueId,
@@ -166,7 +175,7 @@ export function TreeNodeRouter(
           node={node as NodeApi<ProjectNode>}
           style={style}
           dragHandle={dragHandle}
-          onSelectProject={onSelectProject}
+          onCreateChildBoard={onCreateChildBoard}
           activeProjectId={activeProjectId}
         />
       );

@@ -178,6 +178,12 @@ async fn main() -> Result<(), VibeKanbanError> {
 
     let app_router = routes::router(deployment.clone());
 
+    // Seed the origin-check middleware with the saved config's allowed origins
+    // (env var VK_ALLOWED_ORIGINS is the fallback when the config list is empty).
+    server::middleware::origin::set_allowed_origins(
+        &deployment.config().read().await.allowed_origins,
+    );
+
     // Production only: open browser, unless suppressed (e.g. when embedded by a
     // native host like the macOS app, which provides its own UI).
     if !cfg!(debug_assertions) && std::env::var("VK_DISABLE_BROWSER_OPEN").is_err() {

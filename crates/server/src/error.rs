@@ -347,11 +347,7 @@ impl IntoResponse for ApiError {
 
             ApiError::BadRequest(msg) => ErrorInfo::bad_request("BadRequest", msg.clone()),
             ApiError::Conflict(msg) => ErrorInfo::conflict("ConflictError", msg.clone()),
-            ApiError::ConflictPayload(_) => {
-                let payload = match &self {
-                    ApiError::ConflictPayload(payload) => payload.clone(),
-                    _ => serde_json::Value::Null,
-                };
+            ApiError::ConflictPayload(payload) => {
                 // Derive BOTH `message` and `error_type` from the payload's
                 // `error` field. The original hardcoded "ProjectHasChildren"
                 // lied for any future caller — e.g. a `bulk_limit_exceeded`
@@ -360,20 +356,15 @@ impl IntoResponse for ApiError {
                 // existing payload (`payload["error"] == "project_has_children"`)
                 // intact while letting new callers reuse this variant
                 // without touching the error mapper.
-                let message = payload
-                    .get("error")
-                    .and_then(|value| value.as_str())
-                    .unwrap_or("Conflict")
-                    .to_string();
-                let error_type = payload
+                let label = payload
                     .get("error")
                     .and_then(|value| value.as_str())
                     .unwrap_or("Conflict")
                     .to_string();
                 ErrorInfo {
                     status: StatusCode::CONFLICT,
-                    error_type,
-                    message: Some(message),
+                    error_type: label.clone(),
+                    message: Some(label),
                 }
             }
             ApiError::Forbidden(msg) => {

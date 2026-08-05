@@ -38,6 +38,7 @@ import {
 } from '@/shared/stores/useUiPreferencesStore';
 import { useThemeManifest } from '@/shared/lib/themeVariant';
 import { cn, playSound } from '@/shared/lib/utils';
+import { parseAllowedOriginsCsv } from '@/shared/lib/origin';
 import { PrimaryButton } from '@vibe/ui/components/PrimaryButton';
 import { IconButton } from '@vibe/ui/components/IconButton';
 import {
@@ -82,6 +83,10 @@ export function GeneralSettingsSection() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [branchPrefixError, setBranchPrefixError] = useState<string | null>(
+    null
+  );
+  const [allowedOriginsCsv, setAllowedOriginsCsv] = useState('');
+  const [allowedOriginsError, setAllowedOriginsError] = useState<string | null>(
     null
   );
   const { setTheme } = useTheme();
@@ -138,6 +143,8 @@ export function GeneralSettingsSection() {
     if (!config) return;
     if (!dirty) {
       setDraft(cloneDeep(config));
+      setAllowedOriginsCsv((config.allowed_origins ?? []).join(', '));
+      setAllowedOriginsError(null);
     }
   }, [config, dirty]);
 
@@ -644,6 +651,32 @@ export function GeneralSettingsSection() {
         </SettingsField>
       </SettingsCard>
 
+      {/* Network */}
+      <SettingsCard
+        title={t('settings.general.network.title')}
+        description={t('settings.general.network.description')}
+      >
+        <SettingsField
+          label={t('settings.general.network.allowedOrigins.label')}
+          description={t('settings.general.network.allowedOrigins.helper')}
+          error={allowedOriginsError}
+        >
+          <SettingsInput
+            value={allowedOriginsCsv}
+            onChange={(value) => {
+              setAllowedOriginsCsv(value);
+              const { values, error } = parseAllowedOriginsCsv(value);
+              setAllowedOriginsError(error);
+              updateDraft({ allowed_origins: values });
+            }}
+            placeholder={t(
+              'settings.general.network.allowedOrigins.placeholder'
+            )}
+            error={!!allowedOriginsError}
+          />
+        </SettingsField>
+      </SettingsCard>
+
       {/* Pull Requests */}
       <SettingsCard
         title={t('settings.general.pullRequests.title')}
@@ -876,7 +909,7 @@ export function GeneralSettingsSection() {
       <SettingsSaveBar
         show={hasUnsavedChanges}
         saving={saving}
-        saveDisabled={!!branchPrefixError}
+        saveDisabled={!!branchPrefixError || !!allowedOriginsError}
         onSave={handleSave}
         onDiscard={handleDiscard}
       />

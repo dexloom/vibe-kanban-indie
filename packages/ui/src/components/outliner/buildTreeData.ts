@@ -87,24 +87,18 @@ function buildProjectNode(
   realProjectIds: Set<string>,
   seen: Set<string> = new Set()
 ): ProjectNode {
+  const isRoot = project.parentId === null;
   const tasks = buildTasksSection(project.id, input, t);
-  const workspaces = buildWorkspacesSection(
-    project.id,
-    input.workspacesByProject.get(project.id) ?? [],
-    input.archivedWorkspacesByProject.get(project.id) ?? [],
-    t
-  );
-  // Sections first (Tasks above Workspaces), then nested subprojects.
-  const children: (SectionNode | ProjectNode)[] = [tasks, workspaces];
+  const children: (SectionNode | ProjectNode)[] = [tasks];
   if (!seen.has(project.id)) {
     const nextSeen = new Set(seen);
     nextSeen.add(project.id);
-    const subprojects = childrenByParent.get(project.id) ?? [];
-    for (const sub of subprojects) {
-      if (!realProjectIds.has(sub.id) || nextSeen.has(sub.id)) continue;
+    const boards = childrenByParent.get(project.id) ?? [];
+    for (const board of boards) {
+      if (!realProjectIds.has(board.id) || nextSeen.has(board.id)) continue;
       children.push(
         buildProjectNode(
-          sub,
+          board,
           input,
           t,
           childrenByParent,
@@ -112,6 +106,30 @@ function buildProjectNode(
           nextSeen
         )
       );
+    }
+  }
+  // ADR-015: Only ROOT projects render a Workspaces section; nested boards
+  // render Tasks + child boards only. The root's Workspaces section
+  // aggregates active + archived workspaces of the entire subtree (root +
+  // all descendants), deduped by workspace.id. The section is hidden when
+  // the aggregate is empty (mirrors the Unassigned gate).
+  if (isRoot) {
+    const subtreeIds = collectSubtreeProjectIds(
+      project.id,
+      childrenByParent,
+      realProjectIds
+    );
+    const active = dedupeById(
+      subtreeIds.flatMap((id) => input.workspacesByProject.get(id) ?? [])
+    );
+    const archived = dedupeById(
+      subtreeIds.flatMap(
+        (id) => input.archivedWorkspacesByProject.get(id) ?? []
+      )
+    );
+    if (active.length > 0 || archived.length > 0) {
+      const workspaces = buildWorkspacesSection(project.id, active, archived, t);
+      children.push(workspaces);
     }
   }
   return {
@@ -123,6 +141,46 @@ function buildProjectNode(
     sortOrder: project.sortOrder,
     children,
   };
+}
+
+/**
+ * ADR-015: Returns the project id of `rootId` plus every descendant project
+ * id reachable through `childrenByParent`. Cycle-safe via `seen`.
+ */
+function collectSubtreeProjectIds(
+  rootId: string,
+  childrenByParent: Map<string | null, SidebarProject[]>,
+  realProjectIds: Set<string>,
+  seen: Set<string> = new Set()
+): string[] {
+  if (seen.has(rootId)) return [];
+  seen.add(rootId);
+  const out: string[] = [rootId];
+  const boards = childrenByParent.get(rootId) ?? [];
+  for (const board of boards) {
+    if (!realProjectIds.has(board.id) || seen.has(board.id)) continue;
+    out.push(
+      ...collectSubtreeProjectIds(
+        board.id,
+        childrenByParent,
+        realProjectIds,
+        seen
+      )
+    );
+  }
+  return out;
+}
+
+/** ADR-015: dedupe workspaces by id while preserving first-seen order. */
+function dedupeById(workspaces: readonly OutlinerWorkspace[]): OutlinerWorkspace[] {
+  const seen = new Set<string>();
+  const out: OutlinerWorkspace[] = [];
+  for (const ws of workspaces) {
+    if (seen.has(ws.id)) continue;
+    seen.add(ws.id);
+    out.push(ws);
+  }
+  return out;
 }
 
 function buildTasksSection(

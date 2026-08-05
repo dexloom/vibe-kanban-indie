@@ -53,7 +53,7 @@ use std::str::FromStr;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
-use super::local_kanban::{derive_key, merge_and_update_issue};
+use super::local_kanban::{derive_key_chain, merge_and_update_issue};
 use crate::{
     DeploymentImpl,
     error::ApiError,
@@ -600,7 +600,7 @@ async fn create_issue(
     let project = DbProject::find_by_id(pool, req.project_id)
         .await?
         .ok_or_else(|| ApiError::BadRequest("project not found".into()))?;
-    let key = project.key.unwrap_or_else(|| derive_key(&project.name));
+    let key = derive_key_chain(pool, project.id).await?;
     let id = req.id.unwrap_or_else(Uuid::new_v4);
     let priority = req.priority.as_ref().map(|p| priority_str(p).to_string());
     let ext = serde_json::to_string(&req.extension_metadata).unwrap_or_else(|_| "{}".to_string());
@@ -880,6 +880,86 @@ pub fn router(_deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::local_kanban::clear_key_chain_cache;
+    use db::models::project::{NewProject, Project as DbProject};
+    use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
+    use uuid::Uuid;
+
+    use super::derive_key_chain;
+
+    async fn pool() -> SqlitePool {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("../db/migrations").run(&pool).await.unwrap();
+        pool
+    }
+
+    /// B-1 regression: the MCP `create_issue` path must produce a chain-prefixed
+    /// key for nested projects, not a leaf key. `derive_key_chain` is the single
+    /// function the handler relies on now; assert it walks the parent chain.
+    #[tokio::test]
+    async fn mcp_create_issue_uses_chain_key_for_nested_projects() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let root_id = Uuid::new_v4();
+        let sub_id = Uuid::new_v4();
+        let leaf_id = Uuid::new_v4();
+
+        DbProject::create(
+            &pool,
+            NewProject {
+                id: root_id,
+                name: "Acme",
+                key: Some("ACME"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: None,
+            },
+        )
+        .await
+        .unwrap();
+        DbProject::create(
+            &pool,
+            NewProject {
+                id: sub_id,
+                name: "Sub",
+                key: Some("SUB"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: Some(root_id),
+            },
+        )
+        .await
+        .unwrap();
+        DbProject::create(
+            &pool,
+            NewProject {
+                id: leaf_id,
+                name: "X",
+                key: Some("X"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: Some(sub_id),
+            },
+        )
+        .await
+        .unwrap();
+
+        let root_key = derive_key_chain(&pool, root_id).await.unwrap();
+        let sub_key = derive_key_chain(&pool, sub_id).await.unwrap();
+        let leaf_key = derive_key_chain(&pool, leaf_id).await.unwrap();
+
+        assert_eq!(root_key, "ACME");
+        assert_eq!(sub_key, "ACME-SUB");
+        assert_eq!(leaf_key, "ACME-SUB-X");
+    }
+
     /// The kanban router must build without a matchit path conflict (e.g.
     /// `/issues/search` static vs `/issues/{id}` param).
     #[test]

@@ -147,9 +147,16 @@ async fn update_config(
 
     match save_config_to_file(&new_config, &config_path).await {
         Ok(_) => {
-            let mut config = deployment.config().write().await;
-            *config = new_config.clone();
-            drop(config);
+            {
+                let mut config = deployment.config().write().await;
+                *config = new_config.clone();
+            } // tokio write-lock released here
+
+            // Hot-reload the origin-check middleware cache with the new list.
+            // An empty list resets the cache to the VK_ALLOWED_ORIGINS env seed.
+            // Done AFTER the tokio config lock is released so the std RwLock
+            // write never blocks an async worker thread while holding it.
+            crate::middleware::origin::set_allowed_origins(&new_config.allowed_origins);
 
             // Track config events when fields transition from false → true and run side effects
 

@@ -81,6 +81,7 @@ import { computeKanbanMove } from '../model/computeKanbanMove';
 import { buildKanbanMoveUpdates } from '../model/buildKanbanMoveUpdates';
 import { createSyncGuard } from '../model/syncGuard';
 import { buildProjectBreadcrumb } from '../model/buildProjectBreadcrumb';
+import type { BreadcrumbEntry } from '../model/buildProjectBreadcrumb';
 import {
   useKanbanDragHandler,
   type KanbanDragHandler,
@@ -128,6 +129,51 @@ function LoadingState() {
     <div className="flex items-center justify-center h-full">
       <p className="text-low">{t('states.loading')}</p>
     </div>
+  );
+}
+
+/**
+ * Renders the project breadcrumb inside the kanban header. Extracted from
+ * the prior inline IIFE in `KanbanContainer` so the JSX stays linear and
+ * the render logic is unit-addressable. Last segment is plain text;
+ * earlier segments are buttons that call `onNavigateProject(id)`; segments
+ * are separated by `/`. When `entries` is empty, `fallback` is shown
+ * instead (the single-project / data-not-yet-loaded case).
+ */
+function ProjectBreadcrumb({
+  entries,
+  fallback,
+  onNavigateProject,
+}: {
+  entries: readonly BreadcrumbEntry[];
+  fallback: string;
+  onNavigateProject: (id: string) => void;
+}) {
+  if (entries.length === 0) {
+    return <>{fallback}</>;
+  }
+  return (
+    <>
+      {entries.map((entry, index) => {
+        const isLast = index === entries.length - 1;
+        return (
+          <span key={entry.id} className="inline-flex items-center">
+            {index > 0 && <span className="px-half text-low">/</span>}
+            {isLast ? (
+              <span className="truncate">{entry.name}</span>
+            ) : (
+              <button
+                type="button"
+                className="text-low hover:text-normal truncate cursor-pointer"
+                onClick={() => onNavigateProject(entry.id)}
+              >
+                {entry.name}
+              </button>
+            )}
+          </span>
+        );
+      })}
+    </>
   );
 }
 
@@ -1049,6 +1095,11 @@ export function KanbanContainer() {
 
   const isLoading = projectLoading || orgLoading;
 
+  const breadcrumb = useMemo(
+    () => buildProjectBreadcrumb(projects, projectId),
+    [projects, projectId]
+  );
+
   if (isLoading) {
     return <LoadingState />;
   }
@@ -1063,14 +1114,11 @@ export function KanbanContainer() {
       >
         <div className="flex items-center gap-half">
           <h2 className={cn('text-2xl font-medium', isMobile && 'text-lg')}>
-            {buildProjectBreadcrumb(
-              projects as unknown as Parameters<
-                typeof buildProjectBreadcrumb
-              >[0],
-              projectId
-            )
-              .map((entry) => entry.name)
-              .join(' / ') || projectName}
+            <ProjectBreadcrumb
+              entries={breadcrumb}
+              fallback={projectName}
+              onNavigateProject={(id) => appNavigation.goToProject(id)}
+            />
           </h2>
 
           <DropdownMenu>

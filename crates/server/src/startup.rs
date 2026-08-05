@@ -10,7 +10,7 @@ use tokio_util::sync::CancellationToken;
 use tower_http::validate_request::ValidateRequestHeaderLayer;
 use utils::assets::asset_dir;
 
-use crate::{DeploymentImpl, middleware::origin::validate_origin, routes};
+use crate::{DeploymentImpl, middleware, middleware::origin::validate_origin, routes};
 
 /// A running server instance. Callers can read the port, then call `serve()`
 /// to run the server until the shutdown token is cancelled.
@@ -48,6 +48,12 @@ impl ServerHandle {
         let app_router = routes::router(self.deployment.clone());
         let proxy_router: axum::Router = routes::preview::subdomain_router(self.deployment.clone())
             .layer(ValidateRequestHeaderLayer::custom(validate_origin));
+
+        // Seed the origin-check middleware with the saved config's allowed origins
+        // (env var VK_ALLOWED_ORIGINS is the fallback when the config list is empty).
+        middleware::origin::set_allowed_origins(
+            &self.deployment.config().read().await.allowed_origins,
+        );
 
         let main_shutdown = self.shutdown_token.clone();
         let proxy_shutdown = self.shutdown_token.clone();
