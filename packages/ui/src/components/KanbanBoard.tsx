@@ -15,6 +15,7 @@ import {
   useDragSourceIssueId,
 } from './outliner/dragState';
 import { useDraggable, useDropTarget } from './dnd';
+import { SOURCE_DATA_ATTRS } from './dnd';
 import type { DragSource } from './dnd';
 
 /** Source shape specific to kanban card drags; narrows `DragSource` for
@@ -27,7 +28,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
 } from 'react';
@@ -102,7 +103,7 @@ export const KanbanCard = ({
   isMobile,
   name,
 }: KanbanCardProps) => {
-  const { onMouseDown } = useDraggable(source, { disabled: dragDisabled });
+  const { onPointerDown } = useDraggable(source, { disabled: dragDisabled });
   // Dim the source card while a drag is in flight; the source card may
   // be in a column that has no live candidate (the pointer is over a
   // different column), so the source id lives in its own context
@@ -117,17 +118,31 @@ export const KanbanCard = ({
     acceptKinds: ['issue-move'],
     statusId: source.statusId,
   });
+  // P4-E1: on mobile, the drag binding lives on the handle
+  // (`DotsSixVerticalIcon`) so the card body stays scrollable by
+  // swipe — the handle is the only touch target that promotes the
+  // gesture into a drag. Desktop keeps whole-card binding (no scroll
+  // conflict, larger drag target helps accessibility).
+  const cardPointerProps =
+    !isMobile && onPointerDown
+      ? { onPointerDown, style: { touchAction: 'none' as const } }
+      : {};
+  const handlePointerProps =
+    isMobile && onPointerDown
+      ? { onPointerDown, style: { touchAction: 'none' as const } }
+      : {};
   return (
     <Card
       className={cn(
         'p-base outline-none flex-col rounded-md border -mt-[1px] -mx-[1px] bg-surface cursor-pointer',
+        (isSelected || isOpen) && 'relative z-10',
         isSelected
           ? 'ring-2 ring-accent ring-inset bg-accent/5'
           : isOpen && 'ring-2 ring-brand ring-inset',
         isDraggedSource && 'opacity-50 transition-opacity',
-        className
+        className,
       )}
-      {...(onMouseDown ? { onMouseDown } : {})}
+      {...cardPointerProps}
       {...dropTargetAttrs}
       data-dnd-card=""
       data-dnd-card-issue-id={source.issueId}
@@ -137,7 +152,10 @@ export const KanbanCard = ({
     >
       {isMobile ? (
         <div className="flex gap-half">
-          <div className="flex items-start pt-half cursor-grab shrink-0">
+          <div
+            className="flex items-start pt-half cursor-grab shrink-0"
+            {...handlePointerProps}
+          >
             <DotsSixVerticalIcon
               className="size-icon-xs text-low"
               weight="bold"
@@ -165,6 +183,20 @@ export type KanbanCardsProps = {
   /** Project id this column belongs to. Custom drag controller reads
    * `data-drop-target-project` so it skips targets from other projects. */
   activeProjectId?: string | null;
+  /** Ordered ids of the issues rendered as children (same order as
+   * `children`). When provided, the same-column swap preview resolves
+   * source/target indices via this list instead of parsing React's
+   * `Children.toArray` keys — the latter changes shape across React
+   * versions (`.$` prefix is an implementation detail). */
+  issueIds?: string[];
+  /** Enables slot-position previews (same-column swap reorder and
+   * cross-column insertion clone). Defaults to `true` for backward
+   * compat. `KanbanContainer` flips this off under non-manual sort
+   * modes (priority/created_at/title) where the swap COMMIT is gated
+   * off but the PREVIEW used to leak through — preview and commit
+   * disagreed and the user saw a live swap that snap-back'd on drop.
+   * ADR-012 round-5 §17. */
+  positionalReorderEnabled?: boolean;
 };
 
 export const KanbanCards = ({
@@ -172,55 +204,100 @@ export const KanbanCards = ({
   children,
   className,
   activeProjectId,
+  issueIds,
+  positionalReorderEnabled = true,
 }: KanbanCardsProps) => {
   const isDragActive = useDragActive();
   const candidateId = useDragCandidate();
   const candidateIndex = useDragCandidateIndex();
   const sourceIssueId = useDragSourceIssueId();
   const isSwapPreview =
-    isDragActive && candidateId !== null && candidateId !== id;
-  const isMovePreview = isDragActive && candidateId === id;
+    positionalReorderEnabled &&
+    isDragActive &&
+    candidateId !== null &&
+    candidateId !== id;
+  const isMovePreview =
+    positionalReorderEnabled && isDragActive && candidateId === id;
   const dropTargetAttrs = useDropTarget(id, activeProjectId ?? '');
   const columnRef = useRef<HTMLDivElement | null>(null);
-  // Cross-column move preview: append a dimmed clone of the dragged card at
-  // the insertion slot of the target column (index = how many cards sit
-  // above it; computed against the controller's promote-time snapshot), so
-  // the user sees exactly what will land. Same imperative-clone pattern as
-  // the drag ghost (transient, removed on preview end). The source card
-  // stays in its original column (dimmed).
-  useEffect(() => {
-    if (!isMovePreview || !sourceIssueId || !columnRef.current) return;
-    // Issue ids are bare UUIDs (safe selector chars — no CSS escaping needed).
-    const sourceEl = document.querySelector<HTMLElement>(
-      `[data-dnd-card-issue-id="${sourceIssueId}"]`
-    );
-    if (!sourceEl) return;
-    const preview = sourceEl.cloneNode(true) as HTMLElement;
-    preview.style.opacity = '0.5';
-    preview.style.pointerEvents = 'none';
-    preview.removeAttribute('data-dnd-card');
-    preview.removeAttribute('data-drop-target-id');
+  const previewRef = useRef<HTMLElement | null>(null);
+  // Cross-column move preview: create one dimmed clone for the target
+  // column AND position it in a single layout effect. P5-E5: the
+  // position step MUST run synchronously before paint so the clone
+  // never paints at a stale slot for one frame between a fast-finger
+  // sweep (candidateIndex changes every few px). Splitting create
+  // and position into two effects — create as useEffect, position as
+  // useLayoutEffect — would race the wrong way: useLayoutEffect runs
+  // strictly BEFORE useEffect, so position would run first with no
+  // preview to position and create would then append at the column
+  // tail. The combined effect creates + positions in one synchronous
+  // pass before paint. Cleanup runs on dep removal to drop the clone.
+  useLayoutEffect(() => {
     const col = columnRef.current;
-    const insertAt = candidateIndex ?? col.children.length;
-    const anchor = col.children[insertAt] ?? null;
+    if (!col) return;
+    if (!isMovePreview || !sourceIssueId) {
+      previewRef.current?.remove();
+      previewRef.current = null;
+      return;
+    }
+    let preview = previewRef.current;
+    if (!preview) {
+      // Issue ids are bare UUIDs (safe selector chars — no CSS escaping needed).
+      const sourceEl = document.querySelector<HTMLElement>(
+        `[data-dnd-card-issue-id="${sourceIssueId}"]`,
+      );
+      if (!sourceEl) return;
+      preview = sourceEl.cloneNode(true) as HTMLElement;
+      preview.style.opacity = '0.5';
+      preview.style.pointerEvents = 'none';
+      // P5-E3: strip every source data attribute via the shared
+      // `SOURCE_DATA_ATTRS` list (see `dnd/sourceAttrs.ts`). The ghost in
+      // `DragController` and this preview clone were stripping
+      // overlapping but inconsistent subsets — the ghost knew about
+      // `data-drop-target-project` and `data-drop-target-accept-kinds`,
+      // this preview didn't. A bare preview with the wrong subset
+      // would be picked up by `collectTargets` if the controller's
+      // per-frame DOM re-query ever noticed the inherited project /
+      // accept-kinds. Single source of truth eliminates the drift.
+      for (const attr of SOURCE_DATA_ATTRS) {
+        preview.removeAttribute(attr);
+      }
+      previewRef.current = preview;
+      col.appendChild(preview);
+    }
+    // Snapshot real children without the preview itself; otherwise moving
+    // from an earlier slot to a later one would make the live clone skew the
+    // insertion index by one.
+    const kids = Array.from(col.children).filter((child) => child !== preview);
+    const insertAt = candidateIndex ?? kids.length;
+    const anchor = kids[insertAt] ?? null;
     col.insertBefore(preview, anchor);
-    return () => preview.remove();
-  }, [isMovePreview, sourceIssueId, candidateIndex]);
+  }, [isMovePreview, sourceIssueId, candidateIndex, id]);
 
   const displayChildren = useMemo(() => {
     if (!isSwapPreview || !sourceIssueId) return children;
     const arr = Children.toArray(children);
-    const stripKeyPrefix = (k: string): string => k.replace(/^\.\$/, '');
-    const srcIdx = arr.findIndex(
-      (c) =>
-        stripKeyPrefix(String((c as { key?: string | null }).key ?? '')) ===
-        sourceIssueId
-    );
-    const dstIdx = arr.findIndex(
-      (c) =>
-        stripKeyPrefix(String((c as { key?: string | null }).key ?? '')) ===
-        candidateId
-    );
+    let srcIdx: number;
+    let dstIdx: number;
+    if (issueIds && issueIds.length === arr.length) {
+      // Authoritative path: the caller passes the ids in render order,
+      // so we can resolve source/target indices directly without
+      // depending on React's internal `.$` key prefix.
+      srcIdx = issueIds.indexOf(sourceIssueId);
+      dstIdx = issueIds.indexOf(candidateId ?? '');
+    } else {
+      const stripKeyPrefix = (k: string): string => k.replace(/^\.\$/, '');
+      srcIdx = arr.findIndex(
+        (c) =>
+          stripKeyPrefix(String((c as { key?: string | null }).key ?? '')) ===
+          sourceIssueId,
+      );
+      dstIdx = arr.findIndex(
+        (c) =>
+          stripKeyPrefix(String((c as { key?: string | null }).key ?? '')) ===
+          candidateId,
+      );
+    }
     if (srcIdx === -1 || dstIdx === -1 || srcIdx === dstIdx) return children;
     const a = arr[srcIdx];
     const b = arr[dstIdx];
@@ -228,7 +305,7 @@ export const KanbanCards = ({
     arr[srcIdx] = b;
     arr[dstIdx] = a;
     return arr;
-  }, [children, isSwapPreview, sourceIssueId, candidateId]);
+  }, [children, isSwapPreview, sourceIssueId, candidateId, issueIds]);
   return (
     <div
       ref={columnRef}
@@ -267,7 +344,7 @@ export const KanbanHeader = (props: KanbanHeaderProps) => {
       className={cn(
         'sticky top-0 z-20 flex shrink-0 items-center gap-base p-base flex gap-base',
         'bg-background',
-        props.className
+        props.className,
       )}
       style={{
         backgroundImage: `linear-gradient(hsl(var(${props.color}) / 0.03), hsl(var(${props.color}) / 0.03))`,
@@ -322,7 +399,7 @@ export const KanbanProvider = ({
     <div
       className={cn(
         'inline-grid grid-flow-col auto-cols-[minmax(200px,400px)] divide-x border-x items-stretch min-h-full',
-        className
+        className,
       )}
     >
       {children}

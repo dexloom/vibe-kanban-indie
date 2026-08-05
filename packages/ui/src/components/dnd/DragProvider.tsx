@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { DragController, type DragControllerCallbacks } from './DragController';
 import { DragControllerContext } from './DragContext';
 import {
@@ -60,17 +60,23 @@ export function DragProvider({ onDrop, children }: DragProviderProps) {
       controllerRef.current = null;
     };
   }, []);
-  const value = useMemo(() => controllerRef.current, []);
+  // P4-E4: drop the `useMemo` that previously froze the controller
+  // ref as the context value. Under StrictMode dev cleanup, the
+  // effect nulls `controllerRef.current` but `useMemo` keeps serving
+  // the destroyed controller. Serving the ref directly gives us a
+  // fresh instance after the cleanup-and-recreate cycle. In
+  // production the ref is stable across renders (it survives every
+  // render except the post-cleanup re-create).
   return (
-    <DragControllerContext.Provider value={value}>
+    <DragControllerContext.Provider value={controllerRef.current}>
       <DragActiveProvider value={isDragActive}>
         <DragSourceProvider value={sourceIssueId}>
           <DragSourceProjectProvider value={sourceProjectId}>
-          <DragCandidateProvider value={candidate.targetId}>
-            <DragCandidateIndexProvider value={candidate.index}>
-              {children}
-            </DragCandidateIndexProvider>
-          </DragCandidateProvider>
+            <DragCandidateProvider value={candidate.targetId}>
+              <DragCandidateIndexProvider value={candidate.index}>
+                {children}
+              </DragCandidateIndexProvider>
+            </DragCandidateProvider>
           </DragSourceProjectProvider>
         </DragSourceProvider>
       </DragActiveProvider>

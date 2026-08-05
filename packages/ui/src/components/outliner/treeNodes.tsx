@@ -53,7 +53,7 @@ function ProjectTreeNode(
   const sourceProjectId = useDragSourceProjectId();
   const isCandidate = candidateId === project.id;
   const isSource = sourceProjectId === project.id;
-  const { onMouseDown } = useDraggable(
+  const { onPointerDown } = useDraggable(
     { kind: 'project-reorder', projectId: project.id },
     { disabled: isUnassigned },
   );
@@ -68,7 +68,8 @@ function ProjectTreeNode(
       isActive={isActive}
       onRowClick={() => node.toggle()}
       outerProps={{
-        ...(onMouseDown ? { onMouseDown } : {}),
+        style: { touchAction: 'none' },
+        ...(onPointerDown ? { onPointerDown } : {}),
         ...(!isUnassigned ? dropTargetAttrs : {}),
       }}
       rowClassName={cn(

@@ -17,7 +17,7 @@ interface TreeRowProps {
   showCaret?: boolean;
   rowClassName?: string;
   /** Extra attributes spread onto the outer row div. Used by CardNodeRow
-   * to inject the custom drag-system `onMouseDown`, and by StatusNodeRow
+   * to inject the custom drag-system `onPointerDown`, and by StatusNodeRow
    * to inject the drop-target data attributes. We type as
    * `Record<string, unknown>` so callers can pass `data-*` attributes
    * (which `HTMLAttributes` doesn\'t enumerate).
@@ -37,7 +37,7 @@ interface TreeRowProps {
  * expandable rows get a caret button.
  *
  * The cross-surface DnD feature reuses this shell by passing `outerProps`
- * (the unified drag system's `onMouseDown` and drop-target attrs) and
+ * (the unified drag system's `onPointerDown` and drop-target attrs) and
  * `outerRef` (merged with `dragHandle`) — see CardNodeRow / StatusNodeRow.
  */
 export function TreeRow({
@@ -72,7 +72,7 @@ export function TreeRow({
       className={cn(
         'relative flex w-full cursor-pointer items-center gap-1 overflow-hidden pr-1.5 text-left',
         'focus:outline-none',
-        rowClassName
+        rowClassName,
       )}
       {...passthroughProps}
     >
@@ -90,7 +90,7 @@ export function TreeRow({
           <CaretRightIcon
             className={cn(
               'size-2.5 transition-transform duration-150',
-              node.isOpen && 'rotate-90'
+              node.isOpen && 'rotate-90',
             )}
             weight="bold"
           />

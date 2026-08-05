@@ -28,10 +28,8 @@ import {
   useKanbanFilters,
   PRIORITY_ORDER,
 } from '../model/hooks/useKanbanFilters';
-import {
-  bulkUpdateIssues,
-  type BulkUpdateIssueItem,
-} from '@/shared/lib/remoteApi';
+import { type BulkUpdateIssueItem } from '@/shared/lib/remoteApi';
+import { persistIssues, persistIssueSwap } from '@/shared/lib/persistIssues';
 import { PlusIcon, DotsThreeIcon } from '@phosphor-icons/react';
 import { Actions } from '@/shared/actions';
 import {
@@ -74,15 +72,14 @@ import {
 } from '@vibe/ui/components/Dropdown';
 import { SearchableTagDropdownContainer } from '@/shared/components/SearchableTagDropdownContainer';
 import type { IssuePriority } from 'shared/remote-types';
-import {
-  PROJECT_WORKSPACES_SHAPE,
-  PROJECT_ISSUES_SHAPE,
-} from 'shared/remote-types';
+import { PROJECT_WORKSPACES_SHAPE } from 'shared/remote-types';
 import { refreshShapeSource } from '@/shared/lib/electric/collections';
 import { useIssueMultiSelect } from '@/shared/hooks/useIssueMultiSelect';
 import { useIssueSelectionStore } from '@/shared/stores/useIssueSelectionStore';
 import { BulkActionBarContainer } from './BulkActionBarContainer';
 import { computeKanbanMove } from '../model/computeKanbanMove';
+import { buildKanbanMoveUpdates } from '../model/buildKanbanMoveUpdates';
+import { createSyncGuard } from '../model/syncGuard';
 import {
   useKanbanDragHandler,
   type KanbanDragHandler,
@@ -407,7 +404,12 @@ export function KanbanContainer() {
   const prevProjectIdRef = useRef<string | null>(null);
 
   // Track when drag-drop sync is in progress to prevent flicker
-  const isSyncingRef = useRef(false);
+  const isSyncingCountRef = useRef(0);
+
+  // Single source of truth for `sortField === 'sort_order'`. Used by the
+  // swap branch gate, the move branch gate (P4-B1), and the
+  // `positionalReorderEnabled` prop. Plain string compare — no memo.
+  const isManualSort = kanbanFilters.sortField === 'sort_order';
 
   useEffect(() => {
     if (
@@ -503,7 +505,7 @@ export function KanbanContainer() {
   // Sync items from filtered issues when they change
   useEffect(() => {
     // Skip rebuild during drag-drop sync to prevent flicker
-    if (isSyncingRef.current) {
+    if (isSyncingCountRef.current > 0) {
       return;
     }
 
@@ -550,7 +552,8 @@ export function KanbanContainer() {
     setItems(grouped);
   }, [filteredIssues, statuses, kanbanFilters]);
 
-  // Create a lookup map for issue data
+  // Full-Issue Record intentionally stays local: rendering needs fields beyond
+  // the shared drag lookup projection.
   const issueMap = useMemo(() => {
     const map: Record<string, (typeof issues)[0]> = {};
     for (const issue of issues) {
@@ -718,31 +721,31 @@ export function KanbanContainer() {
     [statusColumnIndexMap]
   );
 
-  // Fire the REST + shape refresh. `isSyncingRef` gates the items-rebuild
+  // Fire the REST + shape refresh. `isSyncingCountRef` gates the items-rebuild
   // effect so the optimistic local order isn't trampled by a slow shape
-  // sync; cleared in both branches once the shape refresh resolves (or
+  // sync; decremented in both branches once the shape refresh resolves (or
   // the catch runs). On failure we just log + force a shape refresh — the
   // failed bulkUpdateIssues left the backend untouched, so the next shape
   // sync restores authoritative state.
+  //
+  // P4-BUG1: a 10s safety net decrements the counter if `onSettled` never
+  // fires (network drop, suspended tab). Without it the counter would stay
+  // >0 forever and the items-rebuild effect would freeze the board.
   const applyKanbanMove = useCallback(
     (updates: BulkUpdateIssueItem[], projectIdArg: string) => {
-      isSyncingRef.current = true;
-      bulkUpdateIssues(updates)
-        .then(() =>
-          refreshShapeSource(PROJECT_ISSUES_SHAPE, {
-            project_id: projectIdArg,
-          })
-        )
-        .then(() => {
-          isSyncingRef.current = false;
-        })
-        .catch((err) => {
-          console.error('Failed to bulk update sort order:', err);
-          isSyncingRef.current = false;
-          refreshShapeSource(PROJECT_ISSUES_SHAPE, {
-            project_id: projectIdArg,
-          });
-        });
+      isSyncingCountRef.current += 1;
+      const guard = createSyncGuard({
+        decrement: () => {
+          isSyncingCountRef.current -= 1;
+        },
+      });
+      persistIssues(updates, projectIdArg, {
+        onError: (err) =>
+          console.error('Failed to bulk update sort order:', err),
+        onSettled: guard.bind(() => {
+          isSyncingCountRef.current -= 1;
+        }),
+      });
     },
     []
   );
@@ -763,91 +766,101 @@ export function KanbanContainer() {
       // preview already reordered the DOM, so committing immediately in
       // the local items map prevents the "updated → old → correct" flicker
       // the user saw on successful swaps).
+      // Only same-status swaps are reachable: the drag controller filters
+      // card candidates by `data-drop-target-status === source.statusId`,
+      // so a and b necessarily share the same column. The cross-status
+      // branch below is defensive against a future controller change.
       if (swapWithIssueId) {
+        // P4-D2: gate the swap on the single `isManualSort` const. Under
+        // priority/created_at/title sort, swapping two cards touches only
+        // sort_order — the active sort field would re-derive order on the
+        // next shape sync, so the swap is a no-op for the user.
+        if (!isManualSort) return;
         const a = issueMap[move.issueId];
         const b = issueMap[swapWithIssueId];
         if (!a || !b) return;
+        if (move.swapWithIssueId === move.issueId) return;
+        // Defensive: a cross-status swap is not implementable here (we
+        // would need to rewrite both `status_id` and the new column's
+        // neighbouring sort_orders). The controller never produces one,
+        // so just bail.
+        if (a.status_id !== b.status_id) return;
         setItems((prev) => {
           const next = { ...prev };
           const aCol = [...(next[a.status_id] ?? [])];
-          const bCol = [...(next[b.status_id] ?? [])];
           const ai = aCol.indexOf(a.id);
-          const bi = bCol.indexOf(b.id);
-          // Swap the ids in place when both live in the same column; when
-          // they live in different columns, swap the ids' membership.
-          if (a.status_id === b.status_id && ai !== -1 && bi !== -1) {
+          const bi = aCol.indexOf(b.id);
+          if (ai !== -1 && bi !== -1) {
             [aCol[ai], aCol[bi]] = [aCol[bi], aCol[ai]];
             next[a.status_id] = aCol;
-          } else {
-            if (ai !== -1) aCol.splice(ai, 1);
-            if (bi !== -1) bCol.splice(bi, 1);
-            next[a.status_id] = [...bCol, a.id];
-            next[b.status_id] = [...aCol, b.id];
           }
           return next;
         });
-        bulkUpdateIssues([
-          {
-            id: a.id,
-            changes: { status_id: b.status_id, sort_order: b.sort_order },
+        isSyncingCountRef.current += 1;
+        // P4-BUG1: same 10s safety net as the move branch — a swap
+        // whose `bulkUpdateIssues` never settles must NOT freeze the
+        // items-rebuild gate.
+        const guard = createSyncGuard({
+          decrement: () => {
+            isSyncingCountRef.current -= 1;
           },
-          {
-            id: b.id,
-            changes: { status_id: a.status_id, sort_order: a.sort_order },
-          },
-        ])
-          .then(() =>
-            refreshShapeSource(PROJECT_ISSUES_SHAPE, {
-              project_id: projectId,
-            })
-          )
-          .catch((err) => {
-            console.error('[dnd] kanban swap failed:', err);
-            refreshShapeSource(PROJECT_ISSUES_SHAPE, {
-              project_id: projectId,
-            });
-          });
+        });
+        persistIssueSwap(a, b, projectId, {
+          onError: (err) => console.error('[dnd] kanban swap failed:', err),
+          onSettled: guard.bind(() => {
+            isSyncingCountRef.current -= 1;
+          }),
+        });
         return;
       }
 
       const { fromStatusId: from, toStatusId: to } = move;
-      // Same-status drop is a no-op (computeKanbanMove would return
-      // the prev map unchanged; the early return avoids the bulkUpdate
-      // round-trip too).
-      if (from === to) return;
+      // Same-status drop is a no-op when EITHER:
+      //   (a) no explicit insertion index is supplied — the custom DnD
+      //       controller never produces a same-status column target (it
+      //       filters cards by `data-drop-target-status === source.statusId`),
+      //       so the only same-status-with-index path is the legacy
+      //       list-view adapter — a positional reorder inside the same
+      //       column.
+      //   (b) the sort field is non-positional (priority/created_at/
+      //       title). Under non-manual sort a same-status list-view
+      //       reorder (explicit index) would otherwise fire a useless
+      //       `{status_id: to}` write (to === from) and hold the
+      //       items-rebuild gate open for 10s. The legacy adapter only
+      //       emits an explicit index when its `onDragEnd` ran; bail
+      //       here so the commit short-circuits before the gate holds
+      //       and the backend round-trips a no-op (P5-E1).
+      if (from === to && (move.index === undefined || !isManualSort)) return;
 
-      const newItems = computeKanbanMove(itemsRef.current, move);
+      // P4-B1: under non-manual sort, the column is ordered by a
+      // non-positional field (priority/created_at/title). The custom
+      // drop controller's resolved slot is OPTIMISTIC — the next shape
+      // sync re-derives order from the active sort. Drop the index so
+      // `computeKanbanMove` appends, and ask `buildKanbanMoveUpdates`
+      // for a status-only update (no sort_order rewrite).
+      const effectiveMove = isManualSort ? move : { ...move, index: undefined };
+
+      const newItems = computeKanbanMove(itemsRef.current, effectiveMove);
       setItems(newItems);
 
-      const updates: BulkUpdateIssueItem[] = [];
-      const destIssueIds = newItems[to] ?? [];
-      destIssueIds.forEach((id, index) => {
-        updates.push({
-          id,
-          changes: {
-            status_id: to,
-            sort_order: calculateSortOrder(to, index),
-          },
-        });
+      const updates = buildKanbanMoveUpdates({
+        newItems,
+        move,
+        isManualSort,
+        calculateSortOrder,
+        statusColumnIndexMap,
       });
-      if (
-        from !== to &&
-        statusColumnIndexMap.has(from)
-      ) {
-        const sourceIssueIds = newItems[from] ?? [];
-        sourceIssueIds.forEach((id, index) => {
-          updates.push({
-            id,
-            changes: {
-              sort_order: calculateSortOrder(from, index),
-            },
-          });
-        });
-      }
 
       applyKanbanMove(updates, projectId);
     },
-    [projectId, calculateSortOrder, statusColumnIndexMap, applyKanbanMove, issueMap]
+    [
+      projectId,
+      calculateSortOrder,
+      statusColumnIndexMap,
+      applyKanbanMove,
+      issueMap,
+      isManualSort,
+    ]
   );
 
   // Legacy list-view adapter (positional reorder still uses
@@ -867,6 +880,7 @@ export function KanbanContainer() {
         issueId: result.draggableId,
         fromStatusId,
         toStatusId,
+        index: result.destination.index,
       });
     },
     [handleKanbanMove]
@@ -1151,7 +1165,12 @@ export function KanbanContainer() {
                         </button>
                       </div>
                     </KanbanHeader>
-                    <KanbanCards id={status.id} activeProjectId={projectId}>
+                    <KanbanCards
+                      id={status.id}
+                      activeProjectId={projectId}
+                      issueIds={issueIds}
+                      positionalReorderEnabled={isManualSort}
+                    >
                       {issueIds.map((issueId) => {
                         const issue = issueMap[issueId];
                         if (!issue) return null;

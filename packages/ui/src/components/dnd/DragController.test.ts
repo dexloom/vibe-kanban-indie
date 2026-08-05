@@ -23,20 +23,26 @@ function makeCallbacks(): TestCallbacks {
   };
 }
 
-function mouseEvent(type: string, x: number, y: number): MouseEvent {
-  return new MouseEvent(type, {
+function pointerEvent(
+  type: string,
+  x: number,
+  y: number,
+  pointerId: number = 1,
+): PointerEvent {
+  return new PointerEvent(type, {
     bubbles: true,
     cancelable: true,
     clientX: x,
     clientY: y,
     button: 0,
+    pointerId,
   });
 }
 
 function makeSource(
   issueId = 'issue-1',
   projectId = 'project-1',
-  statusId = 'status-1'
+  statusId = 'status-1',
 ): DragSource {
   return { kind: 'issue-move', issueId, projectId, statusId };
 }
@@ -64,6 +70,12 @@ afterEach(() => {
   globalThis.requestAnimationFrame = originalRaf;
   globalThis.cancelAnimationFrame = originalCaf;
   document.body.innerHTML = '';
+  // Defensive: some tests polyfill `document.elementFromPoint` (jsdom
+  // doesn't implement it). Forget the polyfill here so the next test
+  // runs against the regular jsdom surface (the fallback branch in
+  // `isPointerOverSource` must remain exercised).
+  delete (document as unknown as { elementFromPoint?: unknown })
+    .elementFromPoint;
 });
 
 function flushRaf(): void {
@@ -114,7 +126,7 @@ function installDropTarget(
   projectId: string,
   rect: { left: number; top: number; right: number; bottom: number },
   acceptKinds = 'issue-move',
-  statusId?: string
+  statusId?: string,
 ): HTMLElement {
   const target = document.createElement('div');
   target.setAttribute('data-drop-target-id', id);
@@ -145,10 +157,18 @@ describe('DragController', () => {
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     const element = installSourceElement();
     expect(
-      m.startPress(makeSource('issue-1'), element, { clientX: 0, clientY: 0 })
+      m.startPress(makeSource('issue-1'), element, {
+        clientX: 0,
+        clientY: 0,
+        pointerId: 1,
+      }),
     ).toBe(true);
     expect(
-      m.startPress(makeSource('issue-2'), element, { clientX: 0, clientY: 0 })
+      m.startPress(makeSource('issue-2'), element, {
+        clientX: 0,
+        clientY: 0,
+        pointerId: 1,
+      }),
     ).toBe(false);
     m.destroy();
   });
@@ -157,10 +177,14 @@ describe('DragController', () => {
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     const element = installSourceElement();
-    m.startPress(makeSource(), element, { clientX: 100, clientY: 100 });
+    m.startPress(makeSource(), element, {
+      clientX: 100,
+      clientY: 100,
+      pointerId: 1,
+    });
 
     window.dispatchEvent(
-      mouseEvent('mousemove', 100 + DRAG_THRESHOLD_PX - 1, 100)
+      pointerEvent('pointermove', 100 + DRAG_THRESHOLD_PX - 1, 100),
     );
 
     expect(cb.onPromote).not.toHaveBeenCalled();
@@ -172,9 +196,15 @@ describe('DragController', () => {
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     const element = installSourceElement();
-    m.startPress(makeSource(), element, { clientX: 100, clientY: 100 });
+    m.startPress(makeSource(), element, {
+      clientX: 100,
+      clientY: 100,
+      pointerId: 1,
+    });
 
-    window.dispatchEvent(mouseEvent('mousemove', 100 + DRAG_THRESHOLD_PX, 100));
+    window.dispatchEvent(
+      pointerEvent('pointermove', 100 + DRAG_THRESHOLD_PX, 100),
+    );
 
     expect(cb.onPromote).toHaveBeenCalledTimes(1);
     expect(document.body.style.userSelect).toBe('none');
@@ -186,15 +216,53 @@ describe('DragController', () => {
     // carries the same [data-source-id] but is a distinct node — assert by
     // pointer-events:none on the new fixed-position element.
     const fixed = document.body.querySelectorAll(
-      'div[data-source-id="issue-1"]'
+      'div[data-source-id="issue-1"]',
     );
     expect(fixed.length).toBe(2);
     const ghost = [...fixed].find(
-      (el) => (el as HTMLElement).style.position === 'fixed'
+      (el) => (el as HTMLElement).style.position === 'fixed',
     );
     expect(ghost).toBeTruthy();
     m.destroy();
     expect(document.body.classList.contains('dnd-dragging')).toBe(false);
+  });
+
+  it('P4-E3: ghost strips source data-dnd-* and data-drop-target-* attributes', () => {
+    // The ghost is a clone of the source element. Before the fix it
+    // carried the source's `data-dnd-card-issue-id` / `data-drop-target-*`
+    // attrs, which means a stray ghost in `document.body` would be
+    // picked up by `collectTargets` (the next pointermove re-queries
+    // the DOM and would see the ghost as a candidate). The cloned
+    // clone also collided with the live source's id when both
+    // happened to share a namespace. The ghost must now strip
+    // data-dnd-card, data-dnd-card-issue-id, data-drop-target-id,
+    // data-drop-target-project, data-drop-target-status,
+    // data-drop-target-accept-kinds.
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    const { card } = installSourceCardInColumn('issue-1', 'status-1');
+    m.startPress(makeSource('issue-1', 'project-1', 'status-1'), card, {
+      clientX: 100,
+      clientY: 100,
+      pointerId: 1,
+    });
+    window.dispatchEvent(
+      pointerEvent('pointermove', 100 + DRAG_THRESHOLD_PX, 100),
+    );
+    // The ghost is appended to document.body and is the fixed-position
+    // clone — query `body > [style*="pointer-events: none"]` and check
+    // the data attributes are absent.
+    const ghost = document.body.querySelector<HTMLElement>(
+      'body > [style*="pointer-events: none"]',
+    );
+    expect(ghost).toBeTruthy();
+    expect(ghost!.hasAttribute('data-dnd-card')).toBe(false);
+    expect(ghost!.hasAttribute('data-dnd-card-issue-id')).toBe(false);
+    expect(ghost!.hasAttribute('data-drop-target-id')).toBe(false);
+    expect(ghost!.hasAttribute('data-drop-target-project')).toBe(false);
+    expect(ghost!.hasAttribute('data-drop-target-status')).toBe(false);
+    expect(ghost!.hasAttribute('data-drop-target-accept-kinds')).toBe(false);
+    m.destroy();
   });
 
   it('updates the candidate via onCandidateChange as the pointer moves', () => {
@@ -208,14 +276,14 @@ describe('DragController', () => {
       bottom: 30,
     });
 
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     // Pointer far from target → onCandidateChange not emitted (no CHANGE
     // from the initial null state).
     expect(cb.onCandidateChange).not.toHaveBeenCalled();
 
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
     expect(cb.onCandidateChange).toHaveBeenLastCalledWith({
       targetId: 'project-1:status:todo',
@@ -229,7 +297,7 @@ describe('DragController', () => {
     m.destroy();
   });
 
-  it('emits onDrop with a DragCompletion when mouseup happens over a candidate', () => {
+  it('emits onDrop with a DragCompletion when pointerup happens over a candidate', () => {
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     installSourceElement();
@@ -240,10 +308,10 @@ describe('DragController', () => {
       bottom: 30,
     });
 
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mouseup', 230, 15));
+    window.dispatchEvent(pointerEvent('pointerup', 230, 15));
 
     expect(cb.onDrop).toHaveBeenCalledTimes(1);
     const completion = cb.onDrop.mock.calls[0]![0] as DragCompletion;
@@ -273,7 +341,7 @@ describe('DragController', () => {
     m.destroy();
   });
 
-  it('emits no onDrop when mouseup happens outside any candidate', () => {
+  it('emits no onDrop when pointerup happens outside any candidate', () => {
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     installSourceElement();
@@ -284,14 +352,14 @@ describe('DragController', () => {
       bottom: 30,
     });
 
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    // The mousemove at (100,100) crosses the 5px threshold, so this
-    // IS a real drag. The mouseup at (500,500) is just outside any
+    // The pointermove at (100,100) crosses the 5px threshold, so this
+    // IS a real drag. The pointerup at (500,500) is just outside any
     // candidate → no onDrop but cancel() still fires onDragEnd because
     // the gesture lifted.
-    window.dispatchEvent(mouseEvent('mouseup', 500, 500));
+    window.dispatchEvent(pointerEvent('pointerup', 500, 500));
 
     expect(cb.onDrop).not.toHaveBeenCalled();
     expect(cb.onDragEnd).toHaveBeenCalledTimes(1);
@@ -303,7 +371,7 @@ describe('DragController', () => {
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     installSourceElement();
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
 
@@ -325,8 +393,8 @@ describe('DragController', () => {
       bottom: 30,
     });
 
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     expect(cb.onPromote).toHaveBeenCalled();
 
@@ -338,12 +406,30 @@ describe('DragController', () => {
     m.destroy();
   });
 
+  it('cancels without a drop when pointercancel fires during dragging', () => {
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    installSourceElement();
+
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
+    flushRaf();
+    expect(cb.onPromote).toHaveBeenCalledTimes(1);
+
+    window.dispatchEvent(pointerEvent('pointercancel', 100, 100));
+
+    expect(cb.onDrop).not.toHaveBeenCalled();
+    expect(cb.onDragEnd).toHaveBeenCalledTimes(1);
+    expect(document.body.classList.contains('dnd-dragging')).toBe(false);
+    m.destroy();
+  });
+
   it('recomputes the candidate against live rects (no cache — re-queried every frame)', () => {
     // Round-4 finding #3: the controller used to cache target rects
     // and only invalidate on scroll/resize, leaving a target that
     // moved (or was just mounted) mid-gesture invisible until the
     // next scroll. Now collectTargets re-queries the DOM every call;
-    // mutating a target rect is picked up on the very next mousemove
+    // mutating a target rect is picked up on the very next pointermove
     // with no scroll event required.
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
@@ -355,8 +441,8 @@ describe('DragController', () => {
       bottom: 30,
     });
 
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
 
     // Mutate the rect mid-drag without firing scroll/resize.
@@ -373,7 +459,7 @@ describe('DragController', () => {
         toJSON: () => ({}),
       }) as DOMRect;
 
-    window.dispatchEvent(mouseEvent('mousemove', 530, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 530, 15));
     flushRaf();
 
     const lastCandidate = cb.onCandidateChange.mock.calls.at(-1)?.[0];
@@ -388,7 +474,7 @@ describe('DragController', () => {
     m.destroy();
   });
 
-  it('picks up a target mounted mid-drag on the next mousemove (no scroll/resize needed)', () => {
+  it('picks up a target mounted mid-drag on the next pointermove (no scroll/resize needed)', () => {
     // Round-4 finding #3 regression guard: a shape sync that adds a
     // status column (or any lazily-rendered section) DURING a drag
     // must become a candidate on the next pointer move without any
@@ -403,13 +489,13 @@ describe('DragController', () => {
       bottom: 30,
     });
 
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     expect(cb.onCandidateChange).not.toHaveBeenCalled();
 
     // Mid-drag shape sync: install a NEW target without firing scroll
-    // or resize events. The next mousemove must pick it up.
+    // or resize events. The next pointermove must pick it up.
     installDropTarget('project-1:status:done', 'project-1', {
       left: 400,
       top: 0,
@@ -417,7 +503,7 @@ describe('DragController', () => {
       bottom: 30,
     });
 
-    window.dispatchEvent(mouseEvent('mousemove', 430, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 430, 15));
     flushRaf();
 
     expect(cb.onCandidateChange).toHaveBeenLastCalledWith({
@@ -449,16 +535,17 @@ describe('DragController', () => {
     m.startPress(makeSource('issue-1', 'project-1'), null, {
       clientX: 0,
       clientY: 0,
+      pointerId: 1,
     });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
 
     const callsWithCrossProject = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
         (call[0] as { targetId: string | null })?.targetId ===
-        'project-2:status:todo'
+        'project-2:status:todo',
     );
     expect(callsWithCrossProject.length).toBe(0);
     m.destroy();
@@ -477,20 +564,20 @@ describe('DragController', () => {
         right: 260,
         bottom: 30,
       },
-      'other-kind'
+      'other-kind',
     );
 
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
 
     // Different acceptKinds → ignored → no candidate.
     // Assert that onCandidateChange was never called with a non-null targetId.
     const nonNullCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId !== null
+        (call[0] as { targetId: string | null })?.targetId !== null,
     );
     expect(nonNullCalls).toHaveLength(0);
     m.destroy();
@@ -501,13 +588,17 @@ describe('DragController', () => {
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     const removeSpy = vi.spyOn(window, 'removeEventListener');
     installSourceElement();
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
     m.destroy();
     const types = removeSpy.mock.calls.map((c) => c[0]);
-    // scroll/resize were only ever attached to invalidate a target
-    // rect cache that no longer exists (round-4 #3).
+    // scroll/resize attach only after promotion; this gesture stays pressing.
     expect(types).toEqual(
-      expect.arrayContaining(['mousemove', 'mouseup', 'keydown'])
+      expect.arrayContaining([
+        'pointermove',
+        'pointerup',
+        'pointercancel',
+        'keydown',
+      ]),
     );
     expect(types).not.toContain('scroll');
     expect(types).not.toContain('resize');
@@ -535,10 +626,14 @@ describe('DragController', () => {
     };
     window.addEventListener('error', errHandler);
     try {
-      m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-      window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+      m.startPress(makeSource(), null, {
+        clientX: 0,
+        clientY: 0,
+        pointerId: 1,
+      });
+      window.dispatchEvent(pointerEvent('pointermove', 100, 100));
       flushRaf();
-      window.dispatchEvent(mouseEvent('mouseup', 230, 15));
+      window.dispatchEvent(pointerEvent('pointerup', 230, 15));
     } finally {
       window.removeEventListener('error', errHandler);
     }
@@ -558,13 +653,13 @@ describe('DragController', () => {
       bottom: 10,
     });
 
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
 
     const candidateCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId !== null
+        (call[0] as { targetId: string | null })?.targetId !== null,
     );
     expect(candidateCalls.length).toBe(0);
     m.destroy();
@@ -593,7 +688,7 @@ describe('DragController', () => {
     const wrapped: typeof document.addEventListener = ((
       type: string,
       listener: EventListenerOrEventListenerObject,
-      opts?: boolean | AddEventListenerOptions
+      opts?: boolean | AddEventListenerOptions,
     ) => {
       if (type === 'click') {
         (m as unknown as { __swallower: EventListener }).__swallower =
@@ -603,10 +698,10 @@ describe('DragController', () => {
     }) as typeof document.addEventListener;
     document.addEventListener = wrapped;
 
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mouseup', 230, 15));
+    window.dispatchEvent(pointerEvent('pointerup', 230, 15));
     const click = captureClick();
     const swallower = (m as unknown as { __swallower: EventListener })
       .__swallower;
@@ -619,7 +714,16 @@ describe('DragController', () => {
     m.destroy();
   });
 
-  it('detaches the click swallower when destroy() runs (so the next click on a torn-down controller is not swallowed)', () => {
+  it('P5-E4: destroy() during an in-flight drag fires onDragEnd exactly once and keeps the click swallower attached', () => {
+    // Regression: the round-1 bug returned when a consumer unmounted
+    // mid-drag. `destroy()` used to call `detachClickSwallower()`, so
+    // the synthetic click fired after the synthetic pointerup reached
+    // react-arborist and routed to navigation (handleActivate). The
+    // P5-E4 contract: if a drag is in flight, `destroy()` first
+    // `cancel()`s (preserves the click-swallower contract — cancel
+    // never detaches), then tears down. The swallower stays attached
+    // until the browser's `once:true` fires it on the next click, OR
+    // until the next `startPress()`'s re-entry guard detaches it.
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     installSourceElement();
@@ -635,7 +739,7 @@ describe('DragController', () => {
     document.addEventListener = ((
       type: string,
       listener: EventListenerOrEventListenerObject,
-      opts?: boolean | AddEventListenerOptions
+      opts?: boolean | AddEventListenerOptions,
     ) => {
       if (type === 'click' && !captured) {
         captured = listener as EventListener;
@@ -643,23 +747,76 @@ describe('DragController', () => {
       return origAdd(type, listener, opts);
     }) as typeof document.addEventListener;
 
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     expect(captured).not.toBeNull();
-    // drop the swallower via the same path that triggered installation
-    // (promote), then tear the controller down. destroy() must remove the
-    // document-level click listener that promote() added.
-    window.dispatchEvent(mouseEvent('mouseup', 230, 15));
+    // Mid-drag destroy (consumer unmounted). onDragEnd fires exactly
+    // once. The click swallower stays attached — the next synthetic
+    // click MUST be swallowed.
     m.destroy();
+    expect(cb.onDragEnd).toHaveBeenCalledTimes(1);
     const removedClickCalls = removeDocSpy.mock.calls.filter(
-      (c) => c[0] === 'click'
+      (c) => c[0] === 'click',
     );
-    expect(removedClickCalls.length).toBeGreaterThanOrEqual(1);
-    // The removed listener must be the one we installed (capture: true to
-    // match how promote() added it).
-    const removedOpts = removedClickCalls[0]?.[2];
-    expect(removedOpts).toMatchObject({ capture: true });
+    expect(removedClickCalls.length).toBe(0);
+    // The captured swallower still swallows a synthetic click fired
+    // after destroy(): the round-1 bug would let it fall through.
+    const stopSpy = vi.fn();
+    const preventSpy = vi.fn();
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+    Object.defineProperty(click, 'stopPropagation', { value: stopSpy });
+    Object.defineProperty(click, 'preventDefault', { value: preventSpy });
+    captured!(click);
+    expect(stopSpy).toHaveBeenCalled();
+    expect(preventSpy).toHaveBeenCalled();
+
+    document.addEventListener = origAdd;
+    removeDocSpy.mockRestore();
+  });
+
+  it('destroy() after a completed drag keeps the click swallower attached (relies on once:true / next startPress to clean up)', () => {
+    // After a clean drop (pointerup over target → cancel → state idle)
+    // the swallower is STILL on document. `destroy()` no longer eagerly
+    // detaches it (P5-E4). The browser's `once:true` will fire it on
+    // the next click; if the controller is restarted before any click
+    // happens, `startPress()`'s re-entry guard detaches the stale one.
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    installSourceElement();
+    installDropTarget('project-1:status:todo', 'project-1', {
+      left: 200,
+      top: 0,
+      right: 260,
+      bottom: 30,
+    });
+    const removeDocSpy = vi.spyOn(document, 'removeEventListener');
+    let captured: EventListener | null = null;
+    const origAdd = document.addEventListener.bind(document);
+    document.addEventListener = ((
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      opts?: boolean | AddEventListenerOptions,
+    ) => {
+      if (type === 'click' && !captured) {
+        captured = listener as EventListener;
+      }
+      return origAdd(type, listener, opts);
+    }) as typeof document.addEventListener;
+
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
+    flushRaf();
+    expect(captured).not.toBeNull();
+    window.dispatchEvent(pointerEvent('pointerup', 230, 15));
+    m.destroy();
+    // destroy() after a clean cancel must NOT eagerly detach the
+    // swallower. The one-shot still swallows the synthetic click that
+    // follows pointerup.
+    const removedClickCalls = removeDocSpy.mock.calls.filter(
+      (c) => c[0] === 'click',
+    );
+    expect(removedClickCalls.length).toBe(0);
 
     document.addEventListener = origAdd;
     removeDocSpy.mockRestore();
@@ -681,7 +838,7 @@ describe('DragController', () => {
     document.addEventListener = ((
       type: string,
       listener: EventListenerOrEventListenerObject,
-      opts?: boolean | AddEventListenerOptions
+      opts?: boolean | AddEventListenerOptions,
     ) => {
       if (type === 'click' && !captured) {
         captured = listener as EventListener;
@@ -689,13 +846,13 @@ describe('DragController', () => {
       return origAdd(type, listener, opts);
     }) as typeof document.addEventListener;
 
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     // ESC during a promoted drag — cancel() must NOT eagerly detach the
     // one-shot click swallower. The browser removes it after the first
     // click; if we removed it ourselves, the synthetic click fired on
-    // mouseup could navigate.
+    // pointerup could navigate.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(captured).not.toBeNull();
     const removedClickTypes = removeDocSpy.mock.calls
@@ -719,11 +876,11 @@ describe('DragController', () => {
       bottom: 30,
     });
 
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     // Pointer at (230, 5) — inside the target, top third (height=30, topThird=10).
-    window.dispatchEvent(mouseEvent('mousemove', 230, 5));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 5));
     flushRaf();
 
     expect(cb.onCandidateChange).toHaveBeenLastCalledWith({
@@ -749,11 +906,11 @@ describe('DragController', () => {
       bottom: 90,
     });
 
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     // Pointer well in the middle third (height=90, topThird=30, bottomThird=60).
-    window.dispatchEvent(mouseEvent('mouseup', 230, 45));
+    window.dispatchEvent(pointerEvent('pointerup', 230, 45));
 
     expect(cb.onDrop).toHaveBeenCalledTimes(1);
     const completion = cb.onDrop.mock.calls[0]![0] as DragCompletion;
@@ -769,7 +926,7 @@ describe('DragController', () => {
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     installSourceElement();
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(cb.onDragEnd).not.toHaveBeenCalled();
     m.destroy();
@@ -779,8 +936,8 @@ describe('DragController', () => {
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     installSourceElement();
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(cb.onDragEnd).toHaveBeenCalledTimes(1);
@@ -797,10 +954,10 @@ describe('DragController', () => {
       right: 260,
       bottom: 30,
     });
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mouseup', 230, 15));
+    window.dispatchEvent(pointerEvent('pointerup', 230, 15));
     expect(cb.onDragEnd).toHaveBeenCalledTimes(1);
     m.destroy();
   });
@@ -827,19 +984,23 @@ describe('DragController', () => {
 
     // First drag: press, promote via movement, ESC → cancel (swallower
     // intentionally NOT detached by cancel()).
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
 
     // Second drag: startPress must eagerly detach the stale swallower
     // (the guard in startPress); promote installs a fresh one.
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    // Tear down. destroy() detaches the CURRENT swallower; we then
-    // verify every document-level click install has a matching remove
-    // with the same listener reference and capture flag.
+    // Tear down mid-drag. P5-E4 contract: destroy() cancels the in-flight
+    // drag (so onDragEnd fires exactly once) but does NOT eagerly
+    // detach the click swallower — that is left to the browser's
+    // `once:true` (on next click) or the next `startPress()`'s
+    // re-entry guard. Verify the second install is NOT detached by
+    // destroy(), but IS detached by the NEXT startPress() (no leak
+    // in production).
     m.destroy();
 
     type Triple = { listener: EventListener; capture: boolean };
@@ -864,19 +1025,44 @@ describe('DragController', () => {
       });
     }
 
-    // Every install must have a matching remove (same listener ref +
-    // capture flag). `once:true` is intentionally absent from remove
-    // (the spec strips it — see round-3 #17 comment).
-    for (const inst of installed) {
-      const matched = removed.some(
-        (r) => r.listener === inst.listener && r.capture === inst.capture
-      );
-      expect(
-        matched,
-        `click listener installed with capture=${inst.capture} was never removed`
-      ).toBe(true);
-    }
+    // The FIRST install (swallower1) MUST have a matching remove —
+    // the second drag's startPress eagerly detached it. The SECOND
+    // install (swallower2) has NO matching remove after destroy():
+    // it stays attached and is cleaned by once:true / next startPress.
+    // Verify exactly: first install matched, second install unmatched
+    // at this point.
+    expect(installed.length).toBeGreaterThanOrEqual(2);
+    const firstInst = installed[0]!;
+    const lastInst = installed[installed.length - 1]!;
+    const firstMatched = removed.some(
+      (r) =>
+        r.listener === firstInst.listener && r.capture === firstInst.capture,
+    );
+    expect(firstMatched).toBe(true);
+    const lastMatchedBeforeNextStart = removed.some(
+      (r) => r.listener === lastInst.listener && r.capture === lastInst.capture,
+    );
+    expect(lastMatchedBeforeNextStart).toBe(false);
 
+    // A third startPress must detach the stale swallower left by
+    // destroy() — this is the production cleanup path when the user
+    // starts a new drag before any synthetic click fires.
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    const removedAfter = (removeDocSpy.mock.calls as unknown[][])
+      .filter((c) => c[0] === 'click')
+      .map(
+        (c) =>
+          ({
+            listener: c[1] as EventListener,
+            capture: captureOf(c[2] as boolean | AddEventListenerOptions),
+          }) as Triple,
+      );
+    const lastMatchedAfterNextStart = removedAfter.some(
+      (r) => r.listener === lastInst.listener && r.capture === lastInst.capture,
+    );
+    expect(lastMatchedAfterNextStart).toBe(true);
+
+    m.destroy();
     addDocSpy.mockRestore();
     removeDocSpy.mockRestore();
   });
@@ -897,42 +1083,43 @@ describe('DragController', () => {
       'project-OTHER',
       'project-OTHER',
       { left: 200, top: 0, right: 260, bottom: 30 },
-      'project-reorder'
+      'project-reorder',
     );
     // Dragged source's own row — should be excluded via self-id check.
     installDropTarget(
       'project-1',
       'project-1',
       { left: 0, top: 0, right: 60, bottom: 30 },
-      'project-reorder'
+      'project-reorder',
     );
 
     m.startPress({ kind: 'project-reorder', projectId: 'project-1' }, null, {
       clientX: 0,
       clientY: 0,
+      pointerId: 1,
     });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
 
     const callsWithNonNullTarget = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId !== null
+        (call[0] as { targetId: string | null })?.targetId !== null,
     );
     // Peer project row lands as a candidate (its id is `project-OTHER`).
     expect(callsWithNonNullTarget.length).toBeGreaterThan(0);
     expect(
       callsWithNonNullTarget.some(
         (c) =>
-          (c[0] as { targetId: string | null }).targetId === 'project-OTHER'
-      )
+          (c[0] as { targetId: string | null }).targetId === 'project-OTHER',
+      ),
     ).toBe(true);
     // Self row never appears as a candidate.
     expect(
       callsWithNonNullTarget.some(
-        (c) => (c[0] as { targetId: string | null }).targetId === 'project-1'
-      )
+        (c) => (c[0] as { targetId: string | null }).targetId === 'project-1',
+      ),
     ).toBe(false);
 
     m.destroy();
@@ -946,16 +1133,17 @@ describe('DragController', () => {
       'project-OTHER',
       'project-OTHER',
       { left: 200, top: 0, right: 260, bottom: 30 },
-      'project-reorder'
+      'project-reorder',
     );
 
     m.startPress({ kind: 'project-reorder', projectId: 'project-1' }, null, {
       clientX: 0,
       clientY: 0,
+      pointerId: 1,
     });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
 
     const lastCandidate = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
@@ -980,10 +1168,10 @@ describe('DragController', () => {
       bottom: 30,
     });
 
-    m.startPress(makeSource(), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource(), null, { clientX: 0, clientY: 0, pointerId: 1 });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
 
     const lastCandidate = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
@@ -1022,7 +1210,7 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1'
+      'status-1',
     );
     // Move the self-card under the pointer so an unfiltered controller
     // would resolve it as the candidate.
@@ -1039,15 +1227,19 @@ describe('DragController issue-move self-exclusion', () => {
         toJSON: () => ({}),
       }) as DOMRect;
 
-    m.startPress(makeSource('issue-1'), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource('issue-1'), null, {
+      clientX: 0,
+      clientY: 0,
+      pointerId: 1,
+    });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
 
     const callsWithSelf = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId === 'issue-1'
+        (call[0] as { targetId: string | null })?.targetId === 'issue-1',
     );
     expect(callsWithSelf).toHaveLength(0);
     m.destroy();
@@ -1067,18 +1259,22 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1'
+      'status-1',
     );
 
-    m.startPress(makeSource('issue-1'), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource('issue-1'), null, {
+      clientX: 0,
+      clientY: 0,
+      pointerId: 1,
+    });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
 
     const callsWithPeer = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId === 'issue-2'
+        (call[0] as { targetId: string | null })?.targetId === 'issue-2',
     );
     expect(callsWithPeer.length).toBeGreaterThan(0);
     m.destroy();
@@ -1098,13 +1294,17 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1'
+      'status-1',
     );
 
-    m.startPress(makeSource('issue-1'), null, { clientX: 0, clientY: 0 });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    m.startPress(makeSource('issue-1'), null, {
+      clientX: 0,
+      clientY: 0,
+      pointerId: 1,
+    });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
 
     for (const call of cb.onCandidateChange.mock.calls) {
@@ -1128,18 +1328,22 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1'
+      'status-1',
     );
 
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), card, {
       clientX: 0,
       clientY: 0,
+      pointerId: 1,
     });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     // Pointer back over the source card's ORIGINAL slot (snapshot rect
     // [0,60]x[0,30]) → candidate resolves to null (drop-on-self no-op).
-    window.dispatchEvent(mouseEvent('mousemove', 30, 15));
+    // jsdom has no `document.elementFromPoint`, so the controller falls
+    // back to the snapshot-rect test alone — exactly the case the
+    // primary test must still cover.
+    window.dispatchEvent(pointerEvent('pointermove', 30, 15));
     flushRaf();
 
     const last = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
@@ -1147,6 +1351,127 @@ describe('DragController issue-move self-exclusion', () => {
     };
     expect(last.targetId).toBeNull();
     m.destroy();
+  });
+
+  it('keeps the candidate when the source slot is occupied by a NON-source card (swap preview) — elementFromPoint polyfilled', () => {
+    // Backup for the primary test: after the swap preview reorders the
+    // DOM, the source card's ORIGINAL slot is occupied by a different
+    // card. The snapshot-rect test alone would falsely read a hover on
+    // that slot as "over self". The secondary elementFromPoint test
+    // checks the actual element under the pointer and keeps the
+    // candidate. jsdom doesn't implement elementFromPoint, so we patch
+    // it for the duration of this test.
+    //
+    // Scenario: the user is dragging peer card (issue-2) as the swap
+    // target (a previous pointermove made the candidate = issue-2). At
+    // pointerup, the pointer is over the source card's ORIGINAL swap
+    // slot, but the swap preview has moved the source card away — the
+    // peer card is now under the pointer. Without the fix, the
+    // sticky-restore in `handleMouseUp` would refuse to restore the
+    // saved candidate (since isPointerOverSource would return true via
+    // the snapshot-rect check alone). With the fix, isPointerOverSource
+    // returns false (snapshot rect check passes, but elementFromPoint
+    // shows the peer card), and the saved candidate is restored — the
+    // drop fires against the peer.
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    const { card } = installSourceCardInColumn('issue-1', 'status-1');
+    // Move the source snapshot slot to (200, 0, 260, 30) so the
+    // elementFromPoint call lands inside something controlled.
+    card.getBoundingClientRect = () =>
+      ({
+        left: 200,
+        top: 0,
+        right: 260,
+        bottom: 30,
+        width: 60,
+        height: 30,
+        x: 200,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    // Peer card with snapshot rect (0, 0, 60, 30) — a previous pointermove
+    // over the peer establishes a card candidate.
+    installDropTarget(
+      'issue-2',
+      'project-1',
+      {
+        left: 0,
+        top: 0,
+        right: 60,
+        bottom: 30,
+      },
+      'issue-move',
+      'status-1',
+    );
+
+    // Polyfill elementFromPoint: at (200, 0)–(260, 30) return the
+    // peer card (the element occupying the source's original snapshot
+    // slot after swap preview reorder).
+    const originalHadEFP = 'elementFromPoint' in document;
+    const originalEFP = (
+      document as unknown as {
+        elementFromPoint?: (x: number, y: number) => Element | null;
+      }
+    ).elementFromPoint;
+    let efpInstalled = false;
+    (
+      document as unknown as {
+        elementFromPoint: (x: number, y: number) => Element | null;
+      }
+    ).elementFromPoint = (x: number) => {
+      if (x >= 200 && x <= 260) {
+        return document.querySelector('[data-dnd-card-issue-id="issue-2"]');
+      }
+      return null;
+    };
+    efpInstalled = true;
+
+    try {
+      m.startPress(makeSource('issue-1', 'project-1', 'status-1'), card, {
+        clientX: 0,
+        clientY: 0,
+        pointerId: 1,
+      });
+      window.dispatchEvent(pointerEvent('pointermove', 100, 100));
+      flushRaf();
+      // Establishing pointermove: pointer over the peer card's snapshot
+      // rect → candidate = issue-2.
+      window.dispatchEvent(pointerEvent('pointermove', 30, 15));
+      flushRaf();
+      const before = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
+        targetId: string | null;
+      };
+      expect(before.targetId).toBe('issue-2');
+
+      // Mouseup at (230, 15) — inside the source card's snapshot rect
+      // (lands on the slot the source card USED to occupy before the
+      // swap preview moved it). Without the fix, isPointerOverSource
+      // returns true (snapshot rect check alone) → the sticky-restore
+      // refuses to restore the saved candidate → no drop. With the
+      // fix, elementFromPoint shows the peer card → isPointerOverSource
+      // returns false → the saved candidate is restored → onDrop fires
+      // against the peer.
+      window.dispatchEvent(pointerEvent('pointerup', 230, 15));
+      expect(cb.onDrop).toHaveBeenCalledTimes(1);
+      const completion = cb.onDrop.mock.calls[0]![0] as { targetId: string };
+      expect(completion.targetId).toBe('issue-2');
+    } finally {
+      // Restore document.elementFromPoint so subsequent tests run without
+      // the polyfill (the controller's fallback branch must remain
+      // exercised in jsdom).
+      if (efpInstalled) {
+        if (originalHadEFP) {
+          (
+            document as unknown as { elementFromPoint: typeof originalEFP }
+          ).elementFromPoint = originalEFP;
+        } else {
+          delete (document as unknown as { elementFromPoint?: unknown })
+            .elementFromPoint;
+        }
+      }
+      m.destroy();
+    }
   });
 
   it('does NOT clear the candidate when the pointer leaves the source slot (swap preview moved the card)', () => {
@@ -1164,17 +1489,18 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1'
+      'status-1',
     );
 
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), card, {
       clientX: 0,
       clientY: 0,
+      pointerId: 1,
     });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     // Pointer over the peer (NOT the source snapshot slot) → candidate stays.
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
 
     const last = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
@@ -1184,7 +1510,7 @@ describe('DragController issue-move self-exclusion', () => {
     m.destroy();
   });
 
-  it('emits no onDrop when mouseup happens over the source card snapshot slot', () => {
+  it('emits no onDrop when pointerup happens over the source card snapshot slot', () => {
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     const { card } = installSourceCardInColumn('issue-1', 'status-1');
@@ -1198,26 +1524,27 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1'
+      'status-1',
     );
 
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), card, {
       clientX: 0,
       clientY: 0,
+      pointerId: 1,
     });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     // Establish a peer candidate first.
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
     expect(cb.onDrop).not.toHaveBeenCalled();
     // Release over the source card's snapshot slot → no drop.
-    window.dispatchEvent(mouseEvent('mouseup', 30, 15));
+    window.dispatchEvent(pointerEvent('pointerup', 30, 15));
     expect(cb.onDrop).not.toHaveBeenCalled();
     m.destroy();
   });
 
-  it('emits onDrop when mouseup happens over a peer card (valid swap)', () => {
+  it('emits onDrop when pointerup happens over a peer card (valid swap)', () => {
     const cb = makeCallbacks();
     const m = new DragController(cb as unknown as DragControllerCallbacks);
     const { card } = installSourceCardInColumn('issue-1', 'status-1');
@@ -1231,21 +1558,118 @@ describe('DragController issue-move self-exclusion', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1'
+      'status-1',
     );
 
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), card, {
       clientX: 0,
       clientY: 0,
+      pointerId: 1,
     });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
     // Release over the peer → drop fires.
-    window.dispatchEvent(mouseEvent('mouseup', 230, 15));
+    window.dispatchEvent(pointerEvent('pointerup', 230, 15));
     expect(cb.onDrop).toHaveBeenCalledTimes(1);
     m.destroy();
+  });
+
+  it('P4-BUG2: when the source element is null at press time, sourceCardRects is empty → isPointerOverSource falls back to elementFromPoint and clears the candidate', () => {
+    // Before the fix: source element = null at startPress → the
+    // promote-time snapshot never captured the source card rect → the
+    // primary `sourceCardRects?.get(src.issueId)` lookup returned
+    // undefined → isPointerOverSource ALWAYS returned false
+    // regardless of where the pointer was. Dropping on the source
+    // card would fire onDrop (no self-hint). After the fix the
+    // elementFromPoint fallback match against
+    // `[data-dnd-card-issue-id="issue-1"]` clears the candidate, so
+    // the drop is correctly suppressed.
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    // Install the source card in a column so the DOM has a node
+    // matching the dataset selector. The press will pass `null` as the
+    // captured element, so no promote-time snapshot is captured.
+    installSourceCardInColumn('issue-1', 'status-1');
+    // Peer card as a valid swap target.
+    installDropTarget(
+      'issue-2',
+      'project-1',
+      {
+        left: 200,
+        top: 0,
+        right: 260,
+        bottom: 30,
+      },
+      'issue-move',
+      'status-1',
+    );
+
+    // Polyfill elementFromPoint: at (30, 15) return the source card
+    // (the snapshot rect path is bypassed because startPress was
+    // called with element = null, so the controller's promote-time
+    // capture found `sourceColumnEl = null` and `sourceCardRects`
+    // stays empty).
+    const originalHadEFP = 'elementFromPoint' in document;
+    const originalEFP = (
+      document as unknown as {
+        elementFromPoint?: (x: number, y: number) => Element | null;
+      }
+    ).elementFromPoint;
+    (
+      document as unknown as {
+        elementFromPoint: (x: number, y: number) => Element | null;
+      }
+    ).elementFromPoint = (x: number, y: number): Element | null => {
+      if (x === 30 && y === 15) {
+        return document.querySelector('[data-dnd-card-issue-id="issue-1"]');
+      }
+      return null;
+    };
+
+    try {
+      m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
+        clientX: 0,
+        clientY: 0,
+        pointerId: 1,
+      });
+      window.dispatchEvent(pointerEvent('pointermove', 100, 100));
+      flushRaf();
+      // Establish a peer candidate.
+      window.dispatchEvent(pointerEvent('pointermove', 230, 15));
+      flushRaf();
+      const before = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
+        targetId: string | null;
+      };
+      expect(before.targetId).toBe('issue-2');
+
+      // Pointer now over the source card (per elementFromPoint) → the
+      // elementFromPoint fallback in isPointerOverSource recognises
+      // the self-hover and clears the candidate.
+      window.dispatchEvent(pointerEvent('pointermove', 30, 15));
+      flushRaf();
+      const after = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
+        targetId: string | null;
+      };
+      expect(after.targetId).toBeNull();
+
+      // Release over the source — no drop.
+      window.dispatchEvent(pointerEvent('pointerup', 30, 15));
+      expect(cb.onDrop).not.toHaveBeenCalled();
+    } finally {
+      // Restore document.elementFromPoint so subsequent tests run
+      // against the regular jsdom surface.
+      if (originalHadEFP) {
+        (
+          document as unknown as { elementFromPoint: typeof originalEFP }
+        ).elementFromPoint = originalEFP;
+      } else {
+        delete (document as unknown as { elementFromPoint?: unknown })
+          .elementFromPoint;
+      }
+      m.destroy();
+    }
   });
 });
 
@@ -1271,21 +1695,22 @@ describe('DragController issue-move target filtering by statusId', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1'
+      'status-1',
     );
 
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
       clientX: 0,
       clientY: 0,
+      pointerId: 1,
     });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
 
     const peerCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId === 'issue-2'
+        (call[0] as { targetId: string | null })?.targetId === 'issue-2',
     );
     expect(peerCalls.length).toBeGreaterThan(0);
     m.destroy();
@@ -1305,21 +1730,22 @@ describe('DragController issue-move target filtering by statusId', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-2'
+      'status-2',
     );
 
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
       clientX: 0,
       clientY: 0,
+      pointerId: 1,
     });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
 
     const peerCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId === 'issue-2'
+        (call[0] as { targetId: string | null })?.targetId === 'issue-2',
     );
     expect(peerCalls).toHaveLength(0);
     m.destroy();
@@ -1342,15 +1768,16 @@ describe('DragController issue-move target filtering by statusId', () => {
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
       clientX: 0,
       clientY: 0,
+      pointerId: 1,
     });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
 
     const sameColumnCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId === 'status-1'
+        (call[0] as { targetId: string | null })?.targetId === 'status-1',
     );
     expect(sameColumnCalls).toHaveLength(0);
     m.destroy();
@@ -1370,15 +1797,16 @@ describe('DragController issue-move target filtering by statusId', () => {
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
       clientX: 0,
       clientY: 0,
+      pointerId: 1,
     });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
 
     const moveCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId === 'status-2'
+        (call[0] as { targetId: string | null })?.targetId === 'status-2',
     );
     expect(moveCalls.length).toBeGreaterThan(0);
     m.destroy();
@@ -1409,7 +1837,7 @@ describe('DragController issue-move target filtering by statusId', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-2'
+      'status-2',
     );
     installDropTarget(
       'issue-3',
@@ -1421,18 +1849,19 @@ describe('DragController issue-move target filtering by statusId', () => {
         bottom: 90,
       },
       'issue-move',
-      'status-2'
+      'status-2',
     );
 
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
       clientX: 0,
       clientY: 0,
+      pointerId: 1,
     });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     // Pointer over the target column at y=70 → past first card's midpoint
     // (15), at/below second's midpoint (75) → index 1.
-    window.dispatchEvent(mouseEvent('mousemove', 230, 70));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 70));
     flushRaf();
 
     const last = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
@@ -1458,10 +1887,11 @@ describe('DragController issue-move target filtering by statusId', () => {
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
       clientX: 0,
       clientY: 0,
+      pointerId: 1,
     });
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
-    window.dispatchEvent(mouseEvent('mousemove', 230, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
     flushRaf();
 
     const last = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
@@ -1469,6 +1899,72 @@ describe('DragController issue-move target filtering by statusId', () => {
       index: number | null;
     };
     expect(last.targetId).toBe('project-1:status:status-2');
+    expect(last.index).toBeNull();
+    m.destroy();
+  });
+
+  it('EC4: resolveColumnInsertIndex returns null when the matching id resolves to a CARD (isCardTarget true)', () => {
+    // P4 test-gap: `resolveColumnInsertIndex` queries by
+    // `[data-drop-target-id="..."]` and bails out with `null` when
+    // the first match is a card element (has `data-drop-target-status`).
+    // This is the defensive guard against a shared-namespace collision:
+    // a card whose id matches a column id. The controller's column
+    // branch picks the column as the candidate (findBestCandidate
+    // distinguishes by `isCard`), but the resolver's element lookup
+    // can hit the card first. Without the `isCardTarget(el)` guard,
+    // a meaningless card-slot index would leak into the resolver.
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    installSourceElement();
+    // A CARD element with id matching a status column id. Headers
+    // always appear first in the DOM.
+    const card = document.createElement('div');
+    card.setAttribute('data-drop-target-id', 'status-2');
+    card.setAttribute('data-drop-target-project', 'project-1');
+    card.setAttribute('data-drop-target-accept-kinds', 'issue-move');
+    card.setAttribute('data-drop-target-status', 'status-2');
+    card.getBoundingClientRect = () =>
+      ({
+        left: 200,
+        top: 0,
+        right: 260,
+        bottom: 30,
+        width: 60,
+        height: 30,
+        x: 200,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    document.body.appendChild(card);
+    // The COLUMN element with the same id, placed AFTER the card in
+    // the DOM so document.querySelector returns the card first.
+    // Without the resolver's `isCardTarget` guard, the resolver would
+    // happily compute an index from the card's geometry even though
+    // the candidate was the column.
+    installDropTarget('status-2', 'project-1', {
+      left: 200,
+      top: 0,
+      right: 260,
+      bottom: 30,
+    });
+
+    m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
+      clientX: 0,
+      clientY: 0,
+      pointerId: 1,
+    });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
+    flushRaf();
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15));
+    flushRaf();
+
+    const last = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
+      targetId: string | null;
+      index: number | null;
+    };
+    expect(last.targetId).toBe('status-2');
+    // The resolver recognised the first matching element as a card
+    // and bailed out → index is null.
     expect(last.index).toBeNull();
     m.destroy();
   });
@@ -1489,7 +1985,7 @@ describe('DragController issue-move target filtering by statusId', () => {
         bottom: 30,
       },
       'issue-move',
-      'status-1'
+      'status-1',
     );
     installDropTarget('status-1', 'project-1', {
       left: 400,
@@ -1501,12 +1997,13 @@ describe('DragController issue-move target filtering by statusId', () => {
     m.startPress(makeSource('issue-1', 'project-1', 'status-1'), null, {
       clientX: 0,
       clientY: 0,
+      pointerId: 1,
     });
     // First move promotes (rAF NOT scheduled on the promote frame).
-    window.dispatchEvent(mouseEvent('mousemove', 100, 100));
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100));
     flushRaf();
     // Second move lands inside issue-2's rect and triggers rAF.
-    window.dispatchEvent(mouseEvent('mousemove', 130, 15));
+    window.dispatchEvent(pointerEvent('pointermove', 130, 15));
     flushRaf();
 
     const last = cb.onCandidateChange.mock.calls.at(-1)?.[0] as {
@@ -1516,9 +2013,146 @@ describe('DragController issue-move target filtering by statusId', () => {
     // No emit with targetId=status-1 (same-column column filtered out).
     const ownColumnCalls = cb.onCandidateChange.mock.calls.filter(
       (call: unknown[]) =>
-        (call[0] as { targetId: string | null })?.targetId === 'status-1'
+        (call[0] as { targetId: string | null })?.targetId === 'status-1',
     );
     expect(ownColumnCalls).toHaveLength(0);
+    m.destroy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// pointerId tracking (P3-B3): the controller captures the press's pointerId
+// and ignores foreign pointers (a second finger, a pen+mouse combo) that
+// would otherwise overwrite lastClientX/Y and end the drag on the wrong
+// pointerup.
+// ---------------------------------------------------------------------------
+
+describe('DragController pointerId filtering', () => {
+  it('ignores pointermove from a foreign pointerId (two-finger / pen+mouse)', () => {
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    const element = installSourceElement();
+    installDropTarget('project-1:status:todo', 'project-1', {
+      left: 200,
+      top: 0,
+      right: 260,
+      bottom: 30,
+    });
+    // Press with pointerId 1.
+    m.startPress(makeSource(), element, {
+      clientX: 0,
+      clientY: 0,
+      pointerId: 1,
+    });
+    // Foreign pointer (pointerId 2) crosses the threshold → must NOT promote.
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100, 2));
+    expect(cb.onPromote).not.toHaveBeenCalled();
+    // Active pointer (pointerId 1) crosses the threshold → promotes.
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100, 1));
+    expect(cb.onPromote).toHaveBeenCalledTimes(1);
+    m.destroy();
+  });
+
+  it('foreign pointerup does NOT end the drag; matching pointerup does', () => {
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    installSourceElement();
+    installDropTarget('project-1:status:todo', 'project-1', {
+      left: 200,
+      top: 0,
+      right: 260,
+      bottom: 30,
+    });
+    m.startPress(makeSource(), null, {
+      clientX: 0,
+      clientY: 0,
+      pointerId: 1,
+    });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100, 1));
+    flushRaf();
+    // Establish candidate.
+    window.dispatchEvent(pointerEvent('pointermove', 230, 15, 1));
+    flushRaf();
+    expect(cb.onPromote).toHaveBeenCalledTimes(1);
+    // Foreign pointerup → ignored, drag continues.
+    window.dispatchEvent(pointerEvent('pointerup', 230, 15, 2));
+    expect(cb.onDrop).not.toHaveBeenCalled();
+    expect(cb.onDragEnd).not.toHaveBeenCalled();
+    // Matching pointerup → drop fires.
+    window.dispatchEvent(pointerEvent('pointerup', 230, 15, 1));
+    expect(cb.onDrop).toHaveBeenCalledTimes(1);
+    expect(cb.onDragEnd).toHaveBeenCalledTimes(1);
+    m.destroy();
+  });
+
+  it('foreign pointercancel does NOT cancel the drag', () => {
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    installSourceElement();
+    installDropTarget('project-1:status:todo', 'project-1', {
+      left: 200,
+      top: 0,
+      right: 260,
+      bottom: 30,
+    });
+    m.startPress(makeSource(), null, {
+      clientX: 0,
+      clientY: 0,
+      pointerId: 1,
+    });
+    window.dispatchEvent(pointerEvent('pointermove', 100, 100, 1));
+    flushRaf();
+    expect(cb.onPromote).toHaveBeenCalledTimes(1);
+    // Foreign pointercancel → ignored.
+    window.dispatchEvent(pointerEvent('pointercancel', 100, 100, 2));
+    expect(cb.onDragEnd).not.toHaveBeenCalled();
+    expect(cb.onDrop).not.toHaveBeenCalled();
+    // Matching pointerup → drop fires.
+    window.dispatchEvent(pointerEvent('pointerup', 230, 15, 1));
+    expect(cb.onDrop).toHaveBeenCalledTimes(1);
+    m.destroy();
+  });
+
+  it('pointercancel during pressing stays silent on onDragEnd (sub-threshold gesture never became a drag)', () => {
+    // P3 test-gap closure: the existing pointercancel test only covers
+    // during-dragging. Sub-threshold press + pointercancel must also
+    // NOT fire onDragEnd (gesture never lifted).
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    installSourceElement();
+    m.startPress(makeSource(), null, {
+      clientX: 0,
+      clientY: 0,
+      pointerId: 1,
+    });
+    // Pointermove below threshold — never promotes.
+    window.dispatchEvent(pointerEvent('pointermove', 1, 1, 1));
+    expect(cb.onPromote).not.toHaveBeenCalled();
+    // pointercancel fires for the active pointerId.
+    window.dispatchEvent(pointerEvent('pointercancel', 1, 1, 1));
+    expect(cb.onPromote).not.toHaveBeenCalled();
+    expect(cb.onDragEnd).not.toHaveBeenCalled();
+    expect(cb.onDrop).not.toHaveBeenCalled();
+    m.destroy();
+  });
+
+  it('foreign pointercancel during pressing does NOT cancel (no drag started)', () => {
+    // Symmetric with the during-dragging test: a foreign pointer's
+    // cancel must never cancel the active press, even sub-threshold.
+    const cb = makeCallbacks();
+    const m = new DragController(cb as unknown as DragControllerCallbacks);
+    installSourceElement();
+    m.startPress(makeSource(), null, {
+      clientX: 0,
+      clientY: 0,
+      pointerId: 1,
+    });
+    window.dispatchEvent(pointerEvent('pointercancel', 0, 0, 2));
+    // Press still alive: matching pointerup below threshold is a no-op
+    // (sub-threshold release falls through as a plain click).
+    window.dispatchEvent(pointerEvent('pointerup', 0, 0, 1));
+    expect(cb.onPromote).not.toHaveBeenCalled();
+    expect(cb.onDragEnd).not.toHaveBeenCalled();
     m.destroy();
   });
 });

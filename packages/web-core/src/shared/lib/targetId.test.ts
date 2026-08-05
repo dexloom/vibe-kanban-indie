@@ -5,6 +5,7 @@ import {
   parseTargetId,
 } from './targetId';
 import { SHARED_TARGET_ID_FIXTURE } from '../../../../ui/src/components/dnd/targetKind.fixture';
+import { isColumnLikeTarget } from '@vibe/ui/components/dnd';
 
 describe('TREE_STATUS_PATTERN', () => {
   it('matches <projectId>:status:<statusId>', () => {
@@ -78,19 +79,31 @@ describe('parseTargetId', () => {
 });
 
 describe('target-grammar sync (cross-package)', () => {
-  // Re-implements `isColumnLikeTarget` from `packages/ui/src/components/dnd/targetKind.ts`
-  // — production code can't import across the package boundary (ui cannot
-  // import web-core and vice versa), but tests can. This is the
-  // tripwire: if either side drifts, this assertion fires in the package
-  // whose suite ran first. The companion test in `targetKind.test.ts`
-  // covers the other direction.
-  function isColumnLikeTarget(id: string): boolean {
-    return !/^([^:]+):status:(.+)$/.test(id);
-  }
-
+  // The web-core test imports the REAL `isColumnLikeTarget` from ui (the
+  // export was added to `packages/ui/src/components/dnd/index.ts`). Both
+  // layers' predicates must agree on every fixture id — if either side
+  // drifts, this assertion fires in the package whose suite ran first.
+  // The companion test in `targetKind.test.ts` covers the other direction
+  // with the mirror re-implementation (ui cannot import web-core).
   it('keeps web-core isTreeStatusTarget and ui mirror isColumnLikeTarget complementary on every fixture id', () => {
     for (const id of SHARED_TARGET_ID_FIXTURE) {
       expect(isTreeStatusTarget(id)).toBe(!isColumnLikeTarget(id));
     }
+  });
+
+  // The reverse direction: explicit cross-package agreement on the
+  // individual cases the layer rule cares about, asserted against the
+  // REAL ui export (no shadow re-implementation).
+  it('imports isColumnLikeTarget from ui and agrees with web-core grammar on canonical cases', () => {
+    expect(isColumnLikeTarget('11111111-1111-4111-8111-111111111111')).toBe(
+      true
+    );
+    expect(isTreeStatusTarget('11111111-1111-4111-8111-111111111111')).toBe(
+      false
+    );
+    expect(isColumnLikeTarget('project-1:status:todo')).toBe(false);
+    expect(isTreeStatusTarget('project-1:status:todo')).toBe(true);
+    expect(isColumnLikeTarget('project-1:status:sub')).toBe(false);
+    expect(isTreeStatusTarget('project-1:status:sub')).toBe(true);
   });
 });

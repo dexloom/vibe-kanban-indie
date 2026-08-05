@@ -111,8 +111,20 @@ describe('resolveDragEnd', () => {
     });
   });
 
-  it('routes same-status kanban drops to kanban handler', () => {
+  it('returns no-op for a same-status kanban drop with a null index', () => {
     const completion = makeCompletion(uuid(1), COL_TODO);
+    const issues = issuesById({
+      id: uuid(1),
+      project_id: ACTIVE,
+      status_id: COL_TODO,
+    });
+    expect(
+      resolveDragEnd(completion, ACTIVE, issues, ACTIVE_STATUS_IDS)
+    ).toEqual({ type: 'no-op' });
+  });
+
+  it('routes a same-status kanban drop with a numeric index to the kanban handler', () => {
+    const completion = makeCompletion(uuid(1), COL_TODO, ACTIVE, 1);
     const issues = issuesById({
       id: uuid(1),
       project_id: ACTIVE,
@@ -126,7 +138,7 @@ describe('resolveDragEnd', () => {
       fromStatusId: COL_TODO,
       toStatusId: COL_TODO,
       projectId: ACTIVE,
-      index: null,
+      index: 1,
     });
   });
 

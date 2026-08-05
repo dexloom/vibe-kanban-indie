@@ -51,6 +51,44 @@ describe('computeKanbanMove', () => {
     expect(result.todo).toEqual(['a', 'b', 'c']);
   });
 
+  it('treats a same-status move WITH an explicit index as a positional reorder', () => {
+    // Legacy list-view adapter path: same-status + index → reorder inside
+    // the column. Drag the third card (c) to position 0.
+    const move: KanbanMove = {
+      issueId: 'c',
+      fromStatusId: 'todo',
+      toStatusId: 'todo',
+      index: 0,
+    };
+    const prev = items(['todo', ['a', 'b', 'c', 'd']]);
+    const result = computeKanbanMove(prev, move);
+    expect(result).not.toBe(prev);
+    expect(result.todo).toEqual(['c', 'a', 'b', 'd']);
+    expect(prev.todo).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('clamps a same-status index past the end (moves to tail)', () => {
+    const move: KanbanMove = {
+      issueId: 'a',
+      fromStatusId: 'todo',
+      toStatusId: 'todo',
+      index: 99,
+    };
+    const result = computeKanbanMove(items(['todo', ['a', 'b', 'c']]), move);
+    expect(result.todo).toEqual(['b', 'c', 'a']);
+  });
+
+  it('reorders within a single-item column is a no-op (length-1 result)', () => {
+    const move: KanbanMove = {
+      issueId: 'a',
+      fromStatusId: 'todo',
+      toStatusId: 'todo',
+      index: 0,
+    };
+    const result = computeKanbanMove(items(['todo', ['a']]), move);
+    expect(result.todo).toEqual(['a']);
+  });
+
   it('does not mutate the input map or its arrays', () => {
     const prev = items(['todo', ['a', 'b']], ['done', ['x']]);
     const move: KanbanMove = {
@@ -77,6 +115,22 @@ describe('computeKanbanMove', () => {
     );
     expect(result.todo).toEqual(['a', 'c']);
     expect(result.done).toEqual(['x', 'b', 'y']);
+  });
+
+  it('deduplicates an issue already present in the destination column', () => {
+    const move: KanbanMove = {
+      issueId: 'b',
+      fromStatusId: 'todo',
+      toStatusId: 'done',
+      index: 1,
+    };
+    const result = computeKanbanMove(
+      items(['todo', ['a', 'b', 'c']], ['done', ['b', 'x', 'y']]),
+      move
+    );
+    expect(result.todo).toEqual(['a', 'c']);
+    expect(result.done).toEqual(['x', 'b', 'y']);
+    expect(result.done.filter((id) => id === 'b')).toHaveLength(1);
   });
 
   it('inserts at the front when index is 0', () => {

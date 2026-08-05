@@ -21,3 +21,14 @@ const TREE_STATUS_PATTERN = /^([^:]+):status:(.+)$/;
 export function isColumnLikeTarget(targetId: string): boolean {
   return !TREE_STATUS_PATTERN.test(targetId);
 }
+
+/**
+ * DOM-attribute discriminator for drop-target elements. Cards carry
+ * `data-drop-target-status` (the status they sit in); columns do not.
+ * This is the single source of truth for that rule — the controller's
+ * `collectTargets` queried the same attribute but rebuilt the check
+ * inline. Use these helpers anywhere you need to branch on the kind.
+ */
+export function isCardTarget(el: HTMLElement): boolean {
+  return el.hasAttribute('data-drop-target-status');
+}

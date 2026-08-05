@@ -15,7 +15,7 @@ interface CardNodeRowProps extends TreeNodeRenderProps<CardNode> {
  *
  * Drag is handled by the unified custom drag system (see
  * `components/dnd/DragController`). The controller owns the window-level
- * mouse sensor and ghost; this hook only binds `onMouseDown` to the row's
+ * pointer sensor and ghost; this hook only binds `onPointerDown` to the row's
  * current element so the controller can clone the actual DOM node for the
  * ghost.
  *
@@ -34,14 +34,14 @@ export function CardNodeRow({
   const isActive = issue.id === activeIssueId;
   const hasChildren = node.data.children.length > 0;
 
-  const { onMouseDown } = useDraggable(
+  const { onPointerDown } = useDraggable(
     {
       kind: 'issue-move',
       issueId: issue.id,
       projectId: issue.projectId,
       statusId: issue.statusId,
     },
-    { disabled: isMultiSelectActive }
+    { disabled: isMultiSelectActive },
   );
 
   return (
@@ -54,10 +54,11 @@ export function CardNodeRow({
         'text-sm leading-tight',
         isActive
           ? 'text-high font-semibold'
-          : 'text-normal font-light hover:text-high'
+          : 'text-normal font-light hover:text-high',
       )}
       outerProps={{
-        ...(onMouseDown ? { onMouseDown } : {}),
+        style: { touchAction: 'none' },
+        ...(onPointerDown ? { onPointerDown } : {}),
       }}
     >
       <div className="flex min-w-0 items-center gap-1">

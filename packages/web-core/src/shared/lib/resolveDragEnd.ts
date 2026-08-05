@@ -1,19 +1,14 @@
 import type { DragCompletion, Placement } from '@vibe/ui/components/dnd';
 import { UNASSIGNED_PROJECT_ID } from '@vibe/ui/components/outliner/types';
 import { parseTargetId } from './targetId';
-
-/**
- * Minimal shape the resolver needs from an Issue row. The full `Issue`
- * type carries much more; we only project what's required so callers can
- * cheaply build this map from a shape collection without re-rendering
- * downstream consumers.
- */
-export interface IssueDragLookup {
-  id: string;
-  project_id: string;
-  status_id: string;
-  sort_order: number;
-}
+// P5-D1: single source of truth for the drag lookup row. The shape is
+// owned by `issueLookup.ts` (`buildIssueDragLookup` projects full Issue
+// rows into this minimal projection). Re-imported here under the
+// historical `IssueDragLookup` name so every existing reference
+// (SharedAppLayout passes a `Map<id, IssueDragLookupRow>` built via
+// `buildIssueDragLookup`; resolveDragEnd takes the same shape) keeps
+// compiling without churn.
+import type { IssueDragLookupRow as IssueDragLookup } from './issueLookup';
 
 export type DragOutcome =
   | { type: 'no-op' }
@@ -159,6 +154,14 @@ export function resolveDragEnd(
   }
 
   if (
+    parsedDest.surface === 'kanban' &&
+    parsedDest.statusId === issue.status_id &&
+    (completion.index === null || completion.index === undefined)
+  ) {
+    return { type: 'no-op' };
+  }
+
+  if (
     parsedDest.surface === 'tree-status' &&
     parsedDest.statusId === issue.status_id
   ) {
@@ -172,16 +175,20 @@ export function resolveDragEnd(
       fromStatusId: issue.status_id,
       toStatusId: parsedDest.statusId,
       projectId: activeProjectId,
-      index: completion.index ?? null,
+      index: completion.index,
     };
   }
 
   // Tree-status target → cross-surface move.
+  const projectId = parsedDest.projectId;
+  if (!projectId) {
+    return { type: 'invalid', reason: 'missing project id' };
+  }
   return {
     type: 'move-issue',
     issueId: issue.id,
     targetStatusId: parsedDest.statusId,
-    projectId: parsedDest.projectId!,
+    projectId,
   };
 }
 

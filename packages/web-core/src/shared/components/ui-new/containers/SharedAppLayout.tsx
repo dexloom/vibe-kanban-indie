@@ -46,8 +46,15 @@ import {
 } from '@vibe/ui/components/outliner/openState';
 import { DragProvider, type DragCompletion } from '@vibe/ui/components/dnd';
 import { resolveDragEnd } from '@/shared/lib/resolveDragEnd';
-import { bulkUpdateIssues, bulkUpdateProjects } from '@/shared/lib/remoteApi';
-import { refreshShapeSource } from '@/shared/lib/electric/collections';
+import {
+  persistIssues,
+  persistIssueSwap,
+  persistProjectReorder,
+} from '@/shared/lib/persistIssues';
+import {
+  buildIssueDragLookup,
+  type IssueDragLookupRow,
+} from '@/shared/lib/issueLookup';
 import { useIssueSelectionStore } from '@/shared/stores/useIssueSelectionStore';
 import {
   KanbanDragHandlerProvider,
@@ -271,23 +278,8 @@ export function SharedAppLayout() {
     }
   );
   const issuesById = useMemo(() => {
-    const map = new Map<
-      string,
-      { id: string; project_id: string; status_id: string; sort_order: number }
-    >();
-    if (!activeProjectId) return map;
-    for (const issue of activeProjectIssues.data) {
-      // Defensive: a shape row from a stale project must never leak into
-      // the resolver.
-      if (issue.project_id !== activeProjectId) continue;
-      map.set(issue.id, {
-        id: issue.id,
-        project_id: issue.project_id,
-        status_id: issue.status_id,
-        sort_order: issue.sort_order,
-      });
-    }
-    return map;
+    if (!activeProjectId) return new Map<string, IssueDragLookupRow>();
+    return buildIssueDragLookup(activeProjectIssues.data, activeProjectId);
   }, [activeProjectIssues.data, activeProjectId]);
   // The active project's visible status-id set. The resolver threads
   // this through to `resolveDragEnd` so a stale `data-drop-target-id`
@@ -362,6 +354,23 @@ export function SharedAppLayout() {
           // local items map optimistically, so the drop doesn't flash back
           // to the old order while the shape refresh round-trips. Fall back
           // to a direct bulkUpdate when no board is mounted (tree-only view).
+          //
+          // P5-E6: the tree-only fallback is intentionally NOT gated on the
+          // sort field. `issue-swap` candidates come from the card-on-card
+          // (same-column swap) target path; the controller filters card
+          // targets to `data-drop-target-status === source.statusId`, so a
+          // and b necessarily share the same column. The kanban handler
+          // already applies its own `isManualSort` gate inside
+          // `handleKanbanMove` (P4-D2). The fallback below is ONLY
+          // reachable when no board is mounted (tree-only view) — i.e. the
+          // sort field lives in the board's filter store, which isn't
+          // accessible here. Without a board, there's no sort-mode state to
+          // gate on. The kanban handler is responsible for the
+          // non-manual-sort no-op; this fallback just writes the swap.
+          //
+          // Log label matches `KanbanContainer.tsx:809`'s `'[dnd] kanban
+          // swap failed:'` so a developer grep-ing for swap failures sees
+          // both paths under the same label.
           if (kanbanHandlerRef.current) {
             kanbanHandlerRef.current({
               issueId: sourceIssue.id,
@@ -371,106 +380,61 @@ export function SharedAppLayout() {
             });
             return;
           }
-          bulkUpdateIssues([
-            {
-              id: outcome.sourceIssueId,
-              changes: {
-                status_id: targetIssue.status_id,
-                sort_order: targetIssue.sort_order,
-              },
-            },
-            {
-              id: outcome.targetIssueId,
-              changes: {
-                status_id: sourceIssue.status_id,
-                sort_order: sourceIssue.sort_order,
-              },
-            },
-          ])
-            .then(() =>
-              refreshShapeSource(PROJECT_ISSUES_SHAPE, {
-                project_id: outcome.projectId,
-              })
-            )
-            .catch((err) => {
-              console.error('[dnd] issue swap failed:', err);
-              refreshShapeSource(PROJECT_ISSUES_SHAPE, {
-                project_id: outcome.projectId,
-              });
-            });
+          persistIssueSwap(sourceIssue, targetIssue, outcome.projectId, {
+            onError: (err) => console.error('[dnd] kanban swap failed:', err),
+          });
           return;
         }
         case 'move-issue':
-          bulkUpdateIssues([
+          persistIssues(
+            [
+              {
+                id: outcome.issueId,
+                changes: { status_id: outcome.targetStatusId },
+              },
+            ],
+            outcome.projectId,
             {
-              id: outcome.issueId,
-              changes: { status_id: outcome.targetStatusId },
-            },
-          ])
-            .then(() => {
-              // bulkUpdateIssues bypasses the shape collection's mutation
-              // handler (which would otherwise invalidate + refresh on its
-              // own), so without this the sidebar tree + kanban only pick
-              // up the move on the next ~30s fallback poll. Force-refresh
-              // the active project's issues shape so the UI reflects the
-              // drop immediately.
-              refreshShapeSource(PROJECT_ISSUES_SHAPE, {
-                project_id: outcome.projectId,
-              });
-            })
-            .catch((err) => {
-              console.error(
-                '[dnd] cross-surface move failed:',
-                err,
-                'issue',
-                outcome.issueId,
-                '→ status',
-                outcome.targetStatusId
-              );
-            });
+              onError: (err) =>
+                console.error(
+                  '[dnd] cross-surface move failed:',
+                  err,
+                  'issue',
+                  outcome.issueId,
+                  '→ status',
+                  outcome.targetStatusId
+                ),
+            }
+          );
           return;
         case 'project-reorder': {
           if (!orgId) return;
           const aId = outcome.projectId;
           const bId = outcome.targetProjectId;
-          setOrderedProjects((prev) => {
-            const ia = prev.findIndex((p) => p.id === aId);
-            const ib = prev.findIndex((p) => p.id === bId);
-            if (ia === -1 || ib === -1) return prev;
-            const next = prev.slice();
-            [next[ia], next[ib]] = [next[ib], next[ia]];
-            return next;
-          });
-          // Recompute sort_order for the WHOLE ordered list (not just the
-          // swapped pair). default `sort_order=0` on every project makes
-          // a pairwise swap a no-op under the created_at tiebreak in
-          // `sortProjectsByOrder`; rewriting all rows normalizes the field
-          // and lets the tiebreak yield to the swap.
           const cur = orderedProjectsRef.current;
           const ia = cur.findIndex((p) => p.id === aId);
           const ib = cur.findIndex((p) => p.id === bId);
           if (ia === -1 || ib === -1) return;
           const swapped = cur.slice();
           [swapped[ia], swapped[ib]] = [swapped[ib], swapped[ia]];
-          const STEP = 100;
-          const updates = swapped.map((p, i) => ({
-            id: p.id,
-            changes: { sort_order: i * STEP },
-          }));
-          bulkUpdateProjects(updates)
-            .then(() =>
-              refreshShapeSource(PROJECTS_SHAPE, { organization_id: orgId })
-            )
-            .catch((err) => {
+          orderedProjectsRef.current = swapped;
+          setOrderedProjects(swapped);
+          // P4-D3: persistProjectReorder recomputes sort_order for the
+          // WHOLE ordered list (not just the swapped pair). The default
+          // `sort_order=0` on every project makes a pairwise swap a
+          // no-op under the created_at tiebreak in `sortProjectsByOrder`;
+          // rewriting all rows normalizes the field and lets the
+          // tiebreak yield to the swap.
+          persistProjectReorder(swapped, orgId, {
+            onError: (err) =>
               console.error(
                 '[dnd] project reorder failed:',
                 err,
                 aId,
                 '↔',
                 bId
-              );
-              refreshShapeSource(PROJECTS_SHAPE, { organization_id: orgId });
-            });
+              ),
+          });
           return;
         }
       }

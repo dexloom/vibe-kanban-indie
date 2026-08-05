@@ -27,3 +27,5 @@ export {
   type DropTargetDataAttrs,
   type UseDropTargetOptions,
 } from './useDropTarget';
+export { isCardTarget, isColumnLikeTarget } from './targetKind';
+export { SOURCE_DATA_ATTRS } from './sourceAttrs';

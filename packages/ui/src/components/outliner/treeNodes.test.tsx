@@ -196,7 +196,7 @@ describe('TreeNodeRouter cross-surface DnD wrapping', () => {
 // Renders the project node behind the same provider stack the live
 // `DragProvider` exposes (`DragControllerContext` + drag-state contexts).
 // The controller is left null here — `useDraggable` degrades to
-// `{ onMouseDown: null }` (no press handler) but the drop-target data
+// `{ onPointerDown: null }` (no press handler) but the drop-target data
 // attributes still render, which is what these assertions exercise.
 
 interface ProjectDnDContextOverrides {
@@ -302,5 +302,19 @@ describe('TreeNodeRouter project-reorder wrapping', () => {
     const row = container.querySelector('.cursor-pointer');
     expect(row).toBeTruthy();
     expect(row!.className).not.toContain('opacity-50');
+  });
+
+  it('ProjectTreeNode row root carries style.touchAction === "none" (P3-B2)', () => {
+    // Pointer Events on touch need touch-action: none on the source
+    // element, otherwise the browser absorbs the gesture into scroll
+    // and pointermove never reaches the controller. The project row
+    // passes it via outerProps.style; TreeRow merges that over
+    // arborist's positional style.
+    const { container } = renderProjectWithDndContext('project-1');
+    const row = container.querySelector(
+      '[data-drop-target-id="project-1"]',
+    ) as HTMLElement;
+    expect(row).toBeTruthy();
+    expect(row.style.touchAction).toBe('none');
   });
 });

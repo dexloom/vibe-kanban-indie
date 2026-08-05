@@ -41,6 +41,14 @@ export function manhattanDistanceToRect(
  *  - top third → `'before'`
  *  - middle third → `'on'`
  *  - bottom third → `'after'`
+ *
+ * WHY the ⅓ split (and not ½): `Placement` is a TERNARY because `'on'`
+ * is a meaningful state for non-card targets (tree-status rows, project
+ * cards, anything you'd want to drop *into* rather than before/after).
+ * Compare with `computeCardInsertionIndex` below, which splits at the
+ * midpoint ½ because slot picking is BINARY — there is no "on" state
+ * for a card-vs-card swap: the dragged card lands either before or
+ * after the target card.
  */
 export function computePlacement(y: number, r: TargetRect): Placement {
   const height = r.bottom - r.top;
@@ -125,10 +133,16 @@ export interface CardExtent {
  * `cards` MUST be pre-sorted top→bottom (DOM order) and should come from a
  * promote-time snapshot so the preview clone's insertion cannot feed back
  * into the index (oscillation guard — see the swap snapshot).
+ *
+ * WHY the midpoint ½ split (and not ⅓): card-vs-card ordering is a
+ * BINARY decision — there is no "on" slot between two cards. Compare
+ * with `computePlacement` above, which splits at ⅓ because
+ * `'before' / 'on' / 'after'` is a TER-NARY used for non-card targets
+ * where "drop into the row" is a meaningful state.
  */
 export function computeCardInsertionIndex(
   y: number,
-  cards: readonly CardExtent[]
+  cards: readonly CardExtent[],
 ): number {
   for (let i = 0; i < cards.length; i++) {
     const mid = (cards[i].top + cards[i].bottom) / 2;

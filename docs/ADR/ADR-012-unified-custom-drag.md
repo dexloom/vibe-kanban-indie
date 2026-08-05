@@ -246,3 +246,261 @@ Implementation note: `KanbanBoard.tsx`'s `KanbanCardProps.source` is narrowed fr
 6. Migrate tests: interim manager tests → `DragProvider` tests; hello-pangea tree/kanban tests → hook tests. Keep `resolveDragEnd` tests (re-typed).
 7. Live smoke: all four flows, highlights, candidate, snap-back, reload-free updates, ESC, click-vs-drag, caret, multi-select.
 8. (NOT now, ownership noted) kanban column reorder + project reorder: each = add a `DragSource` variant, `acceptKinds` on targets, one `buildDragCompletion` branch, one `resolveDragEnd` branch, one ghost-query entry — no provider/hook rewrite.
+
+## Pass-2 review (2026-08-04): architecture notes + TO RESOLVE
+
+Independent pass-2 review (full session scope) scored the system 8.5/10 and surfaced
+six architecture notes for the DnD surface. Five are fixes that keep the current
+architecture; one (pointer events) is an interaction-layer upgrade that changes the
+controller's event source. Each is recorded here with its **TO RESOLVE** marker —
+resolution = implementing the fix described.
+
+- **TO RESOLVE — same-column swap gated on sort mode**: a same-column swap is only
+  meaningful under `sortField === 'sort_order'`. Under `priority`/`created_at`/`title`
+  sort, the shape-sync re-sorts the column and the persisted swap is invisible (silent
+  REST write with no UX effect). Fix: gate the swap branch in `handleKanbanMove` on
+  `kanbanFilters.sortField === 'sort_order'` (short-circuit to no-op otherwise).
+- **TO RESOLVE — pointer events for touch (B2)**: the controller listens to
+  `mousedown`/`mousemove`/`mouseup` only, so touch-hold-drag never promotes on mobile
+  even though the mobile drag handle is rendered. Decision (owner): migrate the
+  controller + `useDraggable` to **Pointer Events** (`pointerdown`/`pointermove`/
+  `pointerup`/`pointercancel`), which unifies mouse + touch + pen. `click` swallowing
+  stays (synthetic clicks still fire after pointer gestures).
+- **TO RESOLVE — `isSyncingRef` race on rapid swaps (B3)**: `isSyncingRef` is a boolean
+  cleared by the FIRST settle; a second swap fired inside the sync window gets its
+  optimistic `setItems` overwritten when the first refresh lands. Fix: a numeric
+  in-flight counter (`isSyncingCount++`/`--`, gate on `> 0`) instead of a boolean.
+- **TO RESOLVE — strict `persistIssues` typing (E5)**: the helper's param is
+  `{id;changes:Record<string,unknown>}[]` cast to `Parameters<typeof bulkUpdateIssues>[0]`,
+  defeating type safety. Fix: type the param as `BulkUpdateIssueItem[]`.
+- **TO RESOLVE — single card-detection rule (D1)**: card-vs-column is discriminated two
+  ways (`isCardTarget` on `data-drop-target-status` vs `el.hasAttribute('data-dnd-card')`
+  in `resolveColumnInsertIndex`). Fix: use `isCardTarget(el)` everywhere.
+
+Lower-severity hardening from the same pass (recorded; fixes are the noted actions):
+
+- **TO RESOLVE — same-status kanban-internal leaks a full-column write (E1)**: the
+  resolver has no same-status guard for the kanban surface (tree-status has one); if a
+  same-status kanban-internal ever leaks, `handleKanbanMove`'s gate (`from === to &&
+  move.index === undefined`) does not fire for `index: null`, and every column card gets
+  a sort_order write. Fix: `no-op` in `resolveDragEnd` when
+  `surface === 'kanban' && statusId === issue.status_id && index == null`.
+- **TO RESOLVE — asymmetric snapshot invalidation (E2/E3)**: `sourceCardRects` freezes at
+  promote and never invalidates; `targetColumnRects` invalidates on scroll/resize but not
+  on realtime card adds. Fix: invalidate `sourceCardRects` on scroll/resize too, and
+  re-snapshot `targetColumnRects` when the live card count diverges from the cached one.
+- **TO RESOLVE — move-preview clone keeps `data-dnd-card-issue-id` (E4)**: the clone
+  strips `data-dnd-card`/`data-drop-target-id`/`data-drop-target-status` but not
+  `data-dnd-card-issue-id`; a clone before the source card in DOM order could be cloned
+  again. Fix: strip the issue-id attr too.
+- **TO RESOLVE — `orderedProjectsRef` optimistic/persist divergence (E6)**: the
+  optimistic `setOrderedProjects` uses the React updater's `prev` while the persisted
+  `bulkUpdateProjects` reads `orderedProjectsRef.current`; concurrent project-list
+  updates can diverge. Fix: compute the swapped array once and feed it to both.
+- **TO RESOLVE — `computeKanbanMove` cross-status dedupe (E7)**: a cross-status move
+  splices the issue into the destination without filtering it out first; a corrupted
+  local state with the id already present creates a duplicate. Fix: filter `issueId`
+  from the destination before splicing.
+- **TO RESOLVE — extract `persistIssueSwap` (D2)**: the kanban swap REST shape
+  (`status_id` + `sort_order` exchange) is duplicated in `KanbanContainer`'s swap branch
+  and `SharedAppLayout`'s issue-swap fallback. Fix: move into `persistIssues.ts` as a
+  dedicated helper; both call sites use it.
+- **TO RESOLVE — drop the `?? null` on `completion.index` (D3)**: `DragCompletion.index`
+  is already `number | null`; `index: completion.index ?? null` is redundant.
+- **TO RESOLVE — narrow `parsedDest.projectId!` (D4)**: the `move-issue` branch relies on
+  branch order for `projectId` being set. Fix: guard + return `invalid` when absent.
+- **TO RESOLVE — stable move-preview clone ref (D6)**: the preview effect re-runs on
+  every `candidateIndex` change (~120 DOM ops/s while dragging across a column). Fix:
+  keep a stable clone element ref and reposition it via `insertBefore` when only the
+  index changed.
+
+Noted as follow-up, NOT fixed in this pass (deferred, see below):
+
+- **Follow-up — Pointer Events ADR (A1)**: fully covered by the pointer-events fix above
+  when it lands; no separate ADR needed — the migration IS the resolution.
+- **Follow-up — integration test across the full drop path (A2)**: DragController →
+  resolveDragEnd → KanbanDragHandlerContext → handleKanbanMove → computeKanbanMove →
+  persistIssues is only unit-tested in slices. A single end-to-end test asserting "drop
+  card A on card B in the same column ⇒ exactly two `bulkUpdateIssues` writes with
+  swapped `status_id` + `sort_order`" is outstanding.
+- **Follow-up — snapshot lifecycle assumption (A3)**: the system assumes geometry is
+  stable for the drag duration; source freezes once, target invalidates on scroll/resize.
+  Realtime shape sync mid-drag can stale either. Tracked here as an accepted trade-off;
+  a future invalidation policy (E2/E3) reduces the window.
+
+## Pass-2 resolution status (2026-08-04)
+
+All **TO RESOLVE** items above are resolved in this pass (the B1–B3, E1–E7, D1–D6
+fixes). Deferred follow-ups: A2 (integration test), A3 (snapshot lifecycle ADR) — see
+the notes above.
+
+## Pass-3 review (2026-08-04): preview/commit agreement + pointer completeness
+
+Pass-3 scored 9.0/10. Three blockers and one edge are resolved in this pass. Every
+remaining deferred item is recorded below with a **TO RESOLVE** marker so the gaps are
+never silently forgotten.
+
+- **TO RESOLVE — swap preview gated on sort mode (P3-B1)**: pass-2 gated the swap COMMIT
+  on `sortField === 'sort_order'` but not the swap PREVIEW (`KanbanCards.isSwapPreview`).
+  Under priority/created_at/title sort the user sees a live swap then a snap-back with
+  no commit — preview and commit disagree. Fix: plumb `positionalReorderEnabled` (the
+  `sortField === 'sort_order'` flag) into `KanbanCards` and gate BOTH `isSwapPreview` and
+  the cross-column move-preview clone on it. Implemented this pass.
+- **TO RESOLVE — `touch-action: none` on draggables (P3-B2)**: Pointer Events without
+  `touch-action: none` let the browser absorb the gesture into scrolling, so no
+  `pointermove` reaches the controller on touch. The mobile drag handle renders but is
+  inert. Fix: `touch-action: none` on `KanbanCard`, `CardNodeRow`, and the project-row
+  `TreeRow`. Implemented this pass.
+- **TO RESOLVE — `pointerId` tracking (P3-B3)**: the controller listens on `window`
+  without filtering by `pointerId`; two fingers (or pen + mouse) overwrite
+  `lastClientX/Y` and the first `pointerup` ends the drag. Fix: capture `e.pointerId` in
+  `startPress`, ignore non-matching events in move/up/cancel, clear on teardown.
+  Implemented this pass.
+- **TO RESOLVE — `persistIssues` double-refresh / misattributed error (P3-E1)**: the
+  `.then(refresh).catch(refresh)` chain treats a refresh failure as a bulk failure
+  (wrong `onError`) and refreshes twice. Fix: make refresh failure non-fatal
+  (`bulkUpdateIssues(...).then(() => refresh().catch(() => {})).catch(...)`).
+  Implemented this pass.
+- **TO RESOLVE — swap-preview key fallback parses React internals (P3-E5)**: when
+  `issueIds` is absent/length-mismatched, `displayChildren` parses React's `.$` key
+  prefix. `KanbanContainer` always passes `issueIds` today, so the fallback is defensive;
+  consider throwing on absence in a later pass.
+
+Deferred — **TO RESOLVE** (recorded, NOT fixed in this pass):
+
+- **TO RESOLVE — end-to-end drop integration test (A2)**: DragController →
+  resolveDragEnd → KanbanDragHandlerContext → handleKanbanMove → computeKanbanMove →
+  persistIssues is only unit-tested in slices. Outstanding: "drop card A on card B in the
+  same column ⇒ exactly two `bulkUpdateIssues` writes with swapped `status_id` +
+  `sort_order`".
+- **TO RESOLVE — snapshot lifecycle ADR (A3)**: system assumes geometry stable for the
+  drag duration. Realtime shape sync mid-drag can stale source/target snapshots. Accepted
+  trade-off; E2/E3 reduce the window.
+- **TO RESOLVE — `KanbanContainer` monolith (1306 lines)**: mixes kanban rendering,
+  multi-select, dispatch, legacy list-view adapter, DnD handler registration. Split into
+  `KanbanContainer` (render) + `useKanbanDnDHandler` + multi-select hook.
+- **TO RESOLVE — `handleCrossSurfaceDragEnd` state-machine-in-a-switch**: inline
+  side-effects per outcome. Extract pure per-outcome persisters
+  (`persistKanbanInternal`, `persistIssueSwapFallback`, `persistCrossSurfaceMove`,
+  `persistProjectReorder`) into a `dndPersisters.ts`; the switch becomes a dispatch.
+- **TO RESOLVE — `bulkUpdateProjects` inline persist**: project-reorder still inlines
+  `bulkUpdateProjects(...).then(...).catch(...)`; extract `persistProjectReorder` next to
+  `persistIssueSwap` (rename `persistIssues.ts` → `persistDrag.ts`).
+- **TO RESOLVE — `isColumnTarget` dead export (P3-DRY1)**: `isColumnTarget` in
+  `targetKind.ts` has no production consumers; remove or keep with a symmetry comment.
+- **TO RESOLVE — move-preview clone stale after render (P3-E7)**: effect B positions the
+  clone against a snapshot of `col.children`; a shape-sync render landing between effects
+  A and B could place it a slot late. Consider `useLayoutEffect` for positioning.
+
+## Pass-3 resolution status (2026-08-04)
+
+Resolved this pass: **P3-B1** (preview gated on sort mode), **P3-B2** (`touch-action:
+none`), **P3-B3** (`pointerId` tracking), **P3-E1** (`persistIssues` refresh-error
+handling), plus regression tests for each. Deferred with **TO RESOLVE** markers: A2
+(integration test), A3 (snapshot lifecycle ADR), KanbanContainer monolith, dndPersisters
+extraction, `persistProjectReorder`, `isColumnTarget` dead export, move-preview clone
+stale-slot guard.
+
+## Pass-4 review (2026-08-04): two independent reviewers — sort-mode gates + robustness
+
+Two independent reviewers scored 9.0–9.3/10. All findings below are recorded with
+**TO RESOLVE** markers and resolved in this pass.
+
+- **TO RESOLVE — cross-column move COMMIT gated on sort mode (P4-B1)**: P3-B1 gated the
+  swap commit and both previews, but the cross-column MOVE commit still does a positional
+  insert + full-column `sort_order` rewrite under non-`sort_order` sort → optimistic flash
+  then shape-sync jump, plus a meaningless persisted `sort_order`. Fix: under
+  `!isManualSort`, drop the insertion index (append) and write only `{ status_id }` for
+  the destination column (no `sort_order`).
+- **TO RESOLVE — mobile: whole-card drag vs handle (P4-E1)**: `touch-action: none` +
+  `onPointerDown` sit on the whole `KanbanCard`; the `DotsSixVerticalIcon` handle is
+  purely visual, so on touch the board can't scroll by swiping a card (drag wins). Fix:
+  on `isMobile`, bind the DnD handler + `touch-action: none` to the handle only; desktop
+  keeps whole-card drag.
+- **TO RESOLVE — `isSyncingCountRef` timeout safety (P4-BUG1)**: if `bulkUpdateIssues`
+  never settles (network drop), the counter stays >0 forever and the board is frozen
+  (items-rebuild effect gated on it). Fix: 10s timeout that decrements the counter if
+  `onSettled` hasn't fired.
+- **TO RESOLVE — `sourceColumnEl` null fallback (P4-BUG2)**: when the source element is
+  null, `sourceCardRects` is empty and `isPointerOverSource` always returns false —
+  self-drop detection silently breaks. Fix: fall back to `elementFromPoint` +
+  `[data-dnd-card-issue-id]` match when the snapshot lacks the source card.
+- **TO RESOLVE — `isColumnTarget` dead export (P4-DRY1)**: remove from `targetKind.ts`
+  and `index.ts` (zero consumers).
+- **TO RESOLVE — `useDraggable` focus swallowing (P4-E2)**: `e.preventDefault()` on
+  pointerdown blocks focus on non-`<button>` interactive children (anchors, tabindex,
+  contenteditable, inputs). Fix: broaden the exempt guard to
+  `button, a, input, textarea, select, [contenteditable], [tabindex]`.
+- **TO RESOLVE — ghost retains source data-attrs (P4-E3)**: `createGhost` clones the
+  source element including `data-dnd-card-issue-id` / `data-drop-target-*`; safe today
+  only because of DOM-order invariants. Fix: strip all source data-attrs from the ghost.
+- **TO RESOLVE — StrictMode stale destroyed controller (P4-E4)**: `DragProvider` memoizes
+  the controller ref as context value; StrictMode dev cleanup nulls the ref but `useMemo`
+  keeps serving the destroyed controller. Fix: drop the `useMemo`, serve
+  `controllerRef.current` directly (ref is stable in production).
+- **TO RESOLVE — `isManualSort` single source (P4-D2)**: `sortField === 'sort_order'`
+  computed at `KanbanContainer.tsx:758` and `:1143`; extract one memo, reuse in swap
+  branch, move branch, and the `positionalReorderEnabled` prop.
+- **TO RESOLVE — `persistProjectReorder` extraction (P4-D3)**: project-reorder still
+  inlines `bulkUpdateProjects(...).then(...).catch(...)`; extract next to
+  `persistIssueSwap` (matches the D2 pattern).
+
+Test-gap closures in this pass: move-commit under non-`sort_order` sort (B1 regression),
+swap no-op under non-`sort_order` (EC1), `isSyncingCountRef` return-to-zero on move
+(EC3), `resolveColumnInsertIndex` null-on-card (EC4), mobile handle binding (E1).
+
+## Pass-4 resolution status (2026-08-04)
+
+Resolved this pass: **P4-B1**, **P4-E1**, **P4-BUG1**, **P4-BUG2**, **P4-DRY1**,
+**P4-E2**, **P4-E3**, **P4-E4**, **P4-D2**, **P4-D3**, plus the EC1/EC3/EC4 test-gap
+closures. Still deferred with **TO RESOLVE** markers: A2 (end-to-end integration test),
+A3 (snapshot lifecycle ADR), KanbanContainer monolith split, dndPersisters extraction.
+
+## Pass-5 review (2026-08-04): two independent reviewers — syncGuard + defensive gaps
+
+Two independent reviewers scored 9.3–9.4/10. All findings below are recorded with
+**TO RESOLVE** markers and resolved in this pass.
+
+- **TO RESOLVE — `syncGuard` double-decrement on timeout-then-settle (P5-B1)**: when the
+  10s timeout fires AND the promise later settles, both paths decrement the counter
+  (+1/−2 drift → counter can go negative, silently disabling the `>0` gate for the next
+  N drags). Fix: in the bound wrapper, skip `onSettled` when the timeout already fired
+  (`if (timedOut) return;`). Regression test for the timeout-then-settle path.
+- **TO RESOLVE — list-view same-status reorder under non-manual sort (P5-E1)**: the
+  legacy hello-pangea adapter fires a same-status drop with an index under
+  `!isManualSort`; the gate only checks `move.index === undefined`, so it writes a
+  useless `status_id: to` (where `to === from`) and holds the sync gate for 10s. Fix:
+  bail when same-status AND (`index === undefined` OR `!isManualSort`).
+- **TO RESOLVE — `useDraggable` `[tabindex]` guard too broad (P5-E2)**: the exempt guard
+  `closest('...[tabindex]')` matches the bound source root when the card is focusable
+  (`tabIndex` prop), silently breaking drag. Fix: walk from `target` to `currentTarget`
+  exclusive so the source root itself is exempt; regression test binding on a
+  `tabindex="0"` root.
+- **TO RESOLVE — move-preview clone attr strip incomplete (P5-E3)**: the clone strips 4 of
+  6 source attrs (ghost strips all 6). Fix: extract a shared `SOURCE_DATA_ATTRS` list and
+  use it from both `createGhost` and the clone effect.
+- **TO RESOLVE — `destroy()` mid-drag detaches click swallower (P5-E4)**: `destroy()`
+  runs `detachClickSwallower()`, so a synthetic click after a mid-drag unmount can
+  navigate (react-arborist `handleActivate`). Fix: force `cancel()` first if a drag is in
+  flight, preserving the "leave swallower attached" teardown contract. Regression test.
+- **TO RESOLVE — clone positioning uses `useEffect` not `useLayoutEffect` (P5-E5)**: the
+  cross-column clone can paint at a stale slot for one frame on fast sweeps. Fix: switch
+  effect B (position) to `useLayoutEffect`; effect A (create) stays `useEffect`.
+- **TO RESOLVE — duplicated `IssueDragLookup` type (P5-D1)**: `resolveDragEnd.ts` and
+  `issueLookup.ts` define structurally identical `{id;project_id;status_id;sort_order}`
+  types under two names. Fix: single source in `issueLookup.ts`, import into
+  `resolveDragEnd.ts`.
+- **TO RESOLVE — issue-swap fallback lacks sort-mode gate (P5-E6)**: SharedAppLayout's
+  tree-only fallback calls `persistIssueSwap` without the `isManualSort` guard. Fix:
+  defensive `isManualSort` check (or document unreachability) + align the swap error log
+  format with `KanbanContainer`.
+
+Test-gap closures in this pass: syncGuard timeout-then-settle (B1), list-view non-manual
+(E1), tabindex-on-root (E2), destroy mid-drag (E4).
+
+## Pass-5 resolution status (2026-08-04)
+
+Resolved this pass: **P5-B1**, **P5-E1**, **P5-E2**, **P5-E3**, **P5-E4**, **P5-E5**,
+**P5-D1**, **P5-E6**, plus the B1/E1/E2/E4 test-gap closures. Still deferred with
+**TO RESOLVE** markers: A2 (end-to-end integration test), A3 (snapshot lifecycle ADR),
+KanbanContainer monolith split, dndPersisters extraction.
