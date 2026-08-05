@@ -99,12 +99,12 @@ function buildProjectNode(
   if (!seen.has(project.id)) {
     const nextSeen = new Set(seen);
     nextSeen.add(project.id);
-    const subprojects = childrenByParent.get(project.id) ?? [];
-    for (const sub of subprojects) {
-      if (!realProjectIds.has(sub.id) || nextSeen.has(sub.id)) continue;
+    const boards = childrenByParent.get(project.id) ?? [];
+    for (const board of boards) {
+      if (!realProjectIds.has(board.id) || nextSeen.has(board.id)) continue;
       children.push(
         buildProjectNode(
-          sub,
+          board,
           input,
           t,
           childrenByParent,

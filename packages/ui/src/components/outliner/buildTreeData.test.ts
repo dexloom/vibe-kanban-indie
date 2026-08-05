@@ -539,7 +539,7 @@ describe('buildTreeData', () => {
     expect(idsB).toEqual(['iB']);
   });
 
-  it('groups nested subprojects under their parent after the sections', () => {
+  it('groups nested boards under their parent after the sections', () => {
     const input = baseInput({
       projects: [
         project('p-root', { name: 'root' }),
