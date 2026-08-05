@@ -254,3 +254,32 @@ export function findTreeNodeById(
   }
   return null;
 }
+
+/**
+ * ADR-015: walk the built tree and return every node id as a Set. Used by
+ * the prune effect to drop persisted open-state keys whose FULL node id is
+ * no longer present (e.g. a nested-board `<childId>:workspaces` key from
+ * before the root-only-Workspaces change). Pair with the existing
+ * project-prefix prune for the fast-path deleted-project case.
+ */
+export function liveTreeNodeIds(
+  nodes: readonly SidebarTreeNode[]
+): Set<string> {
+  const out = new Set<string>();
+  const walk = (list: readonly SidebarTreeNode[]): void => {
+    for (const node of list) {
+      out.add(node.id);
+      if (
+        'children' in node &&
+        Array.isArray((node as { children?: unknown }).children) &&
+        (node as { children: unknown[] }).children.length > 0
+      ) {
+        walk(
+          (node as { children: readonly SidebarTreeNode[] }).children
+        );
+      }
+    }
+  };
+  walk(nodes);
+  return out;
+}

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import type { NodeApi, NodeRendererProps } from 'react-arborist';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -241,12 +241,14 @@ function renderProjectWithDndContext(
     dragHandle: undefined,
     preview: null,
     onSelectProject: vi.fn(),
+    onCreateChildBoard: vi.fn(),
     activeProjectId: null,
     activeWorkspaceId: null,
     activeIssueId: null,
     onSelectIssue: vi.fn(),
   } as unknown as NodeRendererProps<SidebarTreeNode> & {
     onSelectProject: (id: string) => void;
+    onCreateChildBoard: (parentId: string) => void;
     activeProjectId: string | null;
     activeWorkspaceId: string | null;
     activeIssueId: string | null;
@@ -320,5 +322,95 @@ describe('TreeNodeRouter project-reorder wrapping', () => {
     ) as HTMLElement;
     expect(row).toBeTruthy();
     expect(row.style.touchAction).toBe('none');
+  });
+});
+
+// ============================================================================
+// ADR-015: row-click semantics + child-board "+" button
+// ============================================================================
+//
+// 1. Row click on a project row no longer toggles expand/collapse — it
+//    navigates via onActivate (already wired by TreeNodeRouter). The caret
+//    still toggles.
+// 2. ArrowSquareOutIcon is removed from every project row.
+// 3. A "+" button is rendered on every non-Unassigned project row; clicking
+//    it invokes `onCreateChildBoard(project.id)` and does NOT navigate or
+//    toggle.
+// 4. The Unassigned row has neither "+" nor ArrowSquareOutIcon.
+
+describe('TreeNodeRouter ADR-015 row interactions', () => {
+  it('renders a "+" button on every non-Unassigned project row', () => {
+    const { container } = renderProjectWithDndContext('project-1');
+    const addBtn = container.querySelector(
+      'button[aria-label="sidebar.createChildBoard"]'
+    );
+    expect(addBtn).toBeTruthy();
+  });
+
+  it('does NOT render ArrowSquareOutIcon on project rows (ADR-015)', () => {
+    const { container } = renderProjectWithDndContext('project-1');
+    // phosphor icon renders an <svg> with class containing the icon name or
+    // a generic class; confirm no "openProjectKanban" aria-label exists.
+    expect(
+      container.querySelector('button[aria-label="sidebar.openProjectKanban"]')
+    ).toBeNull();
+  });
+
+  it('"+" click on a project row fires onCreateChildBoard(project.id) and does NOT toggle', () => {
+    const onCreateChildBoard = vi.fn();
+    const project: ProjectNode = {
+      id: 'project-1',
+      type: 'project',
+      name: 'Demo',
+      color: '210 50% 50%',
+      parentId: null,
+      sortOrder: 0,
+      children: [],
+    };
+    const node = {
+      data: project,
+      isOpen: false,
+      toggle: vi.fn(),
+      activate: vi.fn(),
+      tree: { indent: 12 },
+    } as unknown as NodeApi<ProjectNode>;
+    const props = {
+      node,
+      style: {},
+      tree: node.tree,
+      dragHandle: undefined,
+      preview: null,
+      onSelectProject: vi.fn(),
+      activeProjectId: null,
+      activeWorkspaceId: null,
+      activeIssueId: null,
+      onSelectIssue: vi.fn(),
+      onCreateChildBoard,
+    } as unknown as NodeRendererProps<SidebarTreeNode> & {
+      onSelectProject: (id: string) => void;
+      activeProjectId: string | null;
+      activeWorkspaceId: string | null;
+      activeIssueId: string | null;
+      onSelectIssue: (projectId: string, issueId: string) => void;
+      onCreateChildBoard: (parentId: string) => void;
+    };
+    const { container } = render(<TreeNodeRouter {...props} />);
+    const addBtn = container.querySelector(
+      'button[aria-label="sidebar.createChildBoard"]'
+    ) as HTMLButtonElement;
+    expect(addBtn).toBeTruthy();
+    fireEvent.click(addBtn);
+    expect(onCreateChildBoard).toHaveBeenCalledWith('project-1');
+    expect(node.toggle).not.toHaveBeenCalled();
+  });
+
+  it('Unassigned project row does NOT render a "+" button (ADR-015)', () => {
+    const { container } = renderProjectWithDndContext('unassigned');
+    expect(
+      container.querySelector('button[aria-label="sidebar.createChildBoard"]')
+    ).toBeNull();
+    expect(
+      container.querySelector('button[aria-label="sidebar.openProjectKanban"]')
+    ).toBeNull();
   });
 });

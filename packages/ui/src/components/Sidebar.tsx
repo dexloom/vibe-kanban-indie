@@ -37,6 +37,9 @@ interface SidebarProps {
   isLoadingWorkspaces?: boolean;
   onSelectWorkspace: (id: string) => void;
   onSelectProject: (id: string) => void;
+  /** ADR-015: opens `CreateRemoteProjectDialog` with `parentId` set so the
+   *  new project is created as a child board of the supplied project id. */
+  onCreateChildBoard?: (parentId: string) => void;
 
   /** When >1 issues are selected, disable card drag-and-drop in the tree.
    * Mirrors KanbanCard's `dragDisabled={isMultiSelectActive}` (PLAN §7.5). */
@@ -66,6 +69,7 @@ export function Sidebar({
   isLoadingWorkspaces,
   onSelectWorkspace,
   onSelectProject,
+  onCreateChildBoard,
   isMultiSelectActive,
   headerActions,
   bottomActions,
@@ -111,6 +115,7 @@ export function Sidebar({
         isLoading={isLoadingProjects || isLoadingWorkspaces}
         onSelectWorkspace={onSelectWorkspace}
         onSelectProject={onSelectProject}
+        onCreateChildBoard={onCreateChildBoard}
         isMultiSelectActive={isMultiSelectActive}
         ariaLabelledBy={titleId}
       />

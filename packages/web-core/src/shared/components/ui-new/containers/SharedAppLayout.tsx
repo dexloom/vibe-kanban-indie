@@ -225,6 +225,31 @@ export function SharedAppLayout() {
     }
   }, [selectedOrgId, appNavigation]);
 
+  // ADR-015: open the project-create dialog with `parentId` set so the new
+  // project is created as a child board of the supplied project id. The
+  // returned project is the child (regardless of depth), so navigation
+  // targets the child's kanban directly.
+  const handleCreateChildBoard = useCallback(
+    async (parentId: string) => {
+      if (!selectedOrgId) return;
+
+      try {
+        const result: CreateRemoteProjectResult =
+          await CreateRemoteProjectDialog.show({
+            organizationId: selectedOrgId,
+            parentId,
+          });
+
+        if (result.action === 'created' && result.project) {
+          appNavigation.goToProject(result.project.id);
+        }
+      } catch {
+        // Dialog cancelled — no-op.
+      }
+    },
+    [selectedOrgId, appNavigation]
+  );
+
   // ADR-007: project reorder is disabled tree-wide (see PLAN-sidebar-kanban-cross-dnd);
   // project order is set by the sorted-projects effect below only.
 
@@ -581,6 +606,7 @@ export function SharedAppLayout() {
                   isLoadingWorkspaces={isWorkspacesListLoading}
                   onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
                   onSelectProject={handleProjectClick}
+                  onCreateChildBoard={handleCreateChildBoard}
                   isMultiSelectActive={isMultiSelectActive}
                   headerActions={
                     <CreateProjectButton onClick={handleCreateProject} />
@@ -652,6 +678,7 @@ export function SharedAppLayout() {
                       handleProjectClick(id);
                       setIsDrawerOpen(false);
                     }}
+                    onCreateChildBoard={handleCreateChildBoard}
                     isMultiSelectActive={isMultiSelectActive}
                     headerActions={
                       <CreateProjectButton onClick={handleCreateProject} />

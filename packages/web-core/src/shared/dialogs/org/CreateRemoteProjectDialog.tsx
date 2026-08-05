@@ -25,6 +25,9 @@ import { ColorPicker } from '@/shared/components/ui-new/containers/ColorPickerCo
 
 export type CreateRemoteProjectDialogProps = {
   organizationId: string;
+  /** ADR-015: when set, the new project is created as a child board of the
+   * given parent id (parent_id = parentId). Omit for a top-level project. */
+  parentId?: string;
 };
 
 export type CreateRemoteProjectResult = {
@@ -33,7 +36,7 @@ export type CreateRemoteProjectResult = {
 };
 
 const CreateRemoteProjectDialogImpl = create<CreateRemoteProjectDialogProps>(
-  ({ organizationId }) => {
+  ({ organizationId, parentId }) => {
     const modal = useModal();
     const { t } = useTranslation('projects');
     const [name, setName] = useState('');
@@ -92,6 +95,7 @@ const CreateRemoteProjectDialogImpl = create<CreateRemoteProjectDialogProps>(
           organization_id: organizationId,
           name: name.trim(),
           color: color,
+          ...(parentId ? { parent_id: parentId } : {}),
         });
 
         const persistedProject = await persisted;
@@ -134,13 +138,20 @@ const CreateRemoteProjectDialogImpl = create<CreateRemoteProjectDialogProps>(
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {t('createProjectDialog.title', 'Create Project')}
+              {parentId
+                ? t('createProjectDialog.titleChildBoard', 'Create child board')
+                : t('createProjectDialog.title', 'Create Project')}
             </DialogTitle>
             <DialogDescription>
-              {t(
-                'createProjectDialog.description',
-                'Create a new project in this organization.'
-              )}
+              {parentId
+                ? t(
+                    'createProjectDialog.descriptionChildBoard',
+                    'Create a new child board under this project.'
+                  )
+                : t(
+                    'createProjectDialog.description',
+                    'Create a new project in this organization.'
+                  )}
             </DialogDescription>
           </DialogHeader>
 

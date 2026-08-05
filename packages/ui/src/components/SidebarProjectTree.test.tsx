@@ -7,7 +7,7 @@ import {
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Issue, ProjectStatus } from 'shared/remote-types';
-import type { SidebarProject } from './outliner/types';
+import type { OutlinerWorkspace, SidebarProject } from './outliner/types';
 import { SidebarProjectTree } from './SidebarProjectTree';
 
 vi.mock('react-i18next', () => ({
@@ -147,6 +147,8 @@ function renderTree(
       string,
       { statuses: ProjectStatus[]; issues: Issue[] }
     >;
+    workspaces?: OutlinerWorkspace[];
+    membership?: Map<string, Set<string>>;
     onTasksExpansionChange?: (projectId: string, isOpen: boolean) => void;
     onSelectIssue?: (projectId: string, issueId: string) => void;
     onSelectProject?: (id: string) => void;
@@ -156,8 +158,8 @@ function renderTree(
     <SidebarProjectTree
       projects={overrides.projects ?? [projectOne]}
       activeProjectId={null}
-      workspaces={[]}
-      membership={new Map()}
+      workspaces={overrides.workspaces ?? []}
+      membership={overrides.membership ?? new Map()}
       activeWorkspaceId={null}
       onSelectWorkspace={vi.fn()}
       onSelectProject={overrides.onSelectProject ?? vi.fn()}
@@ -195,7 +197,22 @@ function outerRowForText(text: string): HTMLElement {
 
 describe('SidebarProjectTree tasks integration', () => {
   it('renders Tasks above Workspaces within a project', () => {
-    const { container } = renderTree();
+    // ADR-015: roots render a Workspaces section only when the aggregate
+    // is non-empty. Seed a workspace so the section appears.
+    const membership = new Map<string, Set<string>>([
+      ['ws-1', new Set(['project-1'])],
+    ]);
+    const { container } = renderTree({
+      projects: [projectOne],
+      workspaces: [
+        {
+          id: 'ws-1',
+          name: 'ws-1',
+          createdAt: '2026-08-03T00:00:00.000Z',
+        },
+      ],
+      membership,
+    });
 
     const tasks = screen.getByText('Tasks');
     const workspaces = screen.getByText('Workspaces');
@@ -238,16 +255,36 @@ describe('SidebarProjectTree tasks integration', () => {
     );
   });
 
-  it('navigates to a project exactly once and toggles it on row click', async () => {
+  it('navigates to a project exactly once on row click and does NOT toggle (ADR-015)', async () => {
     const onSelectProject = vi.fn();
     renderTree({ onSelectProject });
 
-    // The project defaults open; clicking the row must navigate once AND
-    // collapse it (toggle-on-click, navigation via handleActivate).
+    // The project defaults open; clicking the row must navigate once
+    // (onActivate) and leave the row's children visible (the caret handles
+    // toggle). Pre-ADR-015 this asserted toggling; the row-click now
+    // only navigates.
     await waitFor(() => expect(screen.getByText('Tasks')).toBeTruthy());
     fireEvent.click(rowForText('Project One'));
 
     await waitFor(() => expect(onSelectProject).toHaveBeenCalledTimes(1));
+    // Children (Tasks + Workspaces) remain visible — row click did not toggle.
+    await waitFor(() => expect(screen.queryByText('Tasks')).toBeTruthy());
+  });
+
+  it('the caret toggles a project row closed (ADR-015)', async () => {
+    renderTree();
+
+    // Default open: Tasks visible. The caret button is the first
+    // button[aria-label] inside the project row.
+    await waitFor(() => expect(screen.getByText('Tasks')).toBeTruthy());
+    const projectRow = outerRowForText('Project One');
+    // The t() mock returns the key directly, so the aria-label is the
+    // raw i18n key `sidebar.collapse`.
+    const caret = projectRow.querySelector(
+      'button[aria-label="sidebar.collapse"]'
+    ) as HTMLButtonElement;
+    expect(caret).toBeTruthy();
+    fireEvent.click(caret);
     await waitFor(() => expect(screen.queryByText('Tasks')).toBeNull());
   });
 
@@ -335,15 +372,44 @@ describe('SidebarProjectTree open-state persistence', () => {
   });
 
   it('auto-opens a project added mid-session including its Tasks section', async () => {
-    const { rerender } = renderTree();
+    // ADR-015: a root renders a Workspaces section only when the aggregate
+    // is non-empty. Seed a workspace for project-1 so its section renders.
+    const initialMembership = new Map<string, Set<string>>([
+      ['ws-1', new Set(['project-1'])],
+    ]);
+    const { rerender } = renderTree({
+      workspaces: [
+        {
+          id: 'ws-1',
+          name: 'ws-1',
+          createdAt: '2026-08-03T00:00:00.000Z',
+        },
+      ],
+      membership: initialMembership,
+    });
     expect(screen.getAllByText('Workspaces')).toHaveLength(1);
 
+    const afterMembership = new Map<string, Set<string>>([
+      ['ws-1', new Set(['project-1'])],
+      ['ws-2', new Set(['project-2'])],
+    ]);
     rerender(
       <SidebarProjectTree
         projects={[projectOne, projectTwo]}
         activeProjectId={null}
-        workspaces={[]}
-        membership={new Map()}
+        workspaces={[
+          {
+            id: 'ws-1',
+            name: 'ws-1',
+            createdAt: '2026-08-03T00:00:00.000Z',
+          },
+          {
+            id: 'ws-2',
+            name: 'ws-2',
+            createdAt: '2026-08-03T00:00:00.000Z',
+          },
+        ]}
+        membership={afterMembership}
         activeWorkspaceId={null}
         onSelectWorkspace={vi.fn()}
         onSelectProject={vi.fn()}
