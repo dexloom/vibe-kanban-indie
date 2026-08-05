@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 
 use db::models::{
     local_user::LocalUser,
-    project::Project,
+    project::{self, Project},
     project_repo::ProjectRepo,
     project_status::ProjectStatus,
     repo::{Repo, UpdateRepo},
@@ -119,20 +119,6 @@ fn expand_tilde(input: &str) -> String {
         return home.join(rest).to_string_lossy().to_string();
     }
     input.to_string()
-}
-
-fn derive_key(name: &str) -> String {
-    let key: String = name
-        .chars()
-        .filter(|c| c.is_alphanumeric())
-        .take(4)
-        .collect::<String>()
-        .to_uppercase();
-    if key.is_empty() {
-        "PRJ".to_string()
-    } else {
-        key
-    }
 }
 
 /// Ensure the single predefined local user exists. Called at startup now that the
@@ -253,7 +239,10 @@ async fn import_repo(pool: &SqlitePool, cfg: &RepoConfig) -> anyhow::Result<()> 
 /// Upsert a project and link its declared repos. Returns the number of links
 /// established. Links are only added, never pruned (import is non-destructive).
 async fn import_project(pool: &SqlitePool, cfg: &ProjectConfig) -> anyhow::Result<usize> {
-    let key = cfg.key.clone().unwrap_or_else(|| derive_key(&cfg.name));
+    let key = cfg
+        .key
+        .clone()
+        .unwrap_or_else(|| project::derive_key(&cfg.name));
     let color = cfg
         .color
         .clone()
@@ -520,13 +509,6 @@ mod tests {
             .unwrap();
         sqlx::migrate!("../db/migrations").run(&pool).await.unwrap();
         pool
-    }
-
-    #[test]
-    fn derive_key_is_uppercase_alnum() {
-        assert_eq!(derive_key("Acme Corp"), "ACME");
-        assert_eq!(derive_key("a-b-c-d-e"), "ABCD");
-        assert_eq!(derive_key("!!!"), "PRJ");
     }
 
     /// Exported config must be valid TOML: top-level scalar keys (local_user_name,

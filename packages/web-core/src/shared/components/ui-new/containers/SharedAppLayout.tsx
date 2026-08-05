@@ -415,10 +415,20 @@ export function SharedAppLayout() {
           const aId = outcome.projectId;
           const bId = outcome.targetProjectId;
           const cur = orderedProjectsRef.current;
+          const a = cur.find((p) => p.id === aId);
+          const b = cur.find((p) => p.id === bId);
+          // F-8: cross-parent reorder is out of scope (DnD's
+          // `collectTargets` sibling filter currently screens this, but
+          // a future relaxed filter would otherwise flow into a no-op
+          // optimistic update + wasted DB write). Bail before the swap.
+          if (!a || !b || (a.parent_id ?? null) !== (b.parent_id ?? null)) {
+            return;
+          }
           const swappedAll = swapProjectSiblings(cur, aId, bId);
-          // F-8: cross-parent swap returns the array unchanged — that's
-          // our no-op signal. Skip BOTH the local state update and the
-          // DB write; cross-parent reorder is out of scope.
+          // Belt-and-suspenders: `swapProjectSiblings` always returns a
+          // fresh array (see `projectOrder.test.ts`), so this identity
+          // check is currently dead. Kept so a future change to its
+          // contract (return-on-no-op) keeps the no-op behaviour intact.
           if (swappedAll === cur) return;
           orderedProjectsRef.current = swappedAll;
           setOrderedProjects(swappedAll);

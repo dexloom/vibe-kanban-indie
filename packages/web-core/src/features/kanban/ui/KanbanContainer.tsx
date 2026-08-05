@@ -1063,14 +1063,31 @@ export function KanbanContainer() {
       >
         <div className="flex items-center gap-half">
           <h2 className={cn('text-2xl font-medium', isMobile && 'text-lg')}>
-            {buildProjectBreadcrumb(
-              projects as unknown as Parameters<
-                typeof buildProjectBreadcrumb
-              >[0],
-              projectId
-            )
-              .map((entry) => entry.name)
-              .join(' / ') || projectName}
+            {(() => {
+              const entries = buildProjectBreadcrumb(projects, projectId);
+              if (entries.length === 0) {
+                return projectName;
+              }
+              return entries.map((entry, index) => {
+                const isLast = index === entries.length - 1;
+                return (
+                  <span key={entry.id} className="inline-flex items-center">
+                    {index > 0 && <span className="px-half text-low">/</span>}
+                    {isLast ? (
+                      <span className="truncate">{entry.name}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-low hover:text-normal truncate cursor-pointer"
+                        onClick={() => appNavigation.goToProject(entry.id)}
+                      >
+                        {entry.name}
+                      </button>
+                    )}
+                  </span>
+                );
+              });
+            })()}
           </h2>
 
           <DropdownMenu>

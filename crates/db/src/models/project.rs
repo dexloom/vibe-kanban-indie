@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, SqlitePool};
+use sqlx::{Executor, FromRow, SqlitePool};
 use ts_rs::TS;
 use uuid::Uuid;
 
@@ -8,6 +8,23 @@ use uuid::Uuid;
 /// scopes projects by organisation; locally there is a single implicit org so
 /// the frontend's org-scoped shapes resolve without any cloud account.
 pub const LOCAL_ORGANIZATION_ID: Uuid = Uuid::from_u128(0xA001);
+
+/// Project-key derivation, single source of truth. Caller passes the project
+/// `name`; this strips non-alphanumeric chars, uppercases the first four
+/// surviving chars, and falls back to `"PRJ"` when nothing is left.
+pub fn derive_key(name: &str) -> String {
+    let key: String = name
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .take(4)
+        .collect::<String>()
+        .to_uppercase();
+    if key.is_empty() {
+        "PRJ".to_string()
+    } else {
+        key
+    }
+}
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize, TS)]
 pub struct Project {
@@ -170,10 +187,13 @@ impl Project {
         .await
     }
 
-    pub async fn count_children(pool: &SqlitePool, parent_id: Uuid) -> Result<i64, sqlx::Error> {
+    pub async fn count_children<'e, E>(executor: E, parent_id: Uuid) -> Result<i64, sqlx::Error>
+    where
+        E: Executor<'e, Database = sqlx::Sqlite>,
+    {
         sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM projects WHERE parent_id = ?")
             .bind(parent_id)
-            .fetch_one(pool)
+            .fetch_one(executor)
             .await
     }
 
@@ -192,13 +212,18 @@ impl Project {
                 ));
             }
 
-            let (key, parent_id) = sqlx::query_as::<_, (String, Option<Uuid>)>(
-                "SELECT key, parent_id FROM projects WHERE id = ?",
-            )
-            .bind(project_id)
-            .fetch_one(pool)
-            .await?;
-            keys.push(key);
+            let (key, parent_id, name) =
+                sqlx::query_as::<_, (Option<String>, Option<Uuid>, String)>(
+                    "SELECT key, parent_id, name FROM projects WHERE id = ?",
+                )
+                .bind(project_id)
+                .fetch_one(pool)
+                .await?;
+            // B-2: `key` is nullable in the schema; for legacy / hand-edited
+            // rows fall back to deriving from the name so the chain stays
+            // single-segment rather than crashing the decode.
+            let segment = key.unwrap_or_else(|| derive_key(&name));
+            keys.push(segment);
             current_id = parent_id;
         }
 
@@ -247,6 +272,13 @@ mod tests {
             .unwrap();
         sqlx::migrate!("./migrations").run(&pool).await.unwrap();
         pool
+    }
+
+    #[test]
+    fn derive_key_is_uppercase_alnum() {
+        assert_eq!(super::derive_key("Acme Corp"), "ACME");
+        assert_eq!(super::derive_key("a-b-c-d-e"), "ABCD");
+        assert_eq!(super::derive_key("!!!"), "PRJ");
     }
 
     #[tokio::test]
@@ -300,5 +332,47 @@ mod tests {
         );
 
         assert!(Project::delete(&pool, root_id).await.is_err());
+    }
+
+    /// B-2 regression: `find_parent_chain_keys` must tolerate a NULL `key`
+    /// column (legacy / hand-edited rows) and fall back to the derived key
+    /// from the project name rather than panicking on decode.
+    #[tokio::test]
+    async fn find_parent_chain_keys_handles_null_key_columns() {
+        let pool = pool().await;
+        let root_id = Uuid::new_v4();
+        let child_id = Uuid::new_v4();
+
+        Project::create(
+            &pool,
+            root_id,
+            "Acme",
+            Some("ACME"),
+            "#6366f1",
+            0,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        Project::create(
+            &pool,
+            child_id,
+            "Acme Sub",
+            // Simulate a legacy / hand-edited row with NULL key.
+            None,
+            "#6366f1",
+            0,
+            None,
+            Some(root_id),
+        )
+        .await
+        .unwrap();
+
+        // Must not panic on decode; key derived from `name` ("Acme Sub" → "ACME").
+        let chain = Project::find_parent_chain_keys(&pool, child_id)
+            .await
+            .unwrap();
+        assert_eq!(chain, vec!["ACME".to_string(), "ACME".to_string()]);
     }
 }
