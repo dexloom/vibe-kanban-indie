@@ -32,6 +32,7 @@
     "backend:check": "cargo check --workspace",
     "backend:check:full": "pnpm run backend:check",
     "backend:dev:watch": "DISABLE_WORKTREE_CLEANUP=1 RUST_LOG=debug cargo watch -w crates -x 'run --bin server'",
+    "backend:dev:watch:qa": "DISABLE_WORKTREE_CLEANUP=1 RUST_LOG=debug cargo watch -w crates -x 'run --bin server --features qa-mode'",
     "dev:qa": "export FRONTEND_PORT=3001 && export BACKEND_PORT=3002 && export PREVIEW_PROXY_PORT=3003 && export VK_ALLOWED_ORIGINS=\"http://localhost:${FRONTEND_PORT}\" && concurrently \"pnpm run backend:dev:watch:qa\" \"pnpm run local-web:dev\"",
     "generate-types": "cargo run --bin generate_types",
     "generate-types:check": "cargo run --bin generate_types -- --check",

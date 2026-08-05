@@ -196,7 +196,7 @@
         "allowedOrigins": {
           "label": "Allowed Origins",
           "placeholder": "http://192.168.1.50:3001, https://tunnel.example.com",
-          "helper": "Comma-separated list of full URLs (including scheme and port) that may access this server in addition to localhost. Loopback origins are always allowed. Changes take effect immediately on save."
+          "helper": "Comma-separated list of full URLs (including scheme and port) that may access this server in addition to localhost. Loopback origins are always allowed. Changes take effect immediately on save. Clearing this field falls back to the VK_ALLOWED_ORIGINS environment variable."
         }
       },
       "pullRequests": {

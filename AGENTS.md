@@ -59,7 +59,7 @@ Do not manually edit shared/types.ts, instead edit crates/server/src/bin/generat
 - Web app: ensure `pnpm run check` and `pnpm run lint` pass. If adding runtime logic, include lightweight tests (e.g., Vitest) in the same directory.
 
 ## Security & Config Tips
-- Use `.env` for local overrides; never commit secrets. Key envs: `FRONTEND_PORT`, `BACKEND_PORT`, `HOST` 
-- Dev ports and assets are managed by `scripts/setup-dev-environment.js`.
+- Use `.env` for local overrides; never commit secrets. Key envs: `FRONTEND_PORT`, `BACKEND_PORT`, `HOST`
+- Dev ports are fixed: frontend `3001`, backend `3002`, preview proxy `3003`. Dev assets live in `dev_assets/` (seeded from `dev_assets_seed/`).
 
 

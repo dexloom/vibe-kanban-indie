@@ -8,7 +8,7 @@
       "script": "concurrently \"pnpm run backend:dev:watch\" \"pnpm run local-web:dev\"",
       "cwd": "../.."
     },
-    "devUrl": "http://localhost:3000",
+    "devUrl": "http://localhost:3001",
     "frontendDist": "./splash"
   },
   "app": {

@@ -55,4 +55,12 @@ describe('parseAllowedOriginsCsv', () => {
     expect(values).toEqual([]);
     expect(error).toMatch(/Must be http or https: javascript:alert\(1\)/);
   });
+
+  it('rejects URLs with a path, query, or hash', () => {
+    const { values, error } = parseAllowedOriginsCsv(
+      'http://example.com/path?q=1#frag'
+    );
+    expect(values).toEqual([]);
+    expect(error).toMatch(/must not include a path/);
+  });
 });

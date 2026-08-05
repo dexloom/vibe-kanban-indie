@@ -1,4 +1,7 @@
-use std::{net::IpAddr, sync::RwLock};
+use std::{
+    net::IpAddr,
+    sync::{OnceLock, RwLock},
+};
 
 use axum::{
     body::Body,
@@ -6,7 +9,6 @@ use axum::{
     http::{StatusCode, header},
     response::Response,
 };
-use once_cell::sync::Lazy;
 use url::Url;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -139,21 +141,21 @@ fn env_origins() -> Vec<OriginKey> {
     }
 }
 
-static ALLOWED: Lazy<RwLock<Vec<OriginKey>>> = Lazy::new(|| {
-    // Seed from env on first access (preserves existing VK_ALLOWED_ORIGINS
-    // behavior for setups that never touch the UI). Subsequent calls to
-    // set_allowed_origins overwrite this from the saved Config.
-    RwLock::new(env_origins())
-});
+static ALLOWED: OnceLock<RwLock<Vec<OriginKey>>> = OnceLock::new();
 
 fn allowed_origins_snapshot() -> Vec<OriginKey> {
-    ALLOWED.read().unwrap_or_else(|e| e.into_inner()).clone()
+    ALLOWED
+        .get_or_init(|| RwLock::new(env_origins()))
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
 }
 
-/// Called by `update_config` after a successful save. Accepts raw strings
-/// from Config; unparseable entries are silently dropped (same as env path).
-/// An empty list resets the cache to the env seed (the config list is the
-/// source of truth; clearing it means "no extra origins").
+/// Called by `update_config` after a successful save (and at startup to seed
+/// from the saved Config). Accepts raw strings from Config; unparseable
+/// entries are silently dropped (same as env path). An empty list resets the
+/// cache to the env seed (the config list is the source of truth; clearing it
+/// means "no extra origins").
 pub fn set_allowed_origins(origins: &[String]) {
     let parsed = if origins.is_empty() {
         env_origins()
@@ -163,7 +165,8 @@ pub fn set_allowed_origins(origins: &[String]) {
             .filter_map(|o| OriginKey::from_origin(o.trim()))
             .collect()
     };
-    let mut guard = ALLOWED.write().unwrap_or_else(|e| e.into_inner());
+    let lock = ALLOWED.get_or_init(|| RwLock::new(env_origins()));
+    let mut guard = lock.write().unwrap_or_else(|e| e.into_inner());
     *guard = parsed;
 }
 
@@ -175,9 +178,9 @@ mod tests {
 
     use super::*;
 
-    // Tests share the module-level `ALLOWED` cache. Serialise the ones that
-    // mutate it so they don't race each other when `cargo test` runs in
-    // parallel.
+    // Tests share the module-level `ALLOWED` cache. Serialise every test that
+    // touches `validate_origin` (it reads the cache) so they never observe a
+    // partially-mutated list while a `set_allowed_origins` test runs.
     static TEST_LOCK: Mutex<()> = Mutex::new(());
 
     fn make_request(origin: Option<&str>, host: Option<&str>) -> Request<Body> {
@@ -197,12 +200,14 @@ mod tests {
 
     #[test]
     fn no_origin_header_allows_request() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut req = make_request(None, Some("example.com"));
         assert!(validate_origin(&mut req).is_ok());
     }
 
     #[test]
     fn null_origin_is_forbidden() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         for null in ["null", "NULL", "Null"] {
             let mut req = make_request(Some(null), Some("example.com"));
             assert!(is_forbidden(validate_origin(&mut req)));
@@ -211,6 +216,7 @@ mod tests {
 
     #[test]
     fn same_origin_allows_request() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // HTTP, HTTPS, with port, case-insensitive
         let cases = [
             ("http://example.com", "example.com"),
@@ -226,6 +232,7 @@ mod tests {
 
     #[test]
     fn cross_origin_forbidden() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let cases = [
             ("http://unknown.com", "example.com"),         // different host
             ("http://example.com:8080", "example.com:80"), // different port
@@ -242,6 +249,7 @@ mod tests {
 
     #[test]
     fn loopback_addresses_normalized_and_equivalent() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // All loopback forms normalize to "localhost"
         assert_eq!(
             OriginKey::from_origin("http://localhost:3000")
@@ -267,6 +275,7 @@ mod tests {
 
     #[test]
     fn default_ports_handled_correctly() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         assert_eq!(
             OriginKey::from_origin("http://example.com").unwrap().port,
             80

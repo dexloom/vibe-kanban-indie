@@ -23,6 +23,12 @@ export function parseAllowedOriginsCsv(csv: string): {
     if (url.protocol !== 'http:' && url.protocol !== 'https:') {
       return { values: [], error: `Must be http or https: ${entry}` };
     }
+    // Origins are scheme+host+port only — a path/query/hash never appears in a
+    // browser Origin header and would be silently dropped by the backend
+    // parser, so reject it here for symmetry.
+    if (url.pathname !== '/' || url.search !== '' || url.hash !== '') {
+      return { values: [], error: `Origin must not include a path: ${entry}` };
+    }
   }
   return { values: entries, error: null };
 }
