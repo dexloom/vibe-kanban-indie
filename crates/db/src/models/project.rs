@@ -90,6 +90,7 @@ impl Project {
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn create(
         pool: &SqlitePool,
         id: Uuid,
@@ -127,6 +128,7 @@ impl Project {
     }
 
     /// Update the editable presentation fields of a project.
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_fields(
         pool: &SqlitePool,
         id: Uuid,

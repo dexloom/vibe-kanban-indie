@@ -5,7 +5,7 @@ import type { NodeApi } from 'react-arborist';
 import { cn } from '../../lib/cn';
 
 interface TreeRowProps {
-  node: NodeApi<any>;
+  node: NodeApi<unknown>;
   style: CSSProperties;
   dragHandle?: Ref<HTMLDivElement>;
   isActive?: boolean;

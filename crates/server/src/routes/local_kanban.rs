@@ -382,6 +382,7 @@ pub(crate) async fn derive_key_chain(
 /// valve (currently unbounded — reparent is API-rejected per F-4); the
 /// size cap is the real eviction policy. When reparent lands this MUST
 /// be cleared at the write site.
+#[allow(clippy::type_complexity)]
 static KEY_CHAIN_CACHE: OnceLock<
     Mutex<std::collections::HashMap<Uuid, (SystemTime, Vec<String>)>>,
 > = OnceLock::new();
