@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "UPDATE projects\n               SET name = $2,\n                   key = $3,\n                   color = $4,\n                   sort_order = $5,\n                   default_agent_working_dir = $6,\n                   parent_id = $7,\n                   updated_at = datetime('now', 'subsec')\n               WHERE id = $1\n               RETURNING id as \"id!: Uuid\",\n                         name,\n                         key,\n                         color,\n                          sort_order,\n                          parent_id as \"parent_id: Uuid\",\n                          default_agent_working_dir,\n                         remote_project_id as \"remote_project_id: Uuid\",\n                         created_at as \"created_at!: DateTime<Utc>\",\n                         updated_at as \"updated_at!: DateTime<Utc>\"",
+  "query": "UPDATE projects\n               SET name = $2,\n                   key = $3,\n                   color = $4,\n                   sort_order = $5,\n                   default_agent_working_dir = $6,\n                   parent_id = $7,\n                   updated_at = datetime('now', 'subsec')\n               WHERE id = $1\n               RETURNING id as \"id!: Uuid\",\n                         name,\n                         key,\n                         color,\n                         sort_order,\n                         parent_id as \"parent_id: Uuid\",\n                         default_agent_working_dir,\n                         remote_project_id as \"remote_project_id: Uuid\",\n                         created_at as \"created_at!: DateTime<Utc>\",\n                         updated_at as \"updated_at!: DateTime<Utc>\"",
   "describe": {
     "columns": [
       {
@@ -70,5 +70,5 @@
       false
     ]
   },
-  "hash": "bbc6e26fbcd82990a3cc90f2cd28da14b528805e6a3438c815fbb56ce6ed8461"
+  "hash": "1271911c9985bcd3c136218757ceaf2dafe222775a6ee83a8d6a11acc5791b06"
 }

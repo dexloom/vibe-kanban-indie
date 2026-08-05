@@ -304,6 +304,20 @@ pub(crate) async fn create_project_record(
     color: &str,
     parent_id: Option<Uuid>,
 ) -> Result<DbProject, ApiError> {
+    // F-N3: app-layer self-parent guard. The schema FK is `ON DELETE
+    // RESTRICT` only — it doesn't prevent `parent_id == id`, which would
+    // make `derive_key_chain` loop forever (it has a cycle guard that
+    // returns `Protocol("cycle in project parent chain")`) and brick issue
+    // creation for that project until a manual DB fix. Compare against the
+    // `id` argument — that's the actual id the row will be written with
+    // (the route handler may have generated it via `Uuid::new_v4`).
+    if let Some(parent) = parent_id
+        && parent == id
+    {
+        return Err(ApiError::BadRequest(
+            "project cannot be its own parent".into(),
+        ));
+    }
     let key = derive_key(name);
     if sibling_key_exists(pool, parent_id, &key).await? {
         return Err(ApiError::BadRequest("project key already exists".into()));
@@ -379,9 +393,20 @@ pub(crate) async fn derive_key_chain(
     }
     if let Ok(mut guard) = cache.lock() {
         if guard.len() >= KEY_CHAIN_CACHE_MAX {
-            // Overflow: clear all. 128 entries comfortably outgrows any
-            // realistic project tree; the next hit rebuilds from DB.
-            guard.clear();
+            // Overflow: evict the OLDEST entry by `cached_at` rather than
+            // nuking the whole map. A `clear()` would force every cached
+            // chain to be re-read on the next access — a thundering-herd
+            // stall when many distinct ids are touched in a burst. Single-
+            // entry eviction keeps the cache warm; the new insert at the
+            // end means the just-touched id is fresh and the dropped one
+            // was the coldest. O(n) over n ≤ 128, so trivially cheap.
+            if let Some(oldest_id) = guard
+                .iter()
+                .min_by_key(|(_, (cached_at, _))| *cached_at)
+                .map(|(id, _)| *id)
+            {
+                guard.remove(&oldest_id);
+            }
         }
         guard.insert(project_id, (SystemTime::now(), keys.clone()));
     }
@@ -602,25 +627,20 @@ pub(crate) async fn delete_project_record(pool: &SqlitePool, id: Uuid) -> Result
         }
         Err(err) if is_foreign_key_violation(&err) => {
             // SQLITE_CONSTRAINT_FOREIGNKEY (787) — a child landed between
-            // our count and our delete. Prefer re-reading children on a fresh
-            // pool connection so the post-error snapshot reflects the
-            // concurrent commit (the `&mut *tx` re-read would see the
-            // tx-start snapshot, where the child is still invisible).
-            // The pool's other connection is only safe to acquire when
-            // `max_connections > 1`; test pools & low-mem prod cap at 1, so
-            // fall back to a non-specific 409 if a second connection isn't
-            // available — never block / time out the tx's own connection.
+            // our count and our delete. Drop the transaction first so its
+            // connection returns to the pool — with `max_connections = 1`
+            // this is what makes the fresh re-read possible at all (test
+            // pools cap at 1). Then re-read children on that connection so
+            // the post-error snapshot reflects the concurrent commit; the
+            // `&mut *tx` re-read would see the tx-start snapshot, where
+            // the child is still invisible.
             tracing::warn!(
                 "FK race on delete_project {id}: child inserted between count and delete"
             );
-            if let Some(mut fresh) = pool.try_acquire() {
-                let payload = fetch_children_payload(&mut *fresh, id).await?;
-                Err(ApiError::ConflictPayload(payload))
-            } else {
-                Err(ApiError::ConflictPayload(json!({
-                    "error": "project_has_children"
-                })))
-            }
+            drop(tx);
+            let mut fresh = pool.acquire().await?;
+            let payload = fetch_children_payload(&mut *fresh, id).await?;
+            Err(ApiError::ConflictPayload(payload))
         }
         Err(err) => Err(err.into()),
     }
@@ -1208,12 +1228,13 @@ mod tests {
     }
 
     /// Determinism: two consecutive reads of the same project id — each
-    /// preceded by a manual cache clear — must return the same chain. This
-    /// pins down the cache's read-write symmetry: a fresh read after a clear
-    /// re-derives from the DB, and the resulting chain is identical to the
-    /// prior one (no random state leaks between calls). It does NOT exercise
-    /// TTL eviction; that path is covered by the cache-hit's age check
-    /// directly, not by `clear_key_chain_cache`.
+    /// preceded by a manual cache clear — must return the same chain. Two
+    /// DB-reads after a clear return identical chains — verifies cache-write
+    /// + DB-read consistency: the cache-write after the first read is
+    /// observably indistinguishable from a clear-then-DB-read on the next
+    /// call. It does NOT exercise the cache-HIT read branch; that path is
+    /// covered by `create_issue_uses_chain_key_for_nested_projects` (second
+    /// issue in the same project hits the cache populated by the first).
     #[tokio::test]
     async fn derive_key_chain_is_deterministic_across_calls() {
         clear_key_chain_cache();
@@ -1224,6 +1245,47 @@ mod tests {
         assert_eq!(derive_key_chain(&pool, root.id).await.unwrap(), "ACME");
         clear_key_chain_cache();
         assert_eq!(derive_key_chain(&pool, root.id).await.unwrap(), "ACME");
+    }
+
+    /// F-N3: `create_project_record` MUST reject `parent_id == id` at the
+    /// app layer — the schema FK is `ON DELETE RESTRICT` only, so without
+    /// this guard a self-referential project would slip through, then
+    /// `derive_key_chain`'s cycle guard would return `Protocol(...)` and
+    /// brick issue creation for that project.
+    #[tokio::test]
+    async fn create_project_record_rejects_self_parent() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let id = Uuid::new_v4();
+
+        // Self-parent (parent_id == id) MUST be rejected with BadRequest.
+        let err = create_project_record(&pool, id, "Solo", "#6366f1", Some(id))
+            .await
+            .unwrap_err();
+        match err {
+            ApiError::BadRequest(msg) => {
+                assert_eq!(msg, "project cannot be its own parent")
+            }
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+
+        // No row was written — the guard fires before any DB work.
+        assert!(
+            db::models::project::Project::find_by_id(&pool, id)
+                .await
+                .unwrap()
+                .is_none()
+        );
+
+        // A valid parent still succeeds (regression check on the guard).
+        let parent = create_project_record(&pool, Uuid::new_v4(), "Parent", "#6366f1", None)
+            .await
+            .unwrap();
+        let child =
+            create_project_record(&pool, Uuid::new_v4(), "Child", "#6366f1", Some(parent.id))
+                .await
+                .unwrap();
+        assert_eq!(child.parent_id, Some(parent.id));
     }
 
     #[tokio::test]
