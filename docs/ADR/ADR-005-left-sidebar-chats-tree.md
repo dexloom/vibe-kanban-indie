@@ -141,7 +141,7 @@ vite builds — no `cargo build`.
   `/workspaces`; archived workspaces are reachable (collapsed) without a
   separate view.
 - Negative: the 40px rail's minimal footprint is lost (a future "collapse to
-  rail" toggle is deferred); at <1280px width 256px is a real tax (make the
+  rail" toggle is deferred); at `<1280px` width 256px is a real tax (make the
   sidebar resizable/collapsible later); `react-arborist` would be needed if deep
   nesting (e.g. sessions under workspaces) is later wanted — flagged.
 - Ongoing: two collapsible-state mechanisms coexist (in-memory
