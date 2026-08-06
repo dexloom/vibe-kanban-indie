@@ -34,10 +34,7 @@ export function TasksSectionNode({
       )}
     >
       <div className="flex items-center gap-1">
-        <span
-          className="truncate"
-          style={tintStyle(tintColor)}
-        >
+        <span className="truncate" style={tintStyle(tintColor)}>
           {section.label}
         </span>
         {section.isLoading ? (

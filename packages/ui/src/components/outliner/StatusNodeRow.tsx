@@ -49,10 +49,7 @@ export function StatusNodeRow({
         )}
       >
         <div className="flex items-center gap-1">
-          <span
-            className="truncate"
-            style={tintStyle(tintColor)}
-          >
+          <span className="truncate" style={tintStyle(tintColor)}>
             {status.name}
           </span>
           <span

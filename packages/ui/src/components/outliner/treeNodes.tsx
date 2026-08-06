@@ -113,9 +113,7 @@ function ProjectTreeNode(
         // Expandable rows are always bold (matches the active project's
         // label weight); the active project additionally gets the fill.
         isExpandable || isActive ? 'font-bold' : 'font-normal',
-        isActive
-          ? 'bg-tertiary text-high'
-          : `text-normal ${HOVER_ROW}`,
+        isActive ? 'bg-tertiary text-high' : `text-normal ${HOVER_ROW}`,
         dimmed && DIM_ROW,
         isSource && `opacity-50 ${TINT_ROW}`,
         isDragActive && !isUnassigned && !isCandidate && 'bg-tertiary/40',
@@ -196,7 +194,10 @@ function ProjectTreeNode(
                     weight="regular"
                     aria-hidden
                   />
-                  {t('sidebar.addOrchestratorPrompt', 'Add orchestrator prompt')}
+                  {t(
+                    'sidebar.addOrchestratorPrompt',
+                    'Add orchestrator prompt'
+                  )}
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -225,10 +226,7 @@ function SectionTreeNode(
         dimmed && DIM_ROW
       )}
     >
-      <span
-        className="truncate"
-        style={tintStyle(tintColor)}
-      >
+      <span className="truncate" style={tintStyle(tintColor)}>
         {node.data.label}
       </span>
     </TreeRow>
@@ -281,10 +279,7 @@ function OrchestratorPromptTreeNode(
           weight="regular"
           aria-hidden
         />
-        <span
-          className="truncate"
-          style={tintStyle(tintColor)}
-        >
+        <span className="truncate" style={tintStyle(tintColor)}>
           {data.label}
         </span>
         {data.hasPrompt && (

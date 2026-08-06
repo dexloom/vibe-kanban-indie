@@ -99,20 +99,20 @@ function buildProjectNode(
   // project that has no prompt yet). When present, it sits AFTER the
   // Tasks section and BEFORE child boards so the order is uniform at
   // every depth (root + boards).
-  const orchestratorPrompt: OrchestratorPromptNode | null = project
-    .hasOrchestratorPrompt
-    ? {
-        id: makeOrchestratorPromptNodeId(project.id),
-        type: 'orchestrator-prompt',
-        projectId: project.id,
-        // Default arg keeps the row label consistent with every other
-        // sidebar entry — if the key is missing in any locale the row
-        // would otherwise render the raw `sidebar.orchestratorPrompt`
-        // i18n key instead of an English label.
-        label: t('sidebar.orchestratorPrompt', 'Orchestrator prompt'),
-        hasPrompt: true,
-      }
-    : null;
+  const orchestratorPrompt: OrchestratorPromptNode | null =
+    project.hasOrchestratorPrompt
+      ? {
+          id: makeOrchestratorPromptNodeId(project.id),
+          type: 'orchestrator-prompt',
+          projectId: project.id,
+          // Default arg keeps the row label consistent with every other
+          // sidebar entry — if the key is missing in any locale the row
+          // would otherwise render the raw `sidebar.orchestratorPrompt`
+          // i18n key instead of an English label.
+          label: t('sidebar.orchestratorPrompt', 'Orchestrator prompt'),
+          hasPrompt: true,
+        }
+      : null;
   const children: (SectionNode | ProjectNode | OrchestratorPromptNode)[] = [
     tasks,
     ...(orchestratorPrompt ? [orchestratorPrompt] : []),
@@ -155,7 +155,12 @@ function buildProjectNode(
       )
     );
     if (active.length > 0 || archived.length > 0) {
-      const workspaces = buildWorkspacesSection(project.id, active, archived, t);
+      const workspaces = buildWorkspacesSection(
+        project.id,
+        active,
+        archived,
+        t
+      );
       children.push(workspaces);
     }
   }
@@ -199,7 +204,9 @@ function collectSubtreeProjectIds(
 }
 
 /** ADR-015: dedupe workspaces by id while preserving first-seen order. */
-function dedupeById(workspaces: readonly OutlinerWorkspace[]): OutlinerWorkspace[] {
+function dedupeById(
+  workspaces: readonly OutlinerWorkspace[]
+): OutlinerWorkspace[] {
   const seen = new Set<string>();
   const out: OutlinerWorkspace[] = [];
   for (const ws of workspaces) {

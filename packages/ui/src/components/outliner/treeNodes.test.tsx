@@ -391,7 +391,7 @@ describe('TreeNodeRouter ADR-015 row interactions', () => {
       onSelectIssue: (projectId: string, issueId: string) => void;
       onCreateChildBoard: (parentId: string) => void;
     };
-    const { container, getByText, baseElement } = render(
+    const { container, baseElement } = render(
       <TreeNodeRouter {...props} />
     );
     const trigger = container.querySelector(

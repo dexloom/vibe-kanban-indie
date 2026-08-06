@@ -496,9 +496,7 @@ describe('SidebarProjectTree open-state persistence', () => {
       projects: [projectOne],
       tasksByProject: new Map(), // Tasks data never loads for closed section
     });
-    await waitFor(() =>
-      expect(screen.queryByText('Todo')).toBeNull()
-    );
+    await waitFor(() => expect(screen.queryByText('Todo')).toBeNull());
     unmount();
     expect(readBlob()['project-1:status:todo']).toBe(true);
     // Workspace structural keys are still pruned when the section is gone.

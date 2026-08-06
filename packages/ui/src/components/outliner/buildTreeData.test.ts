@@ -87,7 +87,16 @@ describe('buildTreeData', () => {
     };
     const input = baseInput({
       workspacesByProject: new Map([
-        ['p1', [{ id: 'w1', name: 'w1', createdAt: '2026-08-01T00:00:00.000Z' } as OutlinerWorkspace]],
+        [
+          'p1',
+          [
+            {
+              id: 'w1',
+              name: 'w1',
+              createdAt: '2026-08-01T00:00:00.000Z',
+            } as OutlinerWorkspace,
+          ],
+        ],
       ]),
       tasksByProject: new Map([['p1', tasks]]),
     });
@@ -572,9 +581,7 @@ describe('buildTreeData', () => {
           parentId: 'p-child-a',
         }),
       ],
-      workspacesByProject: new Map([
-        ['p-root', [ws('w-root')]],
-      ]),
+      workspacesByProject: new Map([['p-root', [ws('w-root')]]]),
     });
     const tree = buildTreeData(input);
     const root = tree[0]!;
@@ -712,7 +719,10 @@ describe('buildTreeData', () => {
 // 5. Unassigned is unchanged (keeps its own Workspaces section).
 // 6. Tasks section is unchanged (toggle-only).
 
-function ws(id: string, overrides: Partial<OutlinerWorkspace> = {}): OutlinerWorkspace {
+function ws(
+  id: string,
+  overrides: Partial<OutlinerWorkspace> = {}
+): OutlinerWorkspace {
   return {
     id,
     name: id,
@@ -737,10 +747,7 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
 
   it('root aggregates own + child-board workspaces deduplicated by id', () => {
     const input = baseInput({
-      projects: [
-        project('p-root'),
-        project('p-child', { parentId: 'p-root' }),
-      ],
+      projects: [project('p-root'), project('p-child', { parentId: 'p-root' })],
       workspacesByProject: new Map([
         ['p-root', [ws('w1'), ws('w2')]],
         ['p-child', [ws('w2'), ws('w3')]],
@@ -753,7 +760,11 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
       (c) => c.type === 'section' && c.kind === 'workspaces'
     );
     expect(wsSection).toBeDefined();
-    if (!wsSection || wsSection.type !== 'section' || wsSection.kind !== 'workspaces') {
+    if (
+      !wsSection ||
+      wsSection.type !== 'section' ||
+      wsSection.kind !== 'workspaces'
+    ) {
       throw new Error('expected workspaces section');
     }
     const allBuckets = wsSection.children.flatMap((b) =>
@@ -767,10 +778,7 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
   it('a workspace linked to both root AND a child appears exactly once', () => {
     // Membership is M:N; a workspace linked to root + child must dedupe by id.
     const input = baseInput({
-      projects: [
-        project('p-root'),
-        project('p-child', { parentId: 'p-root' }),
-      ],
+      projects: [project('p-root'), project('p-child', { parentId: 'p-root' })],
       workspacesByProject: new Map([
         ['p-root', [ws('w-shared')]],
         ['p-child', [ws('w-shared')]],
@@ -783,7 +791,11 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
       (c) => c.type === 'section' && c.kind === 'workspaces'
     );
     expect(wsSection).toBeDefined();
-    if (!wsSection || wsSection.type !== 'section' || wsSection.kind !== 'workspaces') {
+    if (
+      !wsSection ||
+      wsSection.type !== 'section' ||
+      wsSection.kind !== 'workspaces'
+    ) {
       throw new Error('expected workspaces section');
     }
     const ids = wsSection.children.flatMap((b) =>
@@ -792,27 +804,28 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
     expect(ids.filter((id) => id === 'w-shared')).toHaveLength(1);
 
     // The child board itself has NO Workspaces section (ADR-015 §4).
-    const child = root.children.find((c) => c.type === 'project' && c.id === 'p-child');
+    const child = root.children.find(
+      (c) => c.type === 'project' && c.id === 'p-child'
+    );
     if (!child || child.type !== 'project') throw new Error('expected child');
     const childSections = child.children.filter((c) => c.type === 'section');
     expect(childSections).toHaveLength(1);
-    expect(childSections[0]!.type === 'section' && childSections[0]!.kind).toBe('tasks');
+    expect(childSections[0]!.type === 'section' && childSections[0]!.kind).toBe(
+      'tasks'
+    );
   });
 
   it('child board (non-root) has NO Workspaces section in its children', () => {
     const input = baseInput({
-      projects: [
-        project('p-root'),
-        project('p-child', { parentId: 'p-root' }),
-      ],
-      workspacesByProject: new Map([
-        ['p-child', [ws('w-only-on-child')]],
-      ]),
+      projects: [project('p-root'), project('p-child', { parentId: 'p-root' })],
+      workspacesByProject: new Map([['p-child', [ws('w-only-on-child')]]]),
     });
     const tree = buildTreeData(input);
     const root = tree.find((n) => n.type === 'project' && n.id === 'p-root');
     if (!root || root.type !== 'project') throw new Error('expected root');
-    const child = root.children.find((c) => c.type === 'project' && c.id === 'p-child');
+    const child = root.children.find(
+      (c) => c.type === 'project' && c.id === 'p-child'
+    );
     if (!child || child.type !== 'project') throw new Error('expected child');
     const wsSection = child.children.find(
       (c) => c.type === 'section' && c.kind === 'workspaces'
@@ -852,15 +865,12 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
     ]);
   });
 
-  it('archived workspaces in subtree land in the root\'s archived bucket', () => {
+  it("archived workspaces in subtree land in the root's archived bucket", () => {
     // Two passes: aggregate active and aggregate archived separately, dedupe
     // each by id. A workspace is "archived" iff it appears in the
     // archivedWorkspacesByProject map; the active list must not include it.
     const input = baseInput({
-      projects: [
-        project('p-root'),
-        project('p-child', { parentId: 'p-root' }),
-      ],
+      projects: [project('p-root'), project('p-child', { parentId: 'p-root' })],
       workspacesByProject: new Map([
         ['p-root', [ws('w-active')]],
         ['p-child', [ws('w-active'), ws('w-other-active')]],
@@ -877,15 +887,23 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
       (c) => c.type === 'section' && c.kind === 'workspaces'
     );
     expect(wsSection).toBeDefined();
-    if (!wsSection || wsSection.type !== 'section' || wsSection.kind !== 'workspaces') {
+    if (
+      !wsSection ||
+      wsSection.type !== 'section' ||
+      wsSection.kind !== 'workspaces'
+    ) {
       throw new Error('expected workspaces section');
     }
-    const archivedBucket = wsSection.children.find((b) => b.bucketId === 'archived');
+    const archivedBucket = wsSection.children.find(
+      (b) => b.bucketId === 'archived'
+    );
     expect(archivedBucket).toBeDefined();
     const archivedIds = (archivedBucket?.children ?? []).map(
       (leaf) => leaf.workspace.id
     );
-    expect(new Set(archivedIds)).toEqual(new Set(['w-archived', 'w-archived-2']));
+    expect(new Set(archivedIds)).toEqual(
+      new Set(['w-archived', 'w-archived-2'])
+    );
     // The active workspaces must NOT appear in the archived bucket.
     expect(archivedIds).not.toContain('w-active');
   });
@@ -910,7 +928,11 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
       (c) => c.type === 'section' && c.kind === 'workspaces'
     );
     expect(wsSection).toBeDefined();
-    if (!wsSection || wsSection.type !== 'section' || wsSection.kind !== 'workspaces') {
+    if (
+      !wsSection ||
+      wsSection.type !== 'section' ||
+      wsSection.kind !== 'workspaces'
+    ) {
       throw new Error('expected workspaces section');
     }
     const ids = wsSection.children.flatMap((b) =>

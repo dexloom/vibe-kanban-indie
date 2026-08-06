@@ -272,7 +272,11 @@ export function liveTreeNodeIds(
       // Some node types (e.g. ADR-016 OrchestratorPromptNode) are leaves
       // that don't carry a `children` field — the `in` check both
       // narrows the type and avoids the runtime TypeError on `.length`.
-      if (node.type !== 'leaf' && 'children' in node && node.children.length > 0) {
+      if (
+        node.type !== 'leaf' &&
+        'children' in node &&
+        node.children.length > 0
+      ) {
         walk(node.children);
       }
     }

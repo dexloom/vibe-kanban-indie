@@ -30,10 +30,7 @@ export function OutlinerBucketNode({
       )}
     >
       <div className="flex items-center gap-1">
-        <span
-          className="truncate"
-          style={tintStyle(tintColor)}
-        >
+        <span className="truncate" style={tintStyle(tintColor)}>
           {bucket.name}
         </span>
         <span className="ml-auto text-2xs font-normal normal-case text-low opacity-70">

@@ -76,9 +76,8 @@ export function OrchestratorPromptEditor({
       // Re-resolve so the inherited-from badge updates (the prompt may
       // have been empty and now resolves to itself).
       try {
-        const reResolved = await projectsApi.resolveOrchestratorPrompt(
-          projectId
-        );
+        const reResolved =
+          await projectsApi.resolveOrchestratorPrompt(projectId);
         setResolved(reResolved);
       } catch {
         // Non-fatal — the badge would just be stale until next mount.
@@ -128,9 +127,8 @@ export function OrchestratorPromptEditor({
       });
       setInitialRaw(updated.orchestrator_prompt);
       try {
-        const reResolved = await projectsApi.resolveOrchestratorPrompt(
-          projectId
-        );
+        const reResolved =
+          await projectsApi.resolveOrchestratorPrompt(projectId);
         setResolved(reResolved);
       } catch {
         // Non-fatal.
@@ -156,7 +154,10 @@ export function OrchestratorPromptEditor({
   if (!projectId) {
     return (
       <div className="p-base text-sm text-low">
-        {t('orchestratorPromptEditor.missingProjectId', 'No project id in route.')}
+        {t(
+          'orchestratorPromptEditor.missingProjectId',
+          'No project id in route.'
+        )}
       </div>
     );
   }
@@ -206,10 +207,7 @@ export function OrchestratorPromptEditor({
           className="rounded-md border border-tertiary bg-secondary px-base py-2 text-sm text-low"
           data-testid="orchestrator-prompt-using-default"
         >
-          {t(
-            'orchestratorPromptEditor.usingDefault',
-            'Using default behavior'
-          )}
+          {t('orchestratorPromptEditor.usingDefault', 'Using default behavior')}
         </div>
       )}
 
@@ -250,7 +248,10 @@ export function OrchestratorPromptEditor({
         >
           {t('orchestratorPromptEditor.clear', 'Clear')}
         </button>
-        <div className="ml-auto text-2xs text-low" data-testid="orchestrator-prompt-status">
+        <div
+          className="ml-auto text-2xs text-low"
+          data-testid="orchestrator-prompt-status"
+        >
           {saveState === 'saved' && (
             <span className="text-success">
               {t('orchestratorPromptEditor.saved', 'Saved')}

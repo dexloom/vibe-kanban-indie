@@ -196,7 +196,10 @@ export function SidebarProjectTree({
   // (e.g. a nested-board `<childId>:workspaces` key from before the
   // root-only-Workspaces change). Recomputed on every treeData change —
   // short-circuit the work when the tree shape didn't change.
-  const liveTreeNodeIdsSet = useMemo(() => liveTreeNodeIds(treeData), [treeData]);
+  const liveTreeNodeIdsSet = useMemo(
+    () => liveTreeNodeIds(treeData),
+    [treeData]
+  );
 
   // Seed the open-state map from persistence + defaults. Recomputed only when
   // the project set changes; react-arborist consumes it exactly once at Tree
@@ -293,9 +296,7 @@ export function SidebarProjectTree({
       openStateRef.current = {
         ...openStateRef.current,
         [projectId]: true,
-        ...(liveTreeNodeIdsSet.has(wsNodeId)
-          ? { [wsNodeId]: true }
-          : {}),
+        ...(liveTreeNodeIdsSet.has(wsNodeId) ? { [wsNodeId]: true } : {}),
       };
       addedProject = true;
     }
@@ -414,7 +415,12 @@ export function SidebarProjectTree({
         onSelectOrchestratorPrompt?.(data.projectId);
       }
     },
-    [onSelectWorkspace, onSelectProject, onSelectIssue, onSelectOrchestratorPrompt]
+    [
+      onSelectWorkspace,
+      onSelectProject,
+      onSelectIssue,
+      onSelectOrchestratorPrompt,
+    ]
   );
 
   const handleToggle = useCallback(

@@ -68,10 +68,7 @@ export function CardNodeRow({
       }}
     >
       <div className="flex min-w-0 items-center gap-1">
-        <span
-          className="truncate"
-          style={tintStyle(tintColor)}
-        >
+        <span className="truncate" style={tintStyle(tintColor)}>
           {issue.title}
         </span>
       </div>
