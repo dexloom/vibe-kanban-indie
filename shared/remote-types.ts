@@ -165,8 +165,8 @@ export const PROJECT_ISSUES_SHAPE = defineShape<Issue>(
 export const WORKSPACES_SHAPE = defineShape<Workspace>(
   'workspaces',
   [] as const,
-  '/v1/shape/user/workspaces',
-  '/v1/fallback/user_workspaces'
+  '/v1/shape/workspaces',
+  '/v1/fallback/workspaces'
 );
 
 export const PROJECT_WORKSPACES_SHAPE = defineShape<Workspace>(

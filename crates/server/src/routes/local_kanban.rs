@@ -209,8 +209,8 @@ async fn fb_project_workspaces(
     Ok(ResponseJson(json!({ "workspaces": mapped })))
 }
 
-/// All linked workspaces (`USER_WORKSPACES_SHAPE`); local mode has one user.
-async fn fb_user_workspaces(
+/// All linked workspaces (`WORKSPACES_SHAPE`); single-developer fork — no per-user filter.
+async fn fb_workspaces(
     State(deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<Value>, ApiError> {
     let rows = IssueWorkspace::list_linked_all(&deployment.db().pool).await?;
@@ -1042,7 +1042,7 @@ pub fn router() -> Router<DeploymentImpl> {
             "/v1/fallback/project_workspaces",
             get(fb_project_workspaces),
         )
-        .route("/v1/fallback/user_workspaces", get(fb_user_workspaces))
+        .route("/v1/fallback/workspaces", get(fb_workspaces))
         .route("/v1/projects", post(create_project))
         .route("/v1/projects/bulk", post(bulk_projects))
         .route(

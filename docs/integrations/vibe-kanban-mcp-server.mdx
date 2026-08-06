@@ -3,7 +3,7 @@ title: "Vibe Kanban MCP Server"
 description: "Configure the Vibe Kanban MCP server"
 ---
 
-Vibe Kanban exposes a local MCP (Model Context Protocol) server, allowing you to manage organisations, projects, issues, workspaces, and repositories from external MCP clients like Claude Desktop, Raycast, or even coding agents running within Vibe Kanban itself.
+Vibe Kanban exposes a local MCP (Model Context Protocol) server, allowing you to manage projects, issues, workspaces, and repositories from external MCP clients like Claude Desktop, Raycast, or even coding agents running within Vibe Kanban itself.
 
 <Note>
 This page covers connecting **external MCP clients** to Vibe Kanban's MCP server. For configuring MCP servers **within** Vibe Kanban for your coding agents, see the [MCP Server Configuration](/integrations/mcp-server-configuration) guide.
@@ -54,10 +54,10 @@ Add the following configuration to your agent's MCP servers configuration:
 
 ## Available MCP Tools
 
-The Vibe Kanban MCP server provides tools for managing organisations, projects, issues, workspaces, and task execution.
+The Vibe Kanban MCP server provides tools for managing projects, issues, workspaces, and task execution.
 
 <Note>
-Many tools accept an optional `project_id` or `organization_id` parameter. When running inside a workspace linked to a remote project, these are inferred automatically from context and can be omitted. The exception is `list_projects`, which always requires an explicit `organization_id`.
+Many tools accept an optional `project_id` parameter. When running inside a workspace linked to a project, it is inferred automatically from context and can be omitted.
 </Note>
 
 ### Context
@@ -66,24 +66,17 @@ Many tools accept an optional `project_id` or `organization_id` parameter. When 
 |------|---------|-------------------|-------------------|---------|
 | `get_context` | Get current workspace context (only available within an active workspace session) | None | None | Project, issue, and workspace metadata |
 
-### Organisation Operations
-
-| Tool | Purpose | Required Parameters | Optional Parameters | Returns |
-|------|---------|-------------------|-------------------|---------|
-| `list_organizations` | List all available organisations | None | None | List of organisations with IDs, names, and slugs |
-| `list_org_members` | List members of an organisation | None | `organization_id` | List of members with user IDs, roles, and profile info |
-
 ### Project Operations
 
 | Tool | Purpose | Required Parameters | Optional Parameters | Returns |
 |------|---------|-------------------|-------------------|---------|
-| `list_projects` | List projects in an organisation | `organization_id` | None | List of projects with IDs and names |
+| `list_projects` | List projects | None | None | List of projects with IDs and names |
 
 ### Issue Management
 
 | Tool | Purpose | Required Parameters | Optional Parameters | Returns |
 |------|---------|-------------------|-------------------|---------|
-| `list_issues` | List issues in a project | None | `project_id`<br/>`status`<br/>`priority`<br/>`search`<br/>`simple_id`<br/>`parent_issue_id`<br/>`assignee_user_id`<br/>`tag_id`<br/>`tag_name`<br/>`limit`<br/>`offset` | Paginated list of thin summary rows: `id`, `simple_id`, `title`, `status`, `updated_at`, plus `priority`/`parent_issue_id`/PR fields only when set. Never the description; null fields are omitted - use `get_issue` for detail. |
+| `list_issues` | List issues in a project | None | `project_id`<br/>`status`<br/>`priority`<br/>`search`<br/>`simple_id`<br/>`parent_issue_id`<br/>`tag_id`<br/>`tag_name`<br/>`limit`<br/>`offset` | Paginated list of thin summary rows: `id`, `simple_id`, `title`, `status`, `updated_at`, plus `priority`/`parent_issue_id`/PR fields only when set. Never the description; null fields are omitted - use `get_issue` for detail. |
 | `create_issue` | Create a new issue | `title` | `project_id`<br/>`description`<br/>`priority`<br/>`parent_issue_id` | Created issue ID |
 | `get_issue` | Get detailed issue information | `issue_id` | None | Full issue details with tags, relationships, sub-issues, and PRs |
 | `update_issue` | Update an existing issue | `issue_id` | `title`<br/>`description`<br/>`status`<br/>`priority`<br/>`parent_issue_id` | Minimal ack: `id`, `simple_id`, `status`, `status_id`, `updated_at`, `changed[]`, plus echoes of the changed fields. Never the description body (only `description_chars`) - use `get_issue` for the card body. |
@@ -93,14 +86,6 @@ Many tools accept an optional `project_id` or `organization_id` parameter. When 
 <Tip>
 For `update_issue`, the `parent_issue_id` field supports three states: omit it entirely to leave the parent unchanged, pass `null` to un-nest the issue from its parent, or pass a UUID to set a new parent. The response is a minimal acknowledgement rather than the full issue: its `changed[]` list names the fields you supplied, so an applied un-nest appears as `"parent_issue_id": null` with `"parent_issue_id"` in `changed[]`, while an untouched parent omits the key entirely. Call `get_issue` when you need the issue body back.
 </Tip>
-
-### Issue Assignees
-
-| Tool | Purpose | Required Parameters | Optional Parameters | Returns |
-|------|---------|-------------------|-------------------|---------|
-| `list_issue_assignees` | List assignees for an issue | `issue_id` | None | List of assignees with user IDs |
-| `assign_issue` | Assign a user to an issue | `issue_id`<br/>`user_id` | None | Issue assignee ID |
-| `unassign_issue` | Remove an assignee from an issue | `issue_assignee_id` | None | Unassignment confirmation |
 
 ### Issue Tags
 
@@ -223,15 +208,13 @@ This creates a new workspace, links it to the issue, generates a feature branch,
 ### Complete Workflow Example
 
 ```
-1. List organisations to find the organisation ID
-2. List projects in the organisation to find the project ID
-3. List issues in the project filtered by status
-4. Create a new issue for "Add user profile page"
-5. Assign a team member to the issue
-6. Start a workspace session for the issue using Amp on the develop branch
+1. List projects to find the project ID
+2. List issues in the project filtered by status
+3. Create a new issue for "Add user profile page"
+4. Start a workspace session for the issue using Amp on the develop branch
 ```
 
-Each step uses the appropriate MCP tool (`list_organizations`, `list_projects`, `list_issues`, `create_issue`, `assign_issue`, `start_workspace`) to manage the complete workflow from planning to execution.
+Each step uses the appropriate MCP tool (`list_projects`, `list_issues`, `create_issue`, `start_workspace`) to manage the complete workflow from planning to execution.
 
 ### Internal Coding Agents (Within Vibe Kanban)
 

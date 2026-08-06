@@ -45,7 +45,8 @@ The goal: excise the User/assignee/creator/follower/reaction/notification archit
 
 ### Negative / accepted
 - `useUserContext` → `WorkspacesContext` rename touches ~7 call sites (mechanical).
-- macOS Swift app mirrors `remote-types.ts` and needs a matching edit (same as ADR-018, tracked separately).
+- macOS Swift app (`apps/macos/`, in-repo) mirrors `remote-types.ts` and needs a
+  matching edit — tracked as `docs/TODO/swift-app-entity-excision.md` (same as ADR-018).
 - Comment author/history: `author_id` column dropped — every comment was authored by the single owner, so no attribution is lost.
 - `LoginStatus` wire removal is a breaking change for any out-of-repo consumer of `UserSystemInfo`.
 
@@ -53,4 +54,4 @@ The goal: excise the User/assignee/creator/follower/reaction/notification archit
 - **SQLite DROP COLUMN version** — verify ≥3.35 in CI; fallback documented.
 - **Auth consumers**: `isSignedIn` gates in ProjectKanban/SharedAppLayout/UserProvider/ActionsProvider stay valid (always true). `userId` consumers (KanbanContainer, IssueWorkspacesSectionContainer, useNotifications, useUsers) are all being removed along with the user entity — no residual consumer survives the sweep.
 - **Notification-page vs OS-toast**: only the kanban notification UI (bell, page, route, app dir) is removed; the OS toast service and `showSystemNotification` bridge stay.
-- **Cross-repo**: Swift app wire mirror needs a follow-up.
+- **Cross-repo**: Swift app wire mirror needs a follow-up — tracked as `docs/TODO/swift-app-entity-excision.md`.

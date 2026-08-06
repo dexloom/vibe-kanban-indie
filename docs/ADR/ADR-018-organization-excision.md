@@ -227,10 +227,14 @@ re-attach it to surviving surfaces.
 
 ### Negative / accepted
 
-- **`shared/remote-types.ts` + the macOS Swift app must be edited by hand** —
+- **`shared/remote-types.ts` + the macOS Swift app (`apps/macos/`) must be edited by hand** —
   the type generator is gone (per ADR-004). The Swift app mirrors the same shapes
-  and likewise loses the `organization_id` field. Documented as a follow-up since
-  the Swift app is out-of-repo.
+  and likewise loses the `organization_id` field — its `Project.organizationId`
+  (non-optional `let`) will fail to decode until edited. **The Swift app is IN-REPO
+  (`apps/macos/`, 97 files), not out-of-repo.** It is intentionally left for a
+  tracked follow-up (see `docs/TODO/swift-app-entity-excision.md`); it is NOT
+  wired into the Rust workspace build or the web app, so this ADR's changes do not
+  break the shipped product — only the native client needs the matching edit.
 - Future multi-tenant re-introduction requires re-adding the entity + the
   migration + provider + wire fields. Acceptable: a solo-dev fork has no such
   plans, and the cost is well-understood & documented.
@@ -253,10 +257,10 @@ re-attach it to surviving surfaces.
 
 ## Cross-repo follow-ups
 
-- `shared/remote-types.ts` is hand-maintained; the macOS Swift app mirrors it
-  directly. The Swift app must drop `organization_id` from `Project` /
-  `Notification` / `CreateProjectRequest` / `ExportRequest` and drop
-  `OrganizationMember` / `MemberRole`. Out of repo — track as a separate task.
+- `shared/remote-types.ts` is hand-maintained; the macOS Swift app (`apps/macos/`,
+  in-repo) mirrors it directly. The Swift app must drop `organization_id` from
+  `Project` / `Notification` / `CreateProjectRequest` / `ExportRequest` and drop
+  `OrganizationMember` / `MemberRole`. Tracked as `docs/TODO/swift-app-entity-excision.md`.
 
 ## Implementation order (TDD)
 
