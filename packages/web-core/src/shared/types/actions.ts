@@ -148,9 +148,6 @@ export interface ActionVisibilityContext {
   hasSelectedKanbanIssue: boolean;
   hasSelectedKanbanIssueParent: boolean;
   isCreatingIssue: boolean;
-
-  // Auth state
-  isSignedIn: boolean;
 }
 
 // Enum discriminant for action target types

@@ -363,9 +363,6 @@
       "active": "Active",
       "all": "All"
     },
-    "loginRequired": {
-      "description": "Please sign in to view this project."
-    },
     "team": "Team",
     "personal": "Personal",
     "searchPlaceholder": "Search issues...",
@@ -523,7 +520,6 @@
     "expand": "Expand",
     "createChildBoard": "Create child board",
     "createProject": "Create project",
-    "notifications": "Notifications",
     "settings": "Settings",
     "bottomBarLabel": "Sidebar actions",
     "orchestratorPrompt": "Orchestrator prompt",

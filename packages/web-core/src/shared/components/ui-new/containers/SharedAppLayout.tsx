@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet } from '@tanstack/react-router';
-import { XIcon, KanbanIcon } from '@phosphor-icons/react';
+import { XIcon } from '@phosphor-icons/react';
 import { SyncErrorProvider } from '@/shared/providers/SyncErrorProvider';
 import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import { useUiPreferencesStore } from '@/shared/stores/useUiPreferencesStore';
@@ -11,7 +11,6 @@ import { Sidebar } from '@vibe/ui/components/Sidebar';
 import { MobileDrawer } from '@vibe/ui/components/MobileDrawer';
 import { SidebarBottomActions } from './SidebarBottomActions';
 import { SidebarProjectTasksRegistry } from '@/shared/components/sidebar/SidebarProjectTasksRegistry';
-import { useAuth } from '@/shared/hooks/auth/useAuth';
 
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentAppDestination } from '@/shared/hooks/useCurrentAppDestination';
@@ -68,7 +67,6 @@ export function SharedAppLayout() {
   const { issueId: activeIssueId } = useCurrentKanbanRouteState();
   const isMobile = useIsMobile();
   const mobileFontScale = useUiPreferencesStore((s) => s.mobileFontScale);
-  const { isSignedIn } = useAuth();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   // `selectedIssueIds.size > 1` matches `useIssueMultiSelect`'s
   // `isMultiSelectActive` definition. We don't call the hook from web-core
@@ -98,10 +96,10 @@ export function SharedAppLayout() {
   }, [isMobile, mobileFontScale]);
 
   // Sidebar state - projects (ADR-018: tenant-less, no org selection)
-  const { data: orgProjects = [], isLoading } = useProjects();
+  const { data: projects = [], isLoading } = useProjects();
   const sortedProjects = useMemo(
-    () => sortProjectsByOrder(orgProjects),
-    [orgProjects]
+    () => sortProjectsByOrder(projects),
+    [projects]
   );
   const [orderedProjects, setOrderedProjects] =
     useState<RemoteProject[]>(sortedProjects);
@@ -463,10 +461,6 @@ export function SharedAppLayout() {
     []
   );
 
-  const handleSignIn = useCallback(async () => {
-    // Local-only fork: no OAuth flow.
-  }, []);
-
   // Workspace tree data: derive membership from the remote-shape workspaces
   // exposed by WorkspacesContext, then surface active/archived lists from the
   // local workspace context so the tree stays in sync with live status.
@@ -671,36 +665,6 @@ export function SharedAppLayout() {
                       bottomActions={<SidebarBottomActions />}
                     />
                   </div>
-
-                  {!isSignedIn && (
-                    <div className="p-3 border-t border-border">
-                      <div className="px-4 py-6 text-center">
-                        <KanbanIcon
-                          className="h-8 w-8 mx-auto text-low"
-                          weight="bold"
-                        />
-                        <p className="mt-3 text-sm font-medium text-high">
-                          Kanban Boards
-                        </p>
-                        <p className="mt-1 text-xs text-low">
-                          Sign in to organise your coding agents with kanban
-                          boards.
-                        </p>
-                        <div className="mt-4">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleSignIn();
-                              setIsDrawerOpen(false);
-                            }}
-                            className="w-full px-3 py-2 rounded-md text-sm font-medium bg-brand text-on-brand hover:bg-brand-hover cursor-pointer"
-                          >
-                            Sign in
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </MobileDrawer>
             </div>

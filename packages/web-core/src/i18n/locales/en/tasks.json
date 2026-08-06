@@ -257,12 +257,7 @@
     "actions": {
       "title": "Git Actions",
       "changeTarget": "Change target",
-      "prMerged": "PR #{{number}} is already merged",
-      "loginRequired": {
-        "title": "Sign in to manage git actions",
-        "description": "Sign in to Vibe Kanban so you can push branches, merge changes, or open pull requests for this task.",
-        "action": "Sign in"
-      }
+      "prMerged": "PR #{{number}} is already merged"
     },
     "mergeDialog": {
       "title": "Merge Changes",

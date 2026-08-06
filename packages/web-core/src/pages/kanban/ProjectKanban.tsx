@@ -20,7 +20,6 @@ import {
   PERSIST_KEYS,
   usePaneSize,
 } from '@/shared/stores/useUiPreferencesStore';
-import { useAuth } from '@/shared/hooks/auth/useAuth';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentKanbanRouteState } from '@/shared/hooks/useCurrentKanbanRouteState';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
@@ -453,7 +452,6 @@ export function ProjectKanban() {
     useCurrentKanbanRouteState();
   const appNavigation = useAppNavigation();
   const { t } = useTranslation('common');
-  const { isSignedIn, isLoaded: authLoaded } = useAuth();
   const issueComposerKey = useMemo(() => {
     if (!projectId) {
       return null;
@@ -481,24 +479,6 @@ export function ProjectKanban() {
       });
     }
   }, [projectId, hasInvalidWorkspaceCreateDraftId, appNavigation]);
-
-  // Show loading while auth state is being determined
-  if (!authLoaded) {
-    return (
-      <div className="flex items-center justify-center h-full w-full">
-        <p className="text-low">{t('states.loading')}</p>
-      </div>
-    );
-  }
-
-  // If not signed in, prompt user to log in
-  if (!isSignedIn) {
-    return (
-      <div className="flex items-center justify-center h-full w-full p-base">
-        <p className="text-low">{t('kanban.loginRequired.description')}</p>
-      </div>
-    );
-  }
 
   if (!projectId) {
     return (
