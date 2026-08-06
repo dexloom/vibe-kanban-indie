@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { NodeApi } from 'react-arborist';
 import { cn } from '../../lib/cn';
 import { TREE_LAYOUT } from './layout';
+import { guideLines } from './treeGeometry';
 
 interface TreeRowProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,59 +31,6 @@ interface TreeRowProps {
    * the controller's captured element into a single callback ref. */
   outerRef?: Ref<HTMLDivElement>;
   children: ReactNode;
-}
-
-/**
- * Compute VSCode-style hierarchy guides for a row. `level` (0-based) is the
- * node's depth in the tree; for each ancestor depth `d` in 0..level-1 we may
- * draw a vertical line at that ancestor's caret-column center.
- *
- * VSCode rules per ancestor:
- * - the column of ancestor `d` runs from that ancestor down to its LAST
- *   DIRECT child. On rows deeper than the last direct child the column is
- *   NOT drawn (the project column stops at the last sub-board, it does not
- *   continue inside that sub-board's own children).
- * - on this row's own parent (d === level-1): always draw a horizontal tick
- *   into the caret column. If the parent is a last child we draw an L
- *   (vertical top → middle, └); otherwise the line runs full height (├/┬).
- * - on higher ancestors: full-height vertical only when this row is NOT
- *   deeper than the ancestor's last direct child.
- */
-type GuideLine = {
-  left: number;
-  drawVertical: boolean;
-  isParent: boolean;
-  /** True when the parent is this row's parent AND this row is its last
-   *  child — renders the L (└, vertical top→middle) instead of ├/┬. */
-  isLastChild?: boolean;
-};
-
-function guideLines(node: NodeApi<any>): GuideLine[] {
-  const level = node.level;
-  if (level <= 0) return [];
-  const lines: GuideLine[] = [];
-  for (let d = 0; d < level; d++) {
-    const isParent = d === level - 1;
-    // The ancestor at depth d, and its DIRECT child that contains this row
-    // (depth d+1). Walk up from this row.
-    let child: NodeApi<any> | null = node;
-    for (let up = 0; up < level - d - 1; up++) {
-      child = child?.parent ?? null;
-    }
-    const ancestorLastDirectChildIsThis =
-      child !== null && child.nextSibling === null;
-    // Column of ancestor d stops below its last direct child. On this row
-    // we draw it only when we're not past that point. The parent column
-    // (d === level-1) is always drawn on this row (child === node).
-    const drawVertical = isParent || !ancestorLastDirectChildIsThis;
-    lines.push({
-      left: d * TREE_LAYOUT.indent + TREE_LAYOUT.caretHalf,
-      drawVertical,
-      isParent,
-      isLastChild: isParent && ancestorLastDirectChildIsThis,
-    });
-  }
-  return lines;
 }
 
 /**

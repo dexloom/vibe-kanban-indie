@@ -20,6 +20,7 @@ import { OutlinerLeafNode } from './LeafNode';
 import { StatusNodeRow } from './StatusNodeRow';
 import { TasksSectionNode } from './TasksSectionNode';
 import { TreeRow } from './TreeRow';
+import { nearestProjectTint } from './treeGeometry';
 import { DIM_ROW, HOVER_ROW, TINT_ROW, tintStyle } from './layout';
 import type {
   BucketNode,
@@ -43,34 +44,6 @@ function getProjectInitials(name: string): string {
     return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
   }
   return trimmed.slice(0, 2).toUpperCase();
-}
-
-/**
- * ADR-016 usability: every project in the sidebar tree is color-coded —
- * each node paints with its nearest ancestor project's OWN color. When a
- * project is selected, everything inside its subtree keeps its color at
- * 0.8 intensity; every OTHER project's subtree is dimmed (colors retained,
- * opacity lowered) so the working scope stands out. Walk up from any node
- * to the nearest ancestor project; return that project's color plus whether
- * the node sits inside the active project's subtree.
- */
-function nearestProjectTint(
-  node: NodeApi<SidebarTreeNode>,
-  activeProjectId: string | null
-): { color: string; inActiveSubtree: boolean } | null {
-  let current: NodeApi<SidebarTreeNode> | null = node;
-  let color: string | null = null;
-  while (current) {
-    if (current.data.type === 'project') {
-      if (color === null) color = current.data.color;
-      if (current.data.id === activeProjectId) {
-        return { color, inActiveSubtree: true };
-      }
-    }
-    current = current.parent;
-  }
-  if (color === null) return null;
-  return { color, inActiveSubtree: false };
 }
 
 function ProjectTreeNode(
