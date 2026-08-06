@@ -350,8 +350,8 @@ type State = {
   // Animated border around the working message box (toggleable in settings)
   animateRunningOutline: boolean;
 
-  // Last selected organization and project (persisted via scratch store)
-  selectedOrgId: string | null;
+  // Last selected project (persisted via scratch store).
+  // ADR-018 — `selectedOrgId` removed.
   selectedProjectId: string | null;
   createDraftWorkspaceByDefault: boolean;
 
@@ -437,9 +437,7 @@ type State = {
   // Animated running outline actions
   setAnimateRunningOutline: (value: boolean) => void;
 
-  // Last selected organization and project actions
-  setSelectedOrgId: (orgId: string | null) => void;
-  clearSelectedOrgId: () => void;
+  // Last selected project actions
   setSelectedProjectId: (projectId: string | null) => void;
   setCreateDraftWorkspaceByDefault: (value: boolean) => void;
 };
@@ -483,8 +481,7 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
   // Animated running outline (default on)
   animateRunningOutline: loadAnimateRunningOutline(),
 
-  // Last selected organization and project
-  selectedOrgId: null,
+  // Last selected project (ADR-018 — `selectedOrgId` removed)
   selectedProjectId: null,
   createDraftWorkspaceByDefault: DEFAULT_CREATE_DRAFT_WORKSPACE_BY_DEFAULT,
 
@@ -841,9 +838,7 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
     set({ animateRunningOutline: value });
   },
 
-  // Last selected organization and project actions
-  setSelectedOrgId: (orgId) => set({ selectedOrgId: orgId }),
-  clearSelectedOrgId: () => set({ selectedOrgId: null }),
+  // Last selected project actions
   setSelectedProjectId: (projectId) => set({ selectedProjectId: projectId }),
   setCreateDraftWorkspaceByDefault: (value) =>
     set({ createDraftWorkspaceByDefault: value }),

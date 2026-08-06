@@ -7,7 +7,7 @@ import {
   UsersIcon,
 } from '@phosphor-icons/react';
 import type { IssuePriority, Tag } from 'shared/remote-types';
-import type { OrganizationMemberWithProfile } from 'shared/types';
+import type { UserWithProfile } from 'shared/types';
 import { cn } from '@/shared/lib/utils';
 import {
   KANBAN_ASSIGNEE_FILTER_VALUES,
@@ -50,7 +50,7 @@ interface KanbanFiltersDialogProps {
   projectId: string;
   currentUserId: string | null;
   tags: Tag[];
-  users: OrganizationMemberWithProfile[];
+  users: UserWithProfile[];
   filters: KanbanFilterState;
   showSubIssues: boolean;
   showWorkspaces: boolean;
@@ -142,7 +142,7 @@ export function KanbanFiltersDialog({
   );
 
   const usersById = useMemo(() => {
-    const map = new Map<string, OrganizationMemberWithProfile>();
+    const map = new Map<string, UserWithProfile>();
     for (const user of users) {
       map.set(user.user_id, user);
     }
@@ -160,7 +160,7 @@ export function KanbanFiltersDialog({
 
           return usersById.get(id);
         })
-        .filter((member): member is OrganizationMemberWithProfile => !!member);
+        .filter((member): member is UserWithProfile => !!member);
 
       if (resolved.length === 0) {
         return (

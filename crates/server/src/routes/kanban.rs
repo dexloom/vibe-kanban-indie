@@ -42,7 +42,7 @@ use db::models::{
     kanban_tag::{IssueAssignee as DbIssueAssignee, IssueTag as DbIssueTag, KanbanTag},
     local_user::LOCAL_USER_ID,
     merge::MergeStatus,
-    project::{Project as DbProject},
+    project::Project as DbProject,
     project_status::ProjectStatus as DbProjectStatus,
     pull_request::PullRequest as DbPullRequest,
     session::Session,

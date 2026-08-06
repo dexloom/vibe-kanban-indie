@@ -440,14 +440,12 @@ export const Actions = {
     icon: GearIcon,
     requiresTarget: ActionTargetType.NONE,
     isVisible: (ctx) => ctx.layoutMode === 'kanban',
-    execute: async (ctx) => {
-      await SettingsDialog.show({
-        initialSection: 'remote-projects',
-        initialState: {
-          organizationId: ctx.kanbanOrgId,
-          projectId: ctx.kanbanProjectId,
-        },
-      });
+    execute: async () => {
+      // ADR-018 — the `remote-projects` settings section is gone (deleted
+      // along with `OrganizationsSettingsSection`). Projects have no
+      // dedicated settings surface anymore; open the global settings
+      // dialog as a fallback.
+      await SettingsDialog.show();
     },
   } satisfies GlobalActionDefinition,
 

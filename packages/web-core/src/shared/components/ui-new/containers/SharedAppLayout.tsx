@@ -11,8 +11,6 @@ import { Sidebar } from '@vibe/ui/components/Sidebar';
 import { MobileDrawer } from '@vibe/ui/components/MobileDrawer';
 import { SidebarBottomActions } from './SidebarBottomActions';
 import { SidebarProjectTasksRegistry } from '@/shared/components/sidebar/SidebarProjectTasksRegistry';
-import { useUserOrganizations } from '@/shared/hooks/useUserOrganizations';
-import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
 
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
@@ -22,21 +20,21 @@ import type { ProjectTasksData } from '@vibe/ui/components/outliner/types';
 import { getProjectDestination } from '@/shared/lib/routes/appNavigation';
 import { CommandBarDialog } from '@/shared/dialogs/command-bar/CommandBarDialog';
 import {
-  CreateRemoteProjectDialog,
-  type CreateRemoteProjectResult,
-} from '@/shared/dialogs/org/CreateRemoteProjectDialog';
+  CreateProjectDialog,
+  type CreateProjectResult,
+} from '@/shared/dialogs/CreateProjectDialog';
 import { CreateProjectButton } from './CreateProjectButton';
 import { useCommandBarShortcut } from '@/shared/hooks/useCommandBarShortcut';
 import { useShape } from '@/shared/integrations/electric/hooks';
+import { useProjects } from '@/shared/hooks/useProjects';
+import { ProjectProvider } from '@/shared/providers/ProjectProvider';
 import {
   sortProjectsByOrder,
   swapProjectSiblings,
 } from '@/shared/lib/projectOrder';
 import {
   PROJECT_ISSUES_SHAPE,
-  PROJECT_MUTATION,
   PROJECT_PROJECT_STATUSES_SHAPE,
-  PROJECTS_SHAPE,
   type Project as RemoteProject,
 } from 'shared/remote-types';
 import { useWorkspaceProjectMembership } from '@/shared/hooks/useWorkspaceProjectMembership';
@@ -99,42 +97,8 @@ export function SharedAppLayout() {
     };
   }, [isMobile, mobileFontScale]);
 
-  // Sidebar state - organizations and projects
-  const { data: orgsData } = useUserOrganizations();
-  const organizations = useMemo(
-    () => orgsData?.organizations ?? [],
-    [orgsData?.organizations]
-  );
-
-  const selectedOrgId = useOrganizationStore((s) => s.selectedOrgId);
-  const setSelectedOrgId = useOrganizationStore((s) => s.setSelectedOrgId);
-
-  // Auto-select first org if none selected or selection is invalid
-  useEffect(() => {
-    if (organizations.length === 0) return;
-
-    const hasValidSelection = selectedOrgId
-      ? organizations.some((org) => org.id === selectedOrgId)
-      : false;
-
-    if (!selectedOrgId || !hasValidSelection) {
-      const firstNonPersonal = organizations.find((org) => !org.is_personal);
-      setSelectedOrgId((firstNonPersonal ?? organizations[0]).id);
-    }
-  }, [organizations, selectedOrgId, setSelectedOrgId]);
-
-  const projectParams = useMemo(
-    () => ({ organization_id: selectedOrgId || '' }),
-    [selectedOrgId]
-  );
-  const { data: orgProjects = [], isLoading } = useShape(
-    PROJECTS_SHAPE,
-    projectParams,
-    {
-      enabled: isSignedIn && !!selectedOrgId,
-      mutation: PROJECT_MUTATION,
-    }
-  );
+  // Sidebar state - projects (ADR-018: tenant-less, no org selection)
+  const { data: orgProjects = [], isLoading } = useProjects();
   const sortedProjects = useMemo(
     () => sortProjectsByOrder(orgProjects),
     [orgProjects]
@@ -229,11 +193,8 @@ export function SharedAppLayout() {
   );
 
   const handleCreateProject = useCallback(async () => {
-    if (!selectedOrgId) return;
-
     try {
-      const result: CreateRemoteProjectResult =
-        await CreateRemoteProjectDialog.show({ organizationId: selectedOrgId });
+      const result: CreateProjectResult = await CreateProjectDialog.show({});
 
       if (result.action === 'created' && result.project) {
         appNavigation.goToProject(result.project.id);
@@ -241,7 +202,7 @@ export function SharedAppLayout() {
     } catch {
       // Dialog cancelled — no-op.
     }
-  }, [selectedOrgId, appNavigation]);
+  }, [appNavigation]);
 
   // ADR-015: open the project-create dialog with `parentId` set so the new
   // project is created as a child board of the supplied project id. The
@@ -249,14 +210,10 @@ export function SharedAppLayout() {
   // targets the child's kanban directly.
   const handleCreateChildBoard = useCallback(
     async (parentId: string) => {
-      if (!selectedOrgId) return;
-
       try {
-        const result: CreateRemoteProjectResult =
-          await CreateRemoteProjectDialog.show({
-            organizationId: selectedOrgId,
-            parentId,
-          });
+        const result: CreateProjectResult = await CreateProjectDialog.show({
+          parentId,
+        });
 
         if (result.action === 'created' && result.project) {
           appNavigation.goToProject(result.project.id);
@@ -265,7 +222,7 @@ export function SharedAppLayout() {
         // Dialog cancelled — no-op.
       }
     },
-    [selectedOrgId, appNavigation]
+    [appNavigation]
   );
 
   // ADR-007: project reorder is disabled tree-wide (see PLAN-sidebar-kanban-cross-dnd);
@@ -347,13 +304,11 @@ export function SharedAppLayout() {
     activeProjectId,
     issuesById,
     statusIds,
-    selectedOrgId,
   });
   dndContextRef.current = {
     activeProjectId,
     issuesById,
     statusIds,
-    selectedOrgId,
   };
 
   // Mirror of orderedProjects as a ref so the drag-end callback reads
@@ -368,7 +323,6 @@ export function SharedAppLayout() {
         activeProjectId: projectId,
         issuesById: byId,
         statusIds: statusIdsForResolve,
-        selectedOrgId: orgId,
       } = dndContextRef.current;
       const outcome = resolveDragEnd(
         completion,
@@ -454,7 +408,6 @@ export function SharedAppLayout() {
           );
           return;
         case 'project-reorder': {
-          if (!orgId) return;
           const aId = outcome.projectId;
           const bId = outcome.targetProjectId;
           const cur = orderedProjectsRef.current;
@@ -492,7 +445,8 @@ export function SharedAppLayout() {
           // `sortProjectsByOrder`; rewriting just this group's rows
           // normalises the field and lets the tiebreak yield to the
           // swap. (P4-D3.)
-          persistProjectReorder(siblingGroup, orgId, {
+          // ADR-018 — projects are tenant-less, no orgId param.
+          persistProjectReorder(siblingGroup, {
             onError: (err) =>
               console.error(
                 '[dnd] project reorder failed:',
@@ -600,90 +554,20 @@ export function SharedAppLayout() {
             onTasksByProject={handleTasksByProject}
             onLoadingTasksProjectIds={handleLoadingTasks}
           />
-          <div
-            className={cn(
-              'bg-primary',
-              isMobile
-                ? 'flex fixed inset-0 pb-[env(safe-area-inset-bottom)]'
-                : 'grid grid-cols-[256px_1fr] grid-rows-[minmax(0,1fr)] h-screen'
-            )}
-          >
-            {!isMobile && (
-              <>
-                {/* Desktop sidebar: project tree + bottom notification/org/user
+          <ProjectProvider>
+            <div
+              className={cn(
+                'bg-primary',
+                isMobile
+                  ? 'flex fixed inset-0 pb-[env(safe-area-inset-bottom)]'
+                  : 'grid grid-cols-[256px_1fr] grid-rows-[minmax(0,1fr)] h-screen'
+              )}
+            >
+              {!isMobile && (
+                <>
+                  {/* Desktop sidebar: project tree + bottom notification/user
                 slots. Spans the full left column; the top drag-region strip
                 lives inside the Sidebar itself. */}
-                <Sidebar
-                  projects={sidebarProjects}
-                  activeProjectId={activeProjectId}
-                  activeProjectPromptId={activeProjectPromptId}
-                  activeWorkspaceId={workspaceId ?? null}
-                  activeIssueId={activeIssueId}
-                  tasksByProject={tasksByProject}
-                  loadingTasksProjectIds={loadingTasksProjectIds}
-                  onTasksExpansionChange={handleTasksExpansionChange}
-                  onSelectIssue={handleSelectIssue}
-                  workspaces={outlinerWorkspaces}
-                  archivedWorkspaces={outlinerArchivedWorkspaces}
-                  membership={membership}
-                  isLoadingProjects={isLoading}
-                  isLoadingWorkspaces={isWorkspacesListLoading}
-                  onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
-                  onSelectProject={handleProjectClick}
-                  onSelectOrchestratorPrompt={handleSelectOrchestratorPrompt}
-                  onCreateChildBoard={handleCreateChildBoard}
-                  isMultiSelectActive={isMultiSelectActive}
-                  headerActions={
-                    <CreateProjectButton onClick={handleCreateProject} />
-                  }
-                  bottomActions={<SidebarBottomActions />}
-                />
-                {/* Content column: Navbar on top, Outlet below. */}
-                <div className="flex flex-col min-h-0 min-w-0">
-                  <NavbarContainer onOpenDrawer={() => setIsDrawerOpen(true)} />
-                  <div className="relative flex-1 min-h-0 overflow-hidden">
-                    <Outlet />
-                  </div>
-                </div>
-              </>
-            )}
-
-            {isMobile && (
-              <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-                <NavbarContainer
-                  mobileMode={isMobile}
-                  onOpenDrawer={() => setIsDrawerOpen(true)}
-                />
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  <Outlet />
-                </div>
-              </div>
-            )}
-
-            {/* Mobile project navigation drawer (rebuilt on the same Sidebar
-            primitives). */}
-            <MobileDrawer
-              open={isDrawerOpen && isMobile}
-              onClose={() => setIsDrawerOpen(false)}
-            >
-              <div className="flex flex-col h-full">
-                {/* Header: org name + close button */}
-                <div className="flex items-center justify-between p-4 border-b border-border">
-                  <span className="text-sm font-medium text-high truncate">
-                    {organizations.find((o) => o.id === selectedOrgId)?.name ??
-                      'Organization'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsDrawerOpen(false)}
-                    className="p-1 rounded-sm text-low hover:text-normal cursor-pointer"
-                    aria-label="Close"
-                  >
-                    <XIcon className="h-4 w-4" weight="bold" />
-                  </button>
-                </div>
-
-                <div className="flex-1 min-h-0 overflow-y-auto">
                   <Sidebar
                     projects={sidebarProjects}
                     activeProjectId={activeProjectId}
@@ -700,14 +584,8 @@ export function SharedAppLayout() {
                     isLoadingProjects={isLoading}
                     isLoadingWorkspaces={isWorkspacesListLoading}
                     onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
-                    onSelectProject={(id) => {
-                      handleProjectClick(id);
-                      setIsDrawerOpen(false);
-                    }}
-                    onSelectOrchestratorPrompt={(id) => {
-                      handleSelectOrchestratorPrompt(id);
-                      setIsDrawerOpen(false);
-                    }}
+                    onSelectProject={handleProjectClick}
+                    onSelectOrchestratorPrompt={handleSelectOrchestratorPrompt}
                     onCreateChildBoard={handleCreateChildBoard}
                     isMultiSelectActive={isMultiSelectActive}
                     headerActions={
@@ -715,40 +593,118 @@ export function SharedAppLayout() {
                     }
                     bottomActions={<SidebarBottomActions />}
                   />
-                </div>
-
-                {!isSignedIn && (
-                  <div className="p-3 border-t border-border">
-                    <div className="px-4 py-6 text-center">
-                      <KanbanIcon
-                        className="h-8 w-8 mx-auto text-low"
-                        weight="bold"
-                      />
-                      <p className="mt-3 text-sm font-medium text-high">
-                        Kanban Boards
-                      </p>
-                      <p className="mt-1 text-xs text-low">
-                        Sign in to organise your coding agents with kanban
-                        boards.
-                      </p>
-                      <div className="mt-4">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleSignIn();
-                            setIsDrawerOpen(false);
-                          }}
-                          className="w-full px-3 py-2 rounded-md text-sm font-medium bg-brand text-on-brand hover:bg-brand-hover cursor-pointer"
-                        >
-                          Sign in
-                        </button>
-                      </div>
+                  {/* Content column: Navbar on top, Outlet below. */}
+                  <div className="flex flex-col min-h-0 min-w-0">
+                    <NavbarContainer
+                      onOpenDrawer={() => setIsDrawerOpen(true)}
+                    />
+                    <div className="relative flex-1 min-h-0 overflow-hidden">
+                      <Outlet />
                     </div>
                   </div>
-                )}
-              </div>
-            </MobileDrawer>
-          </div>
+                </>
+              )}
+
+              {isMobile && (
+                <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+                  <NavbarContainer
+                    mobileMode={isMobile}
+                    onOpenDrawer={() => setIsDrawerOpen(true)}
+                  />
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                    <Outlet />
+                  </div>
+                </div>
+              )}
+
+              {/* Mobile project navigation drawer (rebuilt on the same Sidebar
+            primitives). */}
+              <MobileDrawer
+                open={isDrawerOpen && isMobile}
+                onClose={() => setIsDrawerOpen(false)}
+              >
+                <div className="flex flex-col h-full">
+                  {/* Header: drawer close button. ADR-018 — no org name display. */}
+                  <div className="flex items-center justify-end p-4 border-b border-border">
+                    <button
+                      type="button"
+                      onClick={() => setIsDrawerOpen(false)}
+                      className="p-1 rounded-sm text-low hover:text-normal cursor-pointer"
+                      aria-label="Close"
+                    >
+                      <XIcon className="h-4 w-4" weight="bold" />
+                    </button>
+                  </div>
+
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    <Sidebar
+                      projects={sidebarProjects}
+                      activeProjectId={activeProjectId}
+                      activeProjectPromptId={activeProjectPromptId}
+                      activeWorkspaceId={workspaceId ?? null}
+                      activeIssueId={activeIssueId}
+                      tasksByProject={tasksByProject}
+                      loadingTasksProjectIds={loadingTasksProjectIds}
+                      onTasksExpansionChange={handleTasksExpansionChange}
+                      onSelectIssue={handleSelectIssue}
+                      workspaces={outlinerWorkspaces}
+                      archivedWorkspaces={outlinerArchivedWorkspaces}
+                      membership={membership}
+                      isLoadingProjects={isLoading}
+                      isLoadingWorkspaces={isWorkspacesListLoading}
+                      onSelectWorkspace={(id) =>
+                        appNavigation.goToWorkspace(id)
+                      }
+                      onSelectProject={(id) => {
+                        handleProjectClick(id);
+                        setIsDrawerOpen(false);
+                      }}
+                      onSelectOrchestratorPrompt={(id) => {
+                        handleSelectOrchestratorPrompt(id);
+                        setIsDrawerOpen(false);
+                      }}
+                      onCreateChildBoard={handleCreateChildBoard}
+                      isMultiSelectActive={isMultiSelectActive}
+                      headerActions={
+                        <CreateProjectButton onClick={handleCreateProject} />
+                      }
+                      bottomActions={<SidebarBottomActions />}
+                    />
+                  </div>
+
+                  {!isSignedIn && (
+                    <div className="p-3 border-t border-border">
+                      <div className="px-4 py-6 text-center">
+                        <KanbanIcon
+                          className="h-8 w-8 mx-auto text-low"
+                          weight="bold"
+                        />
+                        <p className="mt-3 text-sm font-medium text-high">
+                          Kanban Boards
+                        </p>
+                        <p className="mt-1 text-xs text-low">
+                          Sign in to organise your coding agents with kanban
+                          boards.
+                        </p>
+                        <div className="mt-4">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleSignIn();
+                              setIsDrawerOpen(false);
+                            }}
+                            className="w-full px-3 py-2 rounded-md text-sm font-medium bg-brand text-on-brand hover:bg-brand-hover cursor-pointer"
+                          >
+                            Sign in
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </MobileDrawer>
+            </div>
+          </ProjectProvider>
         </KanbanDragHandlerProvider>
       </DragProvider>
     </SyncErrorProvider>

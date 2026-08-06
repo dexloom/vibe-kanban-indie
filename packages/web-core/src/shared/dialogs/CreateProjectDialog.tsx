@@ -23,20 +23,19 @@ import {
 import { getRandomPresetColor, PRESET_COLORS } from '@/shared/lib/colors';
 import { ColorPicker } from '@/shared/components/ui-new/containers/ColorPickerContainer';
 
-export type CreateRemoteProjectDialogProps = {
-  organizationId: string;
+export type CreateProjectDialogProps = {
   /** ADR-015: when set, the new project is created as a child board of the
    * given parent id (parent_id = parentId). Omit for a top-level project. */
   parentId?: string;
 };
 
-export type CreateRemoteProjectResult = {
+export type CreateProjectResult = {
   action: 'created' | 'canceled';
   project?: Project;
 };
 
-const CreateRemoteProjectDialogImpl = create<CreateRemoteProjectDialogProps>(
-  ({ organizationId, parentId }) => {
+const CreateProjectDialogImpl = create<CreateProjectDialogProps>(
+  ({ parentId }) => {
     const modal = useModal();
     const { t } = useTranslation('projects');
     const [name, setName] = useState('');
@@ -44,10 +43,9 @@ const CreateRemoteProjectDialogImpl = create<CreateRemoteProjectDialogProps>(
     const [error, setError] = useState<string | null>(null);
     const [isCreating, setIsCreating] = useState(false);
 
-    const params = useMemo(
-      () => ({ organization_id: organizationId }),
-      [organizationId]
-    );
+    // ADR-018 — projects are tenant-less; subscribe PROJECTS_SHAPE with
+    // empty params (single global cache key).
+    const params = useMemo(() => ({}), []);
 
     const { insert, error: syncError } = useShape(PROJECTS_SHAPE, params, {
       mutation: PROJECT_MUTATION,
@@ -92,7 +90,6 @@ const CreateRemoteProjectDialogImpl = create<CreateRemoteProjectDialogProps>(
 
       try {
         const { data: project, persisted } = insert({
-          organization_id: organizationId,
           name: name.trim(),
           color: color,
           ...(parentId ? { parent_id: parentId } : {}),
@@ -103,7 +100,7 @@ const CreateRemoteProjectDialogImpl = create<CreateRemoteProjectDialogProps>(
         modal.resolve({
           action: 'created',
           project: persistedProject ?? project,
-        } as CreateRemoteProjectResult);
+        } as CreateProjectResult);
         modal.hide();
       } catch (err) {
         setError(
@@ -114,7 +111,7 @@ const CreateRemoteProjectDialogImpl = create<CreateRemoteProjectDialogProps>(
     };
 
     const handleCancel = () => {
-      modal.resolve({ action: 'canceled' } as CreateRemoteProjectResult);
+      modal.resolve({ action: 'canceled' } as CreateProjectResult);
       modal.hide();
     };
 
@@ -148,10 +145,7 @@ const CreateRemoteProjectDialogImpl = create<CreateRemoteProjectDialogProps>(
                     'createProjectDialog.descriptionChildBoard',
                     'Create a new child board under this project.'
                   )
-                : t(
-                    'createProjectDialog.description',
-                    'Create a new project in this organization.'
-                  )}
+                : t('createProjectDialog.description', 'Create a new project.')}
             </DialogDescription>
           </DialogHeader>
 
@@ -230,7 +224,7 @@ const CreateRemoteProjectDialogImpl = create<CreateRemoteProjectDialogProps>(
   }
 );
 
-export const CreateRemoteProjectDialog = defineModal<
-  CreateRemoteProjectDialogProps,
-  CreateRemoteProjectResult
->(CreateRemoteProjectDialogImpl);
+export const CreateProjectDialog = defineModal<
+  CreateProjectDialogProps,
+  CreateProjectResult
+>(CreateProjectDialogImpl);

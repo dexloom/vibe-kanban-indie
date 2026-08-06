@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next';
 import {
   PROJECT_WORKSPACES_SHAPE,
   type IssuePriority,
+  type Project,
 } from 'shared/remote-types';
 import { Group, Layout, Panel, Separator } from 'react-resizable-panels';
-import { OrgProvider } from '@/shared/providers/remote/OrgProvider';
-import { useOrgContext } from '@/shared/hooks/useOrgContext';
+import { useProjects } from '@/shared/hooks/useProjects';
+import { useProjectsContext } from '@/shared/providers/ProjectProvider';
 import { ProjectProvider } from '@/shared/providers/remote/ProjectProvider';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
 import { useActions } from '@/shared/hooks/useActions';
@@ -19,9 +20,6 @@ import {
   PERSIST_KEYS,
   usePaneSize,
 } from '@/shared/stores/useUiPreferencesStore';
-import { useUserOrganizations } from '@/shared/hooks/useUserOrganizations';
-import { useOrganizationProjects } from '@/shared/hooks/useOrganizationProjects';
-import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentKanbanRouteState } from '@/shared/hooks/useCurrentKanbanRouteState';
@@ -415,11 +413,12 @@ function ProjectKanbanLayout({ projectName }: { projectName: string }) {
 }
 
 /**
- * Inner component that renders the Kanban board once we have the org context
+ * Inner component that renders the Kanban board once we have the project list
+ * from the flat projects layer (ADR-018).
  */
 function ProjectKanbanInner({ projectId }: { projectId: string }) {
   const { t } = useTranslation('common');
-  const { projects, isLoading } = useOrgContext();
+  const { projects, isLoading } = useProjectsContext();
 
   const project = projects.find((p) => p.id === projectId);
 
@@ -449,34 +448,6 @@ function ProjectKanbanInner({ projectId }: { projectId: string }) {
 }
 
 /**
- * Hook to find a project by ID, using orgId from Zustand store
- */
-function useFindProjectById(projectId: string | undefined) {
-  const { isLoaded: authLoaded } = useAuth();
-  const { data: orgsData, isLoading: orgsLoading } = useUserOrganizations();
-  const selectedOrgId = useOrganizationStore((s) => s.selectedOrgId);
-  const organizations = orgsData?.organizations ?? [];
-
-  // Use stored org ID, or fall back to first org
-  const orgIdToUse = selectedOrgId ?? organizations[0]?.id ?? null;
-
-  const { data: projects = [], isLoading: projectsLoading } =
-    useOrganizationProjects(orgIdToUse);
-
-  const project = useMemo(() => {
-    if (!projectId) return undefined;
-    return projects.find((p) => p.id === projectId);
-  }, [projectId, projects]);
-
-  return {
-    project,
-    organizationId: project?.organization_id ?? selectedOrgId,
-    // Include auth loading state - we can't determine project access until auth loads
-    isLoading: !authLoaded || orgsLoading || projectsLoading,
-  };
-}
-
-/**
  * ProjectKanban page - displays the Kanban board for a specific project
  *
  * URL patterns:
@@ -488,7 +459,8 @@ function useFindProjectById(projectId: string | undefined) {
  * Note: issue creation is composer-store state on top of /projects/:projectId.
  *
  * Note: This component is rendered inside SharedAppLayout which provides
- * NavbarContainer, AppBar, and SyncErrorProvider.
+ * NavbarContainer, AppBar, SyncErrorProvider, and ProjectProvider
+ * (the flat projects layer — ADR-018).
  */
 export function ProjectKanban() {
   const { projectId, hostId, hasInvalidWorkspaceCreateDraftId } =
@@ -524,13 +496,8 @@ export function ProjectKanban() {
     }
   }, [projectId, hasInvalidWorkspaceCreateDraftId, appNavigation]);
 
-  // Find the project and get its organization
-  const { organizationId, isLoading } = useFindProjectById(
-    projectId ?? undefined
-  );
-
   // Show loading while auth state is being determined
-  if (!authLoaded || isLoading) {
+  if (!authLoaded) {
     return (
       <div className="flex items-center justify-center h-full w-full">
         <p className="text-low">{t('states.loading')}</p>
@@ -547,7 +514,7 @@ export function ProjectKanban() {
     );
   }
 
-  if (!projectId || !organizationId) {
+  if (!projectId) {
     return (
       <div className="flex items-center justify-center h-full w-full">
         <p className="text-low">{t('kanban.noProjectFound')}</p>
@@ -555,9 +522,18 @@ export function ProjectKanban() {
     );
   }
 
-  return (
-    <OrgProvider organizationId={organizationId}>
-      <ProjectKanbanInner projectId={projectId} />
-    </OrgProvider>
-  );
+  // ProjectProvider (the flat projects layer) is already mounted by
+  // SharedAppLayout — we look up the project directly via the same hook.
+  const { data: projects } = useProjects();
+  const project = projects.find((p: Project) => p.id === projectId);
+
+  if (!project) {
+    return (
+      <div className="flex items-center justify-center h-full w-full">
+        <p className="text-low">{t('kanban.noProjectFound')}</p>
+      </div>
+    );
+  }
+
+  return <ProjectKanbanInner projectId={projectId} />;
 }

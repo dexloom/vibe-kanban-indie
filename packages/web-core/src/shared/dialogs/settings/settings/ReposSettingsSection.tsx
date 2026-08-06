@@ -7,7 +7,7 @@ import { Loader2 } from 'lucide-react';
 import { create, useModal } from '@ebay/nice-modal-react';
 import { useMachineRepoBranches } from '@/shared/hooks/useRepoBranches';
 import { useScriptPlaceholders } from '@/shared/hooks/useScriptPlaceholders';
-import { useAllOrganizationProjects } from '@/shared/hooks/useAllOrganizationProjects';
+import { useProjects } from '@/shared/hooks/useProjects';
 import { getProjectRepoDefaults } from '@/shared/hooks/useProjectRepoDefaults';
 import { ApiError } from '@/shared/lib/api';
 import { defineModal } from '@/shared/lib/modals';
@@ -189,8 +189,7 @@ export function ReposSettingsSection({
   const placeholders = useScriptPlaceholders();
 
   // Linked projects: find which remote projects reference this repo
-  const { data: allProjects, isLoading: projectsLoading } =
-    useAllOrganizationProjects();
+  const { data: allProjects = [], isLoading: projectsLoading } = useProjects();
   const [linkedProjectNames, setLinkedProjectNames] = useState<string[]>([]);
   const [linkedProjectsLoading, setLinkedProjectsLoading] = useState(false);
 

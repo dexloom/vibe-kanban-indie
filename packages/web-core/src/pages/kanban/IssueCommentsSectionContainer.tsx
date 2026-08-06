@@ -12,7 +12,7 @@ import { IssueProvider } from '@/integrations/remote/IssueProvider';
 import { useIssueContext } from '@/shared/hooks/useIssueContext';
 import { useScratch } from '@/shared/hooks/useScratch';
 import { useDebouncedCallback } from '@/shared/hooks/useDebouncedCallback';
-import { useOrgContext } from '@/shared/hooks/useOrgContext';
+import { useUsers } from '@/shared/hooks/useUsers';
 import { useCurrentUser } from '@/shared/hooks/auth/useCurrentUser';
 import { useIssueAttachments } from '@/shared/hooks/useIssueAttachments';
 import { attachmentsApi } from '@/shared/lib/api';
@@ -25,7 +25,6 @@ import {
 import WYSIWYGEditor, {
   type WYSIWYGEditorRef,
 } from '@/shared/components/WYSIWYGEditor';
-import { MemberRole } from 'shared/remote-types';
 import { ScratchType } from 'shared/types';
 
 interface IssueCommentsSectionContainerProps {
@@ -48,16 +47,23 @@ export function IssueCommentsSectionContainer({
 
 function IssueCommentsSectionContent() {
   const { t } = useTranslation('common');
-  const { membersWithProfilesById } = useOrgContext();
+  // ADR-018 — tenant-less user roster.
+  const usersQuery = useUsers();
+  const usersById = useMemo(() => {
+    const map = new Map();
+    for (const user of usersQuery.data ?? []) {
+      map.set(user.user_id, user);
+    }
+    return map;
+  }, [usersQuery.data]);
   const issueContext = useIssueContext();
   const { data: currentUser } = useCurrentUser();
   const currentUserId = currentUser?.user_id ?? '';
 
-  // Check if current user is admin
-  const currentUserMember = currentUserId
-    ? membersWithProfilesById.get(currentUserId)
-    : undefined;
-  const isCurrentUserAdmin = currentUserMember?.role === MemberRole.ADMIN;
+  // ADR-018 — no per-org role concept in the single-tenant fork. Any
+  // logged-in user is treated as a local owner. Keep `isCurrentUserAdmin`
+  // exported downstream so the menu (edit/delete) stays enabled.
+  const isCurrentUserAdmin = Boolean(currentUserId);
 
   // Ref to comment editor for programmatic focus
   const commentEditorRef = useRef<WYSIWYGEditorRef>(null);
@@ -175,7 +181,7 @@ function IssueCommentsSectionContent() {
     return issueContext.comments
       .map((comment) => {
         const author = comment.author_id
-          ? membersWithProfilesById.get(comment.author_id)
+          ? usersById.get(comment.author_id)
           : undefined;
         const isAuthor =
           comment.author_id !== null && comment.author_id === currentUserId;
@@ -200,13 +206,7 @@ function IssueCommentsSectionContent() {
         (a, b) =>
           new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       );
-  }, [
-    issueContext.comments,
-    membersWithProfilesById,
-    currentUserId,
-    isCurrentUserAdmin,
-    t,
-  ]);
+  }, [issueContext.comments, usersById, currentUserId, isCurrentUserAdmin, t]);
 
   // Group reactions by comment, then by emoji
   const reactionsByCommentId = useMemo(() => {
@@ -252,7 +252,7 @@ function IssueCommentsSectionContent() {
           hasReacted: data.hasReacted,
           reactionId: data.reactionId,
           userNames: data.userIds.map((userId) => {
-            const member = membersWithProfilesById.get(userId);
+            const member = usersById.get(userId);
             return member
               ? `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() ||
                   member.email ||
@@ -266,7 +266,7 @@ function IssueCommentsSectionContent() {
     }
 
     return result;
-  }, [commentsData, issueContext, currentUserId, membersWithProfilesById, t]);
+  }, [commentsData, issueContext, currentUserId, usersById, t]);
 
   const handleSubmitComment = useCallback(async () => {
     if (!commentInput.trim()) return;

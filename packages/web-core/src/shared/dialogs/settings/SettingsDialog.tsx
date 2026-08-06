@@ -160,12 +160,10 @@ function SettingsDialogContent({
       return initialSection;
     }
 
-    if (hostsResolved && availableHosts.length === 0) {
-      return 'organizations';
-    }
-
+    // ADR-018 — the deleted `organizations` section is gone; default to
+    // `general` when no host is available.
     return 'general';
-  }, [availableHosts.length, hostsResolved, initialSection]);
+  }, [initialSection]);
 
   const [activeSection, setActiveSection] = useState<SettingsSectionType>(
     resolvedInitialSection
@@ -211,7 +209,8 @@ function SettingsDialogContent({
       isHostSpecificSettingsSection(activeSection) &&
       availableHosts.length === 0
     ) {
-      setActiveSection('organizations');
+      // ADR-018 — `organizations` section is gone; fall back to `general`.
+      setActiveSection('general');
     }
   }, [activeSection, availableHosts.length, hostsResolved]);
 

@@ -8,7 +8,8 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
-import { useOrgContext } from '@/shared/hooks/useOrgContext';
+import { useUsers } from '@/shared/hooks/useUsers';
+import { useProjects } from '@/shared/hooks/useProjects';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import { useActions } from '@/shared/hooks/useActions';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
@@ -38,7 +39,7 @@ import {
   type ProjectIssueCreateOptions,
   useKanbanIssueComposer,
 } from '@/shared/stores/useKanbanIssueComposerStore';
-import type { OrganizationMemberWithProfile } from 'shared/types';
+import type { UserWithProfile } from 'shared/types';
 import {
   KanbanProvider,
   KanbanBoard,
@@ -178,8 +179,10 @@ function ProjectBreadcrumb({
 }
 
 /**
- * KanbanContainer displays the kanban board using data from ProjectContext and OrgContext.
- * Must be rendered within both OrgProvider and ProjectProvider.
+ * KanbanContainer displays the kanban board using data from ProjectContext
+ * (per-project issues/statuses/tags) plus the flat ProjectProvider
+ * (project list). Must be rendered within both ProjectProvider layers
+ * — the per-project one (issues) AND the flat one (project list).
  */
 export function KanbanContainer() {
   const isMobile = useIsMobile();
@@ -209,11 +212,17 @@ export function KanbanContainer() {
     isLoading: projectLoading,
   } = useProjectContext();
 
-  const {
-    projects,
-    membersWithProfilesById,
-    isLoading: orgLoading,
-  } = useOrgContext();
+  // ADR-018 — flat projects layer + tenant-less user roster.
+  const { data: projects } = useProjects();
+  const usersQuery = useUsers();
+  const membersWithProfilesById = useMemo(() => {
+    const map = new Map<string, UserWithProfile>();
+    for (const user of usersQuery.data ?? []) {
+      map.set(user.user_id, user);
+    }
+    return map;
+  }, [usersQuery.data]);
+  const orgLoading = usersQuery.isLoading;
   const { activeWorkspaces } = useWorkspaceContext();
   const { userId } = useAuth();
 
@@ -609,9 +618,9 @@ export function KanbanContainer() {
     return map;
   }, [issues]);
 
-  // Create a lookup map for issue assignees (issue_id -> OrganizationMemberWithProfile[])
+  // Create a lookup map for issue assignees (issue_id -> UserWithProfile[])
   const issueAssigneesMap = useMemo(() => {
-    const map: Record<string, OrganizationMemberWithProfile[]> = {};
+    const map: Record<string, UserWithProfile[]> = {};
     for (const assignee of issueAssignees) {
       const member = membersWithProfilesById.get(assignee.user_id);
       if (member) {

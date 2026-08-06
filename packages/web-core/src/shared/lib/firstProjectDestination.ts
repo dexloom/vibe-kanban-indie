@@ -1,28 +1,16 @@
 import { PROJECTS_SHAPE, type Project } from 'shared/remote-types';
-import { type OrganizationWithRole } from 'shared/types';
-import { organizationsApi } from '@/shared/lib/api';
 import { createShapeCollection } from '@/shared/lib/electric/collections';
 import { getFirstProjectByOrder } from '@/shared/lib/projectOrder';
 import type { AppDestination } from '@/shared/lib/routes/appNavigation';
 
 const FIRST_PROJECT_LOOKUP_TIMEOUT_MS = 3000;
 
-function getFirstOrganization(
-  organizations: OrganizationWithRole[]
-): OrganizationWithRole | null {
-  if (organizations.length === 0) {
-    return null;
-  }
-
-  return organizations[0];
-}
-
-async function getProjectsInOrganization(
-  organizationId: string
-): Promise<Project[] | null> {
-  const collection = createShapeCollection(PROJECTS_SHAPE, {
-    organization_id: organizationId,
-  });
+/**
+ * Get the global project list directly from the local PROJECTS_SHAPE
+ * (ADR-018 — tenant-less, no org fetch).
+ */
+async function getAllProjects(): Promise<Project[] | null> {
+  const collection = createShapeCollection(PROJECTS_SHAPE, {});
 
   const getCollectionProjects = () =>
     collection.toArray as unknown as Project[];
@@ -72,31 +60,21 @@ async function getProjectsInOrganization(
   });
 }
 
+/**
+ * ADR-018 — returns the saved project (if it still exists) else the first
+ * project by `sort_order`. The org concept is gone, so the
+ * `setSelectedOrgId` parameter from the old impl is dropped; only the
+ * saved project id is consulted.
+ */
 export async function getFirstProjectDestination(
-  setSelectedOrgId: (orgId: string | null) => void,
-  savedOrgId?: string | null,
+  _savedOrgId?: string | null,
   savedProjectId?: string | null
 ): Promise<AppDestination | null> {
   try {
-    const organizationsResponse = await organizationsApi.getUserOrganizations();
-    const organizations = organizationsResponse.organizations ?? [];
+    const projects = await getAllProjects();
 
-    // Prefer saved org if it still exists, otherwise fall back to first org
-    const savedOrg = savedOrgId
-      ? organizations.find((org) => org.id === savedOrgId)
-      : null;
-    const resolvedOrg = savedOrg ?? getFirstOrganization(organizations);
-
-    if (!resolvedOrg) {
-      return null;
-    }
-
-    setSelectedOrgId(resolvedOrg.id);
-
-    const projects = await getProjectsInOrganization(resolvedOrg.id);
-
-    // If we have a saved project in the same saved org, use it if still valid
-    if (savedProjectId && savedOrg && projects) {
+    // If we have a saved project, use it if still valid
+    if (savedProjectId && projects) {
       if (projects.some((p) => p.id === savedProjectId)) {
         return { kind: 'project', projectId: savedProjectId };
       }

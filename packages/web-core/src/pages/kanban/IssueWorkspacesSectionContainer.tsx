@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { LinkIcon, PlusIcon } from '@phosphor-icons/react';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
-import { useOrgContext } from '@/shared/hooks/useOrgContext';
+import { useUsers } from '@/shared/hooks/useUsers';
 import { useUserContext } from '@/shared/hooks/useUserContext';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
@@ -53,7 +53,16 @@ export function IssueWorkspacesSectionContainer({
     isLoading: projectLoading,
   } = useProjectContext();
   const { activeWorkspaces, archivedWorkspaces } = useWorkspaceContext();
-  const { membersWithProfilesById, isLoading: orgLoading } = useOrgContext();
+  // ADR-018 — tenant-less user roster for workspace owner lookup.
+  const usersQuery = useUsers();
+  const usersById = useMemo(() => {
+    const map = new Map();
+    for (const user of usersQuery.data ?? []) {
+      map.set(user.user_id, user);
+    }
+    return map;
+  }, [usersQuery.data]);
+  const orgLoading = usersQuery.isLoading;
 
   const localWorkspacesById = useMemo(() => {
     const map = new Map<string, (typeof activeWorkspaces)[number]>();
@@ -88,8 +97,7 @@ export function IssueWorkspacesSectionContainer({
         }));
 
       // Get owner
-      const owner =
-        membersWithProfilesById.get(workspace.owner_user_id) ?? null;
+      const owner = usersById.get(workspace.owner_user_id) ?? null;
 
       return {
         id: workspace.id,
@@ -115,7 +123,7 @@ export function IssueWorkspacesSectionContainer({
     issueId,
     getWorkspacesForIssue,
     pullRequests,
-    membersWithProfilesById,
+    usersById,
     userId,
     localWorkspacesById,
   ]);

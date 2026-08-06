@@ -8,11 +8,11 @@ import {
 } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
-import type { JsonValue, OrganizationMemberWithProfile } from 'shared/types';
+import type { JsonValue, UserWithProfile } from 'shared/types';
 import type { IssuePriority, Workspace } from 'shared/remote-types';
 import { useDebouncedCallback } from '@/shared/hooks/useDebouncedCallback';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
-import { useOrgContext } from '@/shared/hooks/useOrgContext';
+import { useUsers } from '@/shared/hooks/useUsers';
 import { useProjectWorkspaceCreateDraft } from '@/shared/hooks/useProjectWorkspaceCreateDraft';
 import WYSIWYGEditor from '@/shared/components/WYSIWYGEditor';
 import { SearchableTagDropdownContainer } from '@/shared/components/SearchableTagDropdownContainer';
@@ -144,8 +144,8 @@ function readCurrentPipelineStage(workspace: Workspace | null): number | null {
 
 /**
  * KanbanIssuePanelContainer manages the issue detail/create panel.
- * Uses ProjectContext and OrgContext for data and mutations.
- * Must be rendered within both OrgProvider and ProjectProvider.
+ * Uses ProjectContext for issue/status/tag data and `useUsers` for the
+ * tenant-less user roster (ADR-018). Must be rendered within ProjectProvider.
  */
 export function KanbanIssuePanelContainer({
   issueResolution,
@@ -251,7 +251,16 @@ export function KanbanIssuePanelContainer({
     resetKanbanIssueComposer(issueComposerKey);
   }, [issueComposerKey]);
 
-  const { isLoading: orgLoading, membersWithProfilesById } = useOrgContext();
+  // ADR-018 — tenant-less user roster for assignee avatars.
+  const usersQuery = useUsers();
+  const usersById = useMemo(() => {
+    const map = new Map<string, UserWithProfile>();
+    for (const user of usersQuery.data ?? []) {
+      map.set(user.user_id, user);
+    }
+    return map;
+  }, [usersQuery.data]);
+  const orgLoading = usersQuery.isLoading;
 
   // Get action methods from actions context
   const { openStatusSelection, openPrioritySelection, openAssigneeSelection } =
@@ -266,8 +275,8 @@ export function KanbanIssuePanelContainer({
   const creatorUserId = selectedIssue?.creator_user_id ?? null;
   const issueCreator = useMemo(() => {
     if (!creatorUserId) return null;
-    return membersWithProfilesById.get(creatorUserId) ?? null;
-  }, [membersWithProfilesById, creatorUserId]);
+    return usersById.get(creatorUserId) ?? null;
+  }, [usersById, creatorUserId]);
 
   // Find parent issue if current issue has one
   const parentIssue = useMemo(() => {
@@ -464,9 +473,9 @@ export function KanbanIssuePanelContainer({
   // Resolve assignee IDs to full profiles for avatar display
   const displayAssigneeUsers = useMemo(() => {
     return displayData.assigneeIds
-      .map((id) => membersWithProfilesById.get(id))
-      .filter((m): m is OrganizationMemberWithProfile => m != null);
-  }, [displayData.assigneeIds, membersWithProfilesById]);
+      .map((id) => usersById.get(id))
+      .filter((m): m is UserWithProfile => m != null);
+  }, [displayData.assigneeIds, usersById]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 

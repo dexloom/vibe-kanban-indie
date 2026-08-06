@@ -3,7 +3,7 @@ import { useParams } from '@tanstack/react-router';
 import { DragDropContext, type DropResult } from '@hello-pangea/dnd';
 import { PlusIcon, LinkIcon } from '@phosphor-icons/react';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
-import { useOrgContext } from '@/shared/hooks/useOrgContext';
+import { useUsers } from '@/shared/hooks/useUsers';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useActions } from '@/shared/hooks/useActions';
 import { Actions } from '@/shared/actions';
@@ -45,7 +45,16 @@ export function IssueSubIssuesSectionContainer({
     isLoading: projectLoading,
   } = useProjectContext();
 
-  const { membersWithProfilesById, isLoading: orgLoading } = useOrgContext();
+  // ADR-018 — tenant-less user roster for assignee avatars.
+  const usersQuery = useUsers();
+  const usersById = useMemo(() => {
+    const map = new Map();
+    for (const user of usersQuery.data ?? []) {
+      map.set(user.user_id, user);
+    }
+    return map;
+  }, [usersQuery.data]);
+  const orgLoading = usersQuery.isLoading;
 
   // Create lookup maps for efficient access
   const statusesById = useMemo(() => {
@@ -73,7 +82,7 @@ export function IssueSubIssuesSectionContainer({
         const status = statusesById.get(issue.status_id);
         const assigneeRecords = getAssigneesForIssue(issue.id);
         const assignees = assigneeRecords
-          .map((a) => membersWithProfilesById.get(a.user_id))
+          .map((a) => usersById.get(a.user_id))
           .filter((u): u is NonNullable<typeof u> => u !== undefined);
 
         return {
@@ -87,13 +96,7 @@ export function IssueSubIssuesSectionContainer({
           parentIssueSortOrder: issue.parent_issue_sort_order ?? null,
         };
       });
-  }, [
-    issues,
-    issueId,
-    statusesById,
-    membersWithProfilesById,
-    getAssigneesForIssue,
-  ]);
+  }, [issues, issueId, statusesById, usersById, getAssigneesForIssue]);
 
   // Handle clicking on a sub-issue to navigate to it
   const handleSubIssueClick = useCallback(

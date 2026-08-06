@@ -69,6 +69,9 @@ fn generate_types_content() -> String {
         utils::diff::DiffChangeKind::decl(),
         utils::response::ApiResponse::<()>::decl(),
         api_types::LoginStatus::decl(),
+        // ADR-018 — tenant-less users endpoint (replaces OrganizationMember shape).
+        api_types::UserWithProfile::decl(),
+        api_types::ListUsersResponse::decl(),
         server::routes::repo::RegisterRepoRequest::decl(),
         server::routes::repo::InitRepoRequest::decl(),
         server::routes::tags::TagSearchParams::decl(),

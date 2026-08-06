@@ -44,9 +44,6 @@ import {
   RunAgentSetupResponse,
   GhCliSetupError,
   RunScriptError,
-  ListOrganizationsResponse,
-  OrganizationMemberWithProfile,
-  ListMembersResponse,
   OpenEditorResponse,
   OpenEditorRequest,
   PrError,
@@ -85,6 +82,7 @@ import {
   GenerateSpecResponse,
   TelegramStatus,
   TelegramTestResponse,
+  ListUsersResponse,
   SpecKitArtifacts,
   SpecKitArtifact,
   SpecKitTasks,
@@ -102,7 +100,6 @@ import {
   PipelineFileStatus,
   PipelineValidation,
 } from 'shared/types';
-import type { Project as RemoteProject } from 'shared/remote-types';
 import type { WorkspaceWithSession } from '@/shared/types/attempt';
 import { createWorkspaceWithSession } from '@/shared/types/attempt';
 import { resolveHostRequestScope } from '@/shared/lib/hostRequestScope';
@@ -179,10 +176,6 @@ export type Err<E> = { success: false; error: E | undefined; message?: string };
 
 // Result type for endpoints that need typed errors
 export type Result<T, E> = Ok<T> | Err<E>;
-
-type ListRemoteProjectsResponse = {
-  projects: RemoteProject[];
-};
 
 // Special handler for Result-returning endpoints
 const handleApiResponseAsResult = async <T, E>(
@@ -1560,34 +1553,13 @@ const handleRemoteResponse = async <T>(response: Response): Promise<T> => {
   return response.json() as Promise<T>;
 };
 
-// Organizations API
-export const organizationsApi = {
-  getMembers: async (
-    orgId: string
-  ): Promise<OrganizationMemberWithProfile[]> => {
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/members`
-    );
-    const result = await handleRemoteResponse<ListMembersResponse>(response);
-    return result.members;
-  },
-
-  getUserOrganizations: async (): Promise<ListOrganizationsResponse> => {
-    const response = await makeRemoteRequest('/v1/organizations');
-    return handleRemoteResponse<ListOrganizationsResponse>(response);
-  },
-};
-
-export const remoteProjectsApi = {
-  listByOrganization: async (
-    organizationId: string
-  ): Promise<RemoteProject[]> => {
-    const response = await makeRequest(
-      `/api/remote/projects?organization_id=${encodeURIComponent(organizationId)}`
-    );
-    const result =
-      await handleApiResponse<ListRemoteProjectsResponse>(response);
-    return result.projects;
+// Users API — tenant-less replacement for the deleted `organizationsApi`
+// (ADR-018). The new `/v1/users` endpoint returns every local user; the
+// old `/v1/organizations/{org_id}/members` is gone.
+export const usersApi = {
+  getUsers: async (): Promise<ListUsersResponse> => {
+    const response = await makeRemoteRequest('/v1/users');
+    return handleRemoteResponse<ListUsersResponse>(response);
   },
 };
 

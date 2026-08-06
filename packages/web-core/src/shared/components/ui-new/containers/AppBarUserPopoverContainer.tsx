@@ -11,12 +11,11 @@ export function AppBarUserPopoverContainer() {
     await SettingsDialog.show();
   };
 
+  // ADR-018 — no org switcher, no `organizations` / `selectedOrgId` props.
   return (
     <AppBarUserPopover
       avatarUrl={null}
       avatarError={avatarError}
-      organizations={[]}
-      selectedOrgId=""
       open={open}
       onOpenChange={setOpen}
       onAvatarError={() => setAvatarError(true)}

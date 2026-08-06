@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { projectsApi } from '@/shared/lib/api';
 import { refreshShapeSource } from '@/shared/lib/electric/collections';
 import { PROJECTS_SHAPE } from 'shared/remote-types';
-import { useSelectedOrgId } from '@/shared/stores/useOrganizationStore';
 import type { ResolvedOrchestratorPromptResponse } from 'shared/types';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -24,7 +23,6 @@ export function OrchestratorPromptEditor({
   const projectId = projectIdProp ?? (params.projectId as string | undefined);
   const { t } = useTranslation('common');
   const queryClient = useQueryClient();
-  const selectedOrgId = useSelectedOrgId();
 
   const [draft, setDraft] = useState<string>('');
   const [initialRaw, setInitialRaw] = useState<string>('');
@@ -91,14 +89,11 @@ export function OrchestratorPromptEditor({
       // node would not appear until the next slow fallback poll. Force
       // a refresh to surface it immediately. Matches persistIssues /
       // KanbanContainer's refreshShapeSource pattern.
-      if (selectedOrgId) {
-        try {
-          refreshShapeSource(PROJECTS_SHAPE, {
-            organization_id: selectedOrgId,
-          });
-        } catch {
-          // Non-fatal — next shape sync heals it.
-        }
+      // ADR-018 — projects are tenant-less; refresh with empty params.
+      try {
+        refreshShapeSource(PROJECTS_SHAPE, {});
+      } catch {
+        // Non-fatal — next shape sync heals it.
       }
       // Brief reset to idle — UI feedback that the save completed.
       setTimeout(() => setSaveState('idle'), 1500);
@@ -106,7 +101,7 @@ export function OrchestratorPromptEditor({
       setErrorMessage(e instanceof Error ? e.message : 'Failed to save');
       setSaveState('error');
     }
-  }, [projectId, draft, queryClient, selectedOrgId]);
+  }, [projectId, draft, queryClient]);
 
   const clear = useCallback(async () => {
     if (!projectId) return;
@@ -135,21 +130,18 @@ export function OrchestratorPromptEditor({
       }
       setSaveState('saved');
       queryClient.invalidateQueries({ queryKey: ['projects'] });
-      if (selectedOrgId) {
-        try {
-          refreshShapeSource(PROJECTS_SHAPE, {
-            organization_id: selectedOrgId,
-          });
-        } catch {
-          // Non-fatal — next shape sync heals it.
-        }
+      // ADR-018 — projects are tenant-less; refresh with empty params.
+      try {
+        refreshShapeSource(PROJECTS_SHAPE, {});
+      } catch {
+        // Non-fatal.
       }
       setTimeout(() => setSaveState('idle'), 1500);
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : 'Failed to clear');
       setSaveState('error');
     }
-  }, [projectId, queryClient, selectedOrgId]);
+  }, [projectId, queryClient]);
 
   if (!projectId) {
     return (

@@ -65,15 +65,6 @@ const ProjectsGuideDialogImpl = NiceModal.create<NoProps>(() => {
       ),
       imageSrc: '/guide-images/projects-workspaces.png',
     },
-    {
-      id: 'organizations',
-      title: t('kanban.projectsGuide.organizations.title', 'Invite your team'),
-      content: t(
-        'kanban.projectsGuide.organizations.content',
-        "We've automatically created a personal organization, and initial project so you can easily get started with Vibe Kanban. You can also create new organizations and invite your team to collaborate."
-      ),
-      imageSrc: '/guide-images/projects-org-settings.png',
-    },
   ];
 
   return createPortal(

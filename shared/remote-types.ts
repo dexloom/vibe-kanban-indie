@@ -4,9 +4,9 @@
 // Electric row types
 export type JsonValue = number | string | boolean | Array<JsonValue> | { [key in string]?: JsonValue } | null;
 
-export type Project = { id: string, organization_id: string, name: string, color: string, sort_order: number, parent_id: string | null, has_orchestrator_prompt: boolean, created_at: string, updated_at: string, };
+export type Project = { id: string, name: string, color: string, sort_order: number, parent_id: string | null, has_orchestrator_prompt: boolean, created_at: string, updated_at: string, };
 
-export type Notification = { id: string, organization_id: string, user_id: string, notification_type: NotificationType, payload: NotificationPayload, issue_id: string | null, comment_id: string | null, seen: boolean, dismissed_at: string | null, created_at: string, };
+export type Notification = { id: string, user_id: string, notification_type: NotificationType, payload: NotificationPayload, issue_id: string | null, comment_id: string | null, seen: boolean, dismissed_at: string | null, created_at: string, };
 
 export type NotificationGroupKind = "single" | "issue_changes" | "status_changes" | "comments" | "reactions" | "issue_deleted";
 
@@ -67,16 +67,12 @@ export type User = { id: string, email: string, first_name: string | null, last_
 
 export type CreateRemoteSessionResponse = { session_id: string, };
 
-export enum MemberRole { ADMIN = "ADMIN", MEMBER = "MEMBER" }
-
-export type OrganizationMember = { organization_id: string, user_id: string, role: MemberRole, joined_at: string, last_seen_at: string | null, };
-
 export type CreateProjectRequest = {
  /**
  * Optional client-generated ID. If not provided, server generates one.
  * Using client-generated IDs enables stable optimistic updates.
  */
-id?: string, organization_id: string, name: string, color: string, parent_id?: string | null, };
+id?: string, name: string, color: string, parent_id?: string | null, };
 
 export type UpdateProjectRequest = { name: string | null, color: string | null, sort_order: number | null, parent_id?: string | null, };
 
@@ -155,9 +151,9 @@ id?: string, comment_id: string, emoji: string, };
 
 export type UpdateIssueCommentReactionRequest = { emoji: string | null, };
 
-export type ExportRequest = { organization_id: string, 
+export type ExportRequest = {
 /**
- * If empty, exports all projects in the organization.
+ * If empty, exports all projects.
  */
 project_ids: Array<string>, include_attachments: boolean, };
 
@@ -183,7 +179,7 @@ function defineShape<T>(
 // Individual shape definitions with embedded types
 export const PROJECTS_SHAPE = defineShape<Project>(
   'projects',
-  ['organization_id'] as const,
+  [] as const,
   '/v1/shape/projects',
   '/v1/fallback/projects'
 );
@@ -195,16 +191,9 @@ export const NOTIFICATIONS_SHAPE = defineShape<Notification>(
   '/v1/fallback/notifications'
 );
 
-export const ORGANIZATION_MEMBERS_SHAPE = defineShape<OrganizationMember>(
-  'organization_member_metadata',
-  ['organization_id'] as const,
-  '/v1/shape/organization_members',
-  '/v1/fallback/organization_members'
-);
-
 export const USERS_SHAPE = defineShape<User>(
   'users',
-  ['organization_id'] as const,
+  [] as const,
   '/v1/shape/users',
   '/v1/fallback/users'
 );

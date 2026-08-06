@@ -8,7 +8,6 @@ import {
 import { useParams } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Workspace } from 'shared/types';
-import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import { useHostId } from '@/shared/providers/HostIdProvider';
 import { type ProjectIssueCreateOptions } from '@/shared/stores/useKanbanIssueComposerStore';
@@ -41,8 +40,6 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
   const { projectId } = useParams({ strict: false });
   const hostId = useHostId();
   const queryClient = useQueryClient();
-  // Get selected organization ID from store (for kanban context)
-  const selectedOrgId = useOrganizationStore((s) => s.selectedOrgId);
   // Get workspace context (ActionsProvider is nested inside WorkspaceProvider)
   const { selectWorkspace, activeWorkspaces, workspaceId, workspace } =
     useWorkspaceContext();
@@ -214,7 +211,6 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
       openRelationshipSelection,
       createIssue,
       defaultCreateStatusId,
-      kanbanOrgId: selectedOrgId ?? undefined,
       kanbanProjectId: projectId,
       projectMutations: projectMutations ?? undefined,
       remoteWorkspaces: (() => {
@@ -247,7 +243,6 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
     openRelationshipSelection,
     createIssue,
     defaultCreateStatusId,
-    selectedOrgId,
     projectId,
     projectMutations,
     userCtx?.workspaces,

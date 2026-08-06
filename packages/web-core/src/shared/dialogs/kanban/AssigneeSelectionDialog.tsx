@@ -1,8 +1,7 @@
 import { useCallback, useMemo, useRef, useEffect, useState } from 'react';
 import { create, useModal } from '@ebay/nice-modal-react';
 import { useTranslation } from 'react-i18next';
-import type { Project } from 'shared/remote-types';
-import type { OrganizationMemberWithProfile } from 'shared/types';
+import type { UserWithProfile } from 'shared/types';
 import { defineModal } from '@/shared/lib/modals';
 import { CommandDialog } from '@vibe/ui/components/Command';
 import {
@@ -10,12 +9,9 @@ import {
   type MultiSelectOption,
 } from '@vibe/ui/components/MultiSelectCommandBar';
 import { UserAvatar } from '@vibe/ui/components/UserAvatar';
-import { OrgProvider } from '@/shared/providers/remote/OrgProvider';
-import { useOrgContext } from '@/shared/hooks/useOrgContext';
+import { useUsers } from '@/shared/hooks/useUsers';
 import { ProjectProvider } from '@/shared/providers/remote/ProjectProvider';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
-import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
-import { useOrganizationProjects } from '@/shared/hooks/useOrganizationProjects';
 import { useCurrentAppDestination } from '@/shared/hooks/useCurrentAppDestination';
 import {
   getDestinationHostId,
@@ -38,7 +34,7 @@ export interface AssigneeSelectionDialogProps {
   additionalOptions?: MultiSelectOption<string>[];
 }
 
-const getUserDisplayName = (user: OrganizationMemberWithProfile): string => {
+const getUserDisplayName = (user: UserWithProfile): string => {
   return (
     [user.first_name, user.last_name].filter(Boolean).join(' ') ||
     user.username ||
@@ -79,12 +75,9 @@ function AssigneeSelectionContent({
   }, [resolvedProjectId, projectDestination]);
   const issueComposer = useKanbanIssueComposer(issueComposerKey);
 
-  // Get users from OrgContext - use membersWithProfilesById for OrganizationMemberWithProfile
-  const { membersWithProfilesById } = useOrgContext();
-  const users = useMemo(
-    () => [...membersWithProfilesById.values()],
-    [membersWithProfilesById]
-  );
+  // ADR-018 — tenant-less user list. The dialog no longer wraps an
+  // `OrgProvider`; users come from `/v1/users` via the shared hook.
+  const users = useUsers();
 
   // Get issue assignees and mutation functions from ProjectContext
   const { issueAssignees, insertIssueAssignee, removeIssueAssignee } =
@@ -143,7 +136,7 @@ function AssigneeSelectionContent({
   }, [modal.visible]);
 
   const options: MultiSelectOption<string>[] = useMemo(() => {
-    const userOptions = users.map((user) => ({
+    const userOptions = (users.data ?? []).map((user) => ({
       value: user.user_id,
       label: getUserDisplayName(user),
       searchValue: `${user.user_id} ${getUserDisplayName(user)} ${user.email ?? ''}`,
@@ -160,7 +153,7 @@ function AssigneeSelectionContent({
     }
 
     return [...additionalOptions, ...userOptions];
-  }, [users, isCreateMode, additionalOptions]);
+  }, [users.data, isCreateMode, additionalOptions]);
 
   const handleToggle = useCallback(
     (userId: string) => {
@@ -237,7 +230,9 @@ function AssigneeSelectionContent({
   );
 }
 
-/** Wrapper that provides OrgContext and ProjectContext */
+/** Wrapper that provides ProjectContext for the target project. The
+ * tenant-less user list is fetched by the inner content via `useUsers`,
+ * so no OrgProvider is needed (ADR-018). */
 function AssigneeSelectionWithContext({
   projectId,
   issueIds,
@@ -252,32 +247,23 @@ function AssigneeSelectionWithContext({
     [destination]
   );
   const resolvedProjectId = projectId || projectDestination?.projectId;
-  // Get organization ID from store (set when navigating to project)
-  const selectedOrgId = useOrganizationStore((s) => s.selectedOrgId);
 
-  // Fallback: try to find org from projects if not in store
-  const { data: projects = [] } = useOrganizationProjects(selectedOrgId);
-  const project = projects.find((p: Project) => p.id === resolvedProjectId);
-  const organizationId = project?.organization_id ?? selectedOrgId;
-
-  // If we don't have the required IDs, render nothing
-  if (!organizationId || !resolvedProjectId) {
+  // If we don't have a project id, render nothing
+  if (!resolvedProjectId) {
     return null;
   }
 
   return (
-    <OrgProvider organizationId={organizationId}>
-      <ProjectProvider projectId={resolvedProjectId}>
-        <AssigneeSelectionContent
-          projectId={resolvedProjectId}
-          issueIds={issueIds}
-          isCreateMode={isCreateMode}
-          createModeAssigneeIds={createModeAssigneeIds}
-          onCreateModeAssigneesChange={onCreateModeAssigneesChange}
-          additionalOptions={additionalOptions}
-        />
-      </ProjectProvider>
-    </OrgProvider>
+    <ProjectProvider projectId={resolvedProjectId}>
+      <AssigneeSelectionContent
+        projectId={resolvedProjectId}
+        issueIds={issueIds}
+        isCreateMode={isCreateMode}
+        createModeAssigneeIds={createModeAssigneeIds}
+        onCreateModeAssigneesChange={onCreateModeAssigneesChange}
+        additionalOptions={additionalOptions}
+      />
+    </ProjectProvider>
   );
 }
 

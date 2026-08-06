@@ -104,7 +104,6 @@ export interface ActionExecutorContext {
   // Default status for issue creation based on current kanban tab
   defaultCreateStatusId?: string;
   // Current kanban context (for project settings action)
-  kanbanOrgId?: string;
   kanbanProjectId?: string;
   // Project mutations (registered when inside ProjectProvider)
   projectMutations?: ProjectMutations;

@@ -75,9 +75,6 @@
     },
     "currentDisabled": "Cannot select the current branch"
   },
-  "orgSwitcher": {
-    "organizations": "Organizations"
-  },
   "personal": "Personal",
   "signOut": "Sign out",
   "oauth": {},
@@ -402,17 +399,6 @@
     "createNewWorkspace": "Create new workspace",
     "workspaces": "Workspaces",
     "showingWorkspaces": "Showing {{count}} of {{total}}",
-    "changeColor": "Change color",
-    "editName": "Edit name",
-    "deleteStatus": "Delete status",
-    "cannotDeleteWithIssues": "Move issues first",
-    "lastVisibleStatus": "At least one status must be visible",
-    "showStatus": "Show status",
-    "hideStatus": "Hide status",
-    "newStatus": "New Status",
-    "visibleColumns": "Visible Columns",
-    "dragToRearrange": "Drag to re-arrange",
-    "addColumn": "Add column",
     "projectsGuide": {
       "intro": {
         "title": "Welcome",
@@ -429,10 +415,6 @@
       "workspaces": {
         "title": "Workspaces",
         "content": "To start working on an issue, create a workspace. A single issue can have multiple workspaces. Issues describe the work to be done, workspaces are where the work happens."
-      },
-      "organizations": {
-        "title": "Invite your team",
-        "content": "We've automatically created a personal organization and initial project so you can get started with Vibe Kanban. Export your cloud data before shutdown."
       }
     },
     "currentWorkspace": "running here"
