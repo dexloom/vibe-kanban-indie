@@ -1,6 +1,6 @@
 //! Local kanban API.
 //!
-//! Re-homes the hosted kanban (projects, issues, statuses, tags, assignees)
+//! Re-homes the hosted kanban (projects, issues, statuses, tags)
 //! onto local SQLite so the existing frontend works with no cloud account. The
 //! frontend's built-in fallback transport reads from `/v1/fallback/<table>`
 //! (returning `{ "<table>": [...] }`) and mutates via `/v1/<table>` (returning

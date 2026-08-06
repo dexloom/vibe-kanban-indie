@@ -88,7 +88,6 @@
   },
   "grouping": {
     "date": "Date",
-    "assignee": "Assignee",
     "label": "Label"
   },
   "workspaces": {
@@ -287,7 +286,6 @@
       "create-issue": "Create Issue",
       "change-issue-status": "Change Status",
       "change-issue-priority": "Change Priority",
-      "change-assignees": "Change Assignees",
       "make-sub-issue-of": "Make Sub-issue of",
       "add-sub-issue": "Add Sub-issue",
       "remove-parent-issue": "Remove Parent",
@@ -398,11 +396,11 @@
       },
       "welcome": {
         "title": "Projects",
-        "content": "The project page is where you manage issues. You can view your issues as a kanban board, or as a list, and filter by status, tag, assignee and more."
+        "content": "The project page is where you manage issues. You can view your issues as a kanban board, or as a list, and filter by status, tag, and more."
       },
       "issues": {
         "title": "Issues",
-        "content": "Each issue represents a feature or problem to solve. Issues have statuses, priorities, assignees, tags, relationships, comments, sub-issues and more."
+        "content": "Each issue represents a feature or problem to solve. Issues have statuses, priorities, tags, relationships, comments, sub-issues and more."
       },
       "workspaces": {
         "title": "Workspaces",

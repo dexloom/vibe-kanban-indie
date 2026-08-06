@@ -249,7 +249,7 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
         </p>
       )}
 
-      {/* Row 4: Priority + Assignee */}
+      {/* Row 4: Priority */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-half min-w-0">
           {onPriorityClick ? (

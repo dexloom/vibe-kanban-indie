@@ -43,7 +43,7 @@ const ProjectsGuideDialogImpl = NiceModal.create<NoProps>(() => {
       title: t('kanban.projectsGuide.welcome.title', 'Projects'),
       content: t(
         'kanban.projectsGuide.welcome.content',
-        'The project page is where you manage issues. You can view your issues as a kanban board, or as a list, and filter by status, tag, assignee and more.'
+        'The project page is where you manage issues. You can view your issues as a kanban board, or as a list, and filter by status, tag, and more.'
       ),
       imageSrc: '/guide-images/projects-kanban.png',
     },
@@ -52,7 +52,7 @@ const ProjectsGuideDialogImpl = NiceModal.create<NoProps>(() => {
       title: t('kanban.projectsGuide.issues.title', 'Issues'),
       content: t(
         'kanban.projectsGuide.issues.content',
-        'Each issue represents a feature or problem to solve. Issues have statuses, priorities, assignees, tags, relationships, comments, sub-issues and more.'
+        'Each issue represents a feature or problem to solve. Issues have statuses, priorities, tags, relationships, comments, sub-issues and more.'
       ),
       imageSrc: '/guide-images/projects-issue.png',
     },
