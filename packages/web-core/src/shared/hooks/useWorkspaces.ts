@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useJsonPatchWsStream } from '@/shared/hooks/useJsonPatchWsStream';
 import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
@@ -189,7 +189,7 @@ export function useWorkspaces(): UseWorkspacesResult {
       placeholderData: keepPreviousData,
     });
 
-  const workspaces = useMemo(() => {
+  const activeList = useMemo(() => {
     if (!activeData?.workspaces) return [];
     return Object.values(activeData.workspaces)
       .sort((a, b) => {
@@ -205,7 +205,7 @@ export function useWorkspaces(): UseWorkspacesResult {
       .map((ws) => toSidebarWorkspace(ws, activeSummaries.get(ws.id)));
   }, [activeData, activeSummaries]);
 
-  const archivedWorkspaces = useMemo(() => {
+  const archivedList = useMemo(() => {
     if (!archivedData?.workspaces) return [];
     return Object.values(archivedData.workspaces)
       .sort((a, b) => {
@@ -220,6 +220,61 @@ export function useWorkspaces(): UseWorkspacesResult {
       })
       .map((ws) => toSidebarWorkspace(ws, archivedSummaries.get(ws.id)));
   }, [archivedData, archivedSummaries]);
+
+  // Coalesce the high-frequency workspace-status stream so the consumer tree
+  // re-renders at most once per throttle window. `useWorkspaces` runs once at
+  // the app root (WorkspaceProvider) and its result flows into WorkspaceContext,
+  // so without coalescing every WebSocket JsonPatch (agent/orchestrator status
+  // churn arrives in bursts) cascades a full-tree re-render — freezing heavy
+  // panels (the kanban card right pane) and destabilizing local interaction
+  // state (selections/checkboxes reverting mid-reconcile). Connection/error
+  // state below is left unthrottled so it stays responsive.
+  //
+  // This mirrors the diff-stream rAF batching in WorkspaceProvider; a ~300ms
+  // window is imperceptible for status indicators (the summary poll already
+  // runs every 15s) while collapsing bursts into a single reconciled render.
+  const COALESCE_MS = 300;
+  const [lists, setLists] = useState({
+    active: activeList,
+    archived: archivedList,
+  });
+  const latestListsRef = useRef(lists);
+  latestListsRef.current = { active: activeList, archived: archivedList };
+  const flushTimerRef = useRef<number | null>(null);
+  const lastFlushRef = useRef(0);
+
+  useEffect(() => {
+    const now = Date.now();
+    // Leading edge: flush immediately once the window has elapsed so status
+    // appears promptly.
+    if (now - lastFlushRef.current >= COALESCE_MS) {
+      lastFlushRef.current = now;
+      setLists(latestListsRef.current);
+      return;
+    }
+    // Trailing edge: collapse any further patches within the window into one
+    // flush.
+    if (flushTimerRef.current === null) {
+      flushTimerRef.current = window.setTimeout(() => {
+        flushTimerRef.current = null;
+        lastFlushRef.current = Date.now();
+        setLists(latestListsRef.current);
+      }, COALESCE_MS);
+    }
+  }, [activeList, archivedList]);
+
+  useEffect(
+    () => () => {
+      if (flushTimerRef.current !== null) {
+        window.clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+    },
+    []
+  );
+
+  const workspaces = lists.active;
+  const archivedWorkspaces = lists.archived;
 
   // isLoading is true when we haven't received initial data from either stream
   const isLoading = !activeIsInitialized || !archivedIsInitialized;
