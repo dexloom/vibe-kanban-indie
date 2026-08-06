@@ -35,7 +35,7 @@ export function StatusNodeRow({
   const isCandidate = candidateId === statusDroppableId;
   const dropTargetAttrs = useDropTarget(statusDroppableId, status.projectId);
   return (
-    <div {...dropTargetAttrs}>
+    <div className="h-full" {...dropTargetAttrs}>
       <TreeRow
         node={node}
         style={style}
