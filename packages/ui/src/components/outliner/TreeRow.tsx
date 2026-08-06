@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NodeApi } from 'react-arborist';
 import { cn } from '../../lib/cn';
+import { TREE_LAYOUT } from './layout';
 
 interface TreeRowProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,6 +30,48 @@ interface TreeRowProps {
    * the controller's captured element into a single callback ref. */
   outerRef?: Ref<HTMLDivElement>;
   children: ReactNode;
+}
+
+/**
+ * Compute VSCode-style hierarchy guides for a row. `level` (0-based) is the
+ * node's depth in the tree; for each ancestor depth `d` in 0..level-1 we may
+ * draw a vertical line at that ancestor's caret-column center.
+ *
+ * VSCode rules per ancestor:
+ * - if this row is NOT the ancestor's last descendant: line runs the full
+ *   row height (the ancestor has more descendants below).
+ * - if this row IS the ancestor's last descendant:
+ *   - the DIRECT parent (d === level-1) gets an "L": a half-height vertical
+ *     (top → middle) plus the horizontal tick into the row's caret column.
+ *   - higher ancestors get nothing here (their line already ended above).
+ */
+type GuideLine = { left: number; isLast: boolean; isParent: boolean };
+
+function guideLines(node: NodeApi<any>): GuideLine[] {
+  const level = node.level;
+  if (level <= 0) return [];
+  const lines: GuideLine[] = [];
+  for (let d = 0; d < level; d++) {
+    const isParent = d === level - 1;
+    // Is this row the ancestor's last descendant? Every node on the path
+    // from this row up to (but excluding) the ancestor must be a last
+    // sibling (nextSibling === null).
+    let isLast = true;
+    let cursor: NodeApi<any> | null = node;
+    for (let up = 0; up < level - d; up++) {
+      if (cursor && cursor.nextSibling !== null) {
+        isLast = false;
+        break;
+      }
+      cursor = cursor?.parent ?? null;
+    }
+    lines.push({
+      left: d * TREE_LAYOUT.indent + TREE_LAYOUT.caretHalf - 0.5,
+      isLast,
+      isParent,
+    });
+  }
+  return lines;
 }
 
 /**
@@ -63,6 +106,7 @@ export function TreeRow({
   const passthroughProps = { ...(outerProps ?? {}) } as Record<string, unknown>;
   delete passthroughProps.style;
   const ref = outerRef ?? dragHandle;
+  const lines = guideLines(node);
 
   return (
     <div
@@ -72,11 +116,57 @@ export function TreeRow({
       onClick={onRowClick}
       className={cn(
         'relative flex w-full cursor-pointer items-center gap-1 overflow-hidden pr-1.5 text-left',
-        'focus:outline-none',
+        // The global `*:focus { ring-inset }` fires on react-arborist's
+        // focused row (DefaultRow gets focus on click via tabIndex=-1).
+        // Kill the ring on the row shell — the active project already has
+        // a background fill, and an outline on an expandable row looks
+        // broken against the tree's rounded rows.
+        'focus:outline-none focus:ring-0',
         rowClassName
       )}
       {...passthroughProps}
     >
+      {/* VSCode-style hierarchy guides. Vertical lines sit at each ancestor
+          caret-column center; rows are flush (no gaps) so consecutive rows
+          form continuous lines. Drawn inside the row's padding-left area. */}
+      {lines.map((line) => {
+        if (line.isParent) {
+          // Closest ancestor: always draw the horizontal tick into this
+          // row's caret column (└ for a last child, ├/┬ otherwise).
+          const verticalClass =
+            line.isLast
+              ? 'pointer-events-none absolute bottom-1/2 top-0 w-px bg-current opacity-25'
+              : 'pointer-events-none absolute inset-y-0 w-px bg-current opacity-25';
+          return (
+            <span key={line.left}>
+              <span
+                aria-hidden="true"
+                className={verticalClass}
+                style={{ left: line.left }}
+              />
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute bg-current opacity-25"
+                style={{
+                  left: line.left,
+                  top: '50%',
+                  height: 1,
+                  width: TREE_LAYOUT.indent - TREE_LAYOUT.caretHalf + 0.5,
+                }}
+              />
+            </span>
+          );
+        }
+        if (line.isLast) return null; // ancestor's line ended above this row
+        return (
+          <span
+            key={line.left}
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 w-px bg-current opacity-25"
+            style={{ left: line.left }}
+          />
+        );
+      })}
       {hasCaret ? (
         <button
           type="button"

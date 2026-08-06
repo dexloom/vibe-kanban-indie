@@ -20,7 +20,13 @@ export function OutlinerLeafNode({
   style,
   dragHandle,
   activeWorkspaceId,
-}: TreeNodeRenderProps<LeafNode> & { activeWorkspaceId?: string | null }) {
+  tintColor,
+  dimmed,
+}: TreeNodeRenderProps<LeafNode> & {
+  activeWorkspaceId?: string | null;
+  tintColor?: string | null;
+  dimmed?: boolean;
+}) {
   const ws = node.data.workspace;
   const isActive = ws.id === activeWorkspaceId;
   const elapsed = formatRelativeElapsed(ws.latestProcessCompletedAt);
@@ -32,14 +38,18 @@ export function OutlinerLeafNode({
       dragHandle={dragHandle}
       isActive={isActive}
       rowClassName={cn(
-        'text-sm leading-tight',
+        'text-sm leading-tight transition-opacity',
         isActive
-          ? 'text-high font-semibold'
-          : 'text-normal font-light hover:text-high'
+          ? 'text-high font-semibold hover:bg-tertiary/60'
+          : 'text-normal font-light hover:bg-tertiary/60 hover:text-high',
+        dimmed && 'opacity-60'
       )}
     >
       <div className="flex min-w-0 flex-col justify-center gap-0">
-        <span className="flex min-w-0 items-baseline gap-1.5">
+        <span
+          className="flex min-w-0 items-baseline gap-1.5"
+          style={tintColor ? { color: `hsl(${tintColor} / 0.8)` } : undefined}
+        >
           <span className="truncate">{ws.name}</span>
           {elapsed && (
             <span className="shrink-0 text-xs text-low">{elapsed}</span>

@@ -8,6 +8,8 @@ interface CardNodeRowProps extends TreeNodeRenderProps<CardNode> {
   /** Disables drag while the kanban's bulk-select mode is on.
    * Defaults to `false` so the prop is optional in tests / non-DnD contexts. */
   isMultiSelectActive?: boolean;
+  tintColor?: string | null;
+  dimmed?: boolean;
 }
 
 /**
@@ -29,6 +31,8 @@ export function CardNodeRow({
   style,
   activeIssueId,
   isMultiSelectActive = false,
+  tintColor,
+  dimmed,
 }: CardNodeRowProps) {
   const issue = node.data.issue;
   const isActive = issue.id === activeIssueId;
@@ -51,10 +55,11 @@ export function CardNodeRow({
       isActive={isActive}
       showCaret={hasChildren}
       rowClassName={cn(
-        'text-sm leading-tight',
+        'text-sm leading-tight transition-opacity',
         isActive
-          ? 'text-high font-semibold'
-          : 'text-normal font-light hover:text-high'
+          ? 'text-high font-semibold hover:bg-tertiary/60'
+          : 'text-normal font-light hover:bg-tertiary/60 hover:text-high',
+        dimmed && 'opacity-60'
       )}
       outerProps={{
         style: { touchAction: 'none' },
@@ -62,7 +67,12 @@ export function CardNodeRow({
       }}
     >
       <div className="flex min-w-0 items-center gap-1">
-        <span className="truncate">{issue.title}</span>
+        <span
+          className="truncate"
+          style={tintColor ? { color: `hsl(${tintColor} / 0.8)` } : undefined}
+        >
+          {issue.title}
+        </span>
       </div>
     </TreeRow>
   );

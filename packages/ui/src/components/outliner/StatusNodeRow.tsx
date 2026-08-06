@@ -22,7 +22,12 @@ import {
 export function StatusNodeRow({
   node,
   style,
-}: TreeNodeRenderProps<StatusNode>) {
+  tintColor,
+  dimmed,
+}: TreeNodeRenderProps<StatusNode> & {
+  tintColor?: string | null;
+  dimmed?: boolean;
+}) {
   const status = node.data;
   const isDragActive = useDragActive();
   const candidateId = useDragCandidate();
@@ -34,16 +39,21 @@ export function StatusNodeRow({
       <TreeRow
         node={node}
         style={style}
-        onRowClick={() => node.toggle()}
         showCaret={status.children.length > 0}
         rowClassName={cn(
-          'text-xs font-medium uppercase tracking-wide text-low',
+          'text-xs font-medium uppercase tracking-wide text-low transition-opacity hover:bg-tertiary/60',
+          dimmed && 'opacity-60',
           isDragActive && !isCandidate && 'rounded-sm bg-tertiary/40',
           isDragActive && isCandidate && 'rounded-sm bg-brand/20'
         )}
       >
         <div className="flex items-center gap-1">
-          <span className="truncate">{status.name}</span>
+          <span
+            className="truncate"
+            style={tintColor ? { color: `hsl(${tintColor} / 0.8)` } : undefined}
+          >
+            {status.name}
+          </span>
           <span
             aria-hidden="true"
             className="size-2 shrink-0 rounded-full"

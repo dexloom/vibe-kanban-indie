@@ -395,6 +395,14 @@ export function SidebarProjectTree({
         onSelectProject(data.id);
       } else if (data.type === 'card') {
         onSelectIssue?.(data.issue.projectId, data.issue.id);
+      } else if (data.type === 'section' && data.kind === 'tasks') {
+        // ADR-015 follow-up: clicking the Tasks section (or anything under
+        // it) opens the project's kanban — same as clicking the project
+        // itself. The section carries `projectId`; status rows below it do
+        // too, so both route to the project.
+        onSelectProject(data.projectId);
+      } else if (data.type === 'status') {
+        onSelectProject(data.projectId);
       } else if (data.type === 'orchestrator-prompt') {
         // ADR-016: react-arborist's `onActivate` fires for BOTH
         // pointer activation (row click) and keyboard activation
@@ -460,6 +468,12 @@ export function SidebarProjectTree({
               width={containerWidth || width}
               height={height}
               indent={TREE_LAYOUT.indent}
+              // react-arborist applies `rowClassName` to the DefaultRow
+              // (the `[role=treeitem]` element it focuses on first click).
+              // Kill the focus ring there — the global `*:focus { ring-inset }`
+              // otherwise draws an outline around the just-clicked row on
+              // first activation after mount.
+              rowClassName="outline-none focus:outline-none focus:ring-0"
               rowHeight={(node) => {
                 if (node.data.type === 'leaf')
                   return TREE_LAYOUT.rowHeight.leaf;

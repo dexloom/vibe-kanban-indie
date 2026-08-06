@@ -203,6 +203,15 @@ function outerRowForText(text: string): HTMLElement {
   return row as HTMLElement;
 }
 
+/** Click a row's caret button (expand/collapse). ADR-015 follow-up: row
+ * click now opens the kanban (onActivate), only the caret toggles. */
+function caretFor(text: string): HTMLButtonElement {
+  const row = outerRowForText(text);
+  const caret = row.querySelector('button[aria-label]') as HTMLButtonElement;
+  if (!caret) throw new Error(`No caret button for ${text}`);
+  return caret;
+}
+
 describe('SidebarProjectTree tasks integration', () => {
   it('renders Tasks above Workspaces within a project', () => {
     // ADR-015: roots render a Workspaces section only when the aggregate
@@ -235,8 +244,8 @@ describe('SidebarProjectTree tasks integration', () => {
     const onTasksExpansionChange = vi.fn();
     renderTree({ onTasksExpansionChange });
 
-    // Tasks defaults OPEN (owner decision); the first click collapses it.
-    fireEvent.click(rowForText('Tasks'));
+    // Tasks defaults OPEN (owner decision); the first caret click collapses it.
+    fireEvent.click(caretFor('Tasks'));
     await waitFor(() =>
       expect(onTasksExpansionChange).toHaveBeenLastCalledWith(
         'project-1',
@@ -244,7 +253,7 @@ describe('SidebarProjectTree tasks integration', () => {
       )
     );
 
-    fireEvent.click(rowForText('Tasks'));
+    fireEvent.click(caretFor('Tasks'));
     await waitFor(() =>
       expect(onTasksExpansionChange).toHaveBeenLastCalledWith('project-1', true)
     );
@@ -254,8 +263,9 @@ describe('SidebarProjectTree tasks integration', () => {
     const onSelectIssue = vi.fn();
     renderTree({ onSelectIssue });
 
-    // Tasks is open by default — no need to expand it first.
-    fireEvent.click(await screen.findByText('Todo'));
+    // Tasks is open by default — no need to expand it first. The status
+    // row's caret opens it (row click now navigates to the project).
+    fireEvent.click(caretFor('Todo'));
     fireEvent.click(await screen.findByText('Fix auth'));
 
     await waitFor(() =>
@@ -360,9 +370,9 @@ describe('SidebarProjectTree open-state persistence', () => {
       expect(outerRowForText('Todo').getAttribute('aria-expanded')).toBe('true')
     );
 
-    // User collapses the status; the replay guard must not re-open it on the
-    // remount (the blob now records it closed).
-    fireEvent.click(rowForText('Todo'));
+    // User collapses the status via its caret; the replay guard must not
+    // re-open it on the remount (the blob now records it closed).
+    fireEvent.click(caretFor('Todo'));
     await waitFor(() =>
       expect(outerRowForText('Todo').getAttribute('aria-expanded')).toBe(
         'false'
@@ -449,7 +459,7 @@ describe('SidebarProjectTree open-state persistence', () => {
 
     // Toggle the Tasks section (default open → close) so a project-scoped
     // key lands in the blob.
-    fireEvent.click(rowForText('Tasks'));
+    fireEvent.click(caretFor('Tasks'));
     await waitFor(() => expect(readBlob()['project-1:tasks']).toBe(false));
 
     // Remove the only project → prune effect drops all its keys.

@@ -44,11 +44,41 @@ function getProjectInitials(name: string): string {
   return trimmed.slice(0, 2).toUpperCase();
 }
 
+/**
+ * ADR-016 usability: every project in the sidebar tree is color-coded —
+ * each node paints with its nearest ancestor project's OWN color. When a
+ * project is selected, everything inside its subtree keeps its color at
+ * 0.8 intensity; every OTHER project's subtree is dimmed (colors retained,
+ * opacity lowered) so the working scope stands out. Walk up from any node
+ * to the nearest ancestor project; return that project's color plus whether
+ * the node sits inside the active project's subtree.
+ */
+function nearestProjectTint(
+  node: NodeApi<SidebarTreeNode>,
+  activeProjectId: string | null
+): { color: string; inActiveSubtree: boolean } | null {
+  let current: NodeApi<SidebarTreeNode> | null = node;
+  let color: string | null = null;
+  while (current) {
+    if (current.data.type === 'project') {
+      if (color === null) color = current.data.color;
+      if (current.data.id === activeProjectId) {
+        return { color, inActiveSubtree: true };
+      }
+    }
+    current = current.parent;
+  }
+  if (color === null) return null;
+  return { color, inActiveSubtree: false };
+}
+
 function ProjectTreeNode(
   props: TreeNodeRenderProps<ProjectNode> & {
     onCreateChildBoard?: (parentId: string) => void;
     onSelectOrchestratorPrompt?: (projectId: string) => void;
     activeProjectId: string | null;
+    tintColor?: string | null;
+    dimmed?: boolean;
   }
 ) {
   const {
@@ -58,11 +88,14 @@ function ProjectTreeNode(
     onCreateChildBoard,
     onSelectOrchestratorPrompt,
     activeProjectId,
+    tintColor,
+    dimmed,
   } = props;
   const { t } = useTranslation('common');
   const project = node.data;
   const isActive = project.id === activeProjectId;
   const isUnassigned = project.id === UNASSIGNED_PROJECT_ID;
+  const isExpandable = !node.isLeaf;
   const isDragActive = useDragActive();
   const candidateId = useDragCandidate();
   const sourceProjectId = useDragSourceProjectId();
@@ -102,8 +135,14 @@ function ProjectTreeNode(
         ...(!isUnassigned ? dropTargetAttrs : {}),
       }}
       rowClassName={cn(
-        'rounded-md text-base transition-colors',
-        isActive ? 'text-high font-bold' : 'text-normal hover:bg-tertiary',
+        'rounded-md text-base transition-[color,opacity,background-color]',
+        // Expandable rows are always bold (matches the active project's
+        // label weight); the active project additionally gets the fill.
+        isExpandable || isActive ? 'font-bold' : 'font-normal',
+        isActive
+          ? 'bg-tertiary text-high'
+          : 'text-normal hover:bg-tertiary/60',
+        dimmed && 'opacity-60',
         isSource && 'opacity-50 transition-opacity',
         isDragActive && !isUnassigned && !isCandidate && 'bg-tertiary/40',
         isDragActive && isCandidate && 'bg-brand/20'
@@ -123,7 +162,19 @@ function ProjectTreeNode(
         >
           {getProjectInitials(project.name)}
         </span>
-        <span className="truncate">{project.name}</span>
+        <span
+          className="truncate"
+          style={{
+            // ADR-016 usability: the active project keeps its full color;
+            // everything else uses its own project's color. Projects outside
+            // the active subtree are additionally dimmed (opacity on the row).
+            color: tintColor
+              ? `hsl(${tintColor} / ${isActive ? 1 : 0.8})`
+              : `hsl(${project.color})`,
+          }}
+        >
+          {project.name}
+        </span>
         {showAddMenu && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -186,18 +237,29 @@ function ProjectTreeNode(
 }
 
 function SectionTreeNode(
-  props: TreeNodeRenderProps<Extract<SectionNode, { kind: 'workspaces' }>>
+  props: TreeNodeRenderProps<Extract<SectionNode, { kind: 'workspaces' }>> & {
+    tintColor?: string | null;
+    dimmed?: boolean;
+  }
 ) {
-  const { node, style, dragHandle } = props;
+  const { node, style, dragHandle, tintColor, dimmed } = props;
   return (
     <TreeRow
       node={node}
       style={style}
       dragHandle={dragHandle}
       onRowClick={() => node.toggle()}
-      rowClassName="text-sm font-medium text-low"
+      rowClassName={cn(
+        'text-sm font-medium text-low transition-opacity hover:bg-tertiary/60',
+        dimmed && 'opacity-60'
+      )}
     >
-      <span className="truncate">{node.data.label}</span>
+      <span
+        className="truncate"
+        style={tintColor ? { color: `hsl(${tintColor} / 0.8)` } : undefined}
+      >
+        {node.data.label}
+      </span>
     </TreeRow>
   );
 }
@@ -222,9 +284,12 @@ function OrchestratorPromptTreeNode(
   props: TreeNodeRenderProps<OrchestratorPromptNode> & {
     onSelectOrchestratorPrompt?: (projectId: string) => void;
     activeProjectPromptId: string | null;
+    tintColor?: string | null;
+    dimmed?: boolean;
   }
 ) {
-  const { node, style, dragHandle, activeProjectPromptId } = props;
+  const { node, style, dragHandle, activeProjectPromptId, tintColor, dimmed } =
+    props;
   const { t } = useTranslation('common');
   const data = node.data;
   const isActive = data.projectId === activeProjectPromptId;
@@ -235,7 +300,8 @@ function OrchestratorPromptTreeNode(
       dragHandle={dragHandle}
       isActive={isActive}
       rowClassName={cn(
-        'rounded-md text-sm text-low transition-colors hover:text-normal'
+        'rounded-md text-sm text-low transition-[color,opacity] hover:bg-tertiary/60 hover:text-normal',
+        dimmed && 'opacity-60'
       )}
     >
       <div className="flex items-center gap-1">
@@ -244,7 +310,12 @@ function OrchestratorPromptTreeNode(
           weight="regular"
           aria-hidden
         />
-        <span className="truncate">{data.label}</span>
+        <span
+          className="truncate"
+          style={tintColor ? { color: `hsl(${tintColor} / 0.8)` } : undefined}
+        >
+          {data.label}
+        </span>
         {data.hasPrompt && (
           <span
             aria-label={t(
@@ -286,6 +357,12 @@ export function TreeNodeRouter(
     activeIssueId,
     isMultiSelectActive,
   } = props;
+  // ADR-016 usability: every project is color-coded — each node gets its
+  // nearest project ancestor's color; nodes outside the active project's
+  // subtree are dimmed so the working scope stands out.
+  const tint = nearestProjectTint(node, activeProjectId);
+  const tintColor = tint?.color ?? null;
+  const dimmed = tint !== null && !tint.inActiveSubtree;
   switch (node.data.type) {
     case 'project':
       return (
@@ -296,6 +373,8 @@ export function TreeNodeRouter(
           onCreateChildBoard={onCreateChildBoard}
           onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
           activeProjectId={activeProjectId}
+          tintColor={tintColor}
+          dimmed={dimmed}
         />
       );
     case 'section':
@@ -304,12 +383,16 @@ export function TreeNodeRouter(
           node={node as NodeApi<Extract<SectionNode, { kind: 'tasks' }>>}
           style={style}
           dragHandle={dragHandle}
+          tintColor={tintColor}
+          dimmed={dimmed}
         />
       ) : (
         <SectionTreeNode
           node={node as NodeApi<Extract<SectionNode, { kind: 'workspaces' }>>}
           style={style}
           dragHandle={dragHandle}
+          tintColor={tintColor}
+          dimmed={dimmed}
         />
       );
     case 'orchestrator-prompt':
@@ -320,6 +403,8 @@ export function TreeNodeRouter(
           dragHandle={dragHandle}
           onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
           activeProjectPromptId={activeProjectPromptId ?? null}
+          tintColor={tintColor}
+          dimmed={dimmed}
         />
       );
     case 'bucket':
@@ -328,6 +413,8 @@ export function TreeNodeRouter(
           node={node as NodeApi<BucketNode>}
           style={style}
           dragHandle={dragHandle}
+          tintColor={tintColor}
+          dimmed={dimmed}
         />
       );
     case 'leaf':
@@ -337,6 +424,8 @@ export function TreeNodeRouter(
           style={style}
           dragHandle={dragHandle}
           activeWorkspaceId={activeWorkspaceId}
+          tintColor={tintColor}
+          dimmed={dimmed}
         />
       );
     case 'status':
@@ -345,6 +434,8 @@ export function TreeNodeRouter(
           node={node as NodeApi<StatusNode>}
           style={style}
           dragHandle={dragHandle}
+          tintColor={tintColor}
+          dimmed={dimmed}
         />
       );
     case 'card':
@@ -355,6 +446,8 @@ export function TreeNodeRouter(
           dragHandle={dragHandle}
           activeIssueId={activeIssueId}
           isMultiSelectActive={isMultiSelectActive}
+          tintColor={tintColor}
+          dimmed={dimmed}
         />
       );
   }

@@ -1,5 +1,6 @@
 import { SpinnerIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
+import { cn } from '../../lib/cn';
 import { TreeRow } from './TreeRow';
 import type {
   TasksSectionNode as TasksSectionNodeData,
@@ -11,7 +12,12 @@ export function TasksSectionNode({
   node,
   style,
   dragHandle,
-}: TreeNodeRenderProps<TasksSectionNodeData>) {
+  tintColor,
+  dimmed,
+}: TreeNodeRenderProps<TasksSectionNodeData> & {
+  tintColor?: string | null;
+  dimmed?: boolean;
+}) {
   const { t } = useTranslation('common');
   const section = node.data;
 
@@ -20,12 +26,19 @@ export function TasksSectionNode({
       node={node}
       style={style}
       dragHandle={dragHandle}
-      onRowClick={() => node.toggle()}
       showCaret={section.children.length > 0 || section.isLoading}
-      rowClassName="text-sm font-medium text-low"
+      rowClassName={cn(
+        'text-sm font-medium text-low transition-opacity hover:bg-tertiary/60',
+        dimmed && 'opacity-60'
+      )}
     >
       <div className="flex items-center gap-1">
-        <span className="truncate">{section.label}</span>
+        <span
+          className="truncate"
+          style={tintColor ? { color: `hsl(${tintColor} / 0.8)` } : undefined}
+        >
+          {section.label}
+        </span>
         {section.isLoading ? (
           <SpinnerIcon
             aria-label={t('sidebar.tasksLoading')}

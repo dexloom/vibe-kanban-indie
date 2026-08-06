@@ -1,3 +1,4 @@
+import { cn } from '../../lib/cn';
 import { TreeRow } from './TreeRow';
 import type { BucketNode, TreeNodeRenderProps } from './types';
 
@@ -9,7 +10,12 @@ export function OutlinerBucketNode({
   node,
   style,
   dragHandle,
-}: TreeNodeRenderProps<BucketNode>) {
+  tintColor,
+  dimmed,
+}: TreeNodeRenderProps<BucketNode> & {
+  tintColor?: string | null;
+  dimmed?: boolean;
+}) {
   const bucket = node.data;
   return (
     <TreeRow
@@ -17,10 +23,18 @@ export function OutlinerBucketNode({
       style={style}
       dragHandle={dragHandle}
       onRowClick={() => node.toggle()}
-      rowClassName="text-xs font-medium uppercase tracking-wide text-low"
+      rowClassName={cn(
+        'text-xs font-medium uppercase tracking-wide text-low transition-opacity hover:bg-tertiary/60',
+        dimmed && 'opacity-60'
+      )}
     >
       <div className="flex items-center gap-1">
-        <span className="truncate">{bucket.name}</span>
+        <span
+          className="truncate"
+          style={tintColor ? { color: `hsl(${tintColor} / 0.8)` } : undefined}
+        >
+          {bucket.name}
+        </span>
         <span className="ml-auto text-2xs font-normal normal-case text-low opacity-70">
           {bucket.children.length}
         </span>
