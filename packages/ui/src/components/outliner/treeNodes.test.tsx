@@ -391,9 +391,7 @@ describe('TreeNodeRouter ADR-015 row interactions', () => {
       onSelectIssue: (projectId: string, issueId: string) => void;
       onCreateChildBoard: (parentId: string) => void;
     };
-    const { container, baseElement } = render(
-      <TreeNodeRouter {...props} />
-    );
+    const { container, baseElement } = render(<TreeNodeRouter {...props} />);
     const trigger = container.querySelector(
       'button[aria-label="sidebar.projectActions"]'
     ) as HTMLButtonElement;
