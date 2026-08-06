@@ -27,7 +27,7 @@ export type SettingsSectionType =
   | 'mcp'
   | 'telegram';
 
-export type SettingsSectionGroup = 'host' | 'universal';
+export type SettingsSectionGroup = 'host';
 
 export type SettingsSectionInitialState = {
   general: undefined;
