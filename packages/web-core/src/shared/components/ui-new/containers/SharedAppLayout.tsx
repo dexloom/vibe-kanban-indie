@@ -468,7 +468,7 @@ export function SharedAppLayout() {
   }, []);
 
   // Workspace tree data: derive membership from the remote-shape workspaces
-  // exposed by UserContext, then surface active/archived lists from the
+  // exposed by WorkspacesContext, then surface active/archived lists from the
   // local workspace context so the tree stays in sync with live status.
   const membership = useWorkspaceProjectMembership();
   const {

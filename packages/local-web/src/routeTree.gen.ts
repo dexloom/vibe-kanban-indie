@@ -13,7 +13,6 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppWorkspacesRouteImport } from './routes/_app.workspaces'
-import { Route as AppNotificationsRouteImport } from './routes/_app.notifications'
 import { Route as AppCommonTasksRouteImport } from './routes/_app.common-tasks'
 import { Route as AppChatRouteImport } from './routes/_app.chat'
 import { Route as WorkspacesWorkspaceIdVscodeRouteImport } from './routes/workspaces.$workspaceId.vscode'
@@ -51,11 +50,6 @@ const IndexRoute = IndexRouteImport.update({
 const AppWorkspacesRoute = AppWorkspacesRouteImport.update({
   id: '/workspaces',
   path: '/workspaces',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppNotificationsRoute = AppNotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCommonTasksRoute = AppCommonTasksRouteImport.update({
@@ -178,7 +172,6 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/chat': typeof AppChatRoute
   '/common-tasks': typeof AppCommonTasksRoute
-  '/notifications': typeof AppNotificationsRoute
   '/workspaces': typeof AppWorkspacesRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/workspaces/$workspaceId': typeof AppWorkspacesWorkspaceIdRoute
@@ -203,7 +196,6 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/chat': typeof AppChatRoute
   '/common-tasks': typeof AppCommonTasksRoute
-  '/notifications': typeof AppNotificationsRoute
   '/workspaces': typeof AppWorkspacesRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/workspaces/$workspaceId': typeof AppWorkspacesWorkspaceIdRoute
@@ -230,7 +222,6 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/_app/chat': typeof AppChatRoute
   '/_app/common-tasks': typeof AppCommonTasksRoute
-  '/_app/notifications': typeof AppNotificationsRoute
   '/_app/workspaces': typeof AppWorkspacesRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/_app/workspaces_/$workspaceId': typeof AppWorkspacesWorkspaceIdRoute
@@ -257,7 +248,6 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/chat'
     | '/common-tasks'
-    | '/notifications'
     | '/workspaces'
     | '/projects/$projectId'
     | '/workspaces/$workspaceId'
@@ -282,7 +272,6 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/chat'
     | '/common-tasks'
-    | '/notifications'
     | '/workspaces'
     | '/projects/$projectId'
     | '/workspaces/$workspaceId'
@@ -308,7 +297,6 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/_app/chat'
     | '/_app/common-tasks'
-    | '/_app/notifications'
     | '/_app/workspaces'
     | '/_app/projects/$projectId'
     | '/_app/workspaces_/$workspaceId'
@@ -365,13 +353,6 @@ declare module '@tanstack/react-router' {
       path: '/workspaces'
       fullPath: '/workspaces'
       preLoaderRoute: typeof AppWorkspacesRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/notifications': {
-      id: '/_app/notifications'
-      path: '/notifications'
-      fullPath: '/notifications'
-      preLoaderRoute: typeof AppNotificationsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/common-tasks': {
@@ -513,7 +494,6 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppChatRoute: typeof AppChatRoute
   AppCommonTasksRoute: typeof AppCommonTasksRoute
-  AppNotificationsRoute: typeof AppNotificationsRoute
   AppWorkspacesRoute: typeof AppWorkspacesRoute
   AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRoute
   AppWorkspacesWorkspaceIdRoute: typeof AppWorkspacesWorkspaceIdRoute
@@ -535,7 +515,6 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppChatRoute: AppChatRoute,
   AppCommonTasksRoute: AppCommonTasksRoute,
-  AppNotificationsRoute: AppNotificationsRoute,
   AppWorkspacesRoute: AppWorkspacesRoute,
   AppProjectsProjectIdRoute: AppProjectsProjectIdRoute,
   AppWorkspacesWorkspaceIdRoute: AppWorkspacesWorkspaceIdRoute,

@@ -6,7 +6,7 @@ import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import { ThemeProvider } from '@web/app/providers/ThemeProvider';
 import { useUiPreferencesScratch } from '@/shared/hooks/useUiPreferencesScratch';
 import { useApplyThemeVariant } from '@/shared/lib/themeVariant';
-import { UserProvider } from '@/shared/providers/remote/UserProvider';
+import { WorkspacesProvider } from '@/shared/providers/remote/WorkspacesProvider';
 import '@/app/styles/new/index.css';
 
 function RootRouteComponent() {
@@ -18,9 +18,9 @@ function RootRouteComponent() {
   return (
     <I18nextProvider i18n={i18n}>
       <ThemeProvider initialTheme={config?.theme || ThemeMode.SYSTEM}>
-        <UserProvider>
+        <WorkspacesProvider>
           <Outlet />
-        </UserProvider>
+        </WorkspacesProvider>
       </ThemeProvider>
     </I18nextProvider>
   );

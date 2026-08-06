@@ -19,18 +19,9 @@ export interface KanbanFilterTag {
   color: string;
 }
 
-export interface KanbanFilterUser {
-  user_id: string;
-  first_name?: string | null;
-  last_name?: string | null;
-  username?: string | null;
-  avatar_url?: string | null;
-}
-
 export interface KanbanFilterState<TSortField extends string = string> {
   searchQuery: string;
   priorities: PriorityLevel[];
-  assigneeIds: string[];
   tagIds: string[];
   sortField: TSortField;
   sortDirection: 'asc' | 'desc';
@@ -48,20 +39,16 @@ const DEFAULT_KANBAN_PROJECT_VIEW_IDS: KanbanProjectViewIds = {
 
 export interface RenderKanbanFiltersDialogProps<
   TTag extends KanbanFilterTag = KanbanFilterTag,
-  TUser extends KanbanFilterUser = KanbanFilterUser,
   TSortField extends string = string,
 > {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tags: TTag[];
-  users: TUser[];
   projectId: string;
-  currentUserId: string | null;
   filters: KanbanFilterState<TSortField>;
   showSubIssues: boolean;
   showWorkspaces: boolean;
   onPrioritiesChange: (priorities: PriorityLevel[]) => void;
-  onAssigneesChange: (assigneeIds: string[]) => void;
   onTagsChange: (tagIds: string[]) => void;
   onSortChange: (sortField: TSortField, sortDirection: 'asc' | 'desc') => void;
   onShowSubIssuesChange: (show: boolean) => void;
@@ -72,25 +59,21 @@ export interface RenderKanbanFiltersDialogProps<
 
 interface KanbanFilterBarProps<
   TTag extends KanbanFilterTag = KanbanFilterTag,
-  TUser extends KanbanFilterUser = KanbanFilterUser,
   TSortField extends string = string,
 > {
   isFiltersDialogOpen: boolean;
   onFiltersDialogOpenChange: (open: boolean) => void;
   tags: TTag[];
-  users: TUser[];
   activeViewId: string;
   onViewChange: (viewId: string) => void;
   viewIds?: KanbanProjectViewIds;
   projectId: string;
-  currentUserId: string | null;
   filters: KanbanFilterState<TSortField>;
   showSubIssues: boolean;
   showWorkspaces: boolean;
   hasActiveFilters: boolean;
   onSearchQueryChange: (searchQuery: string) => void;
   onPrioritiesChange: (priorities: PriorityLevel[]) => void;
-  onAssigneesChange: (assigneeIds: string[]) => void;
   onTagsChange: (tagIds: string[]) => void;
   onSortChange: (sortField: TSortField, sortDirection: 'asc' | 'desc') => void;
   onShowSubIssuesChange: (show: boolean) => void;
@@ -102,31 +85,27 @@ interface KanbanFilterBarProps<
   shouldAnimateCreateButton: boolean;
   isMobile?: boolean;
   renderFiltersDialog?: (
-    props: RenderKanbanFiltersDialogProps<TTag, TUser, TSortField>
+    props: RenderKanbanFiltersDialogProps<TTag, TSortField>
   ) => ReactNode;
 }
 
 export function KanbanFilterBar<
   TTag extends KanbanFilterTag = KanbanFilterTag,
-  TUser extends KanbanFilterUser = KanbanFilterUser,
   TSortField extends string = string,
 >({
   isFiltersDialogOpen,
   onFiltersDialogOpenChange,
   tags,
-  users,
   activeViewId,
   onViewChange,
   viewIds = DEFAULT_KANBAN_PROJECT_VIEW_IDS,
   projectId,
-  currentUserId,
   filters,
   showSubIssues,
   showWorkspaces,
   hasActiveFilters,
   onSearchQueryChange,
   onPrioritiesChange,
-  onAssigneesChange,
   onTagsChange,
   onSortChange,
   onShowSubIssuesChange,
@@ -138,7 +117,7 @@ export function KanbanFilterBar<
   shouldAnimateCreateButton,
   isMobile,
   renderFiltersDialog,
-}: KanbanFilterBarProps<TTag, TUser, TSortField>) {
+}: KanbanFilterBarProps<TTag, TSortField>) {
   const { t } = useTranslation('common');
   const [mobileSearchExpanded, setMobileSearchExpanded] = useState(false);
 
@@ -196,7 +175,7 @@ export function KanbanFilterBar<
               type="button"
               onClick={() => setMobileSearchExpanded(true)}
               className={cn(
-                'p-half rounded-sm transition-colors',
+                'p-half transition-colors rounded-sm',
                 filters.searchQuery
                   ? 'text-brand hover:text-brand'
                   : 'text-low hover:text-normal hover:bg-secondary'
@@ -271,14 +250,11 @@ export function KanbanFilterBar<
         open: isFiltersDialogOpen,
         onOpenChange: onFiltersDialogOpenChange,
         projectId,
-        currentUserId,
         tags,
-        users,
         filters,
         showSubIssues,
         showWorkspaces,
         onPrioritiesChange,
-        onAssigneesChange,
         onTagsChange,
         onSortChange,
         onShowSubIssuesChange,

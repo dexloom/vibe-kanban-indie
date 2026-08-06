@@ -101,7 +101,6 @@ export type KanbanSortField =
 export type KanbanFilterState = {
   searchQuery: string;
   priorities: IssuePriority[];
-  assigneeIds: string[]; // 'unassigned' or '__self__' or user IDs
   tagIds: string[];
   sortField: KanbanSortField;
   sortDirection: 'asc' | 'desc';
@@ -110,16 +109,10 @@ export type KanbanFilterState = {
 export const DEFAULT_KANBAN_FILTER_STATE: KanbanFilterState = {
   searchQuery: '',
   priorities: [],
-  assigneeIds: [],
   tagIds: [],
   sortField: 'sort_order',
   sortDirection: 'asc',
 };
-
-export const KANBAN_ASSIGNEE_FILTER_VALUES = {
-  UNASSIGNED: 'unassigned',
-  SELF: '__self__',
-} as const;
 
 export const KANBAN_PROJECT_VIEW_IDS = {
   TEAM: 'team',
@@ -164,7 +157,6 @@ export type ResolvedKanbanProjectState = {
 const cloneKanbanFilters = (filters: KanbanFilterState): KanbanFilterState => ({
   searchQuery: filters.searchQuery,
   priorities: [...filters.priorities],
-  assigneeIds: [...filters.assigneeIds],
   tagIds: [...filters.tagIds],
   sortField: filters.sortField,
   sortDirection: filters.sortDirection,
@@ -183,7 +175,6 @@ const getKanbanDefaultView = (viewId: string): KanbanProjectView => {
       name: 'Personal',
       filters: {
         ...cloneKanbanFilters(DEFAULT_KANBAN_FILTER_STATE),
-        assigneeIds: [KANBAN_ASSIGNEE_FILTER_VALUES.SELF],
         sortField: 'priority',
         sortDirection: 'asc',
       },

@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from 'react';
 
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
-import { useUserContext } from '@/shared/hooks/useUserContext';
+import { useWorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
 import { useActions } from '@/shared/hooks/useActions';
 import { useSyncErrorContext } from '@/shared/hooks/useSyncErrorContext';
 import {
@@ -120,7 +120,7 @@ export function NavbarContainer({
 }) {
   const { executeAction } = useActions();
   const { workspace: selectedWorkspace, isCreateMode } = useWorkspaceContext();
-  const { workspaces } = useUserContext();
+  const { workspaces } = useWorkspacesContext();
   const syncErrorContext = useSyncErrorContext();
   const appNavigation = useAppNavigation();
   const destination = useCurrentAppDestination();

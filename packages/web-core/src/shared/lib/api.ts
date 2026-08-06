@@ -82,7 +82,6 @@ import {
   GenerateSpecResponse,
   TelegramStatus,
   TelegramTestResponse,
-  ListUsersResponse,
   SpecKitArtifacts,
   SpecKitArtifact,
   SpecKitTasks,
@@ -103,7 +102,6 @@ import {
 import type { WorkspaceWithSession } from '@/shared/types/attempt';
 import { createWorkspaceWithSession } from '@/shared/types/attempt';
 import { resolveHostRequestScope } from '@/shared/lib/hostRequestScope';
-import { makeRequest as makeRemoteRequest } from '@/shared/lib/remoteApi';
 import { makeLocalApiRequest } from '@/shared/lib/localApiTransport';
 
 export class ApiError<E = unknown> extends Error {
@@ -1529,39 +1527,7 @@ export const approvalsApi = {
   },
 };
 
-const handleRemoteResponse = async <T>(response: Response): Promise<T> => {
-  if (!response.ok) {
-    let errorMessage = `Request failed with status ${response.status}`;
-
-    try {
-      const body = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
-      errorMessage = body.error || body.message || errorMessage;
-    } catch {
-      errorMessage = response.statusText || errorMessage;
-    }
-
-    throw new ApiError(errorMessage, response.status, response);
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json() as Promise<T>;
-};
-
-// Users API — tenant-less replacement for the deleted `organizationsApi`
-// (ADR-018). The new `/v1/users` endpoint returns every local user; the
-// old `/v1/organizations/{org_id}/members` is gone.
-export const usersApi = {
-  getUsers: async (): Promise<ListUsersResponse> => {
-    const response = await makeRemoteRequest('/v1/users');
-    return handleRemoteResponse<ListUsersResponse>(response);
-  },
-};
+// ADR-019: the User entity has been excised — no users API.
 
 // Scratch API
 export const scratchApi = {

@@ -1,25 +1,27 @@
 import { useMemo, useCallback, type ReactNode } from 'react';
 import { useShape } from '@/shared/integrations/electric/hooks';
-import { USER_WORKSPACES_SHAPE } from 'shared/remote-types';
+import { WORKSPACES_SHAPE } from 'shared/remote-types';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
 import {
-  UserContext,
-  type UserContextValue,
-} from '@/shared/hooks/useUserContext';
+  WorkspacesContext,
+  type WorkspacesContextValue,
+} from '@/shared/hooks/useWorkspacesContext';
 
-interface UserProviderProps {
+interface WorkspacesProviderProps {
   children: ReactNode;
 }
 
-export function UserProvider({ children }: UserProviderProps) {
+export function WorkspacesProvider({ children }: WorkspacesProviderProps) {
   const { isSignedIn } = useAuth();
 
-  // No params needed - backend gets user from auth context
+  // ADR-019: the User entity has been excised; the workspace shape has no
+  // params (it was previously parametrised by `owner_user_id`, but that
+  // column has been removed from the wire contract).
   const params = useMemo(() => ({}), []);
   const enabled = isSignedIn;
 
   // Shape subscriptions
-  const workspacesResult = useShape(USER_WORKSPACES_SHAPE, params, { enabled });
+  const workspacesResult = useShape(WORKSPACES_SHAPE, params, { enabled });
 
   // Lookup helpers
   const getWorkspacesForIssue = useCallback(
@@ -29,7 +31,7 @@ export function UserProvider({ children }: UserProviderProps) {
     [workspacesResult.data]
   );
 
-  const value = useMemo<UserContextValue>(
+  const value = useMemo<WorkspacesContextValue>(
     () => ({
       // Data
       workspaces: workspacesResult.data,
@@ -45,5 +47,9 @@ export function UserProvider({ children }: UserProviderProps) {
     [workspacesResult, getWorkspacesForIssue]
   );
 
-  return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
+  return (
+    <WorkspacesContext.Provider value={value}>
+      {children}
+    </WorkspacesContext.Provider>
+  );
 }

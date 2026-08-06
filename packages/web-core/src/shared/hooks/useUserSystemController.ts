@@ -42,7 +42,6 @@ export function useUserSystemController({
   const previewProxyPort = userSystemInfo?.preview_proxy_port ?? null;
   const environment = userSystemInfo?.environment || null;
   const machineId = null;
-  const loginStatus = userSystemInfo?.login_status || null;
   const profiles =
     (userSystemInfo?.executors as Record<string, ExecutorProfile> | null) ||
     null;
@@ -150,7 +149,6 @@ export function useUserSystemController({
         profiles,
         capabilities,
         machineId,
-        loginStatus,
       },
       appVersion,
       previewProxyPort,
@@ -159,7 +157,6 @@ export function useUserSystemController({
       profiles,
       capabilities,
       machineId,
-      loginStatus,
       updateConfig,
       saveConfig,
       updateAndSaveConfig,
@@ -177,7 +174,6 @@ export function useUserSystemController({
       environment,
       loading,
       previewProxyPort,
-      loginStatus,
       profiles,
       reloadSystem,
       saveConfig,

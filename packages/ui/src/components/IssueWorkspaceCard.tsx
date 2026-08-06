@@ -37,7 +37,6 @@ export interface WorkspaceWithStats {
   prs: WorkspacePr[];
   owner: UserAvatarUser | null;
   updatedAt: string;
-  isOwnedByCurrentUser: boolean;
   isRunning?: boolean;
   hasPendingApproval?: boolean;
   hasRunningDevServer?: boolean;

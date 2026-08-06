@@ -1,7 +1,6 @@
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { useContext } from 'react';
 import { useShape } from '@/shared/integrations/electric/hooks';
-import { useUsers } from '@/shared/hooks/useUsers';
 import { createHmrContext } from '@/shared/lib/hmrContext';
 import type {
   InsertResult,
@@ -15,16 +14,11 @@ import {
   type CreateProjectRequest,
   type UpdateProjectRequest,
 } from 'shared/remote-types';
-import type { UserWithProfile } from 'shared/types';
 
 /**
- * ProjectProvider — flat projects layer (ADR-018).
- *
- * Replaces the deleted `OrgProvider` with the same context shape minus the
- * org concept. Subscribes `PROJECTS_SHAPE` (tenant-less, empty params) and
- * pulls users from `useUsers` (`/v1/users`). Consumers read either:
+ * ProjectProvider — flat projects layer (ADR-018). ADR-019 dropped the
+ * tenant-less users list (the User entity has been excised). Consumers read:
  *   - `useProjectsContext()` for the project list + lookup + mutations,
- *   - `useUsers()` for the user roster,
  *   - `useProjects()` for the raw shape (no context needed).
  *
  * NOTE: there is also a per-project `ProjectProvider` at
@@ -35,7 +29,6 @@ import type { UserWithProfile } from 'shared/types';
 export interface ProjectsContextValue {
   // Data
   projects: Project[];
-  users: UserWithProfile[];
 
   // Loading/error state
   isLoading: boolean;
@@ -55,7 +48,6 @@ export interface ProjectsContextValue {
 
   // Computed aggregations (O(1) lookup)
   projectsById: Map<string, Project>;
-  usersById: Map<string, UserWithProfile>;
 }
 
 const ProjectsContext = createHmrContext<ProjectsContextValue | null>(
@@ -77,16 +69,12 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     }
   );
 
-  // Users — tenant-less endpoint `/v1/users`.
-  const usersQuery = useUsers();
-
-  const isLoading = projectsResult.isLoading || usersQuery.isLoading;
+  const isLoading = projectsResult.isLoading;
   const error = projectsResult.error ?? null;
 
   const retry = useCallback(() => {
     projectsResult.retry();
-    void usersQuery.refetch();
-  }, [projectsResult, usersQuery]);
+  }, [projectsResult]);
 
   const projectsById = useMemo(() => {
     const map = new Map<string, Project>();
@@ -95,14 +83,6 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     }
     return map;
   }, [projectsResult.data]);
-
-  const usersById = useMemo(() => {
-    const map = new Map<string, UserWithProfile>();
-    for (const user of usersQuery.data ?? []) {
-      map.set(user.user_id, user);
-    }
-    return map;
-  }, [usersQuery.data]);
 
   const getProject = useCallback(
     (projectId: string) => projectsById.get(projectId),
@@ -113,7 +93,6 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     () => ({
       // Data
       projects: projectsResult.data,
-      users: usersQuery.data ?? [],
 
       // Loading/error
       isLoading,
@@ -130,18 +109,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
 
       // Computed aggregations
       projectsById,
-      usersById,
     }),
-    [
-      projectsResult,
-      usersQuery.data,
-      isLoading,
-      error,
-      retry,
-      getProject,
-      projectsById,
-      usersById,
-    ]
+    [projectsResult, isLoading, error, retry, getProject, projectsById]
   );
 
   return (

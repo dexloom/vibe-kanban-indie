@@ -6,7 +6,6 @@ function ws(overrides: Partial<Workspace> & { id: string }): Workspace {
   return {
     id: overrides.id,
     project_id: 'project-1',
-    owner_user_id: 'user-1',
     issue_id: 'issue-1',
     local_workspace_id: overrides.id,
     name: null,

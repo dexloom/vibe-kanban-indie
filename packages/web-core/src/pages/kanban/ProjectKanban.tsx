@@ -24,7 +24,7 @@ import { useAuth } from '@/shared/hooks/auth/useAuth';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentKanbanRouteState } from '@/shared/hooks/useCurrentKanbanRouteState';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
-import { useUserContext } from '@/shared/hooks/useUserContext';
+import { useWorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
 import { useProjectWorkspaceCreateDraft } from '@/shared/hooks/useProjectWorkspaceCreateDraft';
 import { workspacesApi } from '@/shared/lib/api';
 import { getWorkspaceDefaults } from '@/shared/lib/workspaceDefaults';
@@ -62,7 +62,7 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
   const appNavigation = useAppNavigation();
   const hostId = useHostId();
   const { activeWorkspaces, archivedWorkspaces } = useWorkspaceContext();
-  const { workspaces: remoteWorkspaces } = useUserContext();
+  const { workspaces: remoteWorkspaces } = useWorkspacesContext();
   const { openWorkspaceCreateFromState } = useProjectWorkspaceCreateDraft();
   const {
     projectId,
@@ -71,9 +71,7 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
     issuesById,
     getIssue,
     insertIssue,
-    insertIssueAssignee,
     removeIssue,
-    getAssigneesForIssue,
   } = useProjectContext();
 
   // Use ref to always access latest issues (avoid stale closure)
@@ -172,15 +170,6 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
 
           const syncedIssue = await persisted;
 
-          if (options?.assigneeIds && options.assigneeIds.length > 0) {
-            for (const userId of options.assigneeIds) {
-              insertIssueAssignee({
-                issue_id: syncedIssue.id,
-                user_id: userId,
-              });
-            }
-          }
-
           return syncedIssue.id;
         },
       });
@@ -261,7 +250,6 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
       issuesById,
       getIssue,
       insertIssue,
-      insertIssueAssignee,
       appNavigation,
       hostId,
       projectId,
@@ -308,7 +296,6 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
         });
       },
       getIssue,
-      getAssigneesForIssue,
       createIssue: openCreateIssue,
     });
 
@@ -320,7 +307,6 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
     removeIssue,
     insertIssue,
     getIssue,
-    getAssigneesForIssue,
     openCreateIssue,
   ]);
 

@@ -3,19 +3,22 @@ import { createHmrContext } from '@/shared/lib/hmrContext';
 import type { InsertResult, MutationResult } from '@/shared/lib/electric/types';
 import type {
   IssueComment,
-  IssueCommentReaction,
   CreateIssueCommentRequest,
   UpdateIssueCommentRequest,
-  CreateIssueCommentReactionRequest,
 } from 'shared/remote-types';
 import type { SyncError } from '@/shared/lib/electric/types';
 
+/**
+ * IssueContext provides issue-scoped data and mutations.
+ *
+ * ADR-019: comment-reaction entity excised (reactions no longer modelled —
+ * single-developer fork has nobody else to react with).
+ */
 export interface IssueContextValue {
   issueId: string;
 
   // Normalized data arrays (Electric syncs only this issue's data)
   comments: IssueComment[];
-  reactions: IssueCommentReaction[];
 
   // Loading/error state
   isLoading: boolean;
@@ -32,25 +35,11 @@ export interface IssueContextValue {
   ) => MutationResult;
   removeComment: (id: string) => MutationResult;
 
-  // Reaction mutations
-  insertReaction: (
-    data: CreateIssueCommentReactionRequest
-  ) => InsertResult<IssueCommentReaction>;
-  removeReaction: (id: string) => MutationResult;
-
   // Lookup helpers (within this issue's data)
   getComment: (commentId: string) => IssueComment | undefined;
-  getReactionsForComment: (commentId: string) => IssueCommentReaction[];
-  getReactionCountForComment: (commentId: string) => number;
-  hasUserReactedToComment: (
-    commentId: string,
-    userId: string,
-    emoji: string
-  ) => boolean;
 
   // Computed aggregations
   commentsById: Map<string, IssueComment>;
-  reactionsByComment: Map<string, IssueCommentReaction[]>;
 }
 
 export const IssueContext = createHmrContext<IssueContextValue | null>(

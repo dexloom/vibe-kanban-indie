@@ -9,7 +9,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { ArrowDownIcon, ArrowsOutIcon, XIcon } from '@phosphor-icons/react';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
-import { useUserContext } from '@/shared/hooks/useUserContext';
+import { useWorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import { ExecutionProcessesProvider } from '@/shared/providers/ExecutionProcessesProvider';
 import { ApprovalFeedbackProvider } from '@/features/workspace-chat/model/contexts/ApprovalFeedbackContext';
@@ -143,7 +143,7 @@ function WorkspaceSessionPanel({
   const appNavigation = useAppNavigation();
   const { projectId, getIssue } = useProjectContext();
   const routeState = useCurrentKanbanRouteState();
-  const { workspaces: remoteWorkspaces } = useUserContext();
+  const { workspaces: remoteWorkspaces } = useWorkspacesContext();
   const { activeWorkspaces, archivedWorkspaces } = useWorkspaceContext();
   const conversationListRef = useRef<ConversationListHandle>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);

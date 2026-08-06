@@ -281,13 +281,6 @@ export const sequentialBindings: SequentialBinding[] = [
     actionId: 'change-issue-priority',
   },
   {
-    id: 'seq-issue-assignees',
-    keys: ['i', 'a'],
-    description: 'Change Assignees',
-    group: 'Issue',
-    actionId: 'change-assignees',
-  },
-  {
     id: 'seq-issue-make-sub-issue',
     keys: ['i', 'm'],
     description: 'Make Sub-issue of',

@@ -8,7 +8,6 @@ import { AppRuntimeProvider } from '@/shared/hooks/useAppRuntime';
 import { AppNavigationProvider } from '@/shared/hooks/useAppNavigation';
 import { useTauriNotificationNavigation } from '@web/app/hooks/useTauriNotificationNavigation';
 import { useTauriUpdateReady } from '@web/app/hooks/useTauriUpdateReady';
-import { AppSystemNotifications } from '@web/app/notifications/AppSystemNotifications';
 import { router } from '@web/app/router';
 
 function TauriListeners() {
@@ -24,7 +23,6 @@ function App() {
         <TauriListeners />
         <UserSystemProvider>
           <LocalAuthProvider>
-            <AppSystemNotifications />
             <ClickedElementsProvider>
               <HotkeysProvider
                 initiallyActiveScopes={[

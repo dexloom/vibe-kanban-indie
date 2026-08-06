@@ -21,7 +21,7 @@ import {
   getActionLabel,
 } from '@/shared/types/actions';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
-import { UserContext } from '@/shared/hooks/useUserContext';
+import { WorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
 import { ProjectContext } from '@/shared/hooks/useProjectContext';
 import { useDevServer } from '@/shared/hooks/useDevServer';
 import { useLogsPanel } from '@/shared/hooks/useLogsPanel';
@@ -44,7 +44,7 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
   const { selectWorkspace, activeWorkspaces, workspaceId, workspace } =
     useWorkspaceContext();
   // Get remote workspaces (optional — not available on all routes)
-  const userCtx = useContext(UserContext);
+  const workspacesCtx = useContext(WorkspacesContext);
   const projectCtx = useContext(ProjectContext);
   // Get dev server state
   const { start, stop, runningDevServers } = useDevServer(workspaceId);
@@ -123,17 +123,6 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
     []
   );
 
-  // Open assignee selection dialog (uses dynamic import to avoid circular deps)
-  const openAssigneeSelection = useCallback(
-    async (projectId: string, issueIds: string[], isCreateMode = false) => {
-      const { AssigneeSelectionDialog } = await import(
-        '@/shared/dialogs/kanban/AssigneeSelectionDialog'
-      );
-      await AssigneeSelectionDialog.show({ projectId, issueIds, isCreateMode });
-    },
-    []
-  );
-
   // Open sub-issue selection dialog (uses dynamic import to avoid circular deps)
   const openSubIssueSelection = useCallback(
     async (
@@ -205,7 +194,6 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
       logsPanelContent,
       openStatusSelection,
       openPrioritySelection,
-      openAssigneeSelection,
       openSubIssueSelection,
       openWorkspaceSelection,
       openRelationshipSelection,
@@ -214,7 +202,7 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
       kanbanProjectId: projectId,
       projectMutations: projectMutations ?? undefined,
       remoteWorkspaces: (() => {
-        const userWs = userCtx?.workspaces ?? [];
+        const userWs = workspacesCtx?.workspaces ?? [];
         const projectWs = projectCtx?.workspaces ?? [];
         if (projectWs.length === 0) return userWs;
         if (userWs.length === 0) return projectWs;
@@ -237,7 +225,6 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
     logsPanelContent,
     openStatusSelection,
     openPrioritySelection,
-    openAssigneeSelection,
     openSubIssueSelection,
     openWorkspaceSelection,
     openRelationshipSelection,
@@ -245,7 +232,7 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
     defaultCreateStatusId,
     projectId,
     projectMutations,
-    userCtx?.workspaces,
+    workspacesCtx?.workspaces,
     projectCtx?.workspaces,
   ]);
 
@@ -329,7 +316,6 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
       getLabel,
       openStatusSelection,
       openPrioritySelection,
-      openAssigneeSelection,
       openSubIssueSelection,
       openWorkspaceSelection,
       openRelationshipSelection,
@@ -343,7 +329,6 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
       getLabel,
       openStatusSelection,
       openPrioritySelection,
-      openAssigneeSelection,
       openSubIssueSelection,
       openWorkspaceSelection,
       openRelationshipSelection,

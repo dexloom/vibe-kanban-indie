@@ -148,17 +148,6 @@ export function useIssueShortcuts() {
     },
     { ...OPTIONS, enabled }
   );
-  useHotkeys(
-    'i>a',
-    (e) => {
-      if (isCreatingIssueRef.current) {
-        executeIssueAction(Actions.ChangeNewIssueAssignees, e);
-      } else {
-        executeIssueAction(Actions.ChangeAssignees, e);
-      }
-    },
-    { ...OPTIONS, enabled }
-  );
   useHotkeys('i>m', (e) => executeIssueAction(Actions.MakeSubIssueOf, e), {
     ...OPTIONS,
     enabled,

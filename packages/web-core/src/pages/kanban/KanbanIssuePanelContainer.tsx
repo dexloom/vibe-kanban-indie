@@ -8,11 +8,10 @@ import {
 } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
-import type { JsonValue, UserWithProfile } from 'shared/types';
+import type { JsonValue } from 'shared/types';
 import type { IssuePriority, Workspace } from 'shared/remote-types';
 import { useDebouncedCallback } from '@/shared/hooks/useDebouncedCallback';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
-import { useUsers } from '@/shared/hooks/useUsers';
 import { useProjectWorkspaceCreateDraft } from '@/shared/hooks/useProjectWorkspaceCreateDraft';
 import WYSIWYGEditor from '@/shared/components/WYSIWYGEditor';
 import { SearchableTagDropdownContainer } from '@/shared/components/SearchableTagDropdownContainer';
@@ -39,7 +38,7 @@ import {
   type IssueFormData,
 } from '@vibe/ui/components/KanbanIssuePanel';
 import { useActions } from '@/shared/hooks/useActions';
-import { useUserContext } from '@/shared/hooks/useUserContext';
+import { useWorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import { CommandBarDialog } from '@/shared/dialogs/command-bar/CommandBarDialog';
 import { getWorkspaceDefaults } from '@/shared/lib/workspaceDefaults';
@@ -144,8 +143,8 @@ function readCurrentPipelineStage(workspace: Workspace | null): number | null {
 
 /**
  * KanbanIssuePanelContainer manages the issue detail/create panel.
- * Uses ProjectContext for issue/status/tag data and `useUsers` for the
- * tenant-less user roster (ADR-018). Must be rendered within ProjectProvider.
+ * Uses ProjectContext for issue/status/tag data and WorkspacesContext for the
+ * remote workspace list. Must be rendered within ProjectProvider.
  */
 export function KanbanIssuePanelContainer({
   issueResolution,
@@ -157,7 +156,7 @@ export function KanbanIssuePanelContainer({
 
   const { openWorkspaceCreateFromState } = useProjectWorkspaceCreateDraft();
   const { profiles } = useUserSystem();
-  const { workspaces } = useUserContext();
+  const { workspaces } = useWorkspacesContext();
   const { activeWorkspaces, archivedWorkspaces } = useWorkspaceContext();
 
   // Build set of local workspace IDs that exist on this machine
@@ -176,11 +175,9 @@ export function KanbanIssuePanelContainer({
     issues,
     statuses,
     tags,
-    issueAssignees,
     issueTags,
     insertIssue,
     updateIssue,
-    insertIssueAssignee,
     insertIssueTag,
     removeIssueTag,
     insertTag,
@@ -199,8 +196,6 @@ export function KanbanIssuePanelContainer({
   const createComposerInitial = issueComposer?.initial ?? null;
   const kanbanCreateDefaultStatusId = createComposerInitial?.statusId ?? null;
   const kanbanCreateDefaultPriority = createComposerInitial?.priority ?? null;
-  const kanbanCreateDefaultAssigneeIds =
-    createComposerInitial?.assigneeIds ?? null;
   const kanbanCreateDefaultParentIssueId =
     createComposerInitial?.parentIssueId ?? null;
   const createDraftWorkspaceByDefault = useUiPreferencesStore(
@@ -228,7 +223,6 @@ export function KanbanIssuePanelContainer({
     (patch: {
       statusId?: string;
       priority?: IssuePriority | null;
-      assigneeIds?: string[];
       parentIssueId?: string;
       title?: string;
       description?: string | null;
@@ -251,32 +245,14 @@ export function KanbanIssuePanelContainer({
     resetKanbanIssueComposer(issueComposerKey);
   }, [issueComposerKey]);
 
-  // ADR-018 — tenant-less user roster for assignee avatars.
-  const usersQuery = useUsers();
-  const usersById = useMemo(() => {
-    const map = new Map<string, UserWithProfile>();
-    for (const user of usersQuery.data ?? []) {
-      map.set(user.user_id, user);
-    }
-    return map;
-  }, [usersQuery.data]);
-  const orgLoading = usersQuery.isLoading;
-
   // Get action methods from actions context
-  const { openStatusSelection, openPrioritySelection, openAssigneeSelection } =
-    useActions();
+  const { openStatusSelection, openPrioritySelection } = useActions();
 
   // Find selected issue if in edit mode
   const selectedIssue = useMemo(() => {
     if (kanbanCreateMode || !selectedKanbanIssueId) return null;
     return issues.find((i) => i.id === selectedKanbanIssueId) ?? null;
   }, [issues, selectedKanbanIssueId, kanbanCreateMode]);
-
-  const creatorUserId = selectedIssue?.creator_user_id ?? null;
-  const issueCreator = useMemo(() => {
-    if (!creatorUserId) return null;
-    return usersById.get(creatorUserId) ?? null;
-  }, [usersById, creatorUserId]);
 
   // Find parent issue if current issue has one
   const parentIssue = useMemo(() => {
@@ -300,14 +276,6 @@ export function KanbanIssuePanelContainer({
       parent_issue_sort_order: null,
     });
   }, [selectedKanbanIssueId, selectedIssue?.parent_issue_id, updateIssue]);
-
-  // Get all current assignees from issue_assignees
-  const currentAssigneeIds = useMemo(() => {
-    if (!selectedKanbanIssueId) return [];
-    return issueAssignees
-      .filter((a) => a.issue_id === selectedKanbanIssueId)
-      .map((a) => a.user_id);
-  }, [issueAssignees, selectedKanbanIssueId]);
 
   // Get current tag IDs from issue_tags junction table
   const currentTagIds = useMemo(() => {
@@ -361,14 +329,12 @@ export function KanbanIssuePanelContainer({
       description: null,
       statusId: defaultStatusId,
       priority: kanbanCreateDefaultPriority ?? null,
-      assigneeIds: [...(kanbanCreateDefaultAssigneeIds ?? [])],
       tagIds: [],
       createDraftWorkspace: createDraftWorkspaceByDefault,
     }),
     [
       defaultStatusId,
       kanbanCreateDefaultPriority,
-      kanbanCreateDefaultAssigneeIds,
       createDraftWorkspaceByDefault,
     ]
   );
@@ -419,17 +385,9 @@ export function KanbanIssuePanelContainer({
       mode,
       createModeDefaults,
       selectedIssue,
-      currentAssigneeIds,
       currentTagIds,
     });
-  }, [
-    formState,
-    mode,
-    createModeDefaults,
-    selectedIssue,
-    currentAssigneeIds,
-    currentTagIds,
-  ]);
+  }, [formState, mode, createModeDefaults, selectedIssue, currentTagIds]);
   const latestDescriptionRef = useRef<string | null>(
     displayData.description ?? null
   );
@@ -469,13 +427,6 @@ export function KanbanIssuePanelContainer({
       createModeDefaults,
     });
   }, [formState, mode, createModeDefaults]);
-
-  // Resolve assignee IDs to full profiles for avatar display
-  const displayAssigneeUsers = useMemo(() => {
-    return displayData.assigneeIds
-      .map((id) => usersById.get(id))
-      .filter((m): m is UserWithProfile => m != null);
-  }, [displayData.assigneeIds, usersById]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -679,8 +630,6 @@ export function KanbanIssuePanelContainer({
             composerDraft.priority === undefined
               ? createModeDefaults.priority
               : composerDraft.priority,
-          assigneeIds:
-            composerDraft.assigneeIds ?? createModeDefaults.assigneeIds,
           tagIds: composerDraft.tagIds ?? createModeDefaults.tagIds,
           createDraftWorkspace:
             composerDraft.createDraftWorkspace ??
@@ -760,27 +709,6 @@ export function KanbanIssuePanelContainer({
           return;
         }
 
-        // For assigneeIds, open the assignee selection dialog with callback
-        if (field === 'assigneeIds') {
-          const { AssigneeSelectionDialog } = await import(
-            '@/shared/dialogs/kanban/AssigneeSelectionDialog'
-          );
-          await AssigneeSelectionDialog.show({
-            projectId,
-            issueIds: [],
-            isCreateMode: true,
-            createModeAssigneeIds: createFormData?.assigneeIds ?? [],
-            onCreateModeAssigneesChange: (assigneeIds: string[]) => {
-              updateIssueComposerDraft({ assigneeIds });
-              dispatchFormState({
-                type: 'setCreateAssigneeIds',
-                assigneeIds,
-              });
-            },
-          });
-          return;
-        }
-
         // For other fields, just update the form data
         dispatchFormState({
           type: 'patchCreateFormData',
@@ -819,9 +747,6 @@ export function KanbanIssuePanelContainer({
       } else if (field === 'priority') {
         // Priority changes go through the command bar priority selection
         openPrioritySelection(projectId, [selectedKanbanIssueId]);
-      } else if (field === 'assigneeIds') {
-        // Assignee changes go through the assignee selection dialog
-        openAssigneeSelection(projectId, [selectedKanbanIssueId], false);
       } else if (field === 'tagIds') {
         // Handle tag changes via junction table
         const newTagIds = value as string[];
@@ -861,7 +786,6 @@ export function KanbanIssuePanelContainer({
       debouncedSaveDescription,
       openStatusSelection,
       openPrioritySelection,
-      openAssigneeSelection,
       updateIssueComposerDraft,
       setCreateDraftWorkspaceByDefault,
       issueTags,
@@ -973,14 +897,6 @@ export function KanbanIssuePanelContainer({
           clearAttachments();
         }
 
-        // Create assignee records for all selected assignees
-        displayData.assigneeIds.forEach((userId) => {
-          insertIssueAssignee({
-            issue_id: syncedIssue.id,
-            user_id: userId,
-          });
-        });
-
         // Create tag records if tags were selected
         for (const tagId of displayData.tagIds) {
           insertIssueTag({
@@ -1049,8 +965,6 @@ export function KanbanIssuePanelContainer({
     projectId,
     issues,
     insertIssue,
-    insertIssueAssignee,
-    insertIssueTag,
     openIssue,
     kanbanCreateDefaultParentIssueId,
     openWorkspaceCreateFromState,
@@ -1123,7 +1037,7 @@ export function KanbanIssuePanelContainer({
   }, [selectedKanbanIssueId, projectId]);
 
   // Loading state
-  const isLoading = projectLoading || orgLoading;
+  const isLoading = projectLoading;
   const isResolvingExpectedIssue =
     mode === 'edit' &&
     selectedKanbanIssueId !== null &&
@@ -1144,12 +1058,10 @@ export function KanbanIssuePanelContainer({
       mode={mode}
       displayId={displayId}
       formData={displayData}
-      assigneeUsers={displayAssigneeUsers}
       onFormChange={handlePropertyChange}
       statuses={sortedStatuses}
       tags={tags}
       issueId={selectedKanbanIssueId}
-      creatorUser={issueCreator}
       parentIssue={parentIssue}
       onParentIssueClick={handleParentIssueClick}
       onRemoveParentIssue={handleRemoveParentIssue}

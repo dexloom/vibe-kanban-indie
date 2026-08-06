@@ -6,7 +6,6 @@ import {
 } from './CollapsibleSectionHeader';
 import { SubIssueRow } from './SubIssueRow';
 import type { PriorityLevel } from './PriorityIcon';
-import type { KanbanAssigneeUser } from './KanbanAssignee';
 
 export interface SubIssueData {
   id: string;
@@ -14,7 +13,6 @@ export interface SubIssueData {
   title: string;
   priority: PriorityLevel | null;
   statusColor: string;
-  assignees: KanbanAssigneeUser[];
   createdAt: string;
   parentIssueSortOrder: number | null;
 }
@@ -26,7 +24,6 @@ export interface IssueSubIssuesSectionProps {
   onSubIssueMarkIndependent?: (subIssueId: string) => void;
   onSubIssueDelete?: (subIssueId: string) => void;
   onSubIssuePriorityClick?: (subIssueId: string) => void;
-  onSubIssueAssigneeClick?: (subIssueId: string) => void;
   isLoading?: boolean;
   isReordering?: boolean;
   actions?: SectionAction[];
@@ -39,7 +36,6 @@ export function IssueSubIssuesSection({
   onSubIssueMarkIndependent,
   onSubIssueDelete,
   onSubIssuePriorityClick,
-  onSubIssueAssigneeClick,
   isLoading,
   isReordering,
   actions,
@@ -83,7 +79,6 @@ export function IssueSubIssuesSection({
                   title={subIssue.title}
                   priority={subIssue.priority}
                   statusColor={subIssue.statusColor}
-                  assignees={subIssue.assignees}
                   createdAt={subIssue.createdAt}
                   onClick={() => onSubIssueClick(subIssue.id)}
                   onMarkIndependentClick={
@@ -107,14 +102,6 @@ export function IssueSubIssuesSection({
                       ? (e) => {
                           e.stopPropagation();
                           onSubIssuePriorityClick(subIssue.id);
-                        }
-                      : undefined
-                  }
-                  onAssigneeClick={
-                    onSubIssueAssigneeClick
-                      ? (e) => {
-                          e.stopPropagation();
-                          onSubIssueAssigneeClick(subIssue.id);
                         }
                       : undefined
                   }

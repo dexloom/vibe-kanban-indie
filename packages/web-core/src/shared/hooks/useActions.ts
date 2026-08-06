@@ -36,13 +36,6 @@ export interface ActionsContextValue {
     issueIds: string[]
   ) => Promise<void>;
 
-  // Open assignee selection dialog
-  openAssigneeSelection: (
-    projectId: string,
-    issueIds: string[],
-    isCreateMode?: boolean
-  ) => Promise<void>;
-
   // Open sub-issue selection in command bar
   openSubIssueSelection: (
     projectId: string,
