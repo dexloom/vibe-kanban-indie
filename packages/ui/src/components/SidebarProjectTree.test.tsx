@@ -17,6 +17,11 @@ vi.mock('react-i18next', () => ({
         'sidebar.tasksSection': 'Tasks',
         'sidebar.workspacesSection': 'Workspaces',
         'sidebar.tasksEmpty': 'No statuses yet',
+        'sidebar.orchestratorPrompt': 'Orchestrator prompt',
+        'sidebar.orchestratorPromptSet': 'Orchestrator prompt is set',
+        'sidebar.addOrchestratorPrompt': 'Add orchestrator prompt',
+        'sidebar.projectActions': 'Project actions',
+        'sidebar.addChildBoard': 'Add board',
         'workspaces.outliner.attention': 'Attention',
         'workspaces.running': 'Running',
         'workspaces.idle': 'Idle',
@@ -151,6 +156,8 @@ function renderTree(
     onTasksExpansionChange?: (projectId: string, isOpen: boolean) => void;
     onSelectIssue?: (projectId: string, issueId: string) => void;
     onSelectProject?: (id: string) => void;
+    onCreateChildBoard?: (parentId: string) => void;
+    onSelectOrchestratorPrompt?: (projectId: string) => void;
   } = {}
 ) {
   return render(
@@ -162,6 +169,8 @@ function renderTree(
       activeWorkspaceId={null}
       onSelectWorkspace={vi.fn()}
       onSelectProject={overrides.onSelectProject ?? vi.fn()}
+      onCreateChildBoard={overrides.onCreateChildBoard}
+      onSelectOrchestratorPrompt={overrides.onSelectOrchestratorPrompt}
       tasksByProject={
         overrides.tasksByProject ??
         new Map([
@@ -525,5 +534,77 @@ describe('SidebarProjectTree open-state persistence', () => {
     // Unassigned row auto-opened, and its Workspaces section auto-opened —
     // bucket labels visible without any caret click.
     await waitFor(() => expect(screen.getByText('Idle')).toBeTruthy());
+  });
+
+  /// ADR-016: the prompt row renders between Tasks and any child boards.
+  /// Clicking the row invokes `onSelectOrchestratorPrompt`. The
+  /// brand-coloured dot is shown only when `hasOrchestratorPrompt` is
+  /// true (mirrors the wire `has_orchestrator_prompt` flag).
+  it('renders the orchestrator-prompt row and fires onSelectOrchestratorPrompt', async () => {
+    const onSelectOrchestratorPrompt = vi.fn();
+    renderTree({
+      onSelectOrchestratorPrompt,
+      projects: [
+        {
+          ...projectOne,
+          hasOrchestratorPrompt: true,
+        },
+      ],
+    });
+
+    // Wait for the prompt row to render.
+    const promptRow = await screen.findByText('Orchestrator prompt');
+    expect(promptRow).toBeTruthy();
+
+    // The brand-coloured dot is rendered.
+    const dot = screen.getByTestId(`orchestrator-prompt-dot-${projectOne.id}`);
+    expect(dot).toBeTruthy();
+
+    // Click the OUTER tree row (react-arborist's wrapping <div
+    // role="treeitem">). The row's onClick bubbles up to the activation
+    // handler. Clicking the inner span alone wouldn't trigger activation
+    // reliably because react-arborist listens on the outer row.
+    const outerRow = promptRow.closest('[role="treeitem"]');
+    expect(outerRow).toBeTruthy();
+    fireEvent.click(outerRow as HTMLElement);
+    await waitFor(() =>
+      expect(onSelectOrchestratorPrompt).toHaveBeenCalledWith(projectOne.id)
+    );
+  });
+
+  /// ADR-016: the `+` button is now a DropdownMenu with two items
+  /// ("Add board" + "Add orchestrator prompt"). The old single-purpose
+  /// button is gone.
+  it('renders a `+` dropdown with Add board and Add orchestrator prompt items', async () => {
+    const onCreateChildBoard = vi.fn();
+    const onSelectOrchestratorPrompt = vi.fn();
+    const { baseElement } = renderTree({
+      projects: [projectOne],
+      onCreateChildBoard,
+      onSelectOrchestratorPrompt,
+    });
+
+    // Wait for the trigger to mount.
+    const trigger = (await screen.findByLabelText(
+      'Project actions'
+    )) as HTMLButtonElement;
+    expect(trigger).toBeTruthy();
+    // Radix's DropdownMenu.Trigger opens on pointerdown by default (jsdom
+    // doesn't dispatch pointer events from `click`, so we drive the
+    // pointerdown path explicitly).
+    fireEvent.pointerDown(trigger, { button: 0 });
+    // Radix renders the menu content into a portal — search the whole
+    // document (portals attach to baseElement.body, not the render
+    // container).
+    const menuItems = baseElement.querySelectorAll('[role="menuitem"]');
+    expect(menuItems.length).toBe(2);
+    expect(menuItems[0]!.textContent).toContain('Add board');
+    expect(menuItems[1]!.textContent).toContain('Add orchestrator prompt');
+
+    // Clicking "Add orchestrator prompt" fires the callback.
+    fireEvent.click(menuItems[1] as HTMLElement);
+    await waitFor(() =>
+      expect(onSelectOrchestratorPrompt).toHaveBeenCalledWith(projectOne.id)
+    );
   });
 });

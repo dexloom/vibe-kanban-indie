@@ -335,12 +335,15 @@ describe('TreeNodeRouter project-reorder wrapping', () => {
 // 4. The Unassigned row has neither "+" nor ArrowSquareOutIcon.
 
 describe('TreeNodeRouter ADR-015 row interactions', () => {
-  it('renders a "+" button on every non-Unassigned project row', () => {
+  it('renders a project-actions trigger on every non-Unassigned project row (ADR-016)', () => {
+    // ADR-016: the `+` button is now a DropdownMenu trigger; the menu
+    // contains "Add board" + "Orchestrator prompt". The single-button
+    // `sidebar.createChildBoard` aria-label is gone.
     const { container } = renderProjectWithDndContext('project-1');
-    const addBtn = container.querySelector(
-      'button[aria-label="sidebar.createChildBoard"]'
+    const trigger = container.querySelector(
+      'button[aria-label="sidebar.projectActions"]'
     );
-    expect(addBtn).toBeTruthy();
+    expect(trigger).toBeTruthy();
   });
 
   it('does NOT render ArrowSquareOutIcon on project rows (ADR-015)', () => {
@@ -352,7 +355,7 @@ describe('TreeNodeRouter ADR-015 row interactions', () => {
     ).toBeNull();
   });
 
-  it('"+" click on a project row fires onCreateChildBoard(project.id) and does NOT toggle', () => {
+  it('"+" menu Add board item fires onCreateChildBoard(project.id) and does NOT toggle', () => {
     const onCreateChildBoard = vi.fn();
     const project: ProjectNode = {
       id: 'project-1',
@@ -388,20 +391,34 @@ describe('TreeNodeRouter ADR-015 row interactions', () => {
       onSelectIssue: (projectId: string, issueId: string) => void;
       onCreateChildBoard: (parentId: string) => void;
     };
-    const { container } = render(<TreeNodeRouter {...props} />);
-    const addBtn = container.querySelector(
-      'button[aria-label="sidebar.createChildBoard"]'
+    const { container, getByText, baseElement } = render(
+      <TreeNodeRouter {...props} />
+    );
+    const trigger = container.querySelector(
+      'button[aria-label="sidebar.projectActions"]'
     ) as HTMLButtonElement;
+    expect(trigger).toBeTruthy();
+    // Radix's DropdownMenu.Trigger opens on pointerdown by default (jsdom
+    // doesn't dispatch pointer events from `click`, so we drive the
+    // pointerdown path explicitly).
+    fireEvent.pointerDown(trigger, { button: 0 });
+    // Radix renders the menu content into a portal — search the whole
+    // document (portals attach to baseElement.body, not the render
+    // container).
+    const addBtn = baseElement.querySelector(
+      '[role="menuitem"]'
+    ) as HTMLElement | null;
     expect(addBtn).toBeTruthy();
-    fireEvent.click(addBtn);
+    // Two items: "Add board" + "Orchestrator prompt". Click the first.
+    fireEvent.click(addBtn!);
     expect(onCreateChildBoard).toHaveBeenCalledWith('project-1');
     expect(node.toggle).not.toHaveBeenCalled();
   });
 
-  it('Unassigned project row does NOT render a "+" button (ADR-015)', () => {
+  it('Unassigned project row does NOT render a project-actions trigger (ADR-015 + ADR-016)', () => {
     const { container } = renderProjectWithDndContext('unassigned');
     expect(
-      container.querySelector('button[aria-label="sidebar.createChildBoard"]')
+      container.querySelector('button[aria-label="sidebar.projectActions"]')
     ).toBeNull();
     expect(
       container.querySelector('button[aria-label="sidebar.openProjectKanban"]')

@@ -83,6 +83,10 @@ fn to_api_project(p: DbProject) -> ApiProject {
         color: p.color,
         sort_order: p.sort_order as i32,
         parent_id: p.parent_id,
+        // ADR-016: the prompt body never ships on the list shape (the
+        // sidebar tree's `hasOrchestratorPrompt` dot reads this bool, the
+        // editor fetches the raw value via the dedicated endpoint).
+        has_orchestrator_prompt: !p.orchestrator_prompt.trim().is_empty(),
         created_at: p.created_at,
         updated_at: p.updated_at,
     }
@@ -1132,6 +1136,13 @@ pub fn router() -> Router<DeploymentImpl> {
             "/v1/projects/{id}",
             patch(update_project).delete(delete_project),
         )
+        // ADR-016: orchestrator-prompt endpoints live on the `/api/*` router
+        // (`routes/kanban.rs`) because BOTH consumers — the MCP tool
+        // (`get_orchestrator_prompt`) and the frontend editor
+        // (`projectsApi.*OrchestratorPrompt`) — speak the `ApiResponse`
+        // envelope. The `/v1/*` router returns bare / `MutationResponse`
+        // shapes the MCP client can't parse (missing `success` field).
+        // See `routes/mod.rs` for the route-boundary rule.
         .route("/v1/project_statuses", post(create_status))
         .route("/v1/project_statuses/bulk", post(bulk_statuses))
         .route(
@@ -1159,6 +1170,10 @@ pub fn router() -> Router<DeploymentImpl> {
             patch(update_issue_comment).delete(delete_issue_comment),
         )
 }
+
+// ADR-016 orchestrator-prompt handlers live in `routes/kanban.rs` so they
+// return the `ApiResponse` envelope (see that file's header comment and
+// the route-boundary rule in `routes/mod.rs`).
 
 #[cfg(test)]
 mod tests {
@@ -1520,6 +1535,56 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
+    }
+
+    /// ADR-016 A4: `to_api_project` exposes `has_orchestrator_prompt` as a
+    /// bool only (the body never ships on the list shape). `true` requires
+    /// a non-whitespace value (`.trim()` semantics — a whitespace-only
+    /// prompt must NOT light up the tree's dot).
+    #[tokio::test]
+    async fn to_api_project_has_orchestrator_prompt_bool_only() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let project = create_project_record(&pool, Uuid::new_v4(), "Acme", "#6366f1", None)
+            .await
+            .unwrap();
+
+        // Default: freshly created project → empty prompt → false.
+        let mapped = super::to_api_project(project.clone());
+        assert!(!mapped.has_orchestrator_prompt);
+
+        // Set a real prompt → true.
+        let with_prompt = DbProject::update_orchestrator_prompt(&pool, project.id, "be terse")
+            .await
+            .unwrap();
+        let mapped = super::to_api_project(with_prompt);
+        assert!(mapped.has_orchestrator_prompt);
+
+        // Whitespace-only → false (resolution treats whitespace as empty).
+        let whitespace = DbProject::update_orchestrator_prompt(&pool, project.id, "   \n\t  ")
+            .await
+            .unwrap();
+        let mapped = super::to_api_project(whitespace);
+        assert!(
+            !mapped.has_orchestrator_prompt,
+            "whitespace-only prompt must NOT light up the tree dot"
+        );
+
+        // Body must NOT ship on the wire — serialize to JSON and assert the
+        // prompt text isn't anywhere in the payload.
+        let wire = serde_json::to_value(&mapped).unwrap();
+        let serialized = serde_json::to_string(&wire).unwrap();
+        assert!(
+            !serialized.contains("be terse"),
+            "the prompt body MUST NOT ship on the list shape: {serialized}"
+        );
+        // Tracked type invariant: only the bool flag is exposed.
+        let obj = wire.as_object().unwrap();
+        assert!(obj.contains_key("has_orchestrator_prompt"));
+        assert_eq!(
+            obj["has_orchestrator_prompt"], false,
+            "whitespace-only prompt must surface as has_orchestrator_prompt=false"
+        );
     }
 
     /// A partial issue PATCH carrying an (empty or partial) extension_metadata

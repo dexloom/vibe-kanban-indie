@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id as \"id!: Uuid\",\n                      name,\n                      key,\n                      color,\n                      sort_order,\n                      parent_id as \"parent_id: Uuid\",\n                      default_agent_working_dir,\n                      remote_project_id as \"remote_project_id: Uuid\",\n                      created_at as \"created_at!: DateTime<Utc>\",\n                      updated_at as \"updated_at!: DateTime<Utc>\"\n               FROM projects\n               WHERE name = $1\n               LIMIT 1",
+  "query": "SELECT id as \"id!: Uuid\",\n                      name,\n                      key,\n                      color,\n                      sort_order,\n                      parent_id as \"parent_id: Uuid\",\n                      default_agent_working_dir,\n                      remote_project_id as \"remote_project_id: Uuid\",\n                      orchestrator_prompt,\n                      created_at as \"created_at!: DateTime<Utc>\",\n                      updated_at as \"updated_at!: DateTime<Utc>\"\n               FROM projects\n               ORDER BY sort_order ASC, created_at DESC",
   "describe": {
     "columns": [
       {
@@ -44,18 +44,23 @@
         "type_info": "Blob"
       },
       {
-        "name": "created_at!: DateTime<Utc>",
+        "name": "orchestrator_prompt",
         "ordinal": 8,
         "type_info": "Text"
       },
       {
-        "name": "updated_at!: DateTime<Utc>",
+        "name": "created_at!: DateTime<Utc>",
         "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at!: DateTime<Utc>",
+        "ordinal": 10,
         "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
       true,
@@ -67,8 +72,9 @@
       true,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "aa224602ed350d53161fe482cf9320b08d68f5615fd0b8728b2377f6efa0dca0"
+  "hash": "975a4aef1375eaa8d7c279e540d42e63b93be87299ad81b6d24930e032d818d6"
 }

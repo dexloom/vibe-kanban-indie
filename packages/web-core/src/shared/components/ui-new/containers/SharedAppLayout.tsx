@@ -166,6 +166,14 @@ export function SharedAppLayout() {
     [currentDestination]
   );
   const activeProjectId = projectDestination?.projectId ?? null;
+  // ADR-016: when the editor pane is open, light up the prompt row in
+  // the tree (drives `aria-current` + the active styling). Always
+  // piggy-backs on `projectDestination` — the editor is scoped to a
+  // single project.
+  const activeProjectPromptId =
+    currentDestination?.kind === 'project-orchestrator-prompt'
+      ? currentDestination.projectId
+      : null;
 
   // Persist last selected project to scratch store
   const setSelectedProjectId = useUiPreferencesStore(
@@ -206,6 +214,16 @@ export function SharedAppLayout() {
   const handleProjectClick = useCallback(
     (projectId: string) => {
       appNavigation.goToProject(projectId);
+    },
+    [appNavigation]
+  );
+
+  // ADR-016: open the per-project orchestrator-prompt editor pane.
+  // Triggered by the sidebar tree's `+` menu item and the prompt row's
+  // click. The editor IS the page (sidebar mode: 'closed').
+  const handleSelectOrchestratorPrompt = useCallback(
+    (projectId: string) => {
+      appNavigation.goToProjectOrchestratorPrompt(projectId);
     },
     [appNavigation]
   );
@@ -514,6 +532,11 @@ export function SharedAppLayout() {
         color: p.color,
         parentId: p.parent_id ?? null,
         sortOrder: p.sort_order,
+        // ADR-016: mirror wire `has_orchestrator_prompt` so the tree's
+        // brand-coloured dot tracks the row on every refresh. The body
+        // never ships on the list shape — the editor's `resolve` GET
+        // fetches the resolved value with provenance.
+        hasOrchestratorPrompt: p.has_orchestrator_prompt,
       })),
     [orderedProjects]
   );
@@ -593,6 +616,7 @@ export function SharedAppLayout() {
                 <Sidebar
                   projects={sidebarProjects}
                   activeProjectId={activeProjectId}
+                  activeProjectPromptId={activeProjectPromptId}
                   activeWorkspaceId={workspaceId ?? null}
                   activeIssueId={activeIssueId}
                   tasksByProject={tasksByProject}
@@ -606,6 +630,7 @@ export function SharedAppLayout() {
                   isLoadingWorkspaces={isWorkspacesListLoading}
                   onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
                   onSelectProject={handleProjectClick}
+                  onSelectOrchestratorPrompt={handleSelectOrchestratorPrompt}
                   onCreateChildBoard={handleCreateChildBoard}
                   isMultiSelectActive={isMultiSelectActive}
                   headerActions={
@@ -662,6 +687,7 @@ export function SharedAppLayout() {
                   <Sidebar
                     projects={sidebarProjects}
                     activeProjectId={activeProjectId}
+                    activeProjectPromptId={activeProjectPromptId}
                     activeWorkspaceId={workspaceId ?? null}
                     activeIssueId={activeIssueId}
                     tasksByProject={tasksByProject}
@@ -676,6 +702,10 @@ export function SharedAppLayout() {
                     onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
                     onSelectProject={(id) => {
                       handleProjectClick(id);
+                      setIsDrawerOpen(false);
+                    }}
+                    onSelectOrchestratorPrompt={(id) => {
+                      handleSelectOrchestratorPrompt(id);
                       setIsDrawerOpen(false);
                     }}
                     onCreateChildBoard={handleCreateChildBoard}

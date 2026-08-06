@@ -85,6 +85,14 @@ export interface SidebarProject {
   color: string;
   parentId: string | null;
   sortOrder: number;
+  // ADR-016: mirrored from wire `Project.has_orchestrator_prompt`. Drives
+  // the brand-coloured indicator dot on the prompt row. The DOT is shown
+  // (not the body — the body never ships on the list shape); the editor
+  // pane shows the resolved "Inherited from {name}" badge when the actual
+  // prompt is empty at this scope. Optional for backwards-compat with
+  // old test fixtures / pre-wired consumers; the buildTreeData path
+  // defaults to `false` when missing.
+  hasOrchestratorPrompt?: boolean;
 }
 
 export interface ProjectNode {
@@ -94,7 +102,7 @@ export interface ProjectNode {
   color: string;
   parentId: string | null;
   sortOrder: number;
-  children: (SectionNode | ProjectNode)[];
+  children: (SectionNode | ProjectNode | OrchestratorPromptNode)[];
 }
 
 /**
@@ -124,6 +132,28 @@ export interface TasksSectionNode {
 
 /** Discriminate sections by `kind` (NOT by `type`, which stays 'section'). */
 export type SectionNode = WorkspacesSectionNode | TasksSectionNode;
+
+/**
+ * ADR-016: leaf node for the per-project orchestrator prompt row. The
+ * node IS the prompt — no children, no toggle, no open-state persistence
+ * (the `+` button on the project row is how the user adds the prompt
+ * column; the editor pane is opened by row-click). The `(type, projectId)`
+ * tuple is the only identity the renderer needs.
+ */
+export interface OrchestratorPromptNode {
+  id: OrchestratorPromptNodeId;
+  type: 'orchestrator-prompt';
+  projectId: string;
+  label: string;
+  hasPrompt: boolean;
+}
+
+/** `OrchestratorPromptNode` row id — `${projectId}:orchestrator-prompt`. */
+export type OrchestratorPromptNodeId = `${string}:orchestrator-prompt`;
+
+export const makeOrchestratorPromptNodeId = (
+  projectId: string
+): OrchestratorPromptNodeId => `${projectId}:orchestrator-prompt`;
 
 export interface StatusNode {
   id: string; // `${projectId}:status:${statusId}`
@@ -156,6 +186,7 @@ export interface CardNode {
 export type SidebarTreeNode =
   | ProjectNode
   | SectionNode
+  | OrchestratorPromptNode
   | BucketNode
   | StatusNode
   | CardNode

@@ -530,6 +530,18 @@
   "appBar": {
     "projects": "Projects"
   },
+  "orchestratorPromptEditor": {
+    "title": "Orchestrator prompt",
+    "subtitle": "Read by the orchestrator at the start of every tick. Edits apply live — no restart.",
+    "inheritedFrom": "Inherited from an ancestor project",
+    "usingDefault": "Using default behavior",
+    "placeholder": "Be terse. Use sparse commits. Always run the test suite before committing.",
+    "save": "Save",
+    "saving": "Saving…",
+    "clear": "Clear",
+    "saved": "Saved",
+    "missingProjectId": "No project id in route."
+  },
   "sidebar": {
     "workspacesSection": "Workspaces",
     "tasksSection": "Tasks",
@@ -542,6 +554,11 @@
     "createProject": "Create project",
     "notifications": "Notifications",
     "settings": "Settings",
-    "bottomBarLabel": "Sidebar actions"
+    "bottomBarLabel": "Sidebar actions",
+    "orchestratorPrompt": "Orchestrator prompt",
+    "orchestratorPromptSet": "Orchestrator prompt is set",
+    "projectActions": "Project actions",
+    "addChildBoard": "Add board",
+    "addOrchestratorPrompt": "Add orchestrator prompt"
   }
 }

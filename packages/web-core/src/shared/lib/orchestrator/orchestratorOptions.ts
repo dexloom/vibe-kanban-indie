@@ -8,6 +8,13 @@
 // (`scripts/orchestrator.prompt.md` in sombrax_plugins). Keep the two aligned when
 // the plugin's pointer changes.
 //
+// ADR-016: the per-tick prompt body (project / board orchestrator prompt) is NOT
+// embedded here — it's fetched live by the MCP tool `get_orchestrator_prompt`
+// (crates/mcp/src/task_server/tools/orchestrator_prompt.rs) on every tick. Editing
+// the prompt in the sidebar editor applies without restarting the orchestrator
+// session. See docs/ADR/ADR-016-board-orchestrator-prompts.md for the cross-repo
+// contract the sombra_plugins orchestrator must implement.
+//
 // This file also owns the spawn-dialog OPTIONS: the toggleable directives the
 // operator picks for a run. Each directive is emitted as a thin FLAG (its `id`) in
 // a byte-exact "Directives enabled for this run" block appended to the end of the

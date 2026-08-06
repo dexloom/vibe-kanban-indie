@@ -4,7 +4,7 @@
 // Electric row types
 export type JsonValue = number | string | boolean | Array<JsonValue> | { [key in string]?: JsonValue } | null;
 
-export type Project = { id: string, organization_id: string, name: string, color: string, sort_order: number, parent_id: string | null, created_at: string, updated_at: string, };
+export type Project = { id: string, organization_id: string, name: string, color: string, sort_order: number, parent_id: string | null, has_orchestrator_prompt: boolean, created_at: string, updated_at: string, };
 
 export type Notification = { id: string, organization_id: string, user_id: string, notification_type: NotificationType, payload: NotificationPayload, issue_id: string | null, comment_id: string | null, seen: boolean, dismissed_at: string | null, created_at: string, };
 

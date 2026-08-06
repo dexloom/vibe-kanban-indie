@@ -92,6 +92,9 @@ import {
   ToggleTaskRequest,
   ConstitutionContent,
   SpecKitFeatureStatus,
+  OrchestratorPromptResponse,
+  ResolvedOrchestratorPromptResponse,
+  UpdateOrchestratorPromptRequest,
   Pipeline,
   Routine,
   RecurrentTomlError,
@@ -1708,5 +1711,42 @@ export const searchApi = {
       options
     );
     return handleApiResponse<SearchResult[]>(response);
+  },
+};
+
+// ADR-016 — per-project / per-board orchestrator prompt endpoints. These
+// live under `/api/*` (NOT `/v1/*`) because `handleApiResponse` requires
+// the `ApiResponse` envelope (`{ success, data, error_data, message }`)
+// and throws when `success === undefined` — the `/v1/*` fallback router
+// returns bare shapes and would trip this immediately. The MCP
+// `get_orchestrator_prompt` tool shares the same wire contract.
+export const projectsApi = {
+  getOrchestratorPrompt: async (
+    projectId: string
+  ): Promise<OrchestratorPromptResponse> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator-prompt`
+    );
+    return handleApiResponse<OrchestratorPromptResponse>(response);
+  },
+
+  resolveOrchestratorPrompt: async (
+    projectId: string
+  ): Promise<ResolvedOrchestratorPromptResponse> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator-prompt/resolve`
+    );
+    return handleApiResponse<ResolvedOrchestratorPromptResponse>(response);
+  },
+
+  putOrchestratorPrompt: async (
+    projectId: string,
+    data: UpdateOrchestratorPromptRequest
+  ): Promise<OrchestratorPromptResponse> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator-prompt`,
+      { method: 'PUT', body: JSON.stringify(data) }
+    );
+    return handleApiResponse<OrchestratorPromptResponse>(response);
   },
 };

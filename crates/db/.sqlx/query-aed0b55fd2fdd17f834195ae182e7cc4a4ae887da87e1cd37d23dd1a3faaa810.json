@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id as \"id!: Uuid\",\n                      name,\n                      key,\n                      color,\n                      sort_order,\n                      parent_id as \"parent_id: Uuid\",\n                      default_agent_working_dir,\n                      remote_project_id as \"remote_project_id: Uuid\",\n                      created_at as \"created_at!: DateTime<Utc>\",\n                      updated_at as \"updated_at!: DateTime<Utc>\"\n               FROM projects\n               WHERE id = $1",
+  "query": "SELECT id as \"id!: Uuid\",\n                      name,\n                      key,\n                      color,\n                      sort_order,\n                      parent_id as \"parent_id: Uuid\",\n                      default_agent_working_dir,\n                      remote_project_id as \"remote_project_id: Uuid\",\n                      orchestrator_prompt,\n                      created_at as \"created_at!: DateTime<Utc>\",\n                      updated_at as \"updated_at!: DateTime<Utc>\"\n               FROM projects\n               WHERE name = $1\n               LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -44,13 +44,18 @@
         "type_info": "Blob"
       },
       {
-        "name": "created_at!: DateTime<Utc>",
+        "name": "orchestrator_prompt",
         "ordinal": 8,
         "type_info": "Text"
       },
       {
-        "name": "updated_at!: DateTime<Utc>",
+        "name": "created_at!: DateTime<Utc>",
         "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at!: DateTime<Utc>",
+        "ordinal": 10,
         "type_info": "Text"
       }
     ],
@@ -67,8 +72,9 @@
       true,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "e7fea637af1f271bd6584bd01c111001cdbaba50ac56ccfd6a5b395acb3a099e"
+  "hash": "aed0b55fd2fdd17f834195ae182e7cc4a4ae887da87e1cd37d23dd1a3faaa810"
 }

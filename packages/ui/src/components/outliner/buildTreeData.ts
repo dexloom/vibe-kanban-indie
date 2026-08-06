@@ -4,12 +4,14 @@ import { BUCKETS, BUCKET_ORDER } from '../../lib/buckets';
 import {
   UNASSIGNED_PROJECT_ID,
   makeCardNodeId,
+  makeOrchestratorPromptNodeId,
   makeStatusNodeId,
   makeTasksSectionId,
   makeWorkspacesSectionId,
   type BucketNode,
   type CardNode,
   type LeafNode,
+  type OrchestratorPromptNode,
   type OutlinerWorkspace,
   type ProjectNode,
   type ProjectTasksData,
@@ -82,14 +84,39 @@ export function buildTreeData(input: BuildTreeDataInput): SidebarTreeNode[] {
 function buildProjectNode(
   project: SidebarProject,
   input: BuildTreeDataInput,
-  t: (k: string) => string,
+  t: (k: string, fallback?: string) => string,
   childrenByParent: Map<string | null, SidebarProject[]>,
   realProjectIds: Set<string>,
   seen: Set<string> = new Set()
 ): ProjectNode {
   const isRoot = project.parentId === null;
   const tasks = buildTasksSection(project.id, input, t);
-  const children: (SectionNode | ProjectNode)[] = [tasks];
+  // ADR-016: per-project orchestrator prompt leaf. Shown ONLY when the
+  // operator explicitly added a prompt via the `+` menu ("Add
+  // orchestrator prompt") — i.e. `has_orchestrator_prompt` is true. It
+  // is NOT rendered by default for every project/board (the owner
+  // rejected always-visible; the `+` menu is the only entry point for a
+  // project that has no prompt yet). When present, it sits AFTER the
+  // Tasks section and BEFORE child boards so the order is uniform at
+  // every depth (root + boards).
+  const orchestratorPrompt: OrchestratorPromptNode | null = project
+    .hasOrchestratorPrompt
+    ? {
+        id: makeOrchestratorPromptNodeId(project.id),
+        type: 'orchestrator-prompt',
+        projectId: project.id,
+        // Default arg keeps the row label consistent with every other
+        // sidebar entry — if the key is missing in any locale the row
+        // would otherwise render the raw `sidebar.orchestratorPrompt`
+        // i18n key instead of an English label.
+        label: t('sidebar.orchestratorPrompt', 'Orchestrator prompt'),
+        hasPrompt: true,
+      }
+    : null;
+  const children: (SectionNode | ProjectNode | OrchestratorPromptNode)[] = [
+    tasks,
+    ...(orchestratorPrompt ? [orchestratorPrompt] : []),
+  ];
   if (!seen.has(project.id)) {
     const nextSeen = new Set(seen);
     nextSeen.add(project.id);
@@ -186,7 +213,7 @@ function dedupeById(workspaces: readonly OutlinerWorkspace[]): OutlinerWorkspace
 function buildTasksSection(
   projectId: string,
   input: BuildTreeDataInput,
-  t: (k: string) => string
+  t: (k: string, fallback?: string) => string
 ): TasksSectionNode {
   const data = input.tasksByProject.get(projectId);
   const visibleStatuses = (data?.statuses ?? [])
@@ -231,7 +258,7 @@ function buildWorkspacesSection(
   projectId: string,
   active: readonly OutlinerWorkspace[],
   archived: readonly OutlinerWorkspace[],
-  t: (k: string) => string
+  t: (k: string, fallback?: string) => string
 ): WorkspacesSectionNode {
   const {
     attention,
@@ -352,7 +379,7 @@ function buildCardForest(issues: readonly Issue[]): CardNode[] {
 
 function buildUnassignedNode(
   input: BuildTreeDataInput,
-  t: (k: string) => string
+  t: (k: string, fallback?: string) => string
 ): ProjectNode {
   // Unassigned never gets a Tasks section (owner decision; both variants agree).
   const workspaces = buildWorkspacesSection(

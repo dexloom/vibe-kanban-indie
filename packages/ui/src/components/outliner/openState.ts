@@ -269,7 +269,10 @@ export function liveTreeNodeIds(
   const walk = (list: readonly SidebarTreeNode[]): void => {
     for (const node of list) {
       out.add(node.id);
-      if (node.type !== 'leaf' && node.children.length > 0) {
+      // Some node types (e.g. ADR-016 OrchestratorPromptNode) are leaves
+      // that don't carry a `children` field — the `in` check both
+      // narrows the type and avoids the runtime TypeError on `.length`.
+      if (node.type !== 'leaf' && 'children' in node && node.children.length > 0) {
         walk(node.children);
       }
     }

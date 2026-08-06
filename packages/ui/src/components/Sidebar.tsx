@@ -40,6 +40,12 @@ interface SidebarProps {
   /** ADR-015: opens `CreateRemoteProjectDialog` with `parentId` set so the
    *  new project is created as a child board of the supplied project id. */
   onCreateChildBoard?: (parentId: string) => void;
+  /** ADR-016: opens the per-project orchestrator-prompt editor pane.
+   *  Triggered by the tree's `+` menu item and the prompt row's click. */
+  onSelectOrchestratorPrompt?: (projectId: string) => void;
+  /** ADR-016: project id whose prompt editor is currently open. Drives
+   *  the rendered row's `aria-current` and active styling. */
+  activeProjectPromptId?: string | null;
 
   /** When >1 issues are selected, disable card drag-and-drop in the tree.
    * Mirrors KanbanCard's `dragDisabled={isMultiSelectActive}` (PLAN §7.5). */
@@ -56,6 +62,7 @@ interface SidebarProps {
 export function Sidebar({
   projects,
   activeProjectId,
+  activeProjectPromptId,
   workspaces,
   archivedWorkspaces = [],
   membership,
@@ -70,6 +77,7 @@ export function Sidebar({
   onSelectWorkspace,
   onSelectProject,
   onCreateChildBoard,
+  onSelectOrchestratorPrompt,
   isMultiSelectActive,
   headerActions,
   bottomActions,
@@ -103,6 +111,7 @@ export function Sidebar({
       <SidebarProjectTree
         projects={projects}
         activeProjectId={activeProjectId}
+        activeProjectPromptId={activeProjectPromptId}
         workspaces={workspaces}
         archivedWorkspaces={archivedWorkspaces}
         membership={membership}
@@ -116,6 +125,7 @@ export function Sidebar({
         onSelectWorkspace={onSelectWorkspace}
         onSelectProject={onSelectProject}
         onCreateChildBoard={onCreateChildBoard}
+        onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
         isMultiSelectActive={isMultiSelectActive}
         ariaLabelledBy={titleId}
       />

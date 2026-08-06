@@ -21,9 +21,11 @@ use api_types::{
     IssueRelationship as ApiIssueRelationship, IssueRelationshipType, IssueSortField,
     IssueTag as ApiIssueTag, ListIssueAssigneesResponse, ListIssueRelationshipsResponse,
     ListIssueTagsResponse, ListIssuesResponse, ListProjectStatusesResponse, ListProjectsResponse,
-    ListPullRequestsResponse, ListTagsResponse, MutationResponse, Project as ApiProject,
-    ProjectStatus as ApiProjectStatus, PullRequest as ApiPullRequest, PullRequestStatus,
+    ListPullRequestsResponse, ListTagsResponse, MutationResponse, OrchestratorPromptResponse,
+    OrchestratorPromptSource, Project as ApiProject, ProjectStatus as ApiProjectStatus,
+    PullRequest as ApiPullRequest, PullRequestStatus, ResolvedOrchestratorPromptResponse,
     SearchIssuesRequest, SortDirection, Tag as ApiTag, UpdateIssueRequest,
+    UpdateOrchestratorPromptRequest,
 };
 use axum::{
     Router,
@@ -151,6 +153,10 @@ fn to_api_project(p: DbProject) -> ApiProject {
         color: p.color,
         sort_order: p.sort_order as i32,
         parent_id: p.parent_id,
+        // ADR-016: mirror local_kanban::to_api_project — the prompt body
+        // never ships on the list shape; the dedicated endpoints return
+        // the raw and resolved values.
+        has_orchestrator_prompt: !p.orchestrator_prompt.trim().is_empty(),
         created_at: p.created_at,
         updated_at: p.updated_at,
     }
@@ -841,11 +847,148 @@ async fn link_comment_attachments(
     Ok(ok(()))
 }
 
+// --- orchestrator prompts (ADR-016) -----------------------------------------
+//
+// Three endpoints, all envelope-wrapped so the MCP tool
+// (`get_orchestrator_prompt` in `crates/mcp/src/task_server/tools/orchestrator_prompt.rs`)
+// and the frontend editor (`projectsApi.*OrchestratorPrompt` in
+// `packages/web-core/src/shared/lib/api.ts`) can share one wire shape. The
+// editor fetches the raw value to seed its textarea; the MCP tool fetches the
+// resolved value to drive each tick.
+
+/// GET raw local value. The editor seeds its textarea from this.
+async fn get_project_orchestrator_prompt(
+    State(deployment): State<DeploymentImpl>,
+    Path(id): Path<Uuid>,
+) -> Result<ResponseJson<ApiResponse<OrchestratorPromptResponse>>, ApiError> {
+    get_project_orchestrator_prompt_with_pool(&deployment.db().pool, id).await
+}
+
+async fn get_project_orchestrator_prompt_with_pool(
+    pool: &sqlx::SqlitePool,
+    id: Uuid,
+) -> Result<ResponseJson<ApiResponse<OrchestratorPromptResponse>>, ApiError> {
+    let project = DbProject::find_by_id(pool, id)
+        .await?
+        .ok_or_else(|| ApiError::BadRequest("project not found".into()))?;
+    Ok(ok(OrchestratorPromptResponse {
+        project_id: project.id,
+        orchestrator_prompt: project.orchestrator_prompt,
+    }))
+}
+
+/// PUT replaces the prompt (REPLACE semantics — no deep-merge). Empty string
+/// clears.
+///
+/// Single round-trip: rely on `update_orchestrator_prompt`'s `RowNotFound`
+/// instead of a separate `find_by_id` existence check (E1: the preflight was a
+/// TOCTOU — between the check and the UPDATE another tx could DELETE the
+/// row, returning a 500).
+async fn put_project_orchestrator_prompt(
+    State(deployment): State<DeploymentImpl>,
+    Path(id): Path<Uuid>,
+    Json(req): Json<UpdateOrchestratorPromptRequest>,
+) -> Result<ResponseJson<ApiResponse<OrchestratorPromptResponse>>, ApiError> {
+    put_project_orchestrator_prompt_with_pool(&deployment.db().pool, id, req).await
+}
+
+async fn put_project_orchestrator_prompt_with_pool(
+    pool: &sqlx::SqlitePool,
+    id: Uuid,
+    req: UpdateOrchestratorPromptRequest,
+) -> Result<ResponseJson<ApiResponse<OrchestratorPromptResponse>>, ApiError> {
+    let updated = DbProject::update_orchestrator_prompt(pool, id, &req.orchestrator_prompt)
+        .await
+        .map_err(|err| match err {
+            sqlx::Error::RowNotFound => ApiError::BadRequest("project not found".into()),
+            other => ApiError::Database(other),
+        })?;
+    Ok(ok(OrchestratorPromptResponse {
+        project_id: updated.id,
+        orchestrator_prompt: updated.orchestrator_prompt,
+    }))
+}
+
+/// GET walked value + provenance. The MCP tool and the editor's
+/// "Inherited from {name}" badge both consume this shape (single source of
+/// truth).
+///
+/// Resolver double-read note: we deliberately skip a `find_by_id` existence
+/// preflight — `resolve_orchestrator_prompt` returns `("", None)` for a
+/// missing project (the row is simply absent when walked), the same shape
+/// it returns for an all-empty chain. Both collapse to `source = "default"`
+/// which is the correct answer for a missing row too (orchestrator uses
+/// built-in behavior; editor shows the "Using default behavior" badge).
+/// `Self_` vs `Ancestor` is distinguished without an extra read by comparing
+/// the resolver's `source_project_id` to the path's `id` — the resolver
+/// returns the id of the MOST-SPECIFIC (top-of-stack) prompt row, which is
+/// `Some(local_id)` only when the local row itself contributed a prompt.
+///
+/// ADR-016 (stack amendment): `orchestrator_prompt` is no longer a single
+/// walked value — it's the rendered stack (preamble + `[Board: …]` /
+/// `[Project: …]` sections) emitted by `resolve_orchestrator_prompt`. The
+/// `source_project_id` / `source` semantics are unchanged at the
+/// top-of-stack granularity (where the most-specific section came from).
+async fn resolve_project_orchestrator_prompt(
+    State(deployment): State<DeploymentImpl>,
+    Path(id): Path<Uuid>,
+) -> Result<ResponseJson<ApiResponse<ResolvedOrchestratorPromptResponse>>, ApiError> {
+    resolve_project_orchestrator_prompt_with_pool(&deployment.db().pool, id).await
+}
+
+async fn resolve_project_orchestrator_prompt_with_pool(
+    pool: &sqlx::SqlitePool,
+    id: Uuid,
+) -> Result<ResponseJson<ApiResponse<ResolvedOrchestratorPromptResponse>>, ApiError> {
+    let (prompt, source_project_id) = DbProject::resolve_orchestrator_prompt(pool, id).await?;
+    Ok(ok(ResolvedOrchestratorPromptResponse {
+        project_id: id,
+        orchestrator_prompt: prompt,
+        source_project_id,
+        source: resolve_source_kind(id, source_project_id),
+    }))
+}
+
+/// Map `(path_id, source_project_id)` to the wire `OrchestratorPromptSource`
+/// enum. Pulled out so the mapping can be unit-tested without standing up an
+/// axum handler. The resolver walks the chain collecting a stack of prompts;
+/// `source_project_id` is the id of the MOST-SPECIFIC (first / top-of-stack)
+/// prompt — i.e. the queried row if it had a prompt, else the nearest
+/// ancestor that did. If that id equals `path_id`, the local row is on the
+/// stack (`Self_`); if not, only ancestors contributed (`Ancestor`). `None`
+/// means no prompt at any scope (`Default`). This avoids the second
+/// `find_by_id` round-trip the original handler had.
+fn resolve_source_kind(path_id: Uuid, source_project_id: Option<Uuid>) -> OrchestratorPromptSource {
+    match source_project_id {
+        Some(source_id) if source_id == path_id => OrchestratorPromptSource::Self_,
+        Some(_) => OrchestratorPromptSource::Ancestor,
+        None => OrchestratorPromptSource::Default,
+    }
+}
+
 pub fn router(_deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     Router::new()
         .route("/projects", get(list_projects))
         .route("/project-statuses", get(list_project_statuses))
         .route("/project-tags", get(list_project_tags))
+        // ADR-016: orchestrator prompt endpoints. Envelope-wrapped because
+        // BOTH consumers (MCP `get_orchestrator_prompt`, frontend editor)
+        // speak the `ApiResponse` contract (see `routes/mod.rs` doc — the
+        // `/v1/*` router returns bare/MutationResponse shapes; `/api/*`
+        // returns `ApiResponse` envelopes).
+        //
+        // The `/resolve` sub-resource is registered on a separate static
+        // route because matchit resolves static segments before dynamic
+        // ones — keeping it on the same `/projects/{id}/orchestrator-prompt`
+        // route would make `/resolve` a candidate for `{id}`.
+        .route(
+            "/projects/{id}/orchestrator-prompt",
+            get(get_project_orchestrator_prompt).put(put_project_orchestrator_prompt),
+        )
+        .route(
+            "/projects/{id}/orchestrator-prompt/resolve",
+            get(resolve_project_orchestrator_prompt),
+        )
         .route("/issues", get(list_issues).post(create_issue))
         .route("/issues/search", post(search_issues))
         .route(
@@ -895,6 +1038,157 @@ mod tests {
             .unwrap();
         sqlx::migrate!("../db/migrations").run(&pool).await.unwrap();
         pool
+    }
+
+    #[tokio::test]
+    async fn orchestrator_prompt_routes_return_single_wrapped_envelopes() {
+        use api_types::UpdateOrchestratorPromptRequest;
+        use axum::{
+            Router,
+            body::{Body, to_bytes},
+            extract::{Json, Path, State},
+            http::{Request, StatusCode},
+            routing::get,
+        };
+        use serde_json::{Value, json};
+        use tower::ServiceExt;
+
+        async fn put_prompt(
+            State(pool): State<SqlitePool>,
+            Path(id): Path<Uuid>,
+            Json(req): Json<UpdateOrchestratorPromptRequest>,
+        ) -> Result<impl axum::response::IntoResponse, crate::error::ApiError> {
+            super::put_project_orchestrator_prompt_with_pool(&pool, id, req).await
+        }
+
+        async fn get_prompt(
+            State(pool): State<SqlitePool>,
+            Path(id): Path<Uuid>,
+        ) -> Result<impl axum::response::IntoResponse, crate::error::ApiError> {
+            super::get_project_orchestrator_prompt_with_pool(&pool, id).await
+        }
+
+        async fn resolve_prompt(
+            State(pool): State<SqlitePool>,
+            Path(id): Path<Uuid>,
+        ) -> Result<impl axum::response::IntoResponse, crate::error::ApiError> {
+            super::resolve_project_orchestrator_prompt_with_pool(&pool, id).await
+        }
+
+        let pool = pool().await;
+        let project_id = Uuid::new_v4();
+        DbProject::create(
+            &pool,
+            NewProject {
+                id: project_id,
+                name: "Prompt test",
+                key: Some("PROMPT"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let app = Router::new()
+            .route(
+                "/api/projects/{id}/orchestrator-prompt",
+                axum::routing::put(put_prompt).get(get_prompt),
+            )
+            .route(
+                "/api/projects/{id}/orchestrator-prompt/resolve",
+                get(resolve_prompt),
+            )
+            .with_state(pool);
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/api/projects/{project_id}/orchestrator-prompt"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        json!({ "orchestrator_prompt": "Ship safely" }).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(put_response.status(), StatusCode::OK);
+        let put_body: Value = serde_json::from_slice(
+            &to_bytes(put_response.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(put_body["data"]["project_id"], json!(project_id));
+        assert_eq!(put_body["data"]["orchestrator_prompt"], "Ship safely");
+        assert!(put_body["data"].get("data").is_none());
+
+        let get_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/api/projects/{project_id}/orchestrator-prompt"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(get_response.status(), StatusCode::OK);
+        let get_body: Value = serde_json::from_slice(
+            &to_bytes(get_response.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(get_body["data"]["project_id"], json!(project_id));
+        assert_eq!(get_body["data"]["orchestrator_prompt"], "Ship safely");
+        assert!(get_body["data"].get("data").is_none());
+
+        let resolve_response = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/api/projects/{project_id}/orchestrator-prompt/resolve"
+                    ))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resolve_response.status(), StatusCode::OK);
+        let resolve_body: Value = serde_json::from_slice(
+            &to_bytes(resolve_response.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(resolve_body["data"]["project_id"], json!(project_id));
+        // ADR-016 (stack amendment): resolve no longer returns the raw
+        // walked value — it returns the rendered stack (preamble +
+        // labeled sections). For a root project with its own prompt and
+        // no parent, the stack is exactly one `[Project: …]` section.
+        let resolved_prompt = resolve_body["data"]["orchestrator_prompt"]
+            .as_str()
+            .expect("orchestrator_prompt must be a JSON string (the rendered stack)");
+        assert!(
+            resolved_prompt.contains("[Project: Ship safely]"),
+            "root-only stack must contain the Project section; got:\n{resolved_prompt}"
+        );
+        assert!(
+            !resolved_prompt.contains("[Board:"),
+            "no board scope here → no Board section; got:\n{resolved_prompt}"
+        );
+        assert!(resolved_prompt.contains("MANDATORY"));
+        assert!(resolved_prompt.contains("<orchestrator_prompt_stack>"));
+        assert_eq!(resolve_body["data"]["source_project_id"], json!(project_id));
+        assert_eq!(resolve_body["data"]["source"], "self");
+        assert!(resolve_body["data"].get("data").is_none());
     }
 
     /// B-1 regression: the MCP `create_issue` path must produce a chain-prefixed
@@ -974,6 +1268,60 @@ mod tests {
             .route(
                 "/issues/{id}/pull-requests",
                 axum::routing::get(|| async {}),
+            )
+            .route(
+                "/projects/{id}/orchestrator-prompt",
+                axum::routing::get(|| async {}).put(|| async {}),
+            )
+            .route(
+                "/projects/{id}/orchestrator-prompt/resolve",
+                axum::routing::get(|| async {}),
             );
+    }
+
+    /// ADR-016: `resolve_source_kind` is the branchy bit of the resolve
+    /// handler — it must correctly distinguish `Self_` (local row supplied
+    /// the prompt), `Ancestor` (an ancestor did), and `Default` (no prompt
+    /// at any scope). The mapping now uses ONLY `(path_id,
+    /// source_project_id)` — no second `find_by_id` call — so the test
+    /// verifies that contract.
+    #[test]
+    fn resolve_source_kind_maps_path_and_source_to_wire_enum() {
+        use api_types::OrchestratorPromptSource;
+        let path_id = Uuid::new_v4();
+        let ancestor_id = Uuid::new_v4();
+
+        // Resolver returned the local row → `Self_`.
+        assert!(matches!(
+            super::resolve_source_kind(path_id, Some(path_id)),
+            OrchestratorPromptSource::Self_
+        ));
+
+        // Resolver returned an ancestor id (≠ path_id) → `Ancestor`.
+        assert!(matches!(
+            super::resolve_source_kind(path_id, Some(ancestor_id)),
+            OrchestratorPromptSource::Ancestor
+        ));
+
+        // Resolver returned nothing → `Default`.
+        assert!(matches!(
+            super::resolve_source_kind(path_id, None),
+            OrchestratorPromptSource::Default
+        ));
+
+        // Wire shape: the JSON value of `Self_` MUST rename to `"self"`
+        // (per ADR). Other variants lowercase naturally.
+        assert_eq!(
+            serde_json::to_value(OrchestratorPromptSource::Self_).unwrap(),
+            serde_json::json!("self")
+        );
+        assert_eq!(
+            serde_json::to_value(OrchestratorPromptSource::Ancestor).unwrap(),
+            serde_json::json!("ancestor")
+        );
+        assert_eq!(
+            serde_json::to_value(OrchestratorPromptSource::Default).unwrap(),
+            serde_json::json!("default")
+        );
     }
 }

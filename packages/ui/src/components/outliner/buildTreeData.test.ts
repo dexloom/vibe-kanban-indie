@@ -77,6 +77,10 @@ describe('buildTreeData', () => {
     // ADR-015: root's Workspaces section is now only rendered when the
     // aggregate is non-empty (mirrors the Unassigned gate). Seed one
     // workspace so the section appears.
+    // ADR-016: the orchestrator-prompt leaf is inserted between Tasks
+    // and child boards ONLY when the project has a prompt (added via the
+    // `+` menu). With no prompt and no child boards, the order is
+    // [Tasks, Workspaces].
     const tasks: ProjectTasksData = {
       statuses: [status('s1')],
       issues: [],
@@ -94,6 +98,8 @@ describe('buildTreeData', () => {
     if (projectNode.type !== 'project') return;
     const tasksSection = projectNode.children[0]!;
     const workspacesSection = projectNode.children[1]!;
+    expect(tasksSection.type).toBe('section');
+    expect(workspacesSection.type).toBe('section');
     if (
       tasksSection.type !== 'section' ||
       workspacesSection.type !== 'section'
@@ -546,8 +552,10 @@ describe('buildTreeData', () => {
 
   it('groups nested boards under their parent after the sections', () => {
     // ADR-015: Workspace section only renders when aggregate is non-empty.
-    // Seed a workspace so the section renders; ordering is
-    // [Tasks, ...childBoards, Workspaces].
+    // ADR-016: the orchestrator-prompt leaf is rendered ONLY when the
+    // project has a prompt (added via `+`). None of these projects have
+    // `hasOrchestratorPrompt`, so the order is [Tasks, ...childBoards,
+    // Workspaces].
     const input = baseInput({
       projects: [
         project('p-root', { name: 'root' }),
@@ -589,6 +597,66 @@ describe('buildTreeData', () => {
     const nestedAChildren = childA.children.filter((c) => c.type === 'project');
     expect(nestedAChildren).toHaveLength(1);
     expect(nestedAChildren[0]!.id).toBe('p-grand');
+  });
+
+  /// ADR-016: the orchestrator-prompt leaf is rendered ONLY when the
+  /// project has a prompt (added via the `+` menu). A project with a
+  /// prompt gets the node between its Tasks and child boards; a project
+  /// WITHOUT one gets no node at all.
+  it('renders orchestrator-prompt leaf only when the project has a prompt', () => {
+    const input = baseInput({
+      projects: [
+        project('p-root', {
+          name: 'root',
+          hasOrchestratorPrompt: true,
+        }),
+        project('p-child', {
+          name: 'child',
+          parentId: 'p-root',
+          hasOrchestratorPrompt: false,
+        }),
+      ],
+    });
+    const tree = buildTreeData(input);
+    const root = tree[0]!;
+    if (root.type !== 'project') throw new Error('expected project');
+
+    // Root has a prompt: [Tasks, OrchestratorPrompt, child]. No workspaces
+    // section (no aggregates). The prompt row sits AT index 1.
+    const promptNode = root.children[1]!;
+    if (promptNode.type !== 'orchestrator-prompt') {
+      throw new Error('expected orchestrator-prompt at index 1');
+    }
+    expect(promptNode.projectId).toBe('p-root');
+    expect(promptNode.id).toBe('p-root:orchestrator-prompt');
+    expect(promptNode.hasPrompt).toBe(true);
+    expect(promptNode.label).toBe('sidebar.orchestratorPrompt');
+
+    // Child board has NO prompt → its children are [Tasks] only (no
+    // orchestrator-prompt node, no grand-child).
+    const childProject = root.children[2]!;
+    if (childProject.type !== 'project') {
+      throw new Error('expected nested project child');
+    }
+    const childHasPromptNode = childProject.children.some(
+      (c) => c.type === 'orchestrator-prompt'
+    );
+    expect(childHasPromptNode).toBe(false);
+  });
+
+  /// ADR-016: missing `hasOrchestratorPrompt` defaults to `false` (the
+  /// dot stays dark). This keeps pre-ADR-016 test fixtures working
+  /// without a forced rewrite — the buildTreeData path is the only
+  /// reader today.
+  it('omits the orchestrator-prompt node when hasOrchestratorPrompt is missing/false', () => {
+    const input = baseInput();
+    const tree = buildTreeData(input);
+    const root = tree[0]!;
+    if (root.type !== 'project') throw new Error('expected project');
+    const hasPromptNode = root.children.some(
+      (c) => c.type === 'orchestrator-prompt'
+    );
+    expect(hasPromptNode).toBe(false);
   });
 
   it('F-1: sibling projects sort by sortOrder (not UUID), so reorder survives refresh', () => {
@@ -752,10 +820,12 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
     expect(wsSection).toBeUndefined();
   });
 
-  it('root children order is [Tasks, ...childBoards, Workspaces]', () => {
+  it('root children order is [Tasks, OrchestratorPrompt, ...childBoards, Workspaces]', () => {
+    // ADR-016: the prompt node sits between Tasks and child boards, but
+    // ONLY when the root has a prompt (added via `+`).
     const input = baseInput({
       projects: [
-        project('p-root'),
+        project('p-root', { hasOrchestratorPrompt: true }),
         project('p-child-a', { parentId: 'p-root' }),
         project('p-child-b', { parentId: 'p-root' }),
       ],
@@ -768,10 +838,14 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
       if (c.type === 'section') {
         return `section:${c.kind}`;
       }
+      if (c.type === 'orchestrator-prompt') {
+        return `orchestrator-prompt:${c.projectId}`;
+      }
       return `project:${c.id}`;
     });
     expect(tags).toEqual([
       'section:tasks',
+      'orchestrator-prompt:p-root',
       'project:p-child-a',
       'project:p-child-b',
       'section:workspaces',

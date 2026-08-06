@@ -32,7 +32,12 @@ export type AppDestination =
       projectId: string;
       draftId: string;
       hostId?: string;
-    };
+    }
+  // ADR-016: full-pane editor for the per-project orchestrator prompt.
+  // `sidebarMode: 'closed'` — the editor IS the page, not a kanban side
+  // panel. Wired to the prompt row's onActivate and the `+` menu's
+  // "Orchestrator prompt" item.
+  | { kind: 'project-orchestrator-prompt'; projectId: string };
 
 export type NavigationTransition = {
   replace?: boolean;
@@ -74,6 +79,10 @@ export interface AppNavigation {
     draftId: string,
     transition?: NavigationTransition
   ): void;
+  goToProjectOrchestratorPrompt(
+    projectId: string,
+    transition?: NavigationTransition
+  ): void;
 }
 
 type ProjectDestinationKind =
@@ -81,7 +90,8 @@ type ProjectDestinationKind =
   | 'project-issue'
   | 'project-issue-workspace'
   | 'project-issue-workspace-create'
-  | 'project-workspace-create';
+  | 'project-workspace-create'
+  | 'project-orchestrator-prompt';
 
 type WorkspaceDestinationKind =
   | 'workspaces'
@@ -141,6 +151,7 @@ export function isProjectDestination(
     case 'project-issue-workspace':
     case 'project-issue-workspace-create':
     case 'project-workspace-create':
+    case 'project-orchestrator-prompt':
       return true;
     default:
       return false;
@@ -258,6 +269,9 @@ export function resolveKanbanRouteState(
 
     switch (projectDestination.kind) {
       case 'project':
+      case 'project-orchestrator-prompt':
+        // ADR-016: the editor IS the page. `sidebarMode: 'closed'`
+        // collapses the kanban side panel — there's no card to edit.
         return 'closed';
       case 'project-issue':
         return 'issue';
@@ -280,6 +294,12 @@ export function resolveKanbanRouteState(
     isCreateMode: false,
     isWorkspaceCreateMode,
     hasInvalidWorkspaceCreateDraftId,
-    isPanelOpen: !!projectDestination && projectDestination.kind !== 'project',
+    // ADR-016: the orchestrator-prompt editor is a full-pane route —
+    // the kanban side panel is OFF. Only issue/workspace flows open
+    // the panel.
+    isPanelOpen:
+      !!projectDestination &&
+      projectDestination.kind !== 'project' &&
+      projectDestination.kind !== 'project-orchestrator-prompt',
   };
 }

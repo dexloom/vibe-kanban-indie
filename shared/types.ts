@@ -10,7 +10,15 @@ export type Project = { id: string, name: string,
 /**
  * Per-project issue prefix (e.g. "ACME" -> "ACME-5"). Defaults from name.
  */
-key: string | null, color: string, sort_order: bigint, parent_id: string | null, default_agent_working_dir: string | null, remote_project_id: string | null, created_at: Date, updated_at: Date, };
+key: string | null, color: string, sort_order: bigint, parent_id: string | null, default_agent_working_dir: string | null, remote_project_id: string | null, 
+/**
+ * ADR-016: per-project / per-board orchestrator prompt. Empty string =
+ * "no prompt at this scope"; resolution walks the parent chain and
+ * composes every non-empty value into a labeled stack (board-first /
+ * project-last). UPGRADE-SAFE: the migration sets DEFAULT '' so
+ * existing rows are valid without rewrite.
+ */
+orchestrator_prompt: string, created_at: Date, updated_at: Date, };
 
 export type UpdateRepo = { display_name?: string | null, setup_script?: string | null, cleanup_script?: string | null, archive_script?: string | null, copy_files?: string | null, parallel_setup_script?: boolean | null, dev_server_script?: string | null, default_target_branch?: string | null, default_working_dir?: string | null, };
 
@@ -605,6 +613,14 @@ severity: string, message: string,
  * The artifact the finding points at, when known (e.g. "spec.md").
  */
 artifact?: string, };
+
+export type UpdateOrchestratorPromptRequest = { orchestrator_prompt: string, };
+
+export type OrchestratorPromptResponse = { project_id: string, orchestrator_prompt: string, };
+
+export type ResolvedOrchestratorPromptResponse = { project_id: string, orchestrator_prompt: string, source_project_id: string | null, source: OrchestratorPromptSource, };
+
+export type OrchestratorPromptSource = "self" | "ancestor" | "default";
 
 export type UnifiedPrComment = { "comment_type": "general", id: string, author: string, author_association: string | null, body: string, created_at: string, url: string | null, } | { "comment_type": "review", id: bigint, author: string, author_association: string | null, body: string, created_at: string, url: string | null, path: string, line: bigint | null, side: string | null, diff_hunk: string | null, };
 

@@ -11,6 +11,13 @@ path = "src/bin/vibe_kanban_mcp.rs"
 [lints.clippy]
 uninlined-format-args = "allow"
 
+[dev-dependencies]
+# ADR-016: `axum` is a dev-only dep used by the `mcp_get_orchestrator_prompt_decodes_envelope`
+# regression test to stand up a mock HTTP server that returns the `ApiResponse` envelope.
+# Keeping it out of `[dependencies]` so the MCP runtime binary doesn't pay the axum cost.
+axum.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "time"] }
+
 [dependencies]
 api-types.workspace = true
 db.workspace = true

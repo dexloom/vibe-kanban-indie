@@ -161,6 +161,11 @@ fn generate_types_content() -> String {
         api_types::ConstitutionContent::decl(),
         api_types::SpecKitFeatureStatus::decl(),
         api_types::AnalyzeFinding::decl(),
+        // ADR-016 — board-scoped orchestrator prompts.
+        api_types::UpdateOrchestratorPromptRequest::decl(),
+        api_types::OrchestratorPromptResponse::decl(),
+        api_types::ResolvedOrchestratorPromptResponse::decl(),
+        api_types::OrchestratorPromptSource::decl(),
         git_host::UnifiedPrComment::decl(),
         git_host::ProviderKind::decl(),
         git_host::PullRequestDetail::decl(),
