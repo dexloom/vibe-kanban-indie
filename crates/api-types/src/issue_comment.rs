@@ -9,7 +9,6 @@ use crate::some_if_present;
 pub struct IssueComment {
     pub id: Uuid,
     pub issue_id: Uuid,
-    pub author_id: Option<Uuid>,
     pub parent_id: Option<Uuid>,
     pub message: String,
     pub created_at: DateTime<Utc>,

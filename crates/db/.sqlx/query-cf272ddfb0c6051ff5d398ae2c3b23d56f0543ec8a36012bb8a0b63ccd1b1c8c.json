@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id as \"id!: Uuid\",\n                      issue_id as \"issue_id!: Uuid\",\n                      author_id as \"author_id!: Uuid\",\n                      parent_id as \"parent_id: Uuid\",\n                      message,\n                      created_at as \"created_at!: DateTime<Utc>\",\n                      updated_at as \"updated_at!: DateTime<Utc>\"\n               FROM issue_comments WHERE issue_id = $1 ORDER BY created_at ASC",
+  "query": "SELECT id as \"id!: Uuid\",\n                      issue_id as \"issue_id!: Uuid\",\n                      parent_id as \"parent_id: Uuid\",\n                      message,\n                      created_at as \"created_at!: DateTime<Utc>\",\n                      updated_at as \"updated_at!: DateTime<Utc>\"\n               FROM issue_comments WHERE issue_id = $1 ORDER BY created_at ASC",
   "describe": {
     "columns": [
       {
@@ -14,28 +14,23 @@
         "type_info": "Blob"
       },
       {
-        "name": "author_id!: Uuid",
+        "name": "parent_id: Uuid",
         "ordinal": 2,
         "type_info": "Blob"
       },
       {
-        "name": "parent_id: Uuid",
-        "ordinal": 3,
-        "type_info": "Blob"
-      },
-      {
         "name": "message",
-        "ordinal": 4,
+        "ordinal": 3,
         "type_info": "Text"
       },
       {
         "name": "created_at!: DateTime<Utc>",
-        "ordinal": 5,
+        "ordinal": 4,
         "type_info": "Text"
       },
       {
         "name": "updated_at!: DateTime<Utc>",
-        "ordinal": 6,
+        "ordinal": 5,
         "type_info": "Text"
       }
     ],
@@ -45,12 +40,11 @@
     "nullable": [
       true,
       false,
-      false,
       true,
       false,
       false,
       false
     ]
   },
-  "hash": "89bde96c94356c7728746d3f6484d396a0e87242606b058282ea67bb9db49acc"
+  "hash": "cf272ddfb0c6051ff5d398ae2c3b23d56f0543ec8a36012bb8a0b63ccd1b1c8c"
 }

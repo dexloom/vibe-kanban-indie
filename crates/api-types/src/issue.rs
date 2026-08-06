@@ -34,7 +34,6 @@ pub struct Issue {
     pub parent_issue_id: Option<Uuid>,
     pub parent_issue_sort_order: Option<f64>,
     pub extension_metadata: Value,
-    pub creator_user_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -172,9 +171,6 @@ pub struct SearchIssuesRequest {
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub simple_id: Option<String>,
-    #[ts(optional)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub assignee_user_id: Option<Uuid>,
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tag_id: Option<Uuid>,

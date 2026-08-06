@@ -208,8 +208,6 @@ pub struct DraftIssueData {
     #[serde(default)]
     pub priority: Option<String>,
     #[serde(default)]
-    pub assignee_ids: Vec<String>,
-    #[serde(default)]
     pub tag_ids: Vec<String>,
     #[serde(default)]
     pub create_draft_workspace: bool,

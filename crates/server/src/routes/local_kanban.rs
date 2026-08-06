@@ -11,11 +11,10 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use api_types::{
-    CreateIssueAssigneeRequest, CreateIssueCommentRequest, CreateIssueRequest,
-    CreateIssueTagRequest, CreateProjectRequest, CreateProjectStatusRequest, CreateTagRequest,
-    DeleteResponse, IssueComment, IssuePriority, ListIssueCommentsQuery, ListIssueCommentsResponse,
-    ListUsersResponse, MutationResponse, Project as ApiProject, UpdateIssueRequest,
-    UpdateProjectRequest, UpdateProjectStatusRequest, UpdateTagRequest, UserWithProfile,
+    CreateIssueCommentRequest, CreateIssueRequest, CreateIssueTagRequest, CreateProjectRequest,
+    CreateProjectStatusRequest, CreateTagRequest, DeleteResponse, IssueComment, IssuePriority,
+    ListIssueCommentsQuery, ListIssueCommentsResponse, MutationResponse, Project as ApiProject,
+    UpdateIssueRequest, UpdateProjectRequest, UpdateProjectStatusRequest, UpdateTagRequest,
     Workspace as ApiWorkspace,
 };
 use axum::{
@@ -28,8 +27,7 @@ use db::models::{
     issue::{Issue as DbIssue, IssueUpdate, NewIssue},
     issue_comment::{IssueComment as DbIssueComment, NewIssueComment},
     issue_workspace::{IssueWorkspace, LinkedWorkspaceRow},
-    kanban_tag::{IssueAssignee as DbIssueAssignee, IssueTag as DbIssueTag, KanbanTag},
-    local_user::{LOCAL_USER_ID, LocalUser},
+    kanban_tag::{IssueTag as DbIssueTag, KanbanTag},
     project::{self, NewProject, Project as DbProject, ProjectUpdate},
     project_repo::ProjectRepo,
     project_status::ProjectStatus as DbProjectStatus,
@@ -107,13 +105,6 @@ async fn fb_projects(
     Ok(ResponseJson(json!({ "projects": mapped })))
 }
 
-async fn fb_users(
-    State(deployment): State<DeploymentImpl>,
-) -> Result<ResponseJson<Value>, ApiError> {
-    let users = LocalUser::list_all(&deployment.db().pool).await?;
-    Ok(ResponseJson(json!({ "users": users })))
-}
-
 /// `GET /v1/projects/{id}/repos` — the repos linked to a project (via the
 /// `project_repos` table; managed by the link/unlink endpoints below). Used by
 /// the TUI to default a card-launched workspace to the project's repo. Returns
@@ -187,14 +178,6 @@ async fn fb_issue_tags(
     Ok(ResponseJson(json!({ "issue_tags": rows })))
 }
 
-async fn fb_issue_assignees(
-    State(deployment): State<DeploymentImpl>,
-    Query(q): Query<ProjectScope>,
-) -> Result<ResponseJson<Value>, ApiError> {
-    let rows = DbIssueAssignee::list_by_project(&deployment.db().pool, q.project_id).await?;
-    Ok(ResponseJson(json!({ "issue_assignees": rows })))
-}
-
 /// Synthesize the wire `Workspace` shape from a local issue<->workspace link.
 /// `id` and `local_workspace_id` are both the local workspace id so the frontend
 /// can map the row back to its local workspace; stats are left empty.
@@ -202,7 +185,6 @@ fn to_api_workspace(row: LinkedWorkspaceRow) -> ApiWorkspace {
     ApiWorkspace {
         id: row.workspace_id,
         project_id: row.project_id,
-        owner_user_id: LOCAL_USER_ID,
         issue_id: Some(row.issue_id),
         local_workspace_id: Some(row.workspace_id),
         name: row.name,
@@ -234,30 +216,6 @@ async fn fb_user_workspaces(
     let rows = IssueWorkspace::list_linked_all(&deployment.db().pool).await?;
     let mapped: Vec<ApiWorkspace> = rows.into_iter().map(to_api_workspace).collect();
     Ok(ResponseJson(json!({ "workspaces": mapped })))
-}
-
-// ---------------------------------------------------------------------------
-// Users — tenant-less replacement for the org-scoped members endpoint. The
-// assignee dropdown (and any other consumer that used to need
-// `/v1/organizations/{id}/members`) now reads all local users here.
-// ---------------------------------------------------------------------------
-
-async fn list_users(
-    State(deployment): State<DeploymentImpl>,
-) -> Result<ResponseJson<ListUsersResponse>, ApiError> {
-    let users = LocalUser::list_all(&deployment.db().pool).await?;
-    let users: Vec<UserWithProfile> = users
-        .into_iter()
-        .map(|u| UserWithProfile {
-            user_id: u.id,
-            first_name: u.first_name,
-            last_name: u.last_name,
-            username: u.username,
-            email: Some(u.email),
-            avatar_url: None,
-        })
-        .collect();
-    Ok(ResponseJson(ListUsersResponse { users }))
 }
 
 // ---------------------------------------------------------------------------
@@ -788,7 +746,6 @@ async fn create_issue(
             parent_issue_id: req.parent_issue_id,
             parent_issue_sort_order: req.parent_issue_sort_order,
             extension_metadata: &ext,
-            creator_user_id: Some(LOCAL_USER_ID),
             key: &key,
         },
     )
@@ -944,7 +901,6 @@ async fn fb_issue_comments(
         .map(|row| IssueComment {
             id: row.id,
             issue_id: row.issue_id,
-            author_id: Some(row.author_id),
             parent_id: row.parent_id,
             message: row.message,
             created_at: row.created_at,
@@ -963,7 +919,6 @@ async fn create_issue_comment(
         NewIssueComment {
             id: req.id.unwrap_or_else(Uuid::new_v4),
             issue_id: req.issue_id,
-            author_id: LOCAL_USER_ID,
             parent_id: req.parent_id,
             message: &req.message,
         },
@@ -972,7 +927,6 @@ async fn create_issue_comment(
     Ok(mutation(IssueComment {
         id: row.id,
         issue_id: row.issue_id,
-        author_id: Some(row.author_id),
         parent_id: row.parent_id,
         message: row.message,
         created_at: row.created_at,
@@ -996,7 +950,6 @@ async fn update_issue_comment(
     Ok(mutation(IssueComment {
         id: row.id,
         issue_id: row.issue_id,
-        author_id: Some(row.author_id),
         parent_id: row.parent_id,
         message: row.message,
         created_at: row.created_at,
@@ -1069,23 +1022,6 @@ async fn delete_issue_tag(
     Ok(deleted())
 }
 
-async fn create_issue_assignee(
-    State(deployment): State<DeploymentImpl>,
-    ResponseJson(req): ResponseJson<CreateIssueAssigneeRequest>,
-) -> Result<ResponseJson<MutationResponse<DbIssueAssignee>>, ApiError> {
-    let id = req.id.unwrap_or_else(Uuid::new_v4);
-    let row = DbIssueAssignee::create(&deployment.db().pool, id, req.issue_id, req.user_id).await?;
-    Ok(mutation(row))
-}
-
-async fn delete_issue_assignee(
-    State(deployment): State<DeploymentImpl>,
-    Path(id): Path<Uuid>,
-) -> Result<ResponseJson<DeleteResponse>, ApiError> {
-    DbIssueAssignee::delete(&deployment.db().pool, id).await?;
-    Ok(deleted())
-}
-
 pub fn router() -> Router<DeploymentImpl> {
     Router::new()
         .route("/v1/fallback/projects", get(fb_projects))
@@ -1097,13 +1033,10 @@ pub fn router() -> Router<DeploymentImpl> {
             "/v1/projects/{id}/repos/{repo_id}",
             axum::routing::delete(unlink_project_repo),
         )
-        .route("/v1/fallback/users", get(fb_users))
-        .route("/v1/users", get(list_users))
         .route("/v1/fallback/project_statuses", get(fb_statuses))
         .route("/v1/fallback/issues", get(fb_issues))
         .route("/v1/fallback/tags", get(fb_tags))
         .route("/v1/fallback/issue_tags", get(fb_issue_tags))
-        .route("/v1/fallback/issue_assignees", get(fb_issue_assignees))
         .route("/v1/fallback/issue_comments", get(fb_issue_comments))
         .route(
             "/v1/fallback/project_workspaces",
@@ -1138,11 +1071,6 @@ pub fn router() -> Router<DeploymentImpl> {
         .route(
             "/v1/issue_tags/{id}",
             axum::routing::delete(delete_issue_tag),
-        )
-        .route("/v1/issue_assignees", post(create_issue_assignee))
-        .route(
-            "/v1/issue_assignees/{id}",
-            axum::routing::delete(delete_issue_assignee),
         )
         .route("/v1/issue_comments", post(create_issue_comment))
         .route(
@@ -1457,7 +1385,6 @@ mod tests {
                 parent_issue_id: None,
                 parent_issue_sort_order: None,
                 extension_metadata: "{}",
-                creator_user_id: None,
                 key: &key,
             },
         )

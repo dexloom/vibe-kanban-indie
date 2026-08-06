@@ -37,7 +37,6 @@ impl ToolError {
 
 mod approvals;
 mod context;
-mod issue_assignees;
 mod issue_relationships;
 mod issue_tags;
 mod orchestrator_prompt;
@@ -51,7 +50,6 @@ impl McpServer {
         Self::context_tools_router()
             + Self::workspaces_tools_router()
             + Self::repos_tools_router()
-            + Self::issue_assignees_tools_router()
             + Self::issue_tags_tools_router()
             + Self::issue_relationships_tools_router()
             + Self::task_attempts_tools_router()

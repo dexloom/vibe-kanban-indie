@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use uuid::Uuid;
@@ -137,76 +136,6 @@ impl IssueTag {
 
     pub async fn delete(pool: &SqlitePool, id: Uuid) -> Result<u64, sqlx::Error> {
         let result = sqlx::query!("DELETE FROM issue_tags WHERE id = $1", id)
-            .execute(pool)
-            .await?;
-        Ok(result.rows_affected())
-    }
-}
-
-/// Issue assignee. Served at /v1/fallback/issue_assignees.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IssueAssignee {
-    pub id: Uuid,
-    pub issue_id: Uuid,
-    pub user_id: Uuid,
-    pub assigned_at: DateTime<Utc>,
-}
-
-impl IssueAssignee {
-    pub async fn list_by_project(
-        pool: &SqlitePool,
-        project_id: Uuid,
-    ) -> Result<Vec<Self>, sqlx::Error> {
-        sqlx::query_as!(
-            IssueAssignee,
-            r#"SELECT a.id as "id!: Uuid", a.issue_id as "issue_id!: Uuid",
-                      a.user_id as "user_id!: Uuid", a.assigned_at as "assigned_at!: DateTime<Utc>"
-               FROM issue_assignees a
-               JOIN issues i ON i.id = a.issue_id
-               WHERE i.project_id = $1"#,
-            project_id
-        )
-        .fetch_all(pool)
-        .await
-    }
-
-    pub async fn list_by_issue(
-        pool: &SqlitePool,
-        issue_id: Uuid,
-    ) -> Result<Vec<Self>, sqlx::Error> {
-        sqlx::query_as!(
-            IssueAssignee,
-            r#"SELECT id as "id!: Uuid", issue_id as "issue_id!: Uuid",
-                      user_id as "user_id!: Uuid", assigned_at as "assigned_at!: DateTime<Utc>"
-               FROM issue_assignees WHERE issue_id = $1"#,
-            issue_id
-        )
-        .fetch_all(pool)
-        .await
-    }
-
-    pub async fn create(
-        pool: &SqlitePool,
-        id: Uuid,
-        issue_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<Self, sqlx::Error> {
-        sqlx::query_as!(
-            IssueAssignee,
-            r#"INSERT INTO issue_assignees (id, issue_id, user_id)
-               VALUES ($1, $2, $3)
-               RETURNING id as "id!: Uuid", issue_id as "issue_id!: Uuid",
-                         user_id as "user_id!: Uuid", assigned_at as "assigned_at!: DateTime<Utc>""#,
-            id,
-            issue_id,
-            user_id,
-        )
-        .fetch_one(pool)
-        .await
-    }
-
-    pub async fn delete(pool: &SqlitePool, id: Uuid) -> Result<u64, sqlx::Error> {
-        let result = sqlx::query!("DELETE FROM issue_assignees WHERE id = $1", id)
             .execute(pool)
             .await?;
         Ok(result.rows_affected())

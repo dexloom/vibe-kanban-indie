@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "UPDATE issues\n               SET status_id = $2,\n                   title = $3,\n                   description = $4,\n                   priority = $5,\n                   start_date = $6,\n                   target_date = $7,\n                   completed_at = $8,\n                   sort_order = $9,\n                   parent_issue_id = $10,\n                   parent_issue_sort_order = $11,\n                   extension_metadata = $12,\n                   updated_at = datetime('now', 'subsec')\n               WHERE id = $1\n               RETURNING id as \"id!: Uuid\",\n                         project_id as \"project_id!: Uuid\",\n                         issue_number,\n                         simple_id,\n                         status_id as \"status_id!: Uuid\",\n                         title,\n                         description,\n                         priority,\n                         start_date as \"start_date: DateTime<Utc>\",\n                         target_date as \"target_date: DateTime<Utc>\",\n                         completed_at as \"completed_at: DateTime<Utc>\",\n                         sort_order as \"sort_order!: f64\",\n                         parent_issue_id as \"parent_issue_id: Uuid\",\n                         parent_issue_sort_order as \"parent_issue_sort_order: f64\",\n                         extension_metadata,\n                         creator_user_id as \"creator_user_id: Uuid\",\n                         created_at as \"created_at!: DateTime<Utc>\",\n                         updated_at as \"updated_at!: DateTime<Utc>\"",
+  "query": "SELECT id as \"id!: Uuid\",\n                      project_id as \"project_id!: Uuid\",\n                      issue_number,\n                      simple_id,\n                      status_id as \"status_id!: Uuid\",\n                      title,\n                      description,\n                      priority,\n                      start_date as \"start_date: DateTime<Utc>\",\n                      target_date as \"target_date: DateTime<Utc>\",\n                      completed_at as \"completed_at: DateTime<Utc>\",\n                      sort_order as \"sort_order!: f64\",\n                      parent_issue_id as \"parent_issue_id: Uuid\",\n                      parent_issue_sort_order as \"parent_issue_sort_order: f64\",\n                      extension_metadata,\n                      created_at as \"created_at!: DateTime<Utc>\",\n                      updated_at as \"updated_at!: DateTime<Utc>\"\n               FROM issues\n               WHERE id = $1",
   "describe": {
     "columns": [
       {
@@ -79,23 +79,18 @@
         "type_info": "Text"
       },
       {
-        "name": "creator_user_id: Uuid",
-        "ordinal": 15,
-        "type_info": "Blob"
-      },
-      {
         "name": "created_at!: DateTime<Utc>",
-        "ordinal": 16,
+        "ordinal": 15,
         "type_info": "Text"
       },
       {
         "name": "updated_at!: DateTime<Utc>",
-        "ordinal": 17,
+        "ordinal": 16,
         "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 12
+      "Right": 1
     },
     "nullable": [
       true,
@@ -113,10 +108,9 @@
       true,
       true,
       false,
-      true,
       false,
       false
     ]
   },
-  "hash": "18ffabd411a844897a3cb898e738d5dc190f38bb759b59aa4dee96a8b94a1f92"
+  "hash": "4971005493cb496577354196894fbb687ab2f11cfb6dc46250a6884ff220e7a7"
 }

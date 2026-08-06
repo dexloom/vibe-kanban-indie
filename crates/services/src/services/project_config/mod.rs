@@ -14,12 +14,10 @@
 //!   non-destructively upsert it into the DB — match by `id`, then by name/path;
 //!   never deletes existing rows or links — then apply any embedded executor
 //!   profiles.
-//! - [`ensure_local_user`]: ensure the predefined local user exists at startup.
 
 use std::path::{Path, PathBuf};
 
 use db::models::{
-    local_user::LocalUser,
     project::{self, NewProject, Project, ProjectUpdate},
     project_repo::ProjectRepo,
     project_status::ProjectStatus,
@@ -31,7 +29,6 @@ use sqlx::SqlitePool;
 use toml_edit::{Array, ArrayOfTables, Document, Item, Table, value};
 use uuid::Uuid;
 
-const DEFAULT_LOCAL_USER_NAME: &str = "Local";
 const DEFAULT_PROJECT_COLOR: &str = "#6366f1";
 const DEFAULT_STATUSES: &[&str] = &["Todo", "In Progress", "In Review", "Done"];
 const STATUS_PALETTE: &[&str] = &["#94a3b8", "#3b82f6", "#a855f7", "#22c55e", "#f59e0b"];
@@ -39,9 +36,6 @@ const STATUS_PALETTE: &[&str] = &["#94a3b8", "#3b82f6", "#a855f7", "#22c55e", "#
 /// Top-level shape of an exported/imported config document.
 #[derive(Debug, Default, Deserialize)]
 struct ProjectsConfig {
-    /// Display name for the predefined local user (issue creator/assignee).
-    #[serde(default)]
-    local_user_name: Option<String>,
     /// Executor profiles (agents) as the JSON the profiles API round-trips.
     #[serde(default)]
     profiles_json: Option<String>,
@@ -121,13 +115,6 @@ fn expand_tilde(input: &str) -> String {
     input.to_string()
 }
 
-/// Ensure the single predefined local user exists. Called at startup now that the
-/// TOML reconcile (which previously did this) no longer runs.
-pub async fn ensure_local_user(pool: &SqlitePool) -> anyhow::Result<()> {
-    LocalUser::ensure(pool, DEFAULT_LOCAL_USER_NAME).await?;
-    Ok(())
-}
-
 // ---------------------------------------------------------------------------
 // Import (TOML -> DB), non-destructive upsert.
 // ---------------------------------------------------------------------------
@@ -157,12 +144,6 @@ pub async fn import_from_str(pool: &SqlitePool, raw: &str) -> anyhow::Result<Imp
     let config: ProjectsConfig =
         toml::from_str(raw).map_err(|e| anyhow::anyhow!("Failed to parse config: {e}"))?;
     let mut summary = ImportSummary::default();
-
-    let user_name = config
-        .local_user_name
-        .as_deref()
-        .unwrap_or(DEFAULT_LOCAL_USER_NAME);
-    LocalUser::ensure(pool, user_name).await?;
 
     for repo_cfg in &config.repos {
         match import_repo(pool, repo_cfg).await {
@@ -366,11 +347,6 @@ pub async fn export_to_string(pool: &SqlitePool) -> anyhow::Result<String> {
 
     // Top-level scalar keys MUST be emitted before any array-of-tables, otherwise
     // they would parse as belonging to the last table. Insert them first.
-    if let Some(user) = LocalUser::list_all(pool).await?.into_iter().next()
-        && let Some(name) = user.first_name.or(user.username)
-    {
-        doc["local_user_name"] = value(name);
-    }
 
     let profiles = ExecutorConfigs::get_cached();
     match serde_json::to_string(&profiles) {
@@ -515,17 +491,15 @@ mod tests {
         pool
     }
 
-    /// Exported config must be valid TOML: top-level scalar keys (local_user_name,
-    /// profiles_json) have to precede the `[[repo]]`/`[[project]]` arrays, or they
-    /// would parse into the last table.
+    /// Exported config must be valid TOML: top-level scalar keys
+    /// (`profiles_json`) have to precede the `[[repo]]`/`[[project]]` arrays, or
+    /// they would parse into the last table.
     #[tokio::test]
     async fn export_is_valid_toml_with_scalars_first() {
         let pool = pool().await;
-        ensure_local_user(&pool).await.unwrap();
         let toml = export_to_string(&pool).await.unwrap();
         // Round-trips back through the import shape without error.
         let _cfg: ProjectsConfig = toml::from_str(&toml).unwrap();
-        assert!(toml.contains("local_user_name"));
         assert!(toml.contains("profiles_json"));
     }
 
@@ -534,7 +508,6 @@ mod tests {
     #[tokio::test]
     async fn export_import_round_trip() {
         let src = pool().await;
-        ensure_local_user(&src).await.unwrap();
 
         // A repo on disk-agnostic path + a project that links it with custom cols.
         let repo = Repo::find_or_create(&src, std::path::Path::new("/tmp/acme"), "Acme")
@@ -603,7 +576,6 @@ mod tests {
     #[tokio::test]
     async fn import_upserts_existing_by_id() {
         let pool = pool().await;
-        ensure_local_user(&pool).await.unwrap();
         let id = Uuid::new_v4();
         Project::create(
             &pool,

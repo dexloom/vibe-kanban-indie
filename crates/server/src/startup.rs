@@ -170,14 +170,6 @@ pub async fn initialize_deployment(
         .await
         .map_err(DeploymentError::from)?;
 
-    // Ensure the predefined local user exists. Project/repo config lives in the
-    // DB (source of truth); TOML is only an explicit export/import format now.
-    if let Err(e) =
-        services::services::project_config::ensure_local_user(&deployment.db().pool).await
-    {
-        tracing::warn!("ensure local user failed: {e}");
-    }
-
     // Preload global executor options cache for all executors with DEFAULT presets
     tokio::spawn(async move {
         executors::executors::utils::preload_global_executor_options_cache().await;

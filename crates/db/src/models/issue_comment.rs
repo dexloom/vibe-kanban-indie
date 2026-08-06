@@ -6,7 +6,6 @@ use uuid::Uuid;
 pub struct IssueComment {
     pub id: Uuid,
     pub issue_id: Uuid,
-    pub author_id: Uuid,
     pub parent_id: Option<Uuid>,
     pub message: String,
     pub created_at: DateTime<Utc>,
@@ -16,7 +15,6 @@ pub struct IssueComment {
 pub struct NewIssueComment<'a> {
     pub id: Uuid,
     pub issue_id: Uuid,
-    pub author_id: Uuid,
     pub parent_id: Option<Uuid>,
     pub message: &'a str,
 }
@@ -30,7 +28,6 @@ impl IssueComment {
         let query = format!(
             r#"SELECT id,
                       issue_id,
-                      author_id,
                       parent_id,
                       message,
                       created_at,
@@ -40,7 +37,6 @@ impl IssueComment {
         sqlx::query_as::<
             _,
             (
-                Uuid,
                 Uuid,
                 Uuid,
                 Option<Uuid>,
@@ -54,10 +50,9 @@ impl IssueComment {
         .await
         .map(|row| {
             row.map(
-                |(id, issue_id, author_id, parent_id, message, created_at, updated_at)| Self {
+                |(id, issue_id, parent_id, message, created_at, updated_at)| Self {
                     id,
                     issue_id,
-                    author_id,
                     parent_id,
                     message,
                     created_at,
@@ -79,7 +74,6 @@ impl IssueComment {
             Self,
             r#"SELECT id as "id!: Uuid",
                       issue_id as "issue_id!: Uuid",
-                      author_id as "author_id!: Uuid",
                       parent_id as "parent_id: Uuid",
                       message,
                       created_at as "created_at!: DateTime<Utc>",
@@ -94,18 +88,16 @@ impl IssueComment {
     pub async fn create(pool: &SqlitePool, new: NewIssueComment<'_>) -> Result<Self, sqlx::Error> {
         sqlx::query_as!(
             Self,
-            r#"INSERT INTO issue_comments (id, issue_id, author_id, parent_id, message)
-               VALUES ($1, $2, $3, $4, $5)
+            r#"INSERT INTO issue_comments (id, issue_id, parent_id, message)
+               VALUES ($1, $2, $3, $4)
                RETURNING id as "id!: Uuid",
                          issue_id as "issue_id!: Uuid",
-                         author_id as "author_id!: Uuid",
                          parent_id as "parent_id: Uuid",
                          message,
                          created_at as "created_at!: DateTime<Utc>",
                          updated_at as "updated_at!: DateTime<Utc>""#,
             new.id,
             new.issue_id,
-            new.author_id,
             new.parent_id,
             new.message
         )
@@ -129,7 +121,7 @@ impl IssueComment {
             r#"UPDATE issue_comments SET message = $2, parent_id = $3,
                     updated_at = datetime('now', 'subsec') WHERE id = $1
                RETURNING id as "id!: Uuid", issue_id as "issue_id!: Uuid",
-                         author_id as "author_id!: Uuid", parent_id as "parent_id: Uuid",
+                         parent_id as "parent_id: Uuid",
                          message, created_at as "created_at!: DateTime<Utc>",
                          updated_at as "updated_at!: DateTime<Utc>""#,
             id,

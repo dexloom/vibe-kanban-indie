@@ -8,7 +8,6 @@ pub mod issue_comment;
 pub mod issue_relationship;
 pub mod issue_workspace;
 pub mod kanban_tag;
-pub mod local_user;
 pub mod merge;
 pub mod project;
 pub mod project_repo;

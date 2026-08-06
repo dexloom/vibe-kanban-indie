@@ -56,7 +56,7 @@ export type DraftIssueData = { title: string, description: string | null, status
 /**
  * Stored as the string value of IssuePriority (e.g. "urgent", "high", "medium", "low")
  */
-priority: string | null, assignee_ids: Array<string>, tag_ids: Array<string>, create_draft_workspace: boolean, 
+priority: string | null, tag_ids: Array<string>, create_draft_workspace: boolean, 
 /**
  * The project this draft belongs to
  */
@@ -266,12 +266,6 @@ export type DiffChangeKind = "added" | "deleted" | "modified" | "renamed" | "cop
 
 export type ApiResponse<T, E = T> = { success: boolean, data: T | null, error_data: E | null, message: string | null, };
 
-export type LoginStatus = { "status": "loggedout" } | { "status": "loggedin", user_id: string | null, };
-
-export type UserWithProfile = { user_id: string, first_name: string | null, last_name: string | null, username: string | null, email: string | null, avatar_url: string | null, };
-
-export type ListUsersResponse = { users: Array<UserWithProfile>, };
-
 export type RegisterRepoRequest = { path: string, display_name: string | null, };
 
 export type InitRepoRequest = { parent_path: string, folder_name: string, };
@@ -306,7 +300,7 @@ config_path: string, };
 
 export type TelegramTestResponse = { ok: boolean, error: string | null, };
 
-export type UserSystemInfo = { version: string, config: Config, login_status: LoginStatus, environment: Environment, 
+export type UserSystemInfo = { version: string, config: Config, environment: Environment, 
 /**
  * Capabilities supported per executor (e.g., { "CLAUDE_CODE": ["SESSION_FORK"] })
  */

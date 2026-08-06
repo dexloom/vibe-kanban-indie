@@ -16,11 +16,10 @@ use std::{
 };
 
 use api_types::{
-    CreateIssueAssigneeRequest, CreateIssueRelationshipRequest, CreateIssueRequest,
-    CreateIssueTagRequest, Issue as ApiIssue, IssueAssignee as ApiIssueAssignee, IssuePriority,
-    IssueRelationship as ApiIssueRelationship, IssueRelationshipType, IssueSortField,
-    IssueTag as ApiIssueTag, ListIssueAssigneesResponse, ListIssueRelationshipsResponse,
-    ListIssueTagsResponse, ListIssuesResponse, ListProjectStatusesResponse, ListProjectsResponse,
+    CreateIssueRelationshipRequest, CreateIssueRequest, CreateIssueTagRequest, Issue as ApiIssue,
+    IssuePriority, IssueRelationship as ApiIssueRelationship, IssueRelationshipType,
+    IssueSortField, IssueTag as ApiIssueTag, ListIssueRelationshipsResponse, ListIssueTagsResponse,
+    ListIssuesResponse, ListProjectStatusesResponse, ListProjectsResponse,
     ListPullRequestsResponse, ListTagsResponse, MutationResponse, OrchestratorPromptResponse,
     OrchestratorPromptSource, Project as ApiProject, ProjectStatus as ApiProjectStatus,
     PullRequest as ApiPullRequest, PullRequestStatus, ResolvedOrchestratorPromptResponse,
@@ -39,8 +38,7 @@ use db::models::{
     issue::{Issue as DbIssue, NewIssue},
     issue_relationship::IssueRelationship as DbIssueRelationship,
     issue_workspace::IssueWorkspace,
-    kanban_tag::{IssueAssignee as DbIssueAssignee, IssueTag as DbIssueTag, KanbanTag},
-    local_user::LOCAL_USER_ID,
+    kanban_tag::{IssueTag as DbIssueTag, KanbanTag},
     merge::MergeStatus,
     project::Project as DbProject,
     project_status::ProjectStatus as DbProjectStatus,
@@ -190,7 +188,6 @@ fn to_api_issue(i: DbIssue) -> ApiIssue {
         parent_issue_id: i.parent_issue_id,
         parent_issue_sort_order: i.parent_issue_sort_order,
         extension_metadata: i.extension_metadata,
-        creator_user_id: i.creator_user_id,
         created_at: i.created_at,
         updated_at: i.updated_at,
     }
@@ -210,15 +207,6 @@ fn to_api_issue_tag(t: DbIssueTag) -> ApiIssueTag {
         id: t.id,
         issue_id: t.issue_id,
         tag_id: t.tag_id,
-    }
-}
-
-fn to_api_assignee(a: DbIssueAssignee) -> ApiIssueAssignee {
-    ApiIssueAssignee {
-        id: a.id,
-        issue_id: a.issue_id,
-        user_id: a.user_id,
-        assigned_at: a.assigned_at,
     }
 }
 
@@ -365,15 +353,6 @@ async fn search_issues(
     }
     if let Some(ref simple_id) = req.simple_id {
         issues.retain(|i| i.simple_id.eq_ignore_ascii_case(simple_id));
-    }
-    if let Some(user_id) = req.assignee_user_id {
-        let assigned: HashSet<Uuid> = DbIssueAssignee::list_by_project(pool, req.project_id)
-            .await?
-            .into_iter()
-            .filter(|a| a.user_id == user_id)
-            .map(|a| a.issue_id)
-            .collect();
-        issues.retain(|i| assigned.contains(&i.id));
     }
     let tag_filter: Option<HashSet<Uuid>> = match (req.tag_id, &req.tag_ids) {
         (Some(t), _) => Some(std::iter::once(t).collect()),
@@ -626,7 +605,6 @@ async fn create_issue(
             parent_issue_id: req.parent_issue_id,
             parent_issue_sort_order: req.parent_issue_sort_order,
             extension_metadata: &ext,
-            creator_user_id: Some(LOCAL_USER_ID),
             key: &key,
         },
     )
@@ -708,37 +686,6 @@ async fn delete_issue_tag(
     Path(id): Path<Uuid>,
 ) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
     DbIssueTag::delete(&deployment.db().pool, id).await?;
-    Ok(ok(()))
-}
-
-// --- issue assignees --------------------------------------------------------
-
-async fn list_issue_assignees(
-    State(deployment): State<DeploymentImpl>,
-    Query(q): Query<IssueScope>,
-) -> Result<ResponseJson<ApiResponse<ListIssueAssigneesResponse>>, ApiError> {
-    let issue_assignees = DbIssueAssignee::list_by_issue(&deployment.db().pool, q.issue_id)
-        .await?
-        .into_iter()
-        .map(to_api_assignee)
-        .collect();
-    Ok(ok(ListIssueAssigneesResponse { issue_assignees }))
-}
-
-async fn create_issue_assignee(
-    State(deployment): State<DeploymentImpl>,
-    Json(req): Json<CreateIssueAssigneeRequest>,
-) -> Result<ResponseJson<ApiResponse<MutationResponse<ApiIssueAssignee>>>, ApiError> {
-    let id = req.id.unwrap_or_else(Uuid::new_v4);
-    let row = DbIssueAssignee::create(&deployment.db().pool, id, req.issue_id, req.user_id).await?;
-    Ok(mutated(to_api_assignee(row)))
-}
-
-async fn delete_issue_assignee(
-    State(deployment): State<DeploymentImpl>,
-    Path(id): Path<Uuid>,
-) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
-    DbIssueAssignee::delete(&deployment.db().pool, id).await?;
     Ok(ok(()))
 }
 
@@ -1003,11 +950,6 @@ pub fn router(_deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .route("/comments/{id}/attachments", post(link_comment_attachments))
         .route("/issue-tags", get(list_issue_tags).post(create_issue_tag))
         .route("/issue-tags/{id}", delete(delete_issue_tag))
-        .route(
-            "/issue-assignees",
-            get(list_issue_assignees).post(create_issue_assignee),
-        )
-        .route("/issue-assignees/{id}", delete(delete_issue_assignee))
         .route(
             "/issue-relationships",
             get(list_issue_relationships).post(create_issue_relationship),

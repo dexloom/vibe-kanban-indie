@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id as \"id!: Uuid\",\n                      project_id as \"project_id!: Uuid\",\n                      issue_number,\n                      simple_id,\n                      status_id as \"status_id!: Uuid\",\n                      title,\n                      description,\n                      priority,\n                      start_date as \"start_date: DateTime<Utc>\",\n                      target_date as \"target_date: DateTime<Utc>\",\n                      completed_at as \"completed_at: DateTime<Utc>\",\n                      sort_order as \"sort_order!: f64\",\n                      parent_issue_id as \"parent_issue_id: Uuid\",\n                      parent_issue_sort_order as \"parent_issue_sort_order: f64\",\n                      extension_metadata,\n                      creator_user_id as \"creator_user_id: Uuid\",\n                      created_at as \"created_at!: DateTime<Utc>\",\n                      updated_at as \"updated_at!: DateTime<Utc>\"\n               FROM issues\n               WHERE project_id = $1\n               ORDER BY sort_order ASC",
+  "query": "SELECT id as \"id!: Uuid\",\n                      project_id as \"project_id!: Uuid\",\n                      issue_number,\n                      simple_id,\n                      status_id as \"status_id!: Uuid\",\n                      title,\n                      description,\n                      priority,\n                      start_date as \"start_date: DateTime<Utc>\",\n                      target_date as \"target_date: DateTime<Utc>\",\n                      completed_at as \"completed_at: DateTime<Utc>\",\n                      sort_order as \"sort_order!: f64\",\n                      parent_issue_id as \"parent_issue_id: Uuid\",\n                      parent_issue_sort_order as \"parent_issue_sort_order: f64\",\n                      extension_metadata,\n                      created_at as \"created_at!: DateTime<Utc>\",\n                      updated_at as \"updated_at!: DateTime<Utc>\"\n               FROM issues\n               WHERE project_id = $1\n               ORDER BY sort_order ASC",
   "describe": {
     "columns": [
       {
@@ -79,18 +79,13 @@
         "type_info": "Text"
       },
       {
-        "name": "creator_user_id: Uuid",
-        "ordinal": 15,
-        "type_info": "Blob"
-      },
-      {
         "name": "created_at!: DateTime<Utc>",
-        "ordinal": 16,
+        "ordinal": 15,
         "type_info": "Text"
       },
       {
         "name": "updated_at!: DateTime<Utc>",
-        "ordinal": 17,
+        "ordinal": 16,
         "type_info": "Text"
       }
     ],
@@ -113,10 +108,9 @@
       true,
       true,
       false,
-      true,
       false,
       false
     ]
   },
-  "hash": "5599fedccc394374382f6dc8c9c2de032609fad1543e0c5b699ddd6006ba6913"
+  "hash": "259fd612d4b444d170401d682783186ab9b8d2b5797720f55298c7caf11f003d"
 }
