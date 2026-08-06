@@ -14,9 +14,9 @@ use api_types::{
     CreateIssueAssigneeRequest, CreateIssueCommentRequest, CreateIssueRequest,
     CreateIssueTagRequest, CreateProjectRequest, CreateProjectStatusRequest, CreateTagRequest,
     DeleteResponse, IssueComment, IssuePriority, ListIssueCommentsQuery, ListIssueCommentsResponse,
-    ListMembersResponse, ListOrganizationsResponse, MemberRole, MutationResponse,
-    OrganizationMemberWithProfile, OrganizationWithRole, Project as ApiProject, UpdateIssueRequest,
-    UpdateProjectRequest, UpdateProjectStatusRequest, UpdateTagRequest, Workspace as ApiWorkspace,
+    ListUsersResponse, MutationResponse, Project as ApiProject, UpdateIssueRequest,
+    UpdateProjectRequest, UpdateProjectStatusRequest, UpdateTagRequest, UserWithProfile,
+    Workspace as ApiWorkspace,
 };
 use axum::{
     Router,
@@ -24,14 +24,13 @@ use axum::{
     response::Json as ResponseJson,
     routing::{get, patch, post},
 };
-use chrono::Utc;
 use db::models::{
     issue::{Issue as DbIssue, IssueUpdate, NewIssue},
     issue_comment::{IssueComment as DbIssueComment, NewIssueComment},
     issue_workspace::{IssueWorkspace, LinkedWorkspaceRow},
     kanban_tag::{IssueAssignee as DbIssueAssignee, IssueTag as DbIssueTag, KanbanTag},
     local_user::{LOCAL_USER_ID, LocalUser},
-    project::{self, LOCAL_ORGANIZATION_ID, NewProject, Project as DbProject, ProjectUpdate},
+    project::{self, NewProject, Project as DbProject, ProjectUpdate},
     project_repo::ProjectRepo,
     project_status::ProjectStatus as DbProjectStatus,
     repo::Repo as DbRepo,
@@ -78,7 +77,6 @@ fn priority_str(p: &IssuePriority) -> &'static str {
 fn to_api_project(p: DbProject) -> ApiProject {
     ApiProject {
         id: p.id,
-        organization_id: LOCAL_ORGANIZATION_ID,
         name: p.name,
         color: p.color,
         sort_order: p.sort_order as i32,
@@ -239,36 +237,19 @@ async fn fb_user_workspaces(
 }
 
 // ---------------------------------------------------------------------------
-// Organizations — a single synthetic local org so the org-scoped frontend
-// shell resolves without any cloud account.
+// Users — tenant-less replacement for the org-scoped members endpoint. The
+// assignee dropdown (and any other consumer that used to need
+// `/v1/organizations/{id}/members`) now reads all local users here.
 // ---------------------------------------------------------------------------
 
-async fn list_organizations() -> ResponseJson<ListOrganizationsResponse> {
-    let now = Utc::now();
-    ResponseJson(ListOrganizationsResponse {
-        organizations: vec![OrganizationWithRole {
-            id: LOCAL_ORGANIZATION_ID,
-            name: "Local".to_string(),
-            slug: "local".to_string(),
-            is_personal: false,
-            issue_prefix: "LOCAL".to_string(),
-            created_at: now,
-            updated_at: now,
-            user_role: MemberRole::Admin,
-        }],
-    })
-}
-
-async fn list_org_members(
+async fn list_users(
     State(deployment): State<DeploymentImpl>,
-) -> Result<ResponseJson<ListMembersResponse>, ApiError> {
+) -> Result<ResponseJson<ListUsersResponse>, ApiError> {
     let users = LocalUser::list_all(&deployment.db().pool).await?;
-    let members = users
+    let users: Vec<UserWithProfile> = users
         .into_iter()
-        .map(|u| OrganizationMemberWithProfile {
+        .map(|u| UserWithProfile {
             user_id: u.id,
-            role: MemberRole::Admin,
-            joined_at: u.created_at,
             first_name: u.first_name,
             last_name: u.last_name,
             username: u.username,
@@ -276,7 +257,7 @@ async fn list_org_members(
             avatar_url: None,
         })
         .collect();
-    Ok(ResponseJson(ListMembersResponse { members }))
+    Ok(ResponseJson(ListUsersResponse { users }))
 }
 
 // ---------------------------------------------------------------------------
@@ -1107,8 +1088,6 @@ async fn delete_issue_assignee(
 
 pub fn router() -> Router<DeploymentImpl> {
     Router::new()
-        .route("/v1/organizations", get(list_organizations))
-        .route("/v1/organizations/{org_id}/members", get(list_org_members))
         .route("/v1/fallback/projects", get(fb_projects))
         .route(
             "/v1/projects/{id}/repos",
@@ -1119,6 +1098,7 @@ pub fn router() -> Router<DeploymentImpl> {
             axum::routing::delete(unlink_project_repo),
         )
         .route("/v1/fallback/users", get(fb_users))
+        .route("/v1/users", get(list_users))
         .route("/v1/fallback/project_statuses", get(fb_statuses))
         .route("/v1/fallback/issues", get(fb_issues))
         .route("/v1/fallback/tags", get(fb_tags))

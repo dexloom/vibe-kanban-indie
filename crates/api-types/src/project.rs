@@ -8,7 +8,6 @@ use crate::some_if_present;
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct Project {
     pub id: Uuid,
-    pub organization_id: Uuid,
     pub name: String,
     pub color: String,
     pub sort_order: i32,
@@ -37,7 +36,6 @@ pub struct CreateProjectRequest {
     /// Using client-generated IDs enables stable optimistic updates.
     #[ts(optional)]
     pub id: Option<Uuid>,
-    pub organization_id: Uuid,
     pub name: String,
     pub color: String,
     #[ts(optional)]
@@ -57,9 +55,7 @@ pub struct UpdateProjectRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct ListProjectsQuery {
-    pub organization_id: Uuid,
-}
+pub struct ListProjectsQuery {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ListProjectsResponse {

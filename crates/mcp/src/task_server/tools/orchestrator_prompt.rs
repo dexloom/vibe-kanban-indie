@@ -150,7 +150,6 @@ mod tests {
             base_url,
             tool_router: ToolRouter::default(),
             context: Some(McpContext {
-                organization_id: None,
                 project_id: None,
                 issue_id: None,
                 orchestrator_session_id: Some(Uuid::new_v4()),

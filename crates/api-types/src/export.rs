@@ -4,8 +4,7 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ExportRequest {
-    pub organization_id: Uuid,
-    /// If empty, exports all projects in the organization.
+    /// If empty, exports all projects.
     pub project_ids: Vec<Uuid>,
     pub include_attachments: bool,
 }

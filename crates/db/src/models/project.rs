@@ -4,11 +4,6 @@ use sqlx::{Executor, FromRow, SqlitePool};
 use ts_rs::TS;
 use uuid::Uuid;
 
-/// Synthetic organisation id used for all local projects. The hosted product
-/// scopes projects by organisation; locally there is a single implicit org so
-/// the frontend's org-scoped shapes resolve without any cloud account.
-pub const LOCAL_ORGANIZATION_ID: Uuid = Uuid::from_u128(0xA001);
-
 /// Project-key derivation, single source of truth. Caller passes the project
 /// `name`; this strips non-alphanumeric chars, uppercases the first four
 /// surviving chars, and falls back to `"PRJ"` when nothing is left.

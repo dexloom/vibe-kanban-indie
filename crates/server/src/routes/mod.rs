@@ -38,7 +38,6 @@ pub mod frontend;
 pub mod health;
 pub mod kanban;
 pub mod local_kanban;
-pub mod organizations;
 pub mod pipelines;
 pub mod preview;
 pub mod recurrent;
@@ -64,7 +63,6 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .merge(execution_processes::router(&deployment))
         .merge(tags::router(&deployment))
         .merge(telegram::router())
-        .merge(organizations::router())
         .merge(filesystem::router())
         .merge(repo::router())
         .merge(events::router(&deployment))

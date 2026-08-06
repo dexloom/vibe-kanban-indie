@@ -35,7 +35,6 @@ pub enum NotificationGroupKind {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct Notification {
     pub id: Uuid,
-    pub organization_id: Uuid,
     pub user_id: Uuid,
     pub notification_type: NotificationType,
     pub payload: NotificationPayload,

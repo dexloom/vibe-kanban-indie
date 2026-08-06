@@ -42,7 +42,7 @@ use db::models::{
     kanban_tag::{IssueAssignee as DbIssueAssignee, IssueTag as DbIssueTag, KanbanTag},
     local_user::LOCAL_USER_ID,
     merge::MergeStatus,
-    project::{LOCAL_ORGANIZATION_ID, Project as DbProject},
+    project::{Project as DbProject},
     project_status::ProjectStatus as DbProjectStatus,
     pull_request::PullRequest as DbPullRequest,
     session::Session,
@@ -148,7 +148,6 @@ fn priority_rank(p: Option<&str>) -> u8 {
 fn to_api_project(p: DbProject) -> ApiProject {
     ApiProject {
         id: p.id,
-        organization_id: LOCAL_ORGANIZATION_ID,
         name: p.name,
         color: p.color,
         sort_order: p.sort_order as i32,

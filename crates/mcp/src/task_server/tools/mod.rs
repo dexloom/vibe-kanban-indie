@@ -41,7 +41,6 @@ mod issue_assignees;
 mod issue_relationships;
 mod issue_tags;
 mod orchestrator_prompt;
-mod organizations;
 mod repos;
 mod sessions;
 mod task_attempts;
@@ -51,7 +50,6 @@ impl McpServer {
     pub fn global_mode_router() -> rmcp::handler::server::tool::ToolRouter<Self> {
         Self::context_tools_router()
             + Self::workspaces_tools_router()
-            + Self::organizations_tools_router()
             + Self::repos_tools_router()
             + Self::issue_assignees_tools_router()
             + Self::issue_tags_tools_router()
@@ -234,20 +232,6 @@ impl McpServer {
         ))
     }
 
-    // Resolves an organization_id from an explicit parameter or context, falling
-    // back to the single implicit local organization.
-    fn resolve_organization_id(&self, explicit: Option<Uuid>) -> Result<Uuid, ToolError> {
-        if let Some(id) = explicit {
-            return Ok(id);
-        }
-        if let Some(ctx) = &self.context
-            && let Some(id) = ctx.organization_id
-        {
-            return Ok(id);
-        }
-        Ok(super::LOCAL_ORGANIZATION_ID)
-    }
-
     // Links a workspace to a remote issue by fetching issue.project_id and calling link endpoint.
     async fn link_workspace_to_issue(
         &self,
@@ -397,7 +381,6 @@ mod tests {
             base_url: "http://127.0.0.1:3000".to_string(),
             tool_router: ToolRouter::default(),
             context: Some(McpContext {
-                organization_id: None,
                 project_id: None,
                 issue_id: None,
                 orchestrator_session_id: Some(session_id),
@@ -438,7 +421,6 @@ mod tests {
     fn global_context_omits_orchestrator_session_id_from_serialized_output() {
         install_rustls_provider();
         let context = McpContext {
-            organization_id: None,
             project_id: None,
             issue_id: None,
             orchestrator_session_id: None,
