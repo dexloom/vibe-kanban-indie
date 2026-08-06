@@ -1,4 +1,5 @@
 import { cn } from '../../lib/cn';
+import { DIM_ROW, HOVER_ROW, TINT_ROW, tintStyle } from './layout';
 import { TreeRow } from './TreeRow';
 import { useDragActive, useDragCandidate } from './dragState';
 import { useDropTarget } from '../dnd';
@@ -41,8 +42,8 @@ export function StatusNodeRow({
         style={style}
         showCaret={status.children.length > 0}
         rowClassName={cn(
-          'text-xs font-medium uppercase tracking-wide text-low transition-opacity hover:bg-tertiary/60',
-          dimmed && 'opacity-60',
+          `text-xs font-medium uppercase tracking-wide text-low ${TINT_ROW} ${HOVER_ROW}`,
+          dimmed && DIM_ROW,
           isDragActive && !isCandidate && 'rounded-sm bg-tertiary/40',
           isDragActive && isCandidate && 'rounded-sm bg-brand/20'
         )}
@@ -50,7 +51,7 @@ export function StatusNodeRow({
         <div className="flex items-center gap-1">
           <span
             className="truncate"
-            style={tintColor ? { color: `hsl(${tintColor} / 0.8)` } : undefined}
+            style={tintStyle(tintColor)}
           >
             {status.name}
           </span>

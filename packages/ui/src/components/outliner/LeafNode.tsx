@@ -1,4 +1,5 @@
 import { cn } from '../../lib/cn';
+import { DIM_ROW, HOVER_ROW, TINT_ROW, tintStyle } from './layout';
 import { WorkspaceActivityText } from '../WorkspaceActivityText';
 import { TreeRow } from './TreeRow';
 import { formatRelativeElapsed } from './format';
@@ -38,17 +39,17 @@ export function OutlinerLeafNode({
       dragHandle={dragHandle}
       isActive={isActive}
       rowClassName={cn(
-        'text-sm leading-tight transition-opacity',
+        `text-sm leading-tight ${TINT_ROW}`,
         isActive
-          ? 'text-high font-semibold hover:bg-tertiary/60'
-          : 'text-normal font-light hover:bg-tertiary/60 hover:text-high',
-        dimmed && 'opacity-60'
+          ? `text-high font-semibold ${HOVER_ROW}`
+          : `text-normal font-light ${HOVER_ROW} hover:text-high`,
+        dimmed && DIM_ROW
       )}
     >
       <div className="flex min-w-0 flex-col justify-center gap-0">
         <span
           className="flex min-w-0 items-baseline gap-1.5"
-          style={tintColor ? { color: `hsl(${tintColor} / 0.8)` } : undefined}
+          style={tintStyle(tintColor)}
         >
           <span className="truncate">{ws.name}</span>
           {elapsed && (

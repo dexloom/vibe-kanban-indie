@@ -1,4 +1,5 @@
 import { cn } from '../../lib/cn';
+import { DIM_ROW, HOVER_ROW, TINT_ROW, tintStyle } from './layout';
 import { TreeRow } from './TreeRow';
 import type { BucketNode, TreeNodeRenderProps } from './types';
 
@@ -24,14 +25,14 @@ export function OutlinerBucketNode({
       dragHandle={dragHandle}
       onRowClick={() => node.toggle()}
       rowClassName={cn(
-        'text-xs font-medium uppercase tracking-wide text-low transition-opacity hover:bg-tertiary/60',
-        dimmed && 'opacity-60'
+        `text-xs font-medium uppercase tracking-wide text-low ${TINT_ROW} ${HOVER_ROW}`,
+        dimmed && DIM_ROW
       )}
     >
       <div className="flex items-center gap-1">
         <span
           className="truncate"
-          style={tintColor ? { color: `hsl(${tintColor} / 0.8)` } : undefined}
+          style={tintStyle(tintColor)}
         >
           {bucket.name}
         </span>

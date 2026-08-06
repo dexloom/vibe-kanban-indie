@@ -20,6 +20,7 @@ import { OutlinerLeafNode } from './LeafNode';
 import { StatusNodeRow } from './StatusNodeRow';
 import { TasksSectionNode } from './TasksSectionNode';
 import { TreeRow } from './TreeRow';
+import { DIM_ROW, HOVER_ROW, TINT_ROW, tintStyle } from './layout';
 import type {
   BucketNode,
   CardNode,
@@ -141,9 +142,9 @@ function ProjectTreeNode(
         isExpandable || isActive ? 'font-bold' : 'font-normal',
         isActive
           ? 'bg-tertiary text-high'
-          : 'text-normal hover:bg-tertiary/60',
-        dimmed && 'opacity-60',
-        isSource && 'opacity-50 transition-opacity',
+          : `text-normal ${HOVER_ROW}`,
+        dimmed && DIM_ROW,
+        isSource && `opacity-50 ${TINT_ROW}`,
         isDragActive && !isUnassigned && !isCandidate && 'bg-tertiary/40',
         isDragActive && isCandidate && 'bg-brand/20'
       )}
@@ -164,14 +165,11 @@ function ProjectTreeNode(
         </span>
         <span
           className="truncate"
-          style={{
-            // ADR-016 usability: the active project keeps its full color;
-            // everything else uses its own project's color. Projects outside
-            // the active subtree are additionally dimmed (opacity on the row).
-            color: tintColor
-              ? `hsl(${tintColor} / ${isActive ? 1 : 0.8})`
-              : `hsl(${project.color})`,
-          }}
+          style={
+            tintColor
+              ? tintStyle(tintColor, isActive ? 1 : 0.8)
+              : { color: `hsl(${project.color})` }
+          }
         >
           {project.name}
         </span>
@@ -250,13 +248,13 @@ function SectionTreeNode(
       dragHandle={dragHandle}
       onRowClick={() => node.toggle()}
       rowClassName={cn(
-        'text-sm font-medium text-low transition-opacity hover:bg-tertiary/60',
-        dimmed && 'opacity-60'
+        `text-sm font-medium text-low ${TINT_ROW} ${HOVER_ROW}`,
+        dimmed && DIM_ROW
       )}
     >
       <span
         className="truncate"
-        style={tintColor ? { color: `hsl(${tintColor} / 0.8)` } : undefined}
+        style={tintStyle(tintColor)}
       >
         {node.data.label}
       </span>
@@ -300,8 +298,8 @@ function OrchestratorPromptTreeNode(
       dragHandle={dragHandle}
       isActive={isActive}
       rowClassName={cn(
-        'rounded-md text-sm text-low transition-[color,opacity] hover:bg-tertiary/60 hover:text-normal',
-        dimmed && 'opacity-60'
+        `rounded-md text-sm text-low transition-[color,opacity] ${HOVER_ROW} hover:text-normal`,
+        dimmed && DIM_ROW
       )}
     >
       <div className="flex items-center gap-1">
@@ -312,7 +310,7 @@ function OrchestratorPromptTreeNode(
         />
         <span
           className="truncate"
-          style={tintColor ? { color: `hsl(${tintColor} / 0.8)` } : undefined}
+          style={tintStyle(tintColor)}
         >
           {data.label}
         </span>
@@ -362,7 +360,11 @@ export function TreeNodeRouter(
   // subtree are dimmed so the working scope stands out.
   const tint = nearestProjectTint(node, activeProjectId);
   const tintColor = tint?.color ?? null;
-  const dimmed = tint !== null && !tint.inActiveSubtree;
+  // Dim rows only when a project is actually selected AND this node is
+  // outside its subtree. With no active project (workspace/settings
+  // routes) nothing is dimmed — the whole tree stays readable.
+  const dimmed =
+    activeProjectId !== null && (tint === null || !tint.inActiveSubtree);
   switch (node.data.type) {
     case 'project':
       return (

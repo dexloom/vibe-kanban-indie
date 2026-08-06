@@ -1,6 +1,7 @@
 import { SpinnerIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/cn';
+import { DIM_ROW, HOVER_ROW, TINT_ROW, tintStyle } from './layout';
 import { TreeRow } from './TreeRow';
 import type {
   TasksSectionNode as TasksSectionNodeData,
@@ -28,14 +29,14 @@ export function TasksSectionNode({
       dragHandle={dragHandle}
       showCaret={section.children.length > 0 || section.isLoading}
       rowClassName={cn(
-        'text-sm font-medium text-low transition-opacity hover:bg-tertiary/60',
-        dimmed && 'opacity-60'
+        `text-sm font-medium text-low ${TINT_ROW} ${HOVER_ROW}`,
+        dimmed && DIM_ROW
       )}
     >
       <div className="flex items-center gap-1">
         <span
           className="truncate"
-          style={tintColor ? { color: `hsl(${tintColor} / 0.8)` } : undefined}
+          style={tintStyle(tintColor)}
         >
           {section.label}
         </span>
