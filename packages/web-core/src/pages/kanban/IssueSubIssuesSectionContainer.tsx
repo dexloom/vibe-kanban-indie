@@ -16,6 +16,8 @@ import type { SectionAction } from '@vibe/ui/components/CollapsibleSectionHeader
 
 interface IssueSubIssuesSectionContainerProps {
   issueId: string;
+  /** Overrides the route projectId (for contexts without route params, e.g. the Create Issue modal). */
+  projectId?: string;
 }
 
 /**
@@ -25,8 +27,10 @@ interface IssueSubIssuesSectionContainerProps {
  */
 export function IssueSubIssuesSectionContainer({
   issueId,
+  projectId: projectIdProp,
 }: IssueSubIssuesSectionContainerProps) {
-  const { projectId } = useParams({ strict: false });
+  const { projectId: routeProjectId } = useParams({ strict: false });
+  const projectId = projectIdProp ?? routeProjectId;
   const appNavigation = useAppNavigation();
   const { executeAction, openSubIssueSelection, openPrioritySelection } =
     useActions();

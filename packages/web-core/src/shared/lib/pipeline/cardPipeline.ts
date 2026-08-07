@@ -283,7 +283,7 @@ export function composePipelineBlock(
  * Strip any previously-appended pipeline block from a description, returning the
  * remaining prose with trailing whitespace trimmed.
  */
-function stripPipelineBlock(description: string): string {
+export function stripPipelineBlock(description: string): string {
   const start = description.indexOf(PIPELINE_START);
   if (start === -1) return description;
   const endIdx = description.indexOf(PIPELINE_END, start);

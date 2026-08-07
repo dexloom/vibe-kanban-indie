@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  PROJECT_WORKSPACES_SHAPE,
-  type IssuePriority,
-  type Project,
-} from 'shared/remote-types';
+import { type IssuePriority, type Project } from 'shared/remote-types';
 import { Group, Layout, Panel, Separator } from 'react-resizable-panels';
 import { useProjects } from '@/shared/hooks/useProjects';
 import { useProjectsContext } from '@/shared/providers/ProjectProvider';
@@ -22,23 +18,6 @@ import {
 } from '@/shared/stores/useUiPreferencesStore';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentKanbanRouteState } from '@/shared/hooks/useCurrentKanbanRouteState';
-import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
-import { useWorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
-import { useProjectWorkspaceCreateDraft } from '@/shared/hooks/useProjectWorkspaceCreateDraft';
-import { workspacesApi } from '@/shared/lib/api';
-import { getWorkspaceDefaults } from '@/shared/lib/workspaceDefaults';
-import {
-  buildLinkedIssueCreateState,
-  buildLocalWorkspaceIdSet,
-  buildWorkspaceCreateInitialState,
-  buildWorkspaceCreatePrompt,
-} from '@/shared/lib/workspaceCreateState';
-import {
-  getLinkWorkspaceErrorMessage,
-  WORKSPACE_ALREADY_LINKED_MESSAGE,
-} from '@/shared/lib/workspaces';
-import { refreshShapeSource } from '@/shared/lib/electric/collections';
-import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import {
   buildKanbanIssueComposerKey,
   closeKanbanIssueComposer,
@@ -60,9 +39,6 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
   const { t } = useTranslation('common');
   const appNavigation = useAppNavigation();
   const hostId = useHostId();
-  const { activeWorkspaces, archivedWorkspaces } = useWorkspaceContext();
-  const { workspaces: remoteWorkspaces } = useWorkspacesContext();
-  const { openWorkspaceCreateFromState } = useProjectWorkspaceCreateDraft();
   const {
     projectId,
     statuses,
@@ -70,6 +46,7 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
     issuesById,
     getIssue,
     insertIssue,
+    updateIssue,
     removeIssue,
   } = useProjectContext();
 
@@ -96,22 +73,6 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
     [t]
   );
 
-  const workspaceOptions = useMemo(() => {
-    const active = activeWorkspaces.map((workspace) => ({
-      id: workspace.id,
-      name: workspace.name,
-      branch: workspace.branch,
-      isArchived: false,
-    }));
-    const archived = archivedWorkspaces.map((workspace) => ({
-      id: workspace.id,
-      name: workspace.name,
-      branch: workspace.branch,
-      isArchived: true,
-    }));
-    return [...active, ...archived];
-  }, [activeWorkspaces, archivedWorkspaces]);
-
   const openCreateIssue = useCallback(
     async (options?: ProjectIssueCreateOptions): Promise<string | null> => {
       const defaultStatusId = options?.statusId ?? statusOptions[0]?.id ?? '';
@@ -130,16 +91,17 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
       closeKanbanIssueComposer(composerKey);
 
       const res = await CreateIssueDialog.show({
+        projectId,
         statuses: statusOptions,
         defaultStatusId,
         priorities: priorityOptions,
-        workspaces: workspaceOptions,
         parentIssueSimpleId,
         onCreate: async ({
           title,
           description,
           statusId,
           priority,
+          extensionMetadata,
         }): Promise<string> => {
           // Top-of-column sort_order: min sort_order of issues in the target
           // status, minus 1 (so the new card lands at the top). Fall back to
@@ -164,80 +126,26 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
             completed_at: null,
             parent_issue_id: options?.parentIssueId ?? null,
             parent_issue_sort_order: null,
-            extension_metadata: {},
+            extension_metadata: extensionMetadata ?? {},
           });
 
           const syncedIssue = await persisted;
 
           return syncedIssue.id;
         },
+        onUpdate: (issueId, changes) => {
+          updateIssue(issueId, {
+            title: changes.title,
+            description: changes.description,
+            status_id: changes.statusId,
+            priority: changes.priority,
+            extension_metadata: changes.extensionMetadata,
+          });
+        },
       });
 
       if (res.action === 'created') {
-        if (res.workspace.kind === 'none') {
-          appNavigation.goToProjectIssue(projectId, res.issueId);
-          return res.issueId;
-        }
-
-        if (res.workspace.kind === 'existing') {
-          appNavigation.goToProjectIssue(projectId, res.issueId);
-          void workspacesApi
-            .linkToIssue(res.workspace.id, projectId, res.issueId)
-            .then(() => {
-              refreshShapeSource(PROJECT_WORKSPACES_SHAPE, {
-                project_id: projectId,
-              });
-            })
-            .catch((error: unknown) => {
-              const errorMessage =
-                getLinkWorkspaceErrorMessage(error) ??
-                t('workspaces.linkError', 'Failed to link workspace');
-
-              if (errorMessage !== WORKSPACE_ALREADY_LINKED_MESSAGE) {
-                console.error('Failed to link workspace to issue:', error);
-              }
-
-              void ConfirmDialog.show({
-                title: t('common:error'),
-                message: errorMessage,
-                confirmText: t('common:ok'),
-                showCancelButton: false,
-              });
-            });
-          return res.issueId;
-        }
-
-        const issue = getIssue(res.issueId);
-        const prompt = buildWorkspaceCreatePrompt(
-          issue?.title ?? null,
-          issue?.description ?? null
-        );
-        const defaults = await getWorkspaceDefaults(
-          remoteWorkspaces,
-          buildLocalWorkspaceIdSet(activeWorkspaces, archivedWorkspaces),
-          projectId
-        );
-        const createState = buildWorkspaceCreateInitialState({
-          prompt,
-          defaults,
-          linkedIssue: buildLinkedIssueCreateState(issue, projectId),
-        });
-        const draftId = await openWorkspaceCreateFromState(createState, {
-          issueId: res.issueId,
-        });
-
-        if (!draftId) {
-          appNavigation.goToProjectIssue(projectId, res.issueId);
-          await ConfirmDialog.show({
-            title: t('common:error'),
-            message: t(
-              'workspaces.createDraftError',
-              'Failed to prepare workspace draft. Please try again.'
-            ),
-            confirmText: t('common:ok'),
-            showCancelButton: false,
-          });
-        }
+        appNavigation.goToProjectIssue(projectId, res.issueId);
         return res.issueId;
       }
       return null;
@@ -245,17 +153,13 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
     [
       statusOptions,
       priorityOptions,
-      workspaceOptions,
       issuesById,
       getIssue,
       insertIssue,
+      updateIssue,
       appNavigation,
       hostId,
       projectId,
-      remoteWorkspaces,
-      activeWorkspaces,
-      archivedWorkspaces,
-      openWorkspaceCreateFromState,
       t,
     ]
   );

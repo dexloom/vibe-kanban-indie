@@ -8,13 +8,8 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import NiceModal, { useModal } from '@ebay/nice-modal-react';
-import {
-  GitBranchIcon,
-  PlusIcon,
-  SpinnerIcon,
-  XIcon,
-} from '@phosphor-icons/react';
-import type { IssuePriority } from 'shared/remote-types';
+import { SpinnerIcon } from '@phosphor-icons/react';
+import type { IssuePriority, JsonValue } from 'shared/remote-types';
 import {
   Dialog,
   DialogContent,
@@ -33,6 +28,14 @@ import {
 } from '@vibe/ui/components/Select';
 import { AutoExpandingTextarea } from '@vibe/ui/components/AutoExpandingTextarea';
 import { defineModal, getErrorMessage } from '@/shared/lib/modals';
+import { useDebouncedCallback } from '@/shared/hooks/useDebouncedCallback';
+import { useUserSystem } from '@/shared/hooks/useUserSystem';
+import {
+  PipelineSection,
+  type PipelineSelection,
+} from '@/pages/kanban/PipelineSection';
+import { appendPipelineToDescription } from '@/shared/lib/pipeline/cardPipeline';
+import { CreateIssueLinkedSections } from './CreateIssueLinkedSections';
 
 export interface CreateIssueDialogPriorityOption {
   value: IssuePriority;
@@ -44,66 +47,131 @@ export interface CreateIssueDialogStatusOption {
   name: string;
 }
 
-export interface CreateIssueDialogWorkspaceOption {
-  id: string;
-  name: string;
-  branch: string;
-  isArchived: boolean;
-}
-
-export type CreateIssueDialogWorkspaceSelection =
-  | { kind: 'none' }
-  | { kind: 'existing'; id: string }
-  | { kind: 'new' };
-
 export interface CreateIssueDialogProps {
+  projectId: string;
   statuses: CreateIssueDialogStatusOption[];
   defaultStatusId: string;
   priorities: CreateIssueDialogPriorityOption[];
-  workspaces: CreateIssueDialogWorkspaceOption[];
   parentIssueSimpleId?: string | null;
   onCreate: (data: {
     title: string;
     description: string | null;
     statusId: string;
     priority: IssuePriority | null;
+    extensionMetadata: JsonValue;
   }) => Promise<string>;
+  onUpdate: (
+    issueId: string,
+    changes: {
+      title: string;
+      description: string | null;
+      statusId: string;
+      priority: IssuePriority | null;
+      extensionMetadata: JsonValue;
+    }
+  ) => void;
 }
 
 export type CreateIssueDialogResult =
-  | {
-      action: 'created';
-      issueId: string;
-      workspace: CreateIssueDialogWorkspaceSelection;
-    }
+  | { action: 'created'; issueId: string }
   | { action: 'canceled' };
 
 const NONE_PRIORITY_VALUE = '__none__';
-const NONE_WORKSPACE_VALUE = '__none__';
 
 const CreateIssueDialogImpl = NiceModal.create<CreateIssueDialogProps>(
   ({
+    projectId,
     statuses,
     defaultStatusId,
     priorities,
-    workspaces,
     parentIssueSimpleId = null,
     onCreate,
+    onUpdate,
   }) => {
     const modal = useModal();
     const { t } = useTranslation('common');
+    const { profiles } = useUserSystem();
 
     const titleInputRef = useRef<HTMLInputElement | null>(null);
     const descriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const pipelineSelectionRef = useRef<PipelineSelection | null>(null);
 
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [statusId, setStatusId] = useState<string>(defaultStatusId);
     const [priority, setPriority] = useState<string>(NONE_PRIORITY_VALUE);
-    const [workspace, setWorkspace] =
-      useState<CreateIssueDialogWorkspaceSelection>({ kind: 'none' });
+    const [savedIssueId, setSavedIssueId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const buildPersistedDescription = useCallback((rawDescription: string) => {
+      const trimmed = rawDescription.trim();
+      const raw = trimmed.length > 0 ? trimmed : null;
+      const block = pipelineSelectionRef.current?.block ?? '';
+      return block ? appendPipelineToDescription(raw, block) : raw;
+    }, []);
+
+    const buildExtensionMetadata = useCallback((): JsonValue => {
+      const selection = pipelineSelectionRef.current;
+      if (!selection) {
+        return {};
+      }
+      return {
+        pipeline: {
+          pipelineIds: selection.pipelineIds,
+          enabledIds: selection.enabledIds,
+          executor: selection.executor,
+          customText: selection.customText,
+        },
+      };
+    }, []);
+
+    const buildUpdatePatch = useCallback(() => {
+      return {
+        title: title.trim(),
+        description: buildPersistedDescription(description),
+        statusId,
+        priority:
+          priority === NONE_PRIORITY_VALUE ? null : (priority as IssuePriority),
+        extensionMetadata: buildExtensionMetadata(),
+      };
+    }, [
+      title,
+      description,
+      statusId,
+      priority,
+      buildPersistedDescription,
+      buildExtensionMetadata,
+    ]);
+
+    const dirtyRef = useRef(false);
+    const { debounced: scheduleAutoSave, cancel: cancelAutoSave } =
+      useDebouncedCallback(() => {
+        if (!savedIssueId) return;
+        dirtyRef.current = false;
+        onUpdate(savedIssueId, buildUpdatePatch());
+      }, 500);
+
+    const markDirty = useCallback(() => {
+      if (!savedIssueId) return;
+      dirtyRef.current = true;
+      scheduleAutoSave();
+    }, [savedIssueId, scheduleAutoSave]);
+
+    const flushAutoSave = useCallback(() => {
+      cancelAutoSave();
+      if (savedIssueId && dirtyRef.current) {
+        dirtyRef.current = false;
+        onUpdate(savedIssueId, buildUpdatePatch());
+      }
+    }, [cancelAutoSave, savedIssueId, onUpdate, buildUpdatePatch]);
+
+    const handlePipelineChange = useCallback(
+      (selection: PipelineSelection) => {
+        pipelineSelectionRef.current = selection;
+        markDirty();
+      },
+      [markDirty]
+    );
 
     // Auto-focus the title input when the dialog becomes visible.
     useEffect(() => {
@@ -122,21 +190,26 @@ const CreateIssueDialogImpl = NiceModal.create<CreateIssueDialogProps>(
       setDescription('');
       setStatusId(defaultStatusId);
       setPriority(NONE_PRIORITY_VALUE);
-      setWorkspace({ kind: 'none' });
+      setSavedIssueId(null);
+      pipelineSelectionRef.current = null;
+      dirtyRef.current = false;
+      cancelAutoSave();
       setError(null);
       setIsSubmitting(false);
-    }, [modal.visible, defaultStatusId]);
+    }, [modal.visible, defaultStatusId, cancelAutoSave]);
 
-    const handleClose = useCallback(
-      (result: CreateIssueDialogResult) => {
-        modal.resolve(result);
-        modal.hide();
-      },
-      [modal]
-    );
+    const handleClose = useCallback(() => {
+      flushAutoSave();
+      if (savedIssueId) {
+        modal.resolve({ action: 'created', issueId: savedIssueId });
+      } else {
+        modal.resolve({ action: 'canceled' });
+      }
+      modal.hide();
+    }, [flushAutoSave, modal, savedIssueId]);
 
     const handleCancel = useCallback(() => {
-      handleClose({ action: 'canceled' });
+      handleClose();
     }, [handleClose]);
 
     const canSubmit = title.trim().length > 0 && !isSubmitting;
@@ -144,6 +217,9 @@ const CreateIssueDialogImpl = NiceModal.create<CreateIssueDialogProps>(
     const hasPriorities = priorities.length > 0;
 
     const handleSubmit = useCallback(async () => {
+      if (savedIssueId) {
+        return;
+      }
       const trimmedTitle = title.trim();
       if (!trimmedTitle || isSubmitting) {
         return;
@@ -156,23 +232,9 @@ const CreateIssueDialogImpl = NiceModal.create<CreateIssueDialogProps>(
       setIsSubmitting(true);
       setError(null);
       try {
-        const trimmedDescription = description.trim();
-        const resolvedPriority: IssuePriority | null =
-          priority === NONE_PRIORITY_VALUE ? null : (priority as IssuePriority);
+        const newIssueId = await onCreate(buildUpdatePatch());
 
-        const newIssueId = await onCreate({
-          title: trimmedTitle,
-          description:
-            trimmedDescription.length > 0 ? trimmedDescription : null,
-          statusId,
-          priority: resolvedPriority,
-        });
-
-        handleClose({
-          action: 'created',
-          issueId: newIssueId,
-          workspace,
-        });
+        setSavedIssueId(newIssueId);
       } catch (err) {
         setError(
           getErrorMessage(err) || t('createIssueDialog.errorCreateFailed')
@@ -181,14 +243,12 @@ const CreateIssueDialogImpl = NiceModal.create<CreateIssueDialogProps>(
         setIsSubmitting(false);
       }
     }, [
+      savedIssueId,
       title,
-      description,
-      statusId,
-      priority,
-      workspace,
       isSubmitting,
+      statusId,
       onCreate,
-      handleClose,
+      buildUpdatePatch,
       t,
     ]);
 
@@ -239,7 +299,7 @@ const CreateIssueDialogImpl = NiceModal.create<CreateIssueDialogProps>(
 
     return (
       <Dialog open={modal.visible} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh]">
           <DialogHeader>
             <DialogTitle>{t('createIssueDialog.title')}</DialogTitle>
             {parentHint ? (
@@ -247,13 +307,16 @@ const CreateIssueDialogImpl = NiceModal.create<CreateIssueDialogProps>(
             ) : null}
           </DialogHeader>
 
-          <div className="flex flex-col gap-4 py-2">
+          <div className="flex flex-1 flex-col gap-4 overflow-y-auto py-2 min-h-0">
             <div className="flex flex-col gap-2">
               <input
                 ref={titleInputRef}
                 type="text"
                 value={title}
-                onChange={(event) => setTitle(event.target.value)}
+                onChange={(event) => {
+                  setTitle(event.target.value);
+                  markDirty();
+                }}
                 onKeyDown={handleTitleKeyDown}
                 placeholder={t('createIssueDialog.titlePlaceholder')}
                 disabled={isSubmitting}
@@ -266,7 +329,10 @@ const CreateIssueDialogImpl = NiceModal.create<CreateIssueDialogProps>(
               <AutoExpandingTextarea
                 ref={descriptionTextareaRef}
                 value={description}
-                onChange={(event) => setDescription(event.target.value)}
+                onChange={(event) => {
+                  setDescription(event.target.value);
+                  markDirty();
+                }}
                 onKeyDown={handleDescriptionKeyDown}
                 placeholder={t('createIssueDialog.descriptionPlaceholder')}
                 disabled={isSubmitting}
@@ -283,7 +349,10 @@ const CreateIssueDialogImpl = NiceModal.create<CreateIssueDialogProps>(
                 </label>
                 <Select
                   value={statusId}
-                  onValueChange={setStatusId}
+                  onValueChange={(value) => {
+                    setStatusId(value);
+                    markDirty();
+                  }}
                   disabled={isSubmitting || !hasStatuses}
                 >
                   <SelectTrigger>
@@ -306,7 +375,10 @@ const CreateIssueDialogImpl = NiceModal.create<CreateIssueDialogProps>(
                 </label>
                 <Select
                   value={priority}
-                  onValueChange={setPriority}
+                  onValueChange={(value) => {
+                    setPriority(value);
+                    markDirty();
+                  }}
                   disabled={isSubmitting || !hasPriorities}
                 >
                   <SelectTrigger>
@@ -328,88 +400,17 @@ const CreateIssueDialogImpl = NiceModal.create<CreateIssueDialogProps>(
               </div>
             </div>
 
-            <div className="flex items-end gap-3">
-              {workspaces.length > 0 ? (
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <label className="text-xs font-medium text-low">
-                    {t('createIssueDialog.workspaceLabel')}
-                  </label>
-                  <Select
-                    value={
-                      workspace.kind === 'existing'
-                        ? workspace.id
-                        : NONE_WORKSPACE_VALUE
-                    }
-                    onValueChange={(value) =>
-                      setWorkspace(
-                        value === NONE_WORKSPACE_VALUE
-                          ? { kind: 'none' }
-                          : { kind: 'existing', id: value }
-                      )
-                    }
-                    disabled={isSubmitting || workspace.kind === 'new'}
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={t('createIssueDialog.workspaceNone')}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE_WORKSPACE_VALUE}>
-                        {t('createIssueDialog.workspaceNone')}
-                      </SelectItem>
-                      {workspaces.map((option) => (
-                        <SelectItem key={option.id} value={option.id}>
-                          <span className="flex min-w-0 items-center gap-2">
-                            <GitBranchIcon
-                              className="h-4 w-4 shrink-0"
-                              weight="regular"
-                            />
-                            <span className="shrink-0">{option.name}</span>
-                            <span className="min-w-0 flex-1 truncate text-xs text-muted">
-                              {option.branch}
-                            </span>
-                            {option.isArchived ? (
-                              <span className="shrink-0 text-xs text-subtle">
-                                ({t('createIssueDialog.workspaceArchived')})
-                              </span>
-                            ) : null}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={() => setWorkspace({ kind: 'new' })}
-                disabled={isSubmitting}
-              >
-                <PlusIcon className="h-4 w-4" weight="bold" />
-                {t('createIssueDialog.workspaceCreateNew')}
-              </Button>
-            </div>
+            <PipelineSection
+              profiles={profiles}
+              disabled={isSubmitting}
+              expanded
+              onChange={handlePipelineChange}
+            />
 
-            {workspace.kind === 'new' ? (
-              <div className="flex items-center gap-3 rounded-md border border-border bg-sunken px-3 py-2 text-sm text-muted">
-                <span className="min-w-0 flex-1">
-                  {t('createIssueDialog.workspaceWillCreate')}
-                </span>
-                <button
-                  type="button"
-                  className="inline-flex shrink-0 items-center gap-1 rounded-sm text-xs text-muted hover:text-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                  onClick={() => setWorkspace({ kind: 'none' })}
-                  aria-label={t('createIssueDialog.workspaceClearSelection')}
-                >
-                  <XIcon className="h-3.5 w-3.5" weight="bold" />
-                  {t('createIssueDialog.workspaceClearSelection')}
-                </button>
-              </div>
-            ) : null}
+            <CreateIssueLinkedSections
+              projectId={projectId}
+              issueId={savedIssueId}
+            />
 
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </div>
@@ -420,16 +421,21 @@ const CreateIssueDialogImpl = NiceModal.create<CreateIssueDialogProps>(
               onClick={handleCancel}
               disabled={isSubmitting}
             >
-              {t('createIssueDialog.cancel')}
+              {savedIssueId
+                ? t('createIssueDialog.close')
+                : t('createIssueDialog.cancel')}
             </Button>
-            <Button onClick={handleSubmit} disabled={!canSubmit}>
+            <Button
+              onClick={handleSubmit}
+              disabled={!canSubmit || savedIssueId !== null}
+            >
               {isSubmitting ? (
                 <>
                   <SpinnerIcon className="h-4 w-4 animate-spin mr-2" />
-                  {t('createIssueDialog.create')}
+                  {t('createIssueDialog.save')}
                 </>
               ) : (
-                t('createIssueDialog.create')
+                t('createIssueDialog.save')
               )}
             </Button>
           </DialogFooter>

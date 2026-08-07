@@ -21,12 +21,16 @@ import {
 
 interface IssueRelationshipsSectionContainerProps {
   issueId: string;
+  /** Overrides the route projectId (for contexts without route params, e.g. the Create Issue modal). */
+  projectId?: string;
 }
 
 export function IssueRelationshipsSectionContainer({
   issueId,
+  projectId: projectIdProp,
 }: IssueRelationshipsSectionContainerProps) {
-  const { projectId } = useParams({ strict: false });
+  const { projectId: routeProjectId } = useParams({ strict: false });
+  const projectId = projectIdProp ?? routeProjectId;
   const appNavigation = useAppNavigation();
   const { openRelationshipSelection } = useActions();
 

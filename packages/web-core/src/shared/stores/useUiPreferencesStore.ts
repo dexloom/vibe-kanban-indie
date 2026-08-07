@@ -45,6 +45,20 @@ export const DEFAULT_THEME_VARIANT: ThemeVariant = 'default';
 
 const THEME_VARIANT_KEY = 'vk-theme-variant';
 
+// Persisted default pipeline id (single-select). Remembered so the next issue
+// created starts on the operator's last-chosen pipeline.
+const DEFAULT_PIPELINE_KEY = 'vk-default-pipeline';
+
+const loadDefaultPipelineId = (): string | null => {
+  try {
+    const stored = localStorage.getItem(DEFAULT_PIPELINE_KEY);
+    if (stored) return stored;
+  } catch {
+    // localStorage may be unavailable
+  }
+  return null;
+};
+
 // Animated (shimmering) border around the message box while the workspace is
 // working. A subtle pulsating dot always shows; this toggles the border on top.
 const ANIMATE_RUNNING_OUTLINE_KEY = 'vk-animate-running-outline';
@@ -338,6 +352,9 @@ type State = {
   // Theme variant ("skin"), applied on top of the light/dark mode
   themeVariant: ThemeVariant;
 
+  // Persisted default pipeline id for the Create Issue dialog (single-select).
+  defaultPipelineId: string | null;
+
   // Animated border around the working message box (toggleable in settings)
   animateRunningOutline: boolean;
 
@@ -425,6 +442,9 @@ type State = {
   // Theme variant actions
   setThemeVariant: (variant: ThemeVariant) => void;
 
+  // Default pipeline actions
+  setDefaultPipelineId: (id: string | null) => void;
+
   // Animated running outline actions
   setAnimateRunningOutline: (value: boolean) => void;
 
@@ -468,6 +488,9 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
 
   // Theme variant
   themeVariant: loadThemeVariant(),
+
+  // Persisted default pipeline id (single-select Create Issue dialog)
+  defaultPipelineId: loadDefaultPipelineId(),
 
   // Animated running outline (default on)
   animateRunningOutline: loadAnimateRunningOutline(),
@@ -815,6 +838,20 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
     set({ themeVariant: variant });
   },
 
+  // Default pipeline actions
+  setDefaultPipelineId: (id) => {
+    try {
+      if (id) {
+        localStorage.setItem(DEFAULT_PIPELINE_KEY, id);
+      } else {
+        localStorage.removeItem(DEFAULT_PIPELINE_KEY);
+      }
+    } catch {
+      // localStorage may be unavailable
+    }
+    set({ defaultPipelineId: id });
+  },
+
   // Animated running outline actions
   setAnimateRunningOutline: (value) => {
     try {
@@ -943,6 +980,13 @@ export function useThemeVariant() {
   const variant = useUiPreferencesStore((s) => s.themeVariant);
   const set = useUiPreferencesStore((s) => s.setThemeVariant);
   return [variant, set] as const;
+}
+
+// Hook for the persisted default pipeline id (single-select Create Issue dialog)
+export function useDefaultPipelineId() {
+  const id = useUiPreferencesStore((s) => s.defaultPipelineId);
+  const set = useUiPreferencesStore((s) => s.setDefaultPipelineId);
+  return [id, set] as const;
 }
 
 // Hook for the animated running outline toggle

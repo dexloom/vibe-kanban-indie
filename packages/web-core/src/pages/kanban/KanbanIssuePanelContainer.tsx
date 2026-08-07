@@ -30,6 +30,7 @@ import {
   appendPipelineToDescription,
   extractPipelineBlock,
   parsePipelineStages,
+  stripPipelineBlock,
 } from '@/shared/lib/pipeline/cardPipeline';
 import { selectActiveWorkspace } from '@/shared/lib/pipeline/selectActiveWorkspace';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
@@ -380,13 +381,21 @@ export function KanbanIssuePanelContainer({
   // - Create mode: createFormData is the single source of truth.
   // - Edit mode: text fields come from explicit local edit state, dropdown fields from server.
   const displayData = useMemo((): IssueFormData => {
-    return selectDisplayData({
+    const base = selectDisplayData({
       state: formState,
       mode,
       createModeDefaults,
       selectedIssue,
       currentTagIds,
     });
+    // Edit mode: keep the pipeline block out of the Description editor — it
+    // lives in the Pipeline textbox and is re-appended to the stored
+    // description on save. This removes the duplication that made the pane
+    // jump when the pipeline changed.
+    if (mode === 'edit' && base.description) {
+      return { ...base, description: stripPipelineBlock(base.description) };
+    }
+    return base;
   }, [formState, mode, createModeDefaults, selectedIssue, currentTagIds]);
   const latestDescriptionRef = useRef<string | null>(
     displayData.description ?? null
@@ -399,6 +408,19 @@ export function KanbanIssuePanelContainer({
   // Per-card Pipeline selection, stashed until the card is created. Null when
   // nothing is selected. Reset alongside intake when the composer changes.
   const pipelineRef = useRef<PipelineSelection | null>(null);
+  // The current `## Pipeline` block for the edited card, kept in sync with the
+  // PipelineSection. Used to re-append the block to the stored description on
+  // description-only edits (the editor shows prose without the block).
+  const pipelineBlockRef = useRef<string>('');
+  useEffect(() => {
+    if (mode === 'edit' && selectedIssue) {
+      pipelineBlockRef.current = extractPipelineBlock(
+        selectedIssue.description
+      );
+    } else {
+      pipelineBlockRef.current = '';
+    }
+  }, [mode, selectedIssue]);
   useEffect(() => {
     intakeMetadataRef.current = null;
     pipelineRef.current = null;
@@ -443,13 +465,19 @@ export function KanbanIssuePanelContainer({
       }
     }, 500);
 
-  // Debounced save for description changes
+  // Debounced save for description changes. The editor shows prose only (the
+  // pipeline block is stripped), so re-append the current block before
+  // persisting so the stored description keeps its `## Pipeline` section.
   const {
     debounced: debouncedSaveDescription,
     cancel: cancelDebouncedDescription,
   } = useDebouncedCallback((description: string | null) => {
     if (selectedKanbanIssueId && !kanbanCreateMode) {
-      updateIssue(selectedKanbanIssueId, { description });
+      const block = pipelineBlockRef.current;
+      const combined = block
+        ? appendPipelineToDescription(description, block)
+        : description;
+      updateIssue(selectedKanbanIssueId, { description: combined });
       setDescriptionSaveStatus('saved');
       setTimeout(() => setDescriptionSaveStatus('idle'), 1500);
     }
@@ -457,21 +485,19 @@ export function KanbanIssuePanelContainer({
 
   // Debounced save for edit-mode Pipeline changes. Description + provenance
   // are written in ONE atomic updateIssue call so a quick close can never
-  // persist one without the other.
+  // persist one without the other. `latestDescriptionRef` holds the prose
+  // (block stripped), so the new block is appended to prose, not to an
+  // already-block-laden description.
   const {
     debounced: debouncedSavePipelineEdit,
     cancel: cancelDebouncedPipelineEdit,
   } = useDebouncedCallback((selection: PipelineSelection) => {
     if (!selectedKanbanIssueId || kanbanCreateMode) return;
+    pipelineBlockRef.current = selection.block;
     const newDescription = appendPipelineToDescription(
       latestDescriptionRef.current,
       selection.block
     );
-    latestDescriptionRef.current = newDescription;
-    dispatchFormState({
-      type: 'setEditDescription',
-      description: newDescription,
-    });
     const base = asJsonObject(selectedIssue?.extension_metadata) ?? {};
     updateIssue(selectedKanbanIssueId, {
       description: newDescription,
@@ -814,6 +840,7 @@ export function KanbanIssuePanelContainer({
   // block). Edit mode: persist description + provenance atomically.
   const handlePipelineChange = useCallback(
     (selection: PipelineSelection) => {
+      pipelineBlockRef.current = selection.block;
       if (kanbanCreateMode) {
         pipelineRef.current = selection.block ? selection : null;
         return;

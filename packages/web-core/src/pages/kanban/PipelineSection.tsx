@@ -10,18 +10,24 @@ import {
 import type { Pipeline } from 'shared/types';
 import { pipelinesApi } from '@/shared/lib/api';
 import {
-  canonicalStageOrder,
   composePipelineBlock,
   extractManualLines,
-  orderedEnabledStages,
   type PipelineStage,
 } from '@/shared/lib/pipeline/cardPipeline';
+import { useDefaultPipelineId } from '@/shared/stores/useUiPreferencesStore';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@vibe/ui/components/Select';
 import { cn } from '@/shared/lib/utils';
 
 export interface PipelineSelection {
-  /** Selected pipeline ids (additive; empty when nothing is chosen). */
+  /** Selected pipeline ids. Single-select now, so at most one entry. */
   pipelineIds: string[];
-  /** Ticked stage ids, in canonical merge order. */
+  /** Ticked stage ids (the selected pipeline's default-enabled stages). */
   enabledIds: string[];
   /** Pinned execution agent (`BaseCodingAgent` key) or null for the default. */
   executor: string | null;
@@ -50,10 +56,9 @@ interface PipelineSectionProps {
   /** Whether the section starts expanded. Defaults to `true`. */
   expanded?: boolean;
   /**
-   * Seed data for editing an existing card. When provided (even with empty
-   * arrays/block, for a card that has no pipeline), the section seeds from it
-   * verbatim instead of defaulting to `basic`. `null`/`undefined` selects the
-   * create-mode default behavior.
+   * Seed data for editing an existing card. When provided, the section seeds
+   * from it verbatim instead of applying the create-mode default.
+   * `null`/`undefined` selects the create-mode default behavior.
    */
   initialSelection?: PipelineInitialSelection | null;
   /** Emits the current selection whenever it changes. */
@@ -62,13 +67,15 @@ interface PipelineSectionProps {
 
 /**
  * Per-card "Pipeline" control, used both in the New Issue dialog (create
- * mode) and when editing an existing card. Fetches the file-based pipelines,
- * lets the operator additively pick one or more and tick which of their
- * (deduped, canonically-ordered) stages apply, pin an execution agent, and
- * edit the composed prompt block. Recompose is non-destructive: any manual
- * lines the operator typed into the block survive further tick/selection
- * changes. Emits the result so the container can append it to the card
- * description (and mirror provenance into `extension_metadata.pipeline`).
+ * mode) and when editing an existing card. Single-select dropdown over the
+ * file-based pipelines; the chosen pipeline's stages are listed as
+ * checkboxes so the operator can tick exactly which apply, and those ticked
+ * stages are composed into a `## Pipeline` block (editable in the textbox).
+ * The last pipeline choice is remembered (localStorage) as the default for
+ * the next issue. Because there is only ever one pipeline selected, the
+ * block reflects the current ticks 1:1 — no cross-pipeline merging, and a
+ * pipeline change fully replaces the block (manual edits persist only until
+ * the next pipeline change; stage/executor tweaks preserve them).
  */
 export function PipelineSection({
   profiles,
@@ -78,6 +85,7 @@ export function PipelineSection({
   onChange,
 }: PipelineSectionProps) {
   const { t } = useTranslation('common');
+  const [rememberedDefaultId, setRememberedDefaultId] = useDefaultPipelineId();
   const agents = useMemo(
     () => (profiles ? Object.keys(profiles).sort() : []),
     [profiles]
@@ -87,37 +95,56 @@ export function PipelineSection({
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [expanded, setExpanded] = useState(expandedProp ?? true);
-  const [selectedIds, setSelectedIds] = useState<string[]>(
-    () => initialSelection?.pipelineIds ?? []
+  const [selectedId, setSelectedId] = useState<string | null>(
+    () => initialSelection?.pipelineIds[0] ?? null
   );
+  // Ticked stage ids for the selected pipeline. Seeded from provenance in edit
+  // mode; reset to the pipeline's default-enabled stages whenever the pipeline
+  // changes.
   const [enabledIds, setEnabledIds] = useState<Set<string>>(
     () => new Set(initialSelection?.enabledIds ?? [])
   );
-  // Pinned execution agent (null = let the orchestrator pick its default).
   const [executor, setExecutor] = useState<string | null>(
     initialSelection?.executor ?? null
   );
-  // The composed block, incl. delimiters. Regenerated (non-destructively)
-  // whenever the selection/ticks/executor change.
   const [text, setText] = useState(initialSelection?.block ?? '');
 
-  // Whether the create-mode `basic`-default selection has already been
-  // applied. Not relevant (pre-satisfied) when seeded from initialSelection.
+  // Create-mode default applied once pipelines load.
   const appliedCreateDefaultRef = useRef(hasInitialSelection);
-  // Whether initialSelection.enabledIds has been applied as the seed. After
-  // this, ticks reset to the default-enabled union on further selection
-  // changes (matches create-mode behavior).
-  const appliedInitialEnabledRef = useRef(!hasInitialSelection);
-  // Skip the recompose effect's very first run when seeded in edit mode, so
-  // opening a card never rewrites its existing block before interaction.
+  // Skip the very first recompose in edit mode so opening a card never
+  // rewrites its existing block before interaction.
   const skipFirstRecomposeRef = useRef(hasInitialSelection);
-  // Suppress onChange emits until the operator actually interacts, in edit
-  // mode, so opening a card never persists a write (e.g. auto-appending
-  // Basic onto a card that had no pipeline).
+  // When set, the next recompose discards the previous block entirely (fresh).
+  // Set on pipeline change so the block reflects ONLY the new selection.
+  const fullReplaceRef = useRef(false);
+  // Suppress emits until the operator actually interacts (edit mode), so
+  // opening a card never persists a write.
   const interactedRef = useRef(!hasInitialSelection);
 
-  // Fetch available pipelines once; default the picker to `basic` (else
-  // first) only when there's no seeded selection (create mode).
+  const selectedPipeline = useMemo(
+    () => pipelines.find((p) => p.id === selectedId) ?? null,
+    [pipelines, selectedId]
+  );
+
+  const allFragments = useMemo(
+    () =>
+      new Set(pipelines.flatMap((p) => p.stages.map((s) => s.prompt_fragment))),
+    [pipelines]
+  );
+
+  const defaultStageIds = useCallback(
+    (pipeline: Pipeline | null): Set<string> =>
+      new Set(
+        (pipeline?.stages ?? [])
+          .filter((s) => s.default_enabled)
+          .map((s) => s.id)
+      ),
+    []
+  );
+
+  // Fetch pipelines once. In create mode, default the dropdown to the
+  // remembered default (else 'basic', else first) and tick its default stages;
+  // the recompose effect builds the block from that selection.
   useEffect(() => {
     let cancelled = false;
     pipelinesApi
@@ -125,11 +152,17 @@ export function PipelineSection({
       .then((list) => {
         if (cancelled) return;
         setPipelines(list);
-        if (!appliedCreateDefaultRef.current) {
-          appliedCreateDefaultRef.current = true;
-          const def = list.find((p) => p.id === 'basic') ?? list[0] ?? null;
-          setSelectedIds(def ? [def.id] : []);
-        }
+        if (appliedCreateDefaultRef.current) return;
+        appliedCreateDefaultRef.current = true;
+        const remembered = rememberedDefaultId
+          ? list.find((p) => p.id === rememberedDefaultId)
+          : null;
+        const def =
+          remembered ?? list.find((p) => p.id === 'basic') ?? list[0] ?? null;
+        if (!def) return;
+        setSelectedId(def.id);
+        setEnabledIds(defaultStageIds(def));
+        fullReplaceRef.current = true;
       })
       .catch(() => {
         if (!cancelled) setPipelines([]);
@@ -137,102 +170,63 @@ export function PipelineSection({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const selectedPipelines = useMemo(
-    () =>
-      selectedIds
-        .map((id) => pipelines.find((p) => p.id === id))
-        .filter((p): p is Pipeline => p != null),
-    [pipelines, selectedIds]
-  );
-
-  const orderedSteps = useMemo(
-    () => canonicalStageOrder(selectedPipelines),
-    [selectedPipelines]
-  );
-
-  // Fragments of ALL available pipelines' stages (not just selected ones),
-  // so a generated stage line is recognised and dropped when its stage or
-  // whole pipeline is deselected, instead of being stranded as "manual".
-  const allFragments = useMemo(
-    () =>
-      new Set(pipelines.flatMap((p) => p.stages.map((s) => s.prompt_fragment))),
-    [pipelines]
-  );
-
-  // Seed enabled ticks: `initialSelection.enabledIds` verbatim once (edit
-  // mode), then the default-enabled union of the selected pipelines whenever
-  // the pipeline selection changes thereafter.
-  useEffect(() => {
-    if (!appliedInitialEnabledRef.current) {
-      appliedInitialEnabledRef.current = true;
-      return;
-    }
-    setEnabledIds(
-      new Set(
-        selectedPipelines.flatMap((p) =>
-          p.stages.filter((s) => s.default_enabled).map((s) => s.id)
-        )
-      )
-    );
-    // Deliberately keyed on `selectedIds` only: this reseeds ticks whenever
-    // the pipeline *selection* changes, not whenever `pipelines` reloads.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIds]);
-
-  // Non-destructive recompose: read the previous text via the functional
-  // updater (no `text` dep, so this can't loop) and preserve any manual
-  // lines already present in it.
+  // Recompose the block whenever the selection settles. A pipeline change sets
+  // `fullReplaceRef` so the block is rebuilt from scratch — only the currently
+  // ticked stages of the one selected pipeline appear, with no carry-over.
+  // Stage toggles and executor changes are non-destructive: manual lines typed
+  // into the textbox survive.
   useEffect(() => {
     if (skipFirstRecomposeRef.current) {
       skipFirstRecomposeRef.current = false;
       return;
     }
+    const fullReplace = fullReplaceRef.current;
+    fullReplaceRef.current = false;
     setText((prev) =>
-      composePipelineBlock(selectedPipelines, enabledIds, '', executor, {
-        previousBlock: prev,
+      composePipelineBlock(selectedPipeline, enabledIds, '', executor, {
+        previousBlock: fullReplace ? null : prev,
         knownStageFragments: allFragments,
       })
     );
-  }, [selectedPipelines, enabledIds, executor, allFragments]);
+  }, [selectedPipeline, enabledIds, executor, allFragments]);
 
-  // Notify the parent of the effective selection whenever it settles.
-  const emittedRef = useRef<string>('');
+  // Notify parent of the effective selection whenever it settles.
+  const emittedRef = useRef('');
   useEffect(() => {
     if (!interactedRef.current) return;
     const block = text.trim();
-    const signature = `${[...selectedIds].sort().join(',')}|${[...enabledIds].sort().join(',')}|${executor ?? ''}|${block}`;
+    const signature = `${selectedId ?? ''}|${[...enabledIds]
+      .slice()
+      .sort()
+      .join(',')}|${executor ?? ''}|${block}`;
     if (emittedRef.current === signature) return;
     emittedRef.current = signature;
     const customText = extractManualLines(block, allFragments).join('\n');
     onChange({
-      pipelineIds: selectedIds,
-      enabledIds: orderedEnabledStages(selectedPipelines, enabledIds).map(
-        (s) => s.id
-      ),
+      pipelineIds: selectedId ? [selectedId] : [],
+      enabledIds: [...enabledIds],
       executor,
       customText,
       block,
     });
-  }, [
-    selectedIds,
-    selectedPipelines,
-    enabledIds,
-    executor,
-    text,
-    allFragments,
-    onChange,
-  ]);
+  }, [selectedId, enabledIds, executor, text, allFragments, onChange]);
 
-  const togglePipeline = useCallback((id: string) => {
-    interactedRef.current = true;
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
-  }, []);
+  const handleSelectPipeline = useCallback(
+    (id: string) => {
+      interactedRef.current = true;
+      setSelectedId(id);
+      setRememberedDefaultId(id);
+      const p = pipelines.find((x) => x.id === id) ?? null;
+      setEnabledIds(defaultStageIds(p));
+      fullReplaceRef.current = true;
+    },
+    [pipelines, defaultStageIds, setRememberedDefaultId]
+  );
 
-  const toggleStep = useCallback((id: string) => {
+  const handleToggleStep = useCallback((id: string) => {
     interactedRef.current = true;
     setEnabledIds((prev) => {
       const next = new Set(prev);
@@ -242,10 +236,15 @@ export function PipelineSection({
     });
   }, []);
 
+  const handleExecutorChange = useCallback((value: string) => {
+    interactedRef.current = true;
+    setExecutor(value || null);
+  }, []);
+
   const resetToGenerated = useCallback(() => {
     interactedRef.current = true;
-    setText(composePipelineBlock(selectedPipelines, enabledIds, '', executor));
-  }, [selectedPipelines, enabledIds, executor]);
+    setText(composePipelineBlock(selectedPipeline, enabledIds, '', executor));
+  }, [selectedPipeline, enabledIds, executor]);
 
   return (
     <div className="p-base border-t space-y-base">
@@ -268,35 +267,38 @@ export function PipelineSection({
 
           <div className="space-y-half">
             <label className="text-xs text-low block">
-              {t('cardPipeline.pipelinesLabel')}
+              {t('cardPipeline.pipelineLabel')}
             </label>
-            <div className="flex flex-col gap-half">
-              {pipelines.map((p) => (
-                <label
-                  key={p.id}
-                  className="flex items-start gap-half text-sm text-normal"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(p.id)}
-                    disabled={disabled}
-                    onChange={() => togglePipeline(p.id)}
-                    className="mt-0.5"
-                  />
-                  <span>
-                    <span className="block">{p.name}</span>
-                    {p.description && (
-                      <span className="block text-xs text-low">
-                        {p.description}
-                      </span>
-                    )}
-                  </span>
-                </label>
-              ))}
-            </div>
-            <p className="text-xs text-low">
-              {t('cardPipeline.pipelinesHelper')}
-            </p>
+            <Select
+              value={selectedId ?? ''}
+              onValueChange={handleSelectPipeline}
+              disabled={disabled || pipelines.length === 0}
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={t('cardPipeline.pipelinePlaceholder')}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {selectedId && !selectedPipeline ? (
+                  <SelectItem value={selectedId}>
+                    {t('cardPipeline.noPipeline')}
+                  </SelectItem>
+                ) : null}
+                {pipelines.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="flex flex-col">
+                      <span>{p.name}</span>
+                      {p.description ? (
+                        <span className="text-xs text-low">
+                          {p.description}
+                        </span>
+                      ) : null}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {agents.length > 0 && (
@@ -311,10 +313,7 @@ export function PipelineSection({
                 id="pipeline-agent"
                 value={executor ?? ''}
                 disabled={disabled}
-                onChange={(e) => {
-                  interactedRef.current = true;
-                  setExecutor(e.target.value || null);
-                }}
+                onChange={(e) => handleExecutorChange(e.target.value)}
                 className="w-full rounded-sm border bg-panel/40 px-half py-half text-sm text-high disabled:opacity-50"
               >
                 <option value="">{t('cardPipeline.agentDefault')}</option>
@@ -330,11 +329,9 @@ export function PipelineSection({
             </div>
           )}
 
-          {selectedPipelines.length > 0 && orderedSteps.length === 0 ? (
-            <p className="text-xs text-low">{t('cardPipeline.noSteps')}</p>
-          ) : orderedSteps.length > 0 ? (
+          {selectedPipeline && selectedPipeline.stages.length > 0 ? (
             <div className="flex flex-col gap-half">
-              {orderedSteps.map((step) => (
+              {selectedPipeline.stages.map((step) => (
                 <label
                   key={step.id}
                   className="flex items-center gap-half text-sm text-normal"
@@ -343,19 +340,21 @@ export function PipelineSection({
                     type="checkbox"
                     checked={enabledIds.has(step.id)}
                     disabled={disabled}
-                    onChange={() => toggleStep(step.id)}
+                    onChange={() => handleToggleStep(step.id)}
                   />
                   <span>
                     {step.label}
-                    {step.heavy && (
+                    {step.heavy ? (
                       <span className="ml-half rounded-sm border px-half text-xs text-low">
                         {t('cardPipeline.heavyBadge')}
                       </span>
-                    )}
+                    ) : null}
                   </span>
                 </label>
               ))}
             </div>
+          ) : selectedPipeline ? (
+            <p className="text-xs text-low">{t('cardPipeline.noSteps')}</p>
           ) : null}
 
           <div className="space-y-half">
@@ -366,7 +365,7 @@ export function PipelineSection({
               <button
                 type="button"
                 onClick={resetToGenerated}
-                disabled={disabled}
+                disabled={disabled || !selectedPipeline}
                 className="text-xs text-brand hover:underline disabled:opacity-50"
               >
                 {t('cardPipeline.resetToGenerated')}

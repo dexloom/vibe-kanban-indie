@@ -26,6 +26,8 @@ import type { SectionAction } from '@vibe/ui/components/CollapsibleSectionHeader
 
 interface IssueWorkspacesSectionContainerProps {
   issueId: string;
+  /** Overrides the route projectId (for contexts without route params, e.g. the Create Issue modal). */
+  projectId?: string;
 }
 
 /**
@@ -34,9 +36,11 @@ interface IssueWorkspacesSectionContainerProps {
  */
 export function IssueWorkspacesSectionContainer({
   issueId,
+  projectId: projectIdProp,
 }: IssueWorkspacesSectionContainerProps) {
   const { t } = useTranslation('common');
-  const { projectId } = useParams({ strict: false });
+  const { projectId: routeProjectId } = useParams({ strict: false });
+  const projectId = projectIdProp ?? routeProjectId;
   const queryClient = useQueryClient();
   const appNavigation = useAppNavigation();
   const { openWorkspaceCreateFromState } = useProjectWorkspaceCreateDraft();
