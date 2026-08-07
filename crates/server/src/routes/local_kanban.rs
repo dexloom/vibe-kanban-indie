@@ -1,6 +1,6 @@
 //! Local kanban API.
 //!
-//! Re-homes the hosted kanban (projects, issues, statuses, tags, assignees)
+//! Re-homes the hosted kanban (projects, issues, statuses, tags)
 //! onto local SQLite so the existing frontend works with no cloud account. The
 //! frontend's built-in fallback transport reads from `/v1/fallback/<table>`
 //! (returning `{ "<table>": [...] }`) and mutates via `/v1/<table>` (returning
@@ -11,12 +11,11 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use api_types::{
-    CreateIssueAssigneeRequest, CreateIssueCommentRequest, CreateIssueRequest,
-    CreateIssueTagRequest, CreateProjectRequest, CreateProjectStatusRequest, CreateTagRequest,
-    DeleteResponse, IssueComment, IssuePriority, ListIssueCommentsQuery, ListIssueCommentsResponse,
-    ListMembersResponse, ListOrganizationsResponse, MemberRole, MutationResponse,
-    OrganizationMemberWithProfile, OrganizationWithRole, Project as ApiProject, UpdateIssueRequest,
-    UpdateProjectRequest, UpdateProjectStatusRequest, UpdateTagRequest, Workspace as ApiWorkspace,
+    CreateIssueCommentRequest, CreateIssueRequest, CreateIssueTagRequest, CreateProjectRequest,
+    CreateProjectStatusRequest, CreateTagRequest, DeleteResponse, IssueComment, IssuePriority,
+    ListIssueCommentsQuery, ListIssueCommentsResponse, MutationResponse, Project as ApiProject,
+    UpdateIssueRequest, UpdateProjectRequest, UpdateProjectStatusRequest, UpdateTagRequest,
+    Workspace as ApiWorkspace,
 };
 use axum::{
     Router,
@@ -24,14 +23,12 @@ use axum::{
     response::Json as ResponseJson,
     routing::{get, patch, post},
 };
-use chrono::Utc;
 use db::models::{
     issue::{Issue as DbIssue, IssueUpdate, NewIssue},
     issue_comment::{IssueComment as DbIssueComment, NewIssueComment},
     issue_workspace::{IssueWorkspace, LinkedWorkspaceRow},
-    kanban_tag::{IssueAssignee as DbIssueAssignee, IssueTag as DbIssueTag, KanbanTag},
-    local_user::{LOCAL_USER_ID, LocalUser},
-    project::{self, LOCAL_ORGANIZATION_ID, NewProject, Project as DbProject, ProjectUpdate},
+    kanban_tag::{IssueTag as DbIssueTag, KanbanTag},
+    project::{self, NewProject, Project as DbProject, ProjectUpdate},
     project_repo::ProjectRepo,
     project_status::ProjectStatus as DbProjectStatus,
     repo::Repo as DbRepo,
@@ -78,11 +75,14 @@ fn priority_str(p: &IssuePriority) -> &'static str {
 fn to_api_project(p: DbProject) -> ApiProject {
     ApiProject {
         id: p.id,
-        organization_id: LOCAL_ORGANIZATION_ID,
         name: p.name,
         color: p.color,
         sort_order: p.sort_order as i32,
         parent_id: p.parent_id,
+        // ADR-016: the prompt body never ships on the list shape (the
+        // sidebar tree's `hasOrchestratorPrompt` dot reads this bool, the
+        // editor fetches the raw value via the dedicated endpoint).
+        has_orchestrator_prompt: !p.orchestrator_prompt.trim().is_empty(),
         created_at: p.created_at,
         updated_at: p.updated_at,
     }
@@ -103,13 +103,6 @@ async fn fb_projects(
     let projects = DbProject::find_all(&deployment.db().pool).await?;
     let mapped: Vec<ApiProject> = projects.into_iter().map(to_api_project).collect();
     Ok(ResponseJson(json!({ "projects": mapped })))
-}
-
-async fn fb_users(
-    State(deployment): State<DeploymentImpl>,
-) -> Result<ResponseJson<Value>, ApiError> {
-    let users = LocalUser::list_all(&deployment.db().pool).await?;
-    Ok(ResponseJson(json!({ "users": users })))
 }
 
 /// `GET /v1/projects/{id}/repos` — the repos linked to a project (via the
@@ -185,14 +178,6 @@ async fn fb_issue_tags(
     Ok(ResponseJson(json!({ "issue_tags": rows })))
 }
 
-async fn fb_issue_assignees(
-    State(deployment): State<DeploymentImpl>,
-    Query(q): Query<ProjectScope>,
-) -> Result<ResponseJson<Value>, ApiError> {
-    let rows = DbIssueAssignee::list_by_project(&deployment.db().pool, q.project_id).await?;
-    Ok(ResponseJson(json!({ "issue_assignees": rows })))
-}
-
 /// Synthesize the wire `Workspace` shape from a local issue<->workspace link.
 /// `id` and `local_workspace_id` are both the local workspace id so the frontend
 /// can map the row back to its local workspace; stats are left empty.
@@ -200,7 +185,6 @@ fn to_api_workspace(row: LinkedWorkspaceRow) -> ApiWorkspace {
     ApiWorkspace {
         id: row.workspace_id,
         project_id: row.project_id,
-        owner_user_id: LOCAL_USER_ID,
         issue_id: Some(row.issue_id),
         local_workspace_id: Some(row.workspace_id),
         name: row.name,
@@ -225,54 +209,13 @@ async fn fb_project_workspaces(
     Ok(ResponseJson(json!({ "workspaces": mapped })))
 }
 
-/// All linked workspaces (`USER_WORKSPACES_SHAPE`); local mode has one user.
-async fn fb_user_workspaces(
+/// All linked workspaces (`WORKSPACES_SHAPE`); single-developer fork — no per-user filter.
+async fn fb_workspaces(
     State(deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<Value>, ApiError> {
     let rows = IssueWorkspace::list_linked_all(&deployment.db().pool).await?;
     let mapped: Vec<ApiWorkspace> = rows.into_iter().map(to_api_workspace).collect();
     Ok(ResponseJson(json!({ "workspaces": mapped })))
-}
-
-// ---------------------------------------------------------------------------
-// Organizations — a single synthetic local org so the org-scoped frontend
-// shell resolves without any cloud account.
-// ---------------------------------------------------------------------------
-
-async fn list_organizations() -> ResponseJson<ListOrganizationsResponse> {
-    let now = Utc::now();
-    ResponseJson(ListOrganizationsResponse {
-        organizations: vec![OrganizationWithRole {
-            id: LOCAL_ORGANIZATION_ID,
-            name: "Local".to_string(),
-            slug: "local".to_string(),
-            is_personal: false,
-            issue_prefix: "LOCAL".to_string(),
-            created_at: now,
-            updated_at: now,
-            user_role: MemberRole::Admin,
-        }],
-    })
-}
-
-async fn list_org_members(
-    State(deployment): State<DeploymentImpl>,
-) -> Result<ResponseJson<ListMembersResponse>, ApiError> {
-    let users = LocalUser::list_all(&deployment.db().pool).await?;
-    let members = users
-        .into_iter()
-        .map(|u| OrganizationMemberWithProfile {
-            user_id: u.id,
-            role: MemberRole::Admin,
-            joined_at: u.created_at,
-            first_name: u.first_name,
-            last_name: u.last_name,
-            username: u.username,
-            email: Some(u.email),
-            avatar_url: None,
-        })
-        .collect();
-    Ok(ResponseJson(ListMembersResponse { members }))
 }
 
 // ---------------------------------------------------------------------------
@@ -803,7 +746,6 @@ async fn create_issue(
             parent_issue_id: req.parent_issue_id,
             parent_issue_sort_order: req.parent_issue_sort_order,
             extension_metadata: &ext,
-            creator_user_id: Some(LOCAL_USER_ID),
             key: &key,
         },
     )
@@ -959,7 +901,6 @@ async fn fb_issue_comments(
         .map(|row| IssueComment {
             id: row.id,
             issue_id: row.issue_id,
-            author_id: Some(row.author_id),
             parent_id: row.parent_id,
             message: row.message,
             created_at: row.created_at,
@@ -978,7 +919,6 @@ async fn create_issue_comment(
         NewIssueComment {
             id: req.id.unwrap_or_else(Uuid::new_v4),
             issue_id: req.issue_id,
-            author_id: LOCAL_USER_ID,
             parent_id: req.parent_id,
             message: &req.message,
         },
@@ -987,7 +927,6 @@ async fn create_issue_comment(
     Ok(mutation(IssueComment {
         id: row.id,
         issue_id: row.issue_id,
-        author_id: Some(row.author_id),
         parent_id: row.parent_id,
         message: row.message,
         created_at: row.created_at,
@@ -1011,7 +950,6 @@ async fn update_issue_comment(
     Ok(mutation(IssueComment {
         id: row.id,
         issue_id: row.issue_id,
-        author_id: Some(row.author_id),
         parent_id: row.parent_id,
         message: row.message,
         created_at: row.created_at,
@@ -1084,27 +1022,8 @@ async fn delete_issue_tag(
     Ok(deleted())
 }
 
-async fn create_issue_assignee(
-    State(deployment): State<DeploymentImpl>,
-    ResponseJson(req): ResponseJson<CreateIssueAssigneeRequest>,
-) -> Result<ResponseJson<MutationResponse<DbIssueAssignee>>, ApiError> {
-    let id = req.id.unwrap_or_else(Uuid::new_v4);
-    let row = DbIssueAssignee::create(&deployment.db().pool, id, req.issue_id, req.user_id).await?;
-    Ok(mutation(row))
-}
-
-async fn delete_issue_assignee(
-    State(deployment): State<DeploymentImpl>,
-    Path(id): Path<Uuid>,
-) -> Result<ResponseJson<DeleteResponse>, ApiError> {
-    DbIssueAssignee::delete(&deployment.db().pool, id).await?;
-    Ok(deleted())
-}
-
 pub fn router() -> Router<DeploymentImpl> {
     Router::new()
-        .route("/v1/organizations", get(list_organizations))
-        .route("/v1/organizations/{org_id}/members", get(list_org_members))
         .route("/v1/fallback/projects", get(fb_projects))
         .route(
             "/v1/projects/{id}/repos",
@@ -1114,24 +1033,29 @@ pub fn router() -> Router<DeploymentImpl> {
             "/v1/projects/{id}/repos/{repo_id}",
             axum::routing::delete(unlink_project_repo),
         )
-        .route("/v1/fallback/users", get(fb_users))
         .route("/v1/fallback/project_statuses", get(fb_statuses))
         .route("/v1/fallback/issues", get(fb_issues))
         .route("/v1/fallback/tags", get(fb_tags))
         .route("/v1/fallback/issue_tags", get(fb_issue_tags))
-        .route("/v1/fallback/issue_assignees", get(fb_issue_assignees))
         .route("/v1/fallback/issue_comments", get(fb_issue_comments))
         .route(
             "/v1/fallback/project_workspaces",
             get(fb_project_workspaces),
         )
-        .route("/v1/fallback/user_workspaces", get(fb_user_workspaces))
+        .route("/v1/fallback/workspaces", get(fb_workspaces))
         .route("/v1/projects", post(create_project))
         .route("/v1/projects/bulk", post(bulk_projects))
         .route(
             "/v1/projects/{id}",
             patch(update_project).delete(delete_project),
         )
+        // ADR-016: orchestrator-prompt endpoints live on the `/api/*` router
+        // (`routes/kanban.rs`) because BOTH consumers — the MCP tool
+        // (`get_orchestrator_prompt`) and the frontend editor
+        // (`projectsApi.*OrchestratorPrompt`) — speak the `ApiResponse`
+        // envelope. The `/v1/*` router returns bare / `MutationResponse`
+        // shapes the MCP client can't parse (missing `success` field).
+        // See `routes/mod.rs` for the route-boundary rule.
         .route("/v1/project_statuses", post(create_status))
         .route("/v1/project_statuses/bulk", post(bulk_statuses))
         .route(
@@ -1148,17 +1072,16 @@ pub fn router() -> Router<DeploymentImpl> {
             "/v1/issue_tags/{id}",
             axum::routing::delete(delete_issue_tag),
         )
-        .route("/v1/issue_assignees", post(create_issue_assignee))
-        .route(
-            "/v1/issue_assignees/{id}",
-            axum::routing::delete(delete_issue_assignee),
-        )
         .route("/v1/issue_comments", post(create_issue_comment))
         .route(
             "/v1/issue_comments/{id}",
             patch(update_issue_comment).delete(delete_issue_comment),
         )
 }
+
+// ADR-016 orchestrator-prompt handlers live in `routes/kanban.rs` so they
+// return the `ApiResponse` envelope (see that file's header comment and
+// the route-boundary rule in `routes/mod.rs`).
 
 #[cfg(test)]
 mod tests {
@@ -1462,7 +1385,6 @@ mod tests {
                 parent_issue_id: None,
                 parent_issue_sort_order: None,
                 extension_metadata: "{}",
-                creator_user_id: None,
                 key: &key,
             },
         )
@@ -1520,6 +1442,56 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
+    }
+
+    /// ADR-016 A4: `to_api_project` exposes `has_orchestrator_prompt` as a
+    /// bool only (the body never ships on the list shape). `true` requires
+    /// a non-whitespace value (`.trim()` semantics — a whitespace-only
+    /// prompt must NOT light up the tree's dot).
+    #[tokio::test]
+    async fn to_api_project_has_orchestrator_prompt_bool_only() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let project = create_project_record(&pool, Uuid::new_v4(), "Acme", "#6366f1", None)
+            .await
+            .unwrap();
+
+        // Default: freshly created project → empty prompt → false.
+        let mapped = super::to_api_project(project.clone());
+        assert!(!mapped.has_orchestrator_prompt);
+
+        // Set a real prompt → true.
+        let with_prompt = DbProject::update_orchestrator_prompt(&pool, project.id, "be terse")
+            .await
+            .unwrap();
+        let mapped = super::to_api_project(with_prompt);
+        assert!(mapped.has_orchestrator_prompt);
+
+        // Whitespace-only → false (resolution treats whitespace as empty).
+        let whitespace = DbProject::update_orchestrator_prompt(&pool, project.id, "   \n\t  ")
+            .await
+            .unwrap();
+        let mapped = super::to_api_project(whitespace);
+        assert!(
+            !mapped.has_orchestrator_prompt,
+            "whitespace-only prompt must NOT light up the tree dot"
+        );
+
+        // Body must NOT ship on the wire — serialize to JSON and assert the
+        // prompt text isn't anywhere in the payload.
+        let wire = serde_json::to_value(&mapped).unwrap();
+        let serialized = serde_json::to_string(&wire).unwrap();
+        assert!(
+            !serialized.contains("be terse"),
+            "the prompt body MUST NOT ship on the list shape: {serialized}"
+        );
+        // Tracked type invariant: only the bool flag is exposed.
+        let obj = wire.as_object().unwrap();
+        assert!(obj.contains_key("has_orchestrator_prompt"));
+        assert_eq!(
+            obj["has_orchestrator_prompt"], false,
+            "whitespace-only prompt must surface as has_orchestrator_prompt=false"
+        );
     }
 
     /// A partial issue PATCH carrying an (empty or partial) extension_metadata

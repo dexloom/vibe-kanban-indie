@@ -4,7 +4,6 @@ import {
   SortAscendingIcon,
   SortDescendingIcon,
   CalendarIcon,
-  UserIcon,
   TagIcon,
 } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
@@ -95,9 +94,6 @@ function ToolbarDropdown({
             <DropdownMenuLabel>{t('toolbar.groupBy')}</DropdownMenuLabel>
             <DropdownMenuItem icon={CalendarIcon}>
               {t('grouping.date')}
-            </DropdownMenuItem>
-            <DropdownMenuItem icon={UserIcon}>
-              {t('grouping.assignee')}
             </DropdownMenuItem>
             <DropdownMenuItem icon={TagIcon}>
               {t('grouping.label')}

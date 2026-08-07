@@ -10,7 +10,15 @@ export type Project = { id: string, name: string,
 /**
  * Per-project issue prefix (e.g. "ACME" -> "ACME-5"). Defaults from name.
  */
-key: string | null, color: string, sort_order: bigint, parent_id: string | null, default_agent_working_dir: string | null, remote_project_id: string | null, created_at: Date, updated_at: Date, };
+key: string | null, color: string, sort_order: bigint, parent_id: string | null, default_agent_working_dir: string | null, remote_project_id: string | null, 
+/**
+ * ADR-016: per-project / per-board orchestrator prompt. Empty string =
+ * "no prompt at this scope"; resolution walks the parent chain and
+ * composes every non-empty value into a labeled stack (board-first /
+ * project-last). UPGRADE-SAFE: the migration sets DEFAULT '' so
+ * existing rows are valid without rewrite.
+ */
+orchestrator_prompt: string, created_at: Date, updated_at: Date, };
 
 export type UpdateRepo = { display_name?: string | null, setup_script?: string | null, cleanup_script?: string | null, archive_script?: string | null, copy_files?: string | null, parallel_setup_script?: boolean | null, dev_server_script?: string | null, default_target_branch?: string | null, default_working_dir?: string | null, };
 
@@ -48,7 +56,7 @@ export type DraftIssueData = { title: string, description: string | null, status
 /**
  * Stored as the string value of IssuePriority (e.g. "urgent", "high", "medium", "low")
  */
-priority: string | null, assignee_ids: Array<string>, tag_ids: Array<string>, create_draft_workspace: boolean, 
+priority: string | null, tag_ids: Array<string>, create_draft_workspace: boolean, 
 /**
  * The project this draft belongs to
  */
@@ -123,10 +131,6 @@ workspace_filters: WorkspaceFilterStateData,
  * Workspace sidebar sort preferences
  */
 workspace_sort: WorkspaceSortStateData, 
-/**
- * Last selected organization ID
- */
-selected_org_id: string | null, 
 /**
  * Last selected project ID
  */
@@ -262,50 +266,6 @@ export type DiffChangeKind = "added" | "deleted" | "modified" | "renamed" | "cop
 
 export type ApiResponse<T, E = T> = { success: boolean, data: T | null, error_data: E | null, message: string | null, };
 
-export type LoginStatus = { "status": "loggedout" } | { "status": "loggedin", user_id: string | null, };
-
-export enum MemberRole { ADMIN = "ADMIN", MEMBER = "MEMBER" }
-
-export enum InvitationStatus { PENDING = "PENDING", ACCEPTED = "ACCEPTED", DECLINED = "DECLINED", EXPIRED = "EXPIRED" }
-
-export type Organization = { id: string, name: string, slug: string, is_personal: boolean, issue_prefix: string, created_at: string, updated_at: string, };
-
-export type OrganizationWithRole = { id: string, name: string, slug: string, is_personal: boolean, issue_prefix: string, created_at: string, updated_at: string, user_role: MemberRole, };
-
-export type ListOrganizationsResponse = { organizations: Array<OrganizationWithRole>, };
-
-export type GetOrganizationResponse = { organization: Organization, user_role: string, };
-
-export type CreateOrganizationRequest = { name: string, slug: string, };
-
-export type CreateOrganizationResponse = { organization: OrganizationWithRole, };
-
-export type UpdateOrganizationRequest = { name: string, };
-
-export type Invitation = { id: string, organization_id: string, invited_by_user_id: string | null, email: string, role: MemberRole, status: InvitationStatus, token: string, created_at: string, expires_at: string, };
-
-export type CreateInvitationRequest = { email: string, role: MemberRole, };
-
-export type CreateInvitationResponse = { invitation: Invitation, };
-
-export type ListInvitationsResponse = { invitations: Array<Invitation>, };
-
-export type GetInvitationResponse = { id: string, organization_slug: string, role: MemberRole, expires_at: string, };
-
-export type AcceptInvitationResponse = { organization_id: string, organization_slug: string, role: MemberRole, };
-
-export type RevokeInvitationRequest = { invitation_id: string, };
-
-export type OrganizationMemberInfo = { user_id: string, role: MemberRole, joined_at: string, };
-
-export type OrganizationMemberWithProfile = { user_id: string, role: MemberRole, joined_at: string, first_name: string | null, last_name: string | null, username: string | null, email: string | null, avatar_url: string | null, };
-
-export type ListMembersResponse = { members: Array<OrganizationMemberWithProfile>, };
-
-export type UpdateMemberRoleRequest = { role: MemberRole, };
-
-export type UpdateMemberRoleResponse = { user_id: string, role: MemberRole, };
-
 export type RegisterRepoRequest = { path: string, display_name: string | null, };
 
 export type InitRepoRequest = { parent_path: string, folder_name: string, };
@@ -340,7 +300,7 @@ config_path: string, };
 
 export type TelegramTestResponse = { ok: boolean, error: string | null, };
 
-export type UserSystemInfo = { version: string, config: Config, login_status: LoginStatus, environment: Environment, 
+export type UserSystemInfo = { version: string, config: Config, environment: Environment, 
 /**
  * Capabilities supported per executor (e.g., { "CLAUDE_CODE": ["SESSION_FORK"] })
  */
@@ -606,9 +566,17 @@ severity: string, message: string,
  */
 artifact?: string, };
 
+export type UpdateOrchestratorPromptRequest = { orchestrator_prompt: string, };
+
+export type OrchestratorPromptResponse = { project_id: string, orchestrator_prompt: string, };
+
+export type ResolvedOrchestratorPromptResponse = { project_id: string, orchestrator_prompt: string, source_project_id: string | null, source: OrchestratorPromptSource, };
+
+export type OrchestratorPromptSource = "self" | "ancestor" | "default";
+
 export type UnifiedPrComment = { "comment_type": "general", id: string, author: string, author_association: string | null, body: string, created_at: string, url: string | null, } | { "comment_type": "review", id: bigint, author: string, author_association: string | null, body: string, created_at: string, url: string | null, path: string, line: bigint | null, side: string | null, diff_hunk: string | null, };
 
-export type ProviderKind = "git_hub" | "azure_dev_ops" | "unknown";
+export type ProviderKind = "git_hub" | "unknown";
 
 export type PullRequestDetail = { number: bigint, url: string, status: MergeStatus, merged_at: string | null, merge_commit_sha: string | null, title: string, base_branch: string, head_branch: string, };
 
@@ -1202,6 +1170,6 @@ export type ExecutorDiscoveredOptions = { model_selector: ModelSelectorConfig, s
 
 export type JsonValue = number | string | boolean | Array<JsonValue> | { [key in string]?: JsonValue } | null;
 
-export const DEFAULT_PR_DESCRIPTION_PROMPT = "Update the PR that was just created with a better title and description.\nThe PR number is #{pr_number} and the URL is {pr_url}.\n\nAnalyze the changes in this branch and write:\n1. A concise, descriptive title that summarizes the changes, postfixed with \"(Vibe Kanban)\"\n2. A detailed description that explains:\n   - What changes were made\n   - Why they were made (based on the task context)\n   - Any important implementation details\n   - At the end, include a note: \"This PR was written using [Vibe Kanban](https://vibekanban.com)\"\n\nUse the appropriate CLI tool to update the PR (gh pr edit for GitHub, az repos pr update for Azure DevOps).";
+export const DEFAULT_PR_DESCRIPTION_PROMPT = "Update the PR that was just created with a better title and description.\nThe PR number is #{pr_number} and the URL is {pr_url}.\n\nAnalyze the changes in this branch and write:\n1. A concise, descriptive title that summarizes the changes, postfixed with \"(Vibe Kanban)\"\n2. A detailed description that explains:\n   - What changes were made\n   - Why they were made (based on the task context)\n   - Any important implementation details\n   - At the end, include a note: \"This PR was written using [Vibe Kanban](https://vibekanban.com)\"\n\nUpdate the PR using gh pr edit.";
 
 export const DEFAULT_COMMIT_REMINDER_PROMPT = "There are uncommitted changes. Please stage and commit them now with a descriptive commit message.";

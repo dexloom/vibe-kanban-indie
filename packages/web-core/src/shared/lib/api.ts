@@ -44,9 +44,6 @@ import {
   RunAgentSetupResponse,
   GhCliSetupError,
   RunScriptError,
-  ListOrganizationsResponse,
-  OrganizationMemberWithProfile,
-  ListMembersResponse,
   OpenEditorResponse,
   OpenEditorRequest,
   PrError,
@@ -92,6 +89,9 @@ import {
   ToggleTaskRequest,
   ConstitutionContent,
   SpecKitFeatureStatus,
+  OrchestratorPromptResponse,
+  ResolvedOrchestratorPromptResponse,
+  UpdateOrchestratorPromptRequest,
   Pipeline,
   Routine,
   RecurrentTomlError,
@@ -99,11 +99,9 @@ import {
   PipelineFileStatus,
   PipelineValidation,
 } from 'shared/types';
-import type { Project as RemoteProject } from 'shared/remote-types';
 import type { WorkspaceWithSession } from '@/shared/types/attempt';
 import { createWorkspaceWithSession } from '@/shared/types/attempt';
 import { resolveHostRequestScope } from '@/shared/lib/hostRequestScope';
-import { makeRequest as makeRemoteRequest } from '@/shared/lib/remoteApi';
 import { makeLocalApiRequest } from '@/shared/lib/localApiTransport';
 
 export class ApiError<E = unknown> extends Error {
@@ -176,10 +174,6 @@ export type Err<E> = { success: false; error: E | undefined; message?: string };
 
 // Result type for endpoints that need typed errors
 export type Result<T, E> = Ok<T> | Err<E>;
-
-type ListRemoteProjectsResponse = {
-  projects: RemoteProject[];
-};
 
 // Special handler for Result-returning endpoints
 const handleApiResponseAsResult = async <T, E>(
@@ -1533,60 +1527,7 @@ export const approvalsApi = {
   },
 };
 
-const handleRemoteResponse = async <T>(response: Response): Promise<T> => {
-  if (!response.ok) {
-    let errorMessage = `Request failed with status ${response.status}`;
-
-    try {
-      const body = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
-      errorMessage = body.error || body.message || errorMessage;
-    } catch {
-      errorMessage = response.statusText || errorMessage;
-    }
-
-    throw new ApiError(errorMessage, response.status, response);
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json() as Promise<T>;
-};
-
-// Organizations API
-export const organizationsApi = {
-  getMembers: async (
-    orgId: string
-  ): Promise<OrganizationMemberWithProfile[]> => {
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/members`
-    );
-    const result = await handleRemoteResponse<ListMembersResponse>(response);
-    return result.members;
-  },
-
-  getUserOrganizations: async (): Promise<ListOrganizationsResponse> => {
-    const response = await makeRemoteRequest('/v1/organizations');
-    return handleRemoteResponse<ListOrganizationsResponse>(response);
-  },
-};
-
-export const remoteProjectsApi = {
-  listByOrganization: async (
-    organizationId: string
-  ): Promise<RemoteProject[]> => {
-    const response = await makeRequest(
-      `/api/remote/projects?organization_id=${encodeURIComponent(organizationId)}`
-    );
-    const result =
-      await handleApiResponse<ListRemoteProjectsResponse>(response);
-    return result.projects;
-  },
-};
+// ADR-019: the User entity has been excised — no users API.
 
 // Scratch API
 export const scratchApi = {
@@ -1708,5 +1649,42 @@ export const searchApi = {
       options
     );
     return handleApiResponse<SearchResult[]>(response);
+  },
+};
+
+// ADR-016 — per-project / per-board orchestrator prompt endpoints. These
+// live under `/api/*` (NOT `/v1/*`) because `handleApiResponse` requires
+// the `ApiResponse` envelope (`{ success, data, error_data, message }`)
+// and throws when `success === undefined` — the `/v1/*` fallback router
+// returns bare shapes and would trip this immediately. The MCP
+// `get_orchestrator_prompt` tool shares the same wire contract.
+export const projectsApi = {
+  getOrchestratorPrompt: async (
+    projectId: string
+  ): Promise<OrchestratorPromptResponse> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator-prompt`
+    );
+    return handleApiResponse<OrchestratorPromptResponse>(response);
+  },
+
+  resolveOrchestratorPrompt: async (
+    projectId: string
+  ): Promise<ResolvedOrchestratorPromptResponse> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator-prompt/resolve`
+    );
+    return handleApiResponse<ResolvedOrchestratorPromptResponse>(response);
+  },
+
+  putOrchestratorPrompt: async (
+    projectId: string,
+    data: UpdateOrchestratorPromptRequest
+  ): Promise<OrchestratorPromptResponse> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator-prompt`,
+      { method: 'PUT', body: JSON.stringify(data) }
+    );
+    return handleApiResponse<OrchestratorPromptResponse>(response);
   },
 };

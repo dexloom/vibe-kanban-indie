@@ -38,7 +38,6 @@ type KanbanIssuePanelFormAction =
       patch: Partial<IssueFormData>;
       fallback: IssueFormData;
     }
-  | { type: 'setCreateAssigneeIds'; assigneeIds: string[] }
   | { type: 'setDraftAutosavePaused'; isPaused: boolean }
   | {
       type: 'setHasRestoredFromScratch';
@@ -63,7 +62,6 @@ export function createBlankCreateFormData(
     description: null,
     statusId: defaultStatusId,
     priority: null,
-    assigneeIds: [],
     tagIds: [],
     createDraftWorkspace: createDraftWorkspaceByDefault,
   };
@@ -103,16 +101,6 @@ export function kanbanIssuePanelFormReducer(
           ...(state.createFormData ?? action.fallback),
           ...action.patch,
         },
-      };
-    case 'setCreateAssigneeIds':
-      return {
-        ...state,
-        createFormData: state.createFormData
-          ? {
-              ...state.createFormData,
-              assigneeIds: action.assigneeIds,
-            }
-          : state.createFormData,
       };
     case 'setDraftAutosavePaused':
       return {
@@ -161,7 +149,6 @@ interface DisplayDataSelectorInput {
   mode: IssuePanelMode;
   createModeDefaults: IssueFormData;
   selectedIssue: SelectedIssueSnapshot | null;
-  currentAssigneeIds: string[];
   currentTagIds: string[];
 }
 
@@ -170,7 +157,6 @@ export function selectDisplayData({
   mode,
   createModeDefaults,
   selectedIssue,
-  currentAssigneeIds,
   currentTagIds,
 }: DisplayDataSelectorInput): IssueFormData {
   if (mode === 'create') {
@@ -186,7 +172,6 @@ export function selectDisplayData({
       : (selectedIssue?.description ?? null),
     statusId: selectedIssue?.status_id ?? '',
     priority: selectedIssue?.priority ?? null,
-    assigneeIds: currentAssigneeIds,
     tagIds: currentTagIds,
     createDraftWorkspace: false,
   };
@@ -211,10 +196,6 @@ export function selectIsCreateDraftDirty({
       createModeDefaults.description ||
     state.createFormData.statusId !== createModeDefaults.statusId ||
     state.createFormData.priority !== createModeDefaults.priority ||
-    !areStringSetsEqual(
-      state.createFormData.assigneeIds,
-      createModeDefaults.assigneeIds
-    ) ||
     !areStringSetsEqual(
       state.createFormData.tagIds,
       createModeDefaults.tagIds

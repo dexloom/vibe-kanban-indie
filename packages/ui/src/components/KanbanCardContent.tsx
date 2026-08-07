@@ -11,7 +11,6 @@ import {
 import { cn } from '../lib/cn';
 import { PriorityIcon, type PriorityLevel } from './PriorityIcon';
 import { KanbanBadge } from './KanbanBadge';
-import { KanbanAssignee, type KanbanAssigneeUser } from './KanbanAssignee';
 import { RunningDots } from './RunningDots';
 import { PrBadge, type PrBadgeStatus } from './PrBadge';
 import {
@@ -127,14 +126,12 @@ export type KanbanCardContentProps<TTag extends KanbanTag = KanbanTag> = {
   description?: string | null;
   priority: PriorityLevel | null;
   tags: KanbanTag[];
-  assignees: KanbanAssigneeUser[];
   pullRequests?: KanbanPullRequest[];
   relationships?: KanbanRelationship[];
   isSubIssue?: boolean;
   isLoading?: boolean;
   className?: string;
   onPriorityClick?: (e: MouseEvent) => void;
-  onAssigneeClick?: (e: MouseEvent) => void;
   onMoreActionsClick?: () => void;
   tagEditProps?: TagEditProps<TTag>;
   isMobile?: boolean;
@@ -146,14 +143,12 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
   description,
   priority,
   tags,
-  assignees,
   pullRequests = [],
   relationships = [],
   isSubIssue,
   isLoading = false,
   className,
   onPriorityClick,
-  onAssigneeClick,
   onMoreActionsClick,
   tagEditProps,
   isMobile,
@@ -254,7 +249,7 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
         </p>
       )}
 
-      {/* Row 4: Priority + Assignee */}
+      {/* Row 4: Priority */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-half min-w-0">
           {onPriorityClick ? (
@@ -276,18 +271,6 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
             <PriorityIcon priority={priority} />
           )}
         </div>
-        {onAssigneeClick ? (
-          <button
-            type="button"
-            onClick={onAssigneeClick}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="cursor-pointer hover:bg-secondary rounded-sm transition-colors"
-          >
-            <KanbanAssignee assignees={assignees} />
-          </button>
-        ) : (
-          <KanbanAssignee assignees={assignees} />
-        )}
       </div>
 
       {/* Row 5: Tags, PRs, Relationships (own row to prevent overflow) */}

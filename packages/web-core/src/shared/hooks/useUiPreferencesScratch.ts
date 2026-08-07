@@ -38,7 +38,6 @@ function storeToScratchData(state: {
   isRightSidebarVisible: boolean;
   isTerminalVisible: boolean;
   workspacePanelStates: Record<string, WorkspacePanelState>;
-  selectedOrgId: string | null;
   selectedProjectId: string | null;
   createDraftWorkspaceByDefault: boolean;
   kanbanProjectViewSelections: Record<string, KanbanProjectViewSelection>;
@@ -74,7 +73,9 @@ function storeToScratchData(state: {
       sort_by: 'updated_at',
       sort_order: 'desc',
     },
-    selected_org_id: state.selectedOrgId,
+    // ADR-018 — `selected_org_id` field is dropped from the wire; old
+    // payloads that still carry it deserialise harmlessly via
+    // `#[serde(default)]` + unknown-key tolerance on UiPreferencesData.
     selected_project_id: state.selectedProjectId,
     create_draft_workspace_by_default: state.createDraftWorkspaceByDefault,
     kanban_project_view_selections: state.kanbanProjectViewSelections as Record<
@@ -100,7 +101,6 @@ function scratchDataToStore(data: UiPreferencesData): {
   isRightSidebarVisible: boolean;
   isTerminalVisible: boolean;
   workspacePanelStates: Record<string, WorkspacePanelState>;
-  selectedOrgId: string | null;
   selectedProjectId: string | null;
   createDraftWorkspaceByDefault: boolean;
   kanbanProjectViewSelections: Record<string, KanbanProjectViewSelection>;
@@ -147,7 +147,6 @@ function scratchDataToStore(data: UiPreferencesData): {
     isRightSidebarVisible: data.is_right_sidebar_visible ?? true,
     isTerminalVisible: data.is_terminal_visible ?? true,
     workspacePanelStates,
-    selectedOrgId: data.selected_org_id ?? null,
     selectedProjectId: data.selected_project_id ?? null,
     createDraftWorkspaceByDefault:
       data.create_draft_workspace_by_default ??
@@ -186,7 +185,6 @@ export function useUiPreferencesScratch() {
     isRightSidebarVisible: state.isRightSidebarVisible,
     isTerminalVisible: state.isTerminalVisible,
     workspacePanelStates: state.workspacePanelStates,
-    selectedOrgId: state.selectedOrgId,
     selectedProjectId: state.selectedProjectId,
     createDraftWorkspaceByDefault: state.createDraftWorkspaceByDefault,
     kanbanProjectViewSelections: state.kanbanProjectViewSelections,
@@ -216,7 +214,6 @@ export function useUiPreferencesScratch() {
       isRightSidebarVisible: currentState.isRightSidebarVisible,
       isTerminalVisible: currentState.isTerminalVisible,
       workspacePanelStates: currentState.workspacePanelStates,
-      selectedOrgId: currentState.selectedOrgId,
       selectedProjectId: currentState.selectedProjectId,
       createDraftWorkspaceByDefault: currentState.createDraftWorkspaceByDefault,
       kanbanProjectViewSelections: currentState.kanbanProjectViewSelections,
@@ -262,7 +259,6 @@ export function useUiPreferencesScratch() {
         isRightSidebarVisible: serverState.isRightSidebarVisible,
         isTerminalVisible: serverState.isTerminalVisible,
         workspacePanelStates: serverState.workspacePanelStates,
-        selectedOrgId: serverState.selectedOrgId,
         selectedProjectId: serverState.selectedProjectId,
         createDraftWorkspaceByDefault:
           serverState.createDraftWorkspaceByDefault,

@@ -26,8 +26,8 @@ import {
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import { ProjectProvider } from '@/shared/providers/remote/ProjectProvider';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
-import { UserProvider } from '@/shared/providers/remote/UserProvider';
-import { useUserContext } from '@/shared/hooks/useUserContext';
+import { WorkspacesProvider } from '@/shared/providers/remote/WorkspacesProvider';
+import { useWorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
 
 export interface WorkspaceSelectionDialogProps {
   projectId: string;
@@ -52,8 +52,8 @@ function WorkspaceSelectionContent({
   // Get local workspaces from WorkspaceContext (both active and archived)
   const { activeWorkspaces, archivedWorkspaces } = useWorkspaceContext();
 
-  // Get already-linked workspaces from UserContext (workspaces are user-scoped)
-  const { getWorkspacesForIssue, workspaces } = useUserContext();
+  // Get already-linked workspaces from WorkspacesContext (the global workspace list)
+  const { getWorkspacesForIssue, workspaces } = useWorkspacesContext();
 
   // Get issue data from ProjectContext (issues are project-scoped)
   const { getIssue } = useProjectContext();
@@ -302,7 +302,7 @@ function WorkspaceSelectionContent({
   );
 }
 
-/** Wrapper that provides UserContext and ProjectContext */
+/** Wrapper that provides WorkspacesContext and ProjectContext */
 function WorkspaceSelectionWithContext({
   projectId,
   issueId,
@@ -312,11 +312,11 @@ function WorkspaceSelectionWithContext({
   }
 
   return (
-    <UserProvider>
+    <WorkspacesProvider>
       <ProjectProvider projectId={projectId}>
         <WorkspaceSelectionContent projectId={projectId} issueId={issueId} />
       </ProjectProvider>
-    </UserProvider>
+    </WorkspacesProvider>
   );
 }
 

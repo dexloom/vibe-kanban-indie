@@ -1,6 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
 
-use api_types::LoginStatus;
 use async_trait::async_trait;
 use client_info::ClientInfo;
 use db::DBService;
@@ -261,12 +260,6 @@ impl Deployment for LocalDeployment {
 impl LocalDeployment {
     pub fn workspace_manager(&self) -> &WorkspaceManager {
         &self.workspace_manager
-    }
-
-    pub async fn get_login_status(&self) -> LoginStatus {
-        // Local-only fork: no remote profile exists. Return LoggedOut so the
-        // local UI prompts the user to keep using the local server.
-        LoginStatus::LoggedOut
     }
 
     pub fn pty(&self) -> &PtyService {

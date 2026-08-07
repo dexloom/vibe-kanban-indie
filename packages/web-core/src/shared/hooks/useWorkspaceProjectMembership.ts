@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useUserContext } from '@/shared/hooks/useUserContext';
+import { useWorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
 import type { WorkspaceProjectMembership } from '@vibe/ui/components/outliner/types';
 
 /**
@@ -7,7 +7,7 @@ import type { WorkspaceProjectMembership } from '@vibe/ui/components/outliner/ty
  * project-scoped tree groups workspaces under the projects they're linked to
  * (M:N, frontend-derived). Until the `workspaces.project_id` migration lands
  * (see `docs/TODO/phase2-workspaces-project-id.md`), the membership is derived
- * from the remote-shape `Workspace` rows exposed by `useUserContext` — each
+ * from the remote-shape `Workspace` rows exposed by `useWorkspacesContext` — each
  * row carries `local_workspace_id` and `project_id`.
  *
  * Semantics:
@@ -23,7 +23,7 @@ import type { WorkspaceProjectMembership } from '@vibe/ui/components/outliner/ty
 export type { WorkspaceProjectMembership } from '@vibe/ui/components/outliner/types';
 
 export function useWorkspaceProjectMembership(): WorkspaceProjectMembership {
-  const { workspaces } = useUserContext();
+  const { workspaces } = useWorkspacesContext();
 
   return useMemo<WorkspaceProjectMembership>(() => {
     const map: WorkspaceProjectMembership = new Map();

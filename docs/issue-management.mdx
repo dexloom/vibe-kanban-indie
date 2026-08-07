@@ -16,7 +16,6 @@ issue lifecycle.
 | **Description** | Detailed context, requirements, and instructions |
 | **Status** | Which column it's in (Todo, In Progress, In Review, Done) |
 | **Priority** | How urgent it is (Urgent, High, Medium, Low) |
-| **Assignee** | Who's responsible (the local user, or unassigned) |
 | **Tags** | Labels for categorisation and filtering |
 | **Simple ID** | A unique identifier like `ACME-123` for easy reference |
 
@@ -37,8 +36,8 @@ that status), or from the **New Issue** button in the filter bar.
 <Step title="Set the status">
   Choose which column the issue starts in.
 </Step>
-<Step title="Set priority, assignee, and tags (optional)">
-  Set a priority, assign the issue, and add tags to categorise it.
+<Step title="Set priority and tags (optional)">
+  Set a priority and add tags to categorise it.
 </Step>
 <Step title="Add a description (optional)">
   Write detailed instructions using the rich text editor (see below).
@@ -78,7 +77,7 @@ Your issue description becomes the prompt your coding agent receives. The more
 specific you are, the better the result.
 </Tip>
 
-## 3. Set priority, assignee, and tags
+## 3. Set priority and tags
 
 | Priority | When to use |
 |----------|-------------|
@@ -97,7 +96,7 @@ Tags are project-specific and created inline from the tag selector. See
 Click any card to open the issue panel on the right.
 
 - **Title and description** save **automatically** a moment after you stop typing.
-- **Status, priority, assignee, and tags** save **immediately** when you change
+- **Status, priority, and tags** save **immediately** when you change
   them — or change status by dragging the card to another column.
 
 ## 5. Issue sections
@@ -138,7 +137,7 @@ from the **command bar** — press `Cmd/Ctrl + K` and choose **Issue Actions**.
   <img style={{maxHeight: "350px"}} src="/images/cloud/command-panel-issue-actions.png" alt="Command panel showing Issue Actions option" />
 </Frame>
 
-Available actions include: change status, change priority, change assignee, make
+Available actions include: change status, change priority, make
 this a sub-issue of another, add a sub-issue, link a workspace, duplicate the
 issue, and delete the issue.
 
@@ -156,8 +155,8 @@ Select several issues to act on them together, in both the
 | **Escape** | Clear the selection |
 
 When two or more issues are selected, a **bulk action bar** appears at the bottom
-of the screen. From it you can change the **status**, **priority**, or
-**assignee** of every selected issue at once, or **delete** them.
+of the screen. From it you can change the **status** or **priority** of every
+selected issue at once, or **delete** them.
 
 <Warning>
 Bulk delete is permanent and cannot be undone.

@@ -37,10 +37,9 @@ impl ToolError {
 
 mod approvals;
 mod context;
-mod issue_assignees;
 mod issue_relationships;
 mod issue_tags;
-mod organizations;
+mod orchestrator_prompt;
 mod repos;
 mod sessions;
 mod task_attempts;
@@ -50,9 +49,7 @@ impl McpServer {
     pub fn global_mode_router() -> rmcp::handler::server::tool::ToolRouter<Self> {
         Self::context_tools_router()
             + Self::workspaces_tools_router()
-            + Self::organizations_tools_router()
             + Self::repos_tools_router()
-            + Self::issue_assignees_tools_router()
             + Self::issue_tags_tools_router()
             + Self::issue_relationships_tools_router()
             + Self::task_attempts_tools_router()
@@ -66,7 +63,11 @@ impl McpServer {
             + Self::session_tools_router()
             // Orchestrators need to answer questions / approve plans (and stop
             // runaway executions) for the headed agents they drive.
-            + Self::approvals_tools_router();
+            + Self::approvals_tools_router()
+            // ADR-016: per-tick orchestrator prompt lookup. Card-scoped
+            // agents must NOT read sibling prompts; this router is
+            // exposed only to the orchestrator instance.
+            + Self::orchestrator_prompt_tools_router();
         router.remove_route("list_workspaces");
         router.remove_route("delete_workspace");
         router
@@ -229,20 +230,6 @@ impl McpServer {
         ))
     }
 
-    // Resolves an organization_id from an explicit parameter or context, falling
-    // back to the single implicit local organization.
-    fn resolve_organization_id(&self, explicit: Option<Uuid>) -> Result<Uuid, ToolError> {
-        if let Some(id) = explicit {
-            return Ok(id);
-        }
-        if let Some(ctx) = &self.context
-            && let Some(id) = ctx.organization_id
-        {
-            return Ok(id);
-        }
-        Ok(super::LOCAL_ORGANIZATION_ID)
-    }
-
     // Links a workspace to a remote issue by fetching issue.project_id and calling link endpoint.
     async fn link_workspace_to_issue(
         &self,
@@ -304,13 +291,20 @@ mod tests {
 
     static RUSTLS_PROVIDER: Once = Once::new();
 
-    fn install_rustls_provider() {
+    /// Install the rustls crypto provider once per process. Shared across
+    /// every `#[cfg(test)]` module that needs reqwest over rustls — the
+    /// sibling `orchestrator_prompt` tests call this through
+    /// `super::super::install_rustls_provider` so a single process-wide
+    /// install covers them all.
+    pub(crate) fn install_rustls_provider() {
         RUSTLS_PROVIDER.call_once(|| {
             rustls::crypto::aws_lc_rs::default_provider()
                 .install_default()
                 .expect("Failed to install rustls crypto provider");
         });
     }
+
+    // (Tests continue below.)
 
     fn tool_names(router: rmcp::handler::server::tool::ToolRouter<McpServer>) -> BTreeSet<String> {
         router
@@ -327,6 +321,10 @@ mod tests {
             "create_session".to_string(),
             "get_context".to_string(),
             "get_execution".to_string(),
+            // ADR-016: per-tick orchestrator prompt lookup. Card-scoped
+            // agents must NOT read sibling prompts, so this lives only
+            // in the orchestrator router.
+            "get_orchestrator_prompt".to_string(),
             "list_sessions".to_string(),
             // Approval-control tools so the orchestrator can read, unblock, and
             // stop the agents it drives (mirrors global mode).
@@ -355,6 +353,22 @@ mod tests {
         assert!(actual.contains("stop_execution"));
     }
 
+    /// ADR-016: `get_orchestrator_prompt` is orchestrator-only — card-scoped
+    /// agents must never read sibling prompts. Asserting the NEGATIVE here
+    /// (global mode does NOT expose it) catches a regression where someone
+    /// adds the router to the wrong scope.
+    #[test]
+    fn orchestrator_prompt_tool_is_orchestrator_only() {
+        let orch = tool_names(McpServer::orchestrator_mode_router());
+        let global = tool_names(McpServer::global_mode_router());
+
+        assert!(orch.contains("get_orchestrator_prompt"));
+        assert!(
+            !global.contains("get_orchestrator_prompt"),
+            "get_orchestrator_prompt MUST NOT be in the global_mode router"
+        );
+    }
+
     #[test]
     fn orchestrator_session_id_is_resolved_from_context() {
         install_rustls_provider();
@@ -365,7 +379,6 @@ mod tests {
             base_url: "http://127.0.0.1:3000".to_string(),
             tool_router: ToolRouter::default(),
             context: Some(McpContext {
-                organization_id: None,
                 project_id: None,
                 issue_id: None,
                 orchestrator_session_id: Some(session_id),
@@ -406,7 +419,6 @@ mod tests {
     fn global_context_omits_orchestrator_session_id_from_serialized_output() {
         install_rustls_provider();
         let context = McpContext {
-            organization_id: None,
             project_id: None,
             issue_id: None,
             orchestrator_session_id: None,

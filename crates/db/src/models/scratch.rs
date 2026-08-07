@@ -135,9 +135,6 @@ pub struct UiPreferencesData {
     /// Workspace sidebar sort preferences
     #[serde(default)]
     pub workspace_sort: WorkspaceSortStateData,
-    /// Last selected organization ID
-    #[serde(default)]
-    pub selected_org_id: Option<String>,
     /// Last selected project ID
     #[serde(default)]
     pub selected_project_id: Option<String>,
@@ -210,8 +207,6 @@ pub struct DraftIssueData {
     /// Stored as the string value of IssuePriority (e.g. "urgent", "high", "medium", "low")
     #[serde(default)]
     pub priority: Option<String>,
-    #[serde(default)]
-    pub assignee_ids: Vec<String>,
     #[serde(default)]
     pub tag_ids: Vec<String>,
     #[serde(default)]

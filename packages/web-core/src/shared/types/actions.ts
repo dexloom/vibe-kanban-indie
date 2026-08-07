@@ -42,7 +42,6 @@ export interface ProjectMutations {
   removeIssue: (id: string) => void;
   duplicateIssue: (issueId: string) => void;
   getIssue: (issueId: string) => { simple_id: string } | undefined;
-  getAssigneesForIssue: (issueId: string) => { user_id: string }[];
   /**
    * Open the lightweight create-issue modal for the current project. Resolves
    * with the newly-created issue id, or `null` if the user cancelled.
@@ -81,11 +80,6 @@ export interface ActionExecutorContext {
     projectId: string,
     issueIds: string[]
   ) => Promise<void>;
-  openAssigneeSelection: (
-    projectId: string,
-    issueIds: string[],
-    isCreateMode?: boolean
-  ) => Promise<void>;
   openSubIssueSelection: (
     projectId: string,
     issueId: string,
@@ -104,11 +98,10 @@ export interface ActionExecutorContext {
   // Default status for issue creation based on current kanban tab
   defaultCreateStatusId?: string;
   // Current kanban context (for project settings action)
-  kanbanOrgId?: string;
   kanbanProjectId?: string;
   // Project mutations (registered when inside ProjectProvider)
   projectMutations?: ProjectMutations;
-  // Remote workspaces (from Electric sync via UserContext)
+  // Remote workspaces (from Electric sync via WorkspacesContext)
   remoteWorkspaces: RemoteWorkspace[];
 }
 
@@ -155,9 +148,6 @@ export interface ActionVisibilityContext {
   hasSelectedKanbanIssue: boolean;
   hasSelectedKanbanIssueParent: boolean;
   isCreatingIssue: boolean;
-
-  // Auth state
-  isSignedIn: boolean;
 }
 
 // Enum discriminant for action target types

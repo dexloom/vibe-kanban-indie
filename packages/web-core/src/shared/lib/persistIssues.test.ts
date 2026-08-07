@@ -232,9 +232,10 @@ describe('persistProjectReorder (P4-D3)', () => {
     d.resolve();
     await new Promise((res) => setTimeout(res, 0));
     expect(refreshShapeSource).toHaveBeenCalledTimes(1);
+    // ADR-018 — projects are tenant-less; refresh with empty params.
     expect(refreshShapeSource).toHaveBeenCalledWith(
       expect.objectContaining({ table: 'projects_test' }),
-      { organization_id: 'org-1' }
+      {}
     );
   });
 
@@ -244,7 +245,7 @@ describe('persistProjectReorder (P4-D3)', () => {
     bulkUpdateProjects.mockReset();
     bulkUpdateProjects.mockReturnValueOnce(dOk.promise);
     refreshShapeSource.mockReset();
-    persistProjectReorder([{ id: 'p1' }, { id: 'p2' }], 'org-1');
+    persistProjectReorder([{ id: 'p1' }, { id: 'p2' }]);
     dOk.resolve();
     await new Promise((res) => setTimeout(res, 0));
     expect(refreshShapeSource).toHaveBeenCalledTimes(1);
@@ -256,7 +257,7 @@ describe('persistProjectReorder (P4-D3)', () => {
     refreshShapeSource.mockReset();
     const onError = vi.fn();
     const onSettled = vi.fn();
-    persistProjectReorder([{ id: 'p1' }, { id: 'p2' }], 'org-1', {
+    persistProjectReorder([{ id: 'p1' }, { id: 'p2' }], {
       onError,
       onSettled,
     });
@@ -273,7 +274,7 @@ describe('persistProjectReorder (P4-D3)', () => {
     bulkUpdateProjects.mockReturnValueOnce(dOk.promise);
     refreshShapeSource.mockReset();
     const okSettled = vi.fn();
-    persistProjectReorder([{ id: 'p1' }], 'org-1', { onSettled: okSettled });
+    persistProjectReorder([{ id: 'p1' }], { onSettled: okSettled });
     dOk.resolve();
     await new Promise((res) => setTimeout(res, 0));
     expect(okSettled).toHaveBeenCalledTimes(1);
@@ -283,7 +284,7 @@ describe('persistProjectReorder (P4-D3)', () => {
     bulkUpdateProjects.mockReturnValueOnce(dFail.promise);
     refreshShapeSource.mockReset();
     const failSettled = vi.fn();
-    persistProjectReorder([{ id: 'p1' }], 'org-1', {
+    persistProjectReorder([{ id: 'p1' }], {
       onSettled: failSettled,
     });
     dFail.reject(new Error('bulk failed'));
@@ -301,7 +302,7 @@ describe('persistProjectReorder (P4-D3)', () => {
     });
     const onError = vi.fn();
     const onSettled = vi.fn();
-    persistProjectReorder([{ id: 'p1' }], 'org-1', { onError, onSettled });
+    persistProjectReorder([{ id: 'p1' }], { onError, onSettled });
     d.resolve();
     await new Promise((res) => setTimeout(res, 0));
     expect(onError).not.toHaveBeenCalled();

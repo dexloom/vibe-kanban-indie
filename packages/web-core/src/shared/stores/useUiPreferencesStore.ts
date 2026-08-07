@@ -101,7 +101,6 @@ export type KanbanSortField =
 export type KanbanFilterState = {
   searchQuery: string;
   priorities: IssuePriority[];
-  assigneeIds: string[]; // 'unassigned' or '__self__' or user IDs
   tagIds: string[];
   sortField: KanbanSortField;
   sortDirection: 'asc' | 'desc';
@@ -110,16 +109,10 @@ export type KanbanFilterState = {
 export const DEFAULT_KANBAN_FILTER_STATE: KanbanFilterState = {
   searchQuery: '',
   priorities: [],
-  assigneeIds: [],
   tagIds: [],
   sortField: 'sort_order',
   sortDirection: 'asc',
 };
-
-export const KANBAN_ASSIGNEE_FILTER_VALUES = {
-  UNASSIGNED: 'unassigned',
-  SELF: '__self__',
-} as const;
 
 export const KANBAN_PROJECT_VIEW_IDS = {
   TEAM: 'team',
@@ -164,7 +157,6 @@ export type ResolvedKanbanProjectState = {
 const cloneKanbanFilters = (filters: KanbanFilterState): KanbanFilterState => ({
   searchQuery: filters.searchQuery,
   priorities: [...filters.priorities],
-  assigneeIds: [...filters.assigneeIds],
   tagIds: [...filters.tagIds],
   sortField: filters.sortField,
   sortDirection: filters.sortDirection,
@@ -183,7 +175,6 @@ const getKanbanDefaultView = (viewId: string): KanbanProjectView => {
       name: 'Personal',
       filters: {
         ...cloneKanbanFilters(DEFAULT_KANBAN_FILTER_STATE),
-        assigneeIds: [KANBAN_ASSIGNEE_FILTER_VALUES.SELF],
         sortField: 'priority',
         sortDirection: 'asc',
       },
@@ -350,8 +341,8 @@ type State = {
   // Animated border around the working message box (toggleable in settings)
   animateRunningOutline: boolean;
 
-  // Last selected organization and project (persisted via scratch store)
-  selectedOrgId: string | null;
+  // Last selected project (persisted via scratch store).
+  // ADR-018 — `selectedOrgId` removed.
   selectedProjectId: string | null;
   createDraftWorkspaceByDefault: boolean;
 
@@ -437,9 +428,7 @@ type State = {
   // Animated running outline actions
   setAnimateRunningOutline: (value: boolean) => void;
 
-  // Last selected organization and project actions
-  setSelectedOrgId: (orgId: string | null) => void;
-  clearSelectedOrgId: () => void;
+  // Last selected project actions
   setSelectedProjectId: (projectId: string | null) => void;
   setCreateDraftWorkspaceByDefault: (value: boolean) => void;
 };
@@ -483,8 +472,7 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
   // Animated running outline (default on)
   animateRunningOutline: loadAnimateRunningOutline(),
 
-  // Last selected organization and project
-  selectedOrgId: null,
+  // Last selected project (ADR-018 — `selectedOrgId` removed)
   selectedProjectId: null,
   createDraftWorkspaceByDefault: DEFAULT_CREATE_DRAFT_WORKSPACE_BY_DEFAULT,
 
@@ -841,9 +829,7 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
     set({ animateRunningOutline: value });
   },
 
-  // Last selected organization and project actions
-  setSelectedOrgId: (orgId) => set({ selectedOrgId: orgId }),
-  clearSelectedOrgId: () => set({ selectedOrgId: null }),
+  // Last selected project actions
   setSelectedProjectId: (projectId) => set({ selectedProjectId: projectId }),
   setCreateDraftWorkspaceByDefault: (value) =>
     set({ createDraftWorkspaceByDefault: value }),

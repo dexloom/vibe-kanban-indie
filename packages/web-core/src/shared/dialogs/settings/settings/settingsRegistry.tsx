@@ -1,8 +1,6 @@
 import {
   GearIcon,
   GitBranchIcon,
-  BuildingsIcon,
-  CloudIcon,
   CpuIcon,
   PlugIcon,
   TelegramLogoIcon,
@@ -14,34 +12,28 @@ import { GeneralSettingsSection } from './GeneralSettingsSection';
 import { PipelineSettingsSection } from './PipelineSettingsSection';
 import { RecurrentSettingsSection } from './RecurrentSettingsSection';
 import { ReposSettingsSection } from './ReposSettingsSection';
-import { OrganizationsSettingsSection } from './OrganizationsSettingsSection';
-import { RemoteProjectsSettingsSection } from './RemoteProjectsSettingsSection';
 import { AgentsSettingsSection } from './AgentsSettingsSection';
 import { McpSettingsSection } from './McpSettingsSection';
 import { TelegramSettingsSection } from './TelegramSettingsSection';
 
+// ADR-018 — `organizations` and `remote-projects` sections are gone.
+// Only host-scoped sections remain; the `universal` group is empty.
 export type SettingsSectionType =
   | 'general'
   | 'pipeline'
   | 'recurrent'
   | 'repos'
-  | 'organizations'
-  | 'remote-projects'
   | 'agents'
   | 'mcp'
   | 'telegram';
 
-export type SettingsSectionGroup = 'host' | 'universal';
+export type SettingsSectionGroup = 'host';
 
 export type SettingsSectionInitialState = {
   general: undefined;
   pipeline: undefined;
   recurrent: undefined;
   repos: { repoId?: string } | undefined;
-  organizations: { organizationId?: string } | undefined;
-  'remote-projects':
-    | { organizationId?: string; projectId?: string }
-    | undefined;
   agents: { executor?: string; variant?: string } | undefined;
   mcp: undefined;
   telegram: undefined;
@@ -61,8 +53,6 @@ export const SETTINGS_SECTION_DEFINITIONS: SettingsSectionDefinition[] = [
   { id: 'agents', icon: CpuIcon, group: 'host' },
   { id: 'mcp', icon: PlugIcon, group: 'host' },
   { id: 'telegram', icon: TelegramLogoIcon, group: 'host' },
-  { id: 'organizations', icon: BuildingsIcon, group: 'universal' },
-  { id: 'remote-projects', icon: CloudIcon, group: 'universal' },
 ];
 
 export function isHostSpecificSettingsSection(
@@ -90,16 +80,6 @@ export function renderSettingsSection(
       return (
         <ReposSettingsSection
           initialState={initialState as SettingsSectionInitialState['repos']}
-        />
-      );
-    case 'organizations':
-      return <OrganizationsSettingsSection />;
-    case 'remote-projects':
-      return (
-        <RemoteProjectsSettingsSection
-          initialState={
-            initialState as SettingsSectionInitialState['remote-projects']
-          }
         />
       );
     case 'agents':

@@ -1,3 +1,25 @@
+//! Route boundary rule (ADR-016 follow-up).
+//!
+//! MCP-facing routes live under `/api/*` and return the `ApiResponse`
+//! envelope (`{ success, data, message }`). The MCP client deserializes
+//! every response into `ApiResponseEnvelope<T>` and rejects anything
+//! missing the `success` field — a `/api/*` route returning a bare shape
+//! silently breaks the MCP tool at runtime (the original P0 bug; the
+//! orchestrator-prompt endpoints shipped this way for one cycle before
+//! being moved here).
+//!
+//! Frontend-fallback routes live under `/v1/*` and return bare shapes
+//! (`{ "<table>": [...] }` for reads) or `MutationResponse<T>`
+//! (`{ data, txid }`) for writes. The frontend's fallback transport
+//! reads these directly via `makeRequest` without an envelope check.
+//!
+//! **Rule**: a route needed by BOTH consumers (MCP tool AND frontend
+//! fallback) MUST be defined on `/api/*` (envelope-wrapped) and consumed
+//! by the frontend through `handleApiResponse` (which expects the
+//! envelope). Defining it on `/v1/*` would be a wire-format regression
+//! for the MCP consumer. The orchestrator-prompt endpoints are the
+//! canonical example.
+
 use axum::{
     Router,
     routing::{IntoMakeService, get},
@@ -16,7 +38,6 @@ pub mod frontend;
 pub mod health;
 pub mod kanban;
 pub mod local_kanban;
-pub mod organizations;
 pub mod pipelines;
 pub mod preview;
 pub mod recurrent;
@@ -42,7 +63,6 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .merge(execution_processes::router(&deployment))
         .merge(tags::router(&deployment))
         .merge(telegram::router())
-        .merge(organizations::router())
         .merge(filesystem::router())
         .merge(repo::router())
         .merge(events::router(&deployment))

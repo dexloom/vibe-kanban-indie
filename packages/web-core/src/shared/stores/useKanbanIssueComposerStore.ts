@@ -5,7 +5,6 @@ import type { IssuePriority } from 'shared/remote-types';
 export interface ProjectIssueCreateOptions {
   statusId?: string;
   priority?: IssuePriority;
-  assigneeIds?: string[];
   parentIssueId?: string;
 }
 
@@ -14,7 +13,6 @@ export interface KanbanIssueComposerDraft {
   description: string | null;
   statusId?: string;
   priority?: IssuePriority | null;
-  assigneeIds?: string[];
   tagIds?: string[];
   createDraftWorkspace?: boolean;
   parentIssueId?: string;
@@ -49,9 +47,6 @@ function normalizeComposerDraft(
     description: draft.description ?? null,
     ...(draft.statusId ? { statusId: draft.statusId } : {}),
     ...(draft.priority !== undefined ? { priority: draft.priority } : {}),
-    ...(draft.assigneeIds !== undefined
-      ? { assigneeIds: [...draft.assigneeIds] }
-      : {}),
     ...(draft.tagIds !== undefined ? { tagIds: [...draft.tagIds] } : {}),
     ...(draft.createDraftWorkspace !== undefined
       ? { createDraftWorkspace: draft.createDraftWorkspace }
@@ -74,7 +69,6 @@ function toInitialComposerDraft(
   return normalizeComposerDraft({
     statusId: options?.statusId,
     priority: options?.priority,
-    assigneeIds: options?.assigneeIds,
     parentIssueId: options?.parentIssueId,
     tagIds: [],
     createDraftWorkspace: false,

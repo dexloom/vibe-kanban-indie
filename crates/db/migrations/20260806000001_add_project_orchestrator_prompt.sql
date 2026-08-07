@@ -1,0 +1,14 @@
+-- ADR-016: per-project / per-board orchestrator prompt.
+--
+-- One column on `projects`. Empty string = "no prompt at this scope" —
+-- resolution walks the parent chain self→root, first non-empty wins. The
+-- DEFAULT '' keeps existing rows valid on upgrade (no row rewriting); new
+-- rows never specify it explicitly, so the app code doesn't need to track
+-- the column.
+--
+-- SAFETY: ADD COLUMN ONLY. Table recreation is forbidden (see ADR-013 /
+-- 20260805000001_add_project_parent_id.sql — sqlx migrations run inside a
+-- transaction where `PRAGMA foreign_keys = OFF` is a no-op, so a DROP TABLE
+-- would cascade-delete all child rows). ADD COLUMN touches no existing rows
+-- and is safe.
+ALTER TABLE projects ADD COLUMN orchestrator_prompt TEXT NOT NULL DEFAULT '';

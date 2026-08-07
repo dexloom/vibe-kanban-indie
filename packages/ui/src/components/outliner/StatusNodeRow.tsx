@@ -1,4 +1,5 @@
 import { cn } from '../../lib/cn';
+import { DIM_ROW, HOVER_ROW, TINT_ROW, tintStyle } from './layout';
 import { TreeRow } from './TreeRow';
 import { useDragActive, useDragCandidate } from './dragState';
 import { useDropTarget } from '../dnd';
@@ -22,7 +23,12 @@ import {
 export function StatusNodeRow({
   node,
   style,
-}: TreeNodeRenderProps<StatusNode>) {
+  tintColor,
+  dimmed,
+}: TreeNodeRenderProps<StatusNode> & {
+  tintColor?: string | null;
+  dimmed?: boolean;
+}) {
   const status = node.data;
   const isDragActive = useDragActive();
   const candidateId = useDragCandidate();
@@ -30,20 +36,22 @@ export function StatusNodeRow({
   const isCandidate = candidateId === statusDroppableId;
   const dropTargetAttrs = useDropTarget(statusDroppableId, status.projectId);
   return (
-    <div {...dropTargetAttrs}>
+    <div className="h-full" {...dropTargetAttrs}>
       <TreeRow
         node={node}
         style={style}
-        onRowClick={() => node.toggle()}
         showCaret={status.children.length > 0}
         rowClassName={cn(
-          'text-xs font-medium uppercase tracking-wide text-low',
+          `text-xs font-medium uppercase tracking-wide text-low ${TINT_ROW} ${HOVER_ROW}`,
+          dimmed && DIM_ROW,
           isDragActive && !isCandidate && 'rounded-sm bg-tertiary/40',
           isDragActive && isCandidate && 'rounded-sm bg-brand/20'
         )}
       >
         <div className="flex items-center gap-1">
-          <span className="truncate">{status.name}</span>
+          <span className="truncate" style={tintStyle(tintColor)}>
+            {status.name}
+          </span>
           <span
             aria-hidden="true"
             className="size-2 shrink-0 rounded-full"

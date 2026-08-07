@@ -6,8 +6,6 @@ import type {
   Issue,
   ProjectStatus,
   Tag,
-  IssueAssignee,
-  IssueFollower,
   IssueTag,
   IssueRelationship,
   PullRequest,
@@ -19,8 +17,6 @@ import type {
   UpdateProjectStatusRequest,
   CreateTagRequest,
   UpdateTagRequest,
-  CreateIssueAssigneeRequest,
-  CreateIssueFollowerRequest,
   CreateIssueTagRequest,
   CreateIssueRelationshipRequest,
   CreatePullRequestIssueRequest,
@@ -33,13 +29,13 @@ import type {
  * - Issues (data + mutations)
  * - ProjectStatuses (data + mutations)
  * - Tags (data + mutations)
- * - IssueAssignees (data + mutations)
- * - IssueFollowers (data + mutations)
  * - IssueTags (data + mutations)
  * - IssueRelationships (data + mutations)
  * - PullRequests (data only)
  * - PullRequestIssues (data + mutations)
  * - Workspaces (data only)
+ *
+ * ADR-019: assignee/follower/reaction/notification entities excised.
  */
 export interface ProjectContextValue {
   projectId: string;
@@ -48,8 +44,6 @@ export interface ProjectContextValue {
   issues: Issue[];
   statuses: ProjectStatus[];
   tags: Tag[];
-  issueAssignees: IssueAssignee[];
-  issueFollowers: IssueFollower[];
   issueTags: IssueTag[];
   issueRelationships: IssueRelationship[];
   pullRequests: PullRequest[];
@@ -84,18 +78,6 @@ export interface ProjectContextValue {
   updateTag: (id: string, changes: Partial<UpdateTagRequest>) => MutationResult;
   removeTag: (id: string) => MutationResult;
 
-  // IssueAssignee mutations
-  insertIssueAssignee: (
-    data: CreateIssueAssigneeRequest
-  ) => InsertResult<IssueAssignee>;
-  removeIssueAssignee: (id: string) => MutationResult;
-
-  // IssueFollower mutations
-  insertIssueFollower: (
-    data: CreateIssueFollowerRequest
-  ) => InsertResult<IssueFollower>;
-  removeIssueFollower: (id: string) => MutationResult;
-
   // IssueTag mutations
   insertIssueTag: (data: CreateIssueTagRequest) => InsertResult<IssueTag>;
   removeIssueTag: (id: string) => MutationResult;
@@ -115,8 +97,6 @@ export interface ProjectContextValue {
   // Lookup helpers
   getIssue: (issueId: string) => Issue | undefined;
   getIssuesForStatus: (statusId: string) => Issue[];
-  getAssigneesForIssue: (issueId: string) => IssueAssignee[];
-  getFollowersForIssue: (issueId: string) => IssueFollower[];
   getTagsForIssue: (issueId: string) => IssueTag[];
   getTagObjectsForIssue: (issueId: string) => Tag[];
   getRelationshipsForIssue: (issueId: string) => IssueRelationship[];

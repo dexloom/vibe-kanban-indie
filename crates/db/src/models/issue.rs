@@ -24,7 +24,6 @@ pub struct Issue {
     pub parent_issue_id: Option<Uuid>,
     pub parent_issue_sort_order: Option<f64>,
     pub extension_metadata: Value,
-    pub creator_user_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -46,7 +45,6 @@ struct IssueRow {
     parent_issue_id: Option<Uuid>,
     parent_issue_sort_order: Option<f64>,
     extension_metadata: String,
-    creator_user_id: Option<Uuid>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
 }
@@ -70,7 +68,6 @@ impl From<IssueRow> for Issue {
             parent_issue_sort_order: r.parent_issue_sort_order,
             extension_metadata: serde_json::from_str(&r.extension_metadata)
                 .unwrap_or(Value::Object(Default::default())),
-            creator_user_id: r.creator_user_id,
             created_at: r.created_at,
             updated_at: r.updated_at,
         }
@@ -92,7 +89,6 @@ pub struct NewIssue<'a> {
     pub parent_issue_id: Option<Uuid>,
     pub parent_issue_sort_order: Option<f64>,
     pub extension_metadata: &'a str,
-    pub creator_user_id: Option<Uuid>,
     /// Project issue prefix used to build `simple_id`.
     pub key: &'a str,
 }
@@ -134,7 +130,6 @@ impl Issue {
                       parent_issue_id as "parent_issue_id: Uuid",
                       parent_issue_sort_order as "parent_issue_sort_order: f64",
                       extension_metadata,
-                      creator_user_id as "creator_user_id: Uuid",
                       created_at as "created_at!: DateTime<Utc>",
                       updated_at as "updated_at!: DateTime<Utc>"
                FROM issues
@@ -165,7 +160,6 @@ impl Issue {
                       parent_issue_id as "parent_issue_id: Uuid",
                       parent_issue_sort_order as "parent_issue_sort_order: f64",
                       extension_metadata,
-                      creator_user_id as "creator_user_id: Uuid",
                       created_at as "created_at!: DateTime<Utc>",
                       updated_at as "updated_at!: DateTime<Utc>"
                FROM issues
@@ -194,9 +188,9 @@ impl Issue {
                    id, project_id, issue_number, simple_id, status_id, title,
                    description, priority, start_date, target_date, completed_at,
                    sort_order, parent_issue_id, parent_issue_sort_order,
-                   extension_metadata, creator_user_id
+                   extension_metadata
                ) VALUES (
-                   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+                   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
                )
                RETURNING id as "id!: Uuid",
                          project_id as "project_id!: Uuid",
@@ -213,7 +207,6 @@ impl Issue {
                          parent_issue_id as "parent_issue_id: Uuid",
                          parent_issue_sort_order as "parent_issue_sort_order: f64",
                          extension_metadata,
-                         creator_user_id as "creator_user_id: Uuid",
                          created_at as "created_at!: DateTime<Utc>",
                          updated_at as "updated_at!: DateTime<Utc>""#,
             new.id,
@@ -231,7 +224,6 @@ impl Issue {
             new.parent_issue_id,
             new.parent_issue_sort_order,
             new.extension_metadata,
-            new.creator_user_id,
         )
         .fetch_one(pool)
         .await?;
@@ -274,7 +266,6 @@ impl Issue {
                          parent_issue_id as "parent_issue_id: Uuid",
                          parent_issue_sort_order as "parent_issue_sort_order: f64",
                          extension_metadata,
-                         creator_user_id as "creator_user_id: Uuid",
                          created_at as "created_at!: DateTime<Utc>",
                          updated_at as "updated_at!: DateTime<Utc>""#,
             id,

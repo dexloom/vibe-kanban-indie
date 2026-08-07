@@ -13,12 +13,8 @@ export function BulkActionBarContainer({
 }: BulkActionBarContainerProps) {
   const selectedIssueIds = useIssueSelectionStore((s) => s.selectedIssueIds);
   const clearSelection = useIssueSelectionStore((s) => s.clearSelection);
-  const {
-    executeAction,
-    openStatusSelection,
-    openPrioritySelection,
-    openAssigneeSelection,
-  } = useActions();
+  const { executeAction, openStatusSelection, openPrioritySelection } =
+    useActions();
 
   const issueIds = useMemo(() => [...selectedIssueIds], [selectedIssueIds]);
 
@@ -30,10 +26,6 @@ export function BulkActionBarContainer({
     await openPrioritySelection(projectId, issueIds);
   }, [projectId, issueIds, openPrioritySelection]);
 
-  const handleChangeAssignees = useCallback(async () => {
-    await openAssigneeSelection(projectId, issueIds);
-  }, [projectId, issueIds, openAssigneeSelection]);
-
   const handleDelete = useCallback(async () => {
     await executeAction(Actions.DeleteIssue, undefined, projectId, issueIds);
     clearSelection();
@@ -44,7 +36,6 @@ export function BulkActionBarContainer({
       selectedCount={selectedIssueIds.size}
       onChangeStatus={handleChangeStatus}
       onChangePriority={handleChangePriority}
-      onChangeAssignees={handleChangeAssignees}
       onDelete={handleDelete}
       onClearSelection={clearSelection}
     />

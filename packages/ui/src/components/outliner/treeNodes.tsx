@@ -1,8 +1,14 @@
 import type { NodeApi, NodeRendererProps } from 'react-arborist';
-import { PlusIcon } from '@phosphor-icons/react';
+import { NotePencilIcon, PlusIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/cn';
 import { useDraggable, useDropTarget } from '../dnd';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../DropdownMenu';
 import {
   useDragActive,
   useDragCandidate,
@@ -14,10 +20,13 @@ import { OutlinerLeafNode } from './LeafNode';
 import { StatusNodeRow } from './StatusNodeRow';
 import { TasksSectionNode } from './TasksSectionNode';
 import { TreeRow } from './TreeRow';
+import { nearestProjectTint } from './treeGeometry';
+import { DIM_ROW, HOVER_ROW, TINT_ROW, tintStyle } from './layout';
 import type {
   BucketNode,
   CardNode,
   LeafNode,
+  OrchestratorPromptNode,
   ProjectNode,
   SectionNode,
   SidebarTreeNode,
@@ -40,7 +49,10 @@ function getProjectInitials(name: string): string {
 function ProjectTreeNode(
   props: TreeNodeRenderProps<ProjectNode> & {
     onCreateChildBoard?: (parentId: string) => void;
+    onSelectOrchestratorPrompt?: (projectId: string) => void;
     activeProjectId: string | null;
+    tintColor?: string | null;
+    dimmed?: boolean;
   }
 ) {
   const {
@@ -48,12 +60,16 @@ function ProjectTreeNode(
     style,
     dragHandle,
     onCreateChildBoard,
+    onSelectOrchestratorPrompt,
     activeProjectId,
+    tintColor,
+    dimmed,
   } = props;
   const { t } = useTranslation('common');
   const project = node.data;
   const isActive = project.id === activeProjectId;
   const isUnassigned = project.id === UNASSIGNED_PROJECT_ID;
+  const isExpandable = !node.isLeaf;
   const isDragActive = useDragActive();
   const candidateId = useDragCandidate();
   const sourceProjectId = useDragSourceProjectId();
@@ -72,6 +88,13 @@ function ProjectTreeNode(
     acceptKinds: ['project-reorder'],
     parentId: projectParentId,
   });
+  // ADR-016: the `+` button is a DropdownMenu with two items — "Add
+  // board" (creates a child board) and "Orchestrator prompt" (opens the
+  // editor pane). The prompt is rendered as a sibling row, so the menu
+  // item label is "Orchestrator prompt" (NOT "Add …") — the column
+  // always exists, "Add" would lie.
+  const showAddMenu =
+    !isUnassigned && (onCreateChildBoard || onSelectOrchestratorPrompt);
   return (
     <TreeRow
       node={node}
@@ -86,9 +109,13 @@ function ProjectTreeNode(
         ...(!isUnassigned ? dropTargetAttrs : {}),
       }}
       rowClassName={cn(
-        'rounded-md text-base transition-colors',
-        isActive ? 'text-high font-bold' : 'text-normal hover:bg-tertiary',
-        isSource && 'opacity-50 transition-opacity',
+        'rounded-md text-base transition-[color,opacity,background-color]',
+        // Expandable rows are always bold (matches the active project's
+        // label weight); the active project additionally gets the fill.
+        isExpandable || isActive ? 'font-bold' : 'font-normal',
+        isActive ? 'bg-tertiary text-high' : `text-normal ${HOVER_ROW}`,
+        dimmed && DIM_ROW,
+        isSource && `opacity-50 ${TINT_ROW}`,
         isDragActive && !isUnassigned && !isCandidate && 'bg-tertiary/40',
         isDragActive && isCandidate && 'bg-brand/20'
       )}
@@ -107,22 +134,74 @@ function ProjectTreeNode(
         >
           {getProjectInitials(project.name)}
         </span>
-        <span className="truncate">{project.name}</span>
-        {!isUnassigned && onCreateChildBoard && (
-          <button
-            aria-label={t('sidebar.createChildBoard', 'Create child board')}
-            onClick={(e) => {
-              e.stopPropagation();
-              onCreateChildBoard(project.id);
-            }}
-            className={cn(
-              'pointer-events-auto ml-auto shrink-0 rounded-sm p-0.5',
-              'text-low hover:text-high hover:bg-tertiary',
-              'transition-opacity focus:outline-none'
-            )}
-          >
-            <PlusIcon className="size-4.5" weight="bold" />
-          </button>
+        <span
+          className="truncate"
+          style={
+            tintColor
+              ? tintStyle(tintColor, isActive ? 1 : 0.8)
+              : { color: `hsl(${project.color})` }
+          }
+        >
+          {project.name}
+        </span>
+        {showAddMenu && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label={t('sidebar.projectActions', 'Project actions')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+                onPointerDown={(e) => {
+                  // The row's drag binding (`useDraggable`'s
+                  // `onPointerDown` walked from the trigger up to the
+                  // row root exclusive) already exempts the button via
+                  // its `button` selector — but the exemption walk is
+                  // an implementation detail. `stopPropagation` here
+                  // makes the trigger's pointer-down independence from
+                  // the row's drag binding explicit: clicking the `+`
+                  // never promotes the row to a drag candidate, even
+                  // if a future refactor narrows the exemption list.
+                  e.stopPropagation();
+                }}
+                className={cn(
+                  'ml-auto shrink-0 rounded-sm p-0.5',
+                  'text-low hover:text-high hover:bg-tertiary',
+                  'transition-opacity focus:outline-none'
+                )}
+              >
+                <PlusIcon className="size-4.5" weight="bold" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {onCreateChildBoard && (
+                <DropdownMenuItem
+                  onSelect={() => onCreateChildBoard(project.id)}
+                >
+                  <PlusIcon className="size-4" weight="bold" aria-hidden />
+                  {t('sidebar.addChildBoard', 'Add board')}
+                </DropdownMenuItem>
+              )}
+              {onSelectOrchestratorPrompt && (
+                <DropdownMenuItem
+                  onSelect={() => onSelectOrchestratorPrompt(project.id)}
+                >
+                  <NotePencilIcon
+                    className="size-4"
+                    weight="regular"
+                    aria-hidden
+                  />
+                  {t(
+                    'sidebar.addOrchestratorPrompt',
+                    'Add orchestrator prompt'
+                  )}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
     </TreeRow>
@@ -130,18 +209,90 @@ function ProjectTreeNode(
 }
 
 function SectionTreeNode(
-  props: TreeNodeRenderProps<Extract<SectionNode, { kind: 'workspaces' }>>
+  props: TreeNodeRenderProps<Extract<SectionNode, { kind: 'workspaces' }>> & {
+    tintColor?: string | null;
+    dimmed?: boolean;
+  }
 ) {
-  const { node, style, dragHandle } = props;
+  const { node, style, dragHandle, tintColor, dimmed } = props;
   return (
     <TreeRow
       node={node}
       style={style}
       dragHandle={dragHandle}
       onRowClick={() => node.toggle()}
-      rowClassName="text-sm font-medium text-low"
+      rowClassName={cn(
+        `text-sm font-medium text-low ${TINT_ROW} ${HOVER_ROW}`,
+        dimmed && DIM_ROW
+      )}
     >
-      <span className="truncate">{node.data.label}</span>
+      <span className="truncate" style={tintStyle(tintColor)}>
+        {node.data.label}
+      </span>
+    </TreeRow>
+  );
+}
+
+/**
+ * ADR-016: leaf row for the per-project orchestrator prompt. Activation
+ * (row click AND keyboard) is handled by the `handleActivate` branch in
+ * `SidebarProjectTree` — routing through the same path as
+ * project/leaf/card nodes keeps keyboard navigation working for free.
+ * We intentionally do NOT wire a separate `onRowClick` here: the row's
+ * activation is dispatched through react-arborist's `onActivate`
+ * callback, which fires for both pointer and keyboard events. A second
+ * click handler would double-fire `onSelectOrchestratorPrompt` for
+ * pointer events (the same row would dispatch once via react-arborist's
+ * activation and once via the local `onRowClick`).
+ *
+ * The `hasPrompt` brand-coloured dot tracks the wire
+ * `has_orchestrator_prompt` flag — the body never ships on the list
+ * shape, the dot does.
+ */
+function OrchestratorPromptTreeNode(
+  props: TreeNodeRenderProps<OrchestratorPromptNode> & {
+    onSelectOrchestratorPrompt?: (projectId: string) => void;
+    activeProjectPromptId: string | null;
+    tintColor?: string | null;
+    dimmed?: boolean;
+  }
+) {
+  const { node, style, dragHandle, activeProjectPromptId, tintColor, dimmed } =
+    props;
+  const { t } = useTranslation('common');
+  const data = node.data;
+  const isActive = data.projectId === activeProjectPromptId;
+  return (
+    <TreeRow
+      node={node}
+      style={style}
+      dragHandle={dragHandle}
+      isActive={isActive}
+      rowClassName={cn(
+        `rounded-md text-sm text-low transition-[color,opacity] ${HOVER_ROW} hover:text-normal`,
+        dimmed && DIM_ROW
+      )}
+    >
+      <div className="flex items-center gap-1">
+        <NotePencilIcon
+          className="size-3.5 shrink-0 text-low"
+          weight="regular"
+          aria-hidden
+        />
+        <span className="truncate" style={tintStyle(tintColor)}>
+          {data.label}
+        </span>
+        {data.hasPrompt && (
+          <span
+            aria-label={t(
+              'sidebar.orchestratorPromptSet',
+              'Orchestrator prompt is set'
+            )}
+            data-testid={`orchestrator-prompt-dot-${data.projectId}`}
+            className="ml-auto size-1.5 shrink-0 rounded-full bg-brand"
+          />
+        )}
+      </div>
     </TreeRow>
   );
 }
@@ -149,7 +300,9 @@ function SectionTreeNode(
 export function TreeNodeRouter(
   props: NodeRendererProps<SidebarTreeNode> & {
     onCreateChildBoard?: (parentId: string) => void;
+    onSelectOrchestratorPrompt?: (projectId: string) => void;
     activeProjectId: string | null;
+    activeProjectPromptId?: string | null;
     activeWorkspaceId: string | null;
     onSelectIssue?: (projectId: string, issueId: string) => void;
     activeIssueId?: string | null;
@@ -163,11 +316,23 @@ export function TreeNodeRouter(
     style,
     dragHandle,
     onCreateChildBoard,
+    onSelectOrchestratorPrompt,
     activeProjectId,
+    activeProjectPromptId,
     activeWorkspaceId,
     activeIssueId,
     isMultiSelectActive,
   } = props;
+  // ADR-016 usability: every project is color-coded — each node gets its
+  // nearest project ancestor's color; nodes outside the active project's
+  // subtree are dimmed so the working scope stands out.
+  const tint = nearestProjectTint(node, activeProjectId);
+  const tintColor = tint?.color ?? null;
+  // Dim rows only when a project is actually selected AND this node is
+  // outside its subtree. With no active project (workspace/settings
+  // routes) nothing is dimmed — the whole tree stays readable.
+  const dimmed =
+    activeProjectId !== null && (tint === null || !tint.inActiveSubtree);
   switch (node.data.type) {
     case 'project':
       return (
@@ -176,7 +341,10 @@ export function TreeNodeRouter(
           style={style}
           dragHandle={dragHandle}
           onCreateChildBoard={onCreateChildBoard}
+          onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
           activeProjectId={activeProjectId}
+          tintColor={tintColor}
+          dimmed={dimmed}
         />
       );
     case 'section':
@@ -185,12 +353,28 @@ export function TreeNodeRouter(
           node={node as NodeApi<Extract<SectionNode, { kind: 'tasks' }>>}
           style={style}
           dragHandle={dragHandle}
+          tintColor={tintColor}
+          dimmed={dimmed}
         />
       ) : (
         <SectionTreeNode
           node={node as NodeApi<Extract<SectionNode, { kind: 'workspaces' }>>}
           style={style}
           dragHandle={dragHandle}
+          tintColor={tintColor}
+          dimmed={dimmed}
+        />
+      );
+    case 'orchestrator-prompt':
+      return (
+        <OrchestratorPromptTreeNode
+          node={node as NodeApi<OrchestratorPromptNode>}
+          style={style}
+          dragHandle={dragHandle}
+          onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
+          activeProjectPromptId={activeProjectPromptId ?? null}
+          tintColor={tintColor}
+          dimmed={dimmed}
         />
       );
     case 'bucket':
@@ -199,6 +383,8 @@ export function TreeNodeRouter(
           node={node as NodeApi<BucketNode>}
           style={style}
           dragHandle={dragHandle}
+          tintColor={tintColor}
+          dimmed={dimmed}
         />
       );
     case 'leaf':
@@ -208,6 +394,8 @@ export function TreeNodeRouter(
           style={style}
           dragHandle={dragHandle}
           activeWorkspaceId={activeWorkspaceId}
+          tintColor={tintColor}
+          dimmed={dimmed}
         />
       );
     case 'status':
@@ -216,6 +404,8 @@ export function TreeNodeRouter(
           node={node as NodeApi<StatusNode>}
           style={style}
           dragHandle={dragHandle}
+          tintColor={tintColor}
+          dimmed={dimmed}
         />
       );
     case 'card':
@@ -226,6 +416,8 @@ export function TreeNodeRouter(
           dragHandle={dragHandle}
           activeIssueId={activeIssueId}
           isMultiSelectActive={isMultiSelectActive}
+          tintColor={tintColor}
+          dimmed={dimmed}
         />
       );
   }

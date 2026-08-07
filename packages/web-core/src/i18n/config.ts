@@ -9,7 +9,6 @@ import enCommon from './locales/en/common.json';
 import enSettings from './locales/en/settings.json';
 import enProjects from './locales/en/projects.json';
 import enTasks from './locales/en/tasks.json';
-import enOrganization from './locales/en/organization.json';
 
 const resources = {
   en: {
@@ -17,7 +16,6 @@ const resources = {
     settings: enSettings,
     projects: enProjects,
     tasks: enTasks,
-    organization: enOrganization,
   },
 };
 

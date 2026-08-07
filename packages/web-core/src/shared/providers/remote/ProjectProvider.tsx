@@ -4,8 +4,6 @@ import {
   PROJECT_ISSUES_SHAPE,
   PROJECT_PROJECT_STATUSES_SHAPE,
   PROJECT_TAGS_SHAPE,
-  PROJECT_ISSUE_ASSIGNEES_SHAPE,
-  PROJECT_ISSUE_FOLLOWERS_SHAPE,
   PROJECT_ISSUE_TAGS_SHAPE,
   PROJECT_ISSUE_RELATIONSHIPS_SHAPE,
   PROJECT_PULL_REQUESTS_SHAPE,
@@ -14,8 +12,6 @@ import {
   ISSUE_MUTATION,
   PROJECT_STATUS_MUTATION,
   TAG_MUTATION,
-  ISSUE_ASSIGNEE_MUTATION,
-  ISSUE_FOLLOWER_MUTATION,
   ISSUE_TAG_MUTATION,
   ISSUE_RELATIONSHIP_MUTATION,
   PULL_REQUEST_ISSUE_MUTATION,
@@ -50,14 +46,6 @@ export function ProjectProvider({ projectId, children }: ProjectProviderProps) {
     enabled,
     mutation: TAG_MUTATION,
   });
-  const issueAssigneesResult = useShape(PROJECT_ISSUE_ASSIGNEES_SHAPE, params, {
-    enabled,
-    mutation: ISSUE_ASSIGNEE_MUTATION,
-  });
-  const issueFollowersResult = useShape(PROJECT_ISSUE_FOLLOWERS_SHAPE, params, {
-    enabled,
-    mutation: ISSUE_FOLLOWER_MUTATION,
-  });
   const issueTagsResult = useShape(PROJECT_ISSUE_TAGS_SHAPE, params, {
     enabled,
     mutation: ISSUE_TAG_MUTATION,
@@ -88,8 +76,6 @@ export function ProjectProvider({ projectId, children }: ProjectProviderProps) {
     issuesResult.error ||
     statusesResult.error ||
     tagsResult.error ||
-    issueAssigneesResult.error ||
-    issueFollowersResult.error ||
     issueTagsResult.error ||
     issueRelationshipsResult.error ||
     pullRequestsResult.error ||
@@ -102,8 +88,6 @@ export function ProjectProvider({ projectId, children }: ProjectProviderProps) {
     issuesResult.retry();
     statusesResult.retry();
     tagsResult.retry();
-    issueAssigneesResult.retry();
-    issueFollowersResult.retry();
     issueTagsResult.retry();
     issueRelationshipsResult.retry();
     pullRequestsResult.retry();
@@ -113,8 +97,6 @@ export function ProjectProvider({ projectId, children }: ProjectProviderProps) {
     issuesResult,
     statusesResult,
     tagsResult,
-    issueAssigneesResult,
-    issueFollowersResult,
     issueTagsResult,
     issueRelationshipsResult,
     pullRequestsResult,
@@ -157,18 +139,6 @@ export function ProjectProvider({ projectId, children }: ProjectProviderProps) {
     (statusId: string) =>
       issuesResult.data.filter((i) => i.status_id === statusId),
     [issuesResult.data]
-  );
-
-  const getAssigneesForIssue = useCallback(
-    (issueId: string) =>
-      issueAssigneesResult.data.filter((a) => a.issue_id === issueId),
-    [issueAssigneesResult.data]
-  );
-
-  const getFollowersForIssue = useCallback(
-    (issueId: string) =>
-      issueFollowersResult.data.filter((f) => f.issue_id === issueId),
-    [issueFollowersResult.data]
   );
 
   const getTagsForIssue = useCallback(
@@ -232,8 +202,6 @@ export function ProjectProvider({ projectId, children }: ProjectProviderProps) {
       issues: issuesResult.data,
       statuses: statusesResult.data,
       tags: tagsResult.data,
-      issueAssignees: issueAssigneesResult.data,
-      issueFollowers: issueFollowersResult.data,
       issueTags: issueTagsResult.data,
       issueRelationships: issueRelationshipsResult.data,
       pullRequests: pullRequestsResult.data,
@@ -260,14 +228,6 @@ export function ProjectProvider({ projectId, children }: ProjectProviderProps) {
       updateTag: tagsResult.update,
       removeTag: tagsResult.remove,
 
-      // IssueAssignee mutations
-      insertIssueAssignee: issueAssigneesResult.insert,
-      removeIssueAssignee: issueAssigneesResult.remove,
-
-      // IssueFollower mutations
-      insertIssueFollower: issueFollowersResult.insert,
-      removeIssueFollower: issueFollowersResult.remove,
-
       // IssueTag mutations
       insertIssueTag: issueTagsResult.insert,
       removeIssueTag: issueTagsResult.remove,
@@ -283,8 +243,6 @@ export function ProjectProvider({ projectId, children }: ProjectProviderProps) {
       // Lookup helpers
       getIssue,
       getIssuesForStatus,
-      getAssigneesForIssue,
-      getFollowersForIssue,
       getTagsForIssue,
       getTagObjectsForIssue,
       getRelationshipsForIssue,
@@ -303,8 +261,6 @@ export function ProjectProvider({ projectId, children }: ProjectProviderProps) {
       issuesResult,
       statusesResult,
       tagsResult,
-      issueAssigneesResult,
-      issueFollowersResult,
       issueTagsResult,
       issueRelationshipsResult,
       pullRequestsResult,
@@ -315,8 +271,6 @@ export function ProjectProvider({ projectId, children }: ProjectProviderProps) {
       retry,
       getIssue,
       getIssuesForStatus,
-      getAssigneesForIssue,
-      getFollowersForIssue,
       getTagsForIssue,
       getTagObjectsForIssue,
       getRelationshipsForIssue,

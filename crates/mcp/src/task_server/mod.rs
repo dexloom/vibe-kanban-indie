@@ -11,11 +11,6 @@ use uuid::Uuid;
 
 pub(crate) use crate::ApiResponseEnvelope;
 
-/// The single implicit organization used by the local-only fork. Mirrors
-/// `db::models::project::LOCAL_ORGANIZATION_ID` (`Uuid::from_u128(0xA001)`); kept
-/// as a literal here so the MCP crate doesn't depend on the db crate.
-const LOCAL_ORGANIZATION_ID: Uuid = Uuid::from_u128(0xA001);
-
 /// Local kanban response for `GET /api/workspace-issue-link`.
 #[derive(Debug, Clone, Deserialize)]
 struct WorkspaceIssueLink {
@@ -35,8 +30,6 @@ pub struct McpRepoContext {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
 pub struct McpContext {
-    #[schemars(description = "The organization ID (if workspace is linked to remote)")]
-    pub organization_id: Option<Uuid>,
     #[schemars(description = "The remote project ID (if workspace is linked to remote)")]
     pub project_id: Option<Uuid>,
     #[schemars(description = "The remote issue ID (if workspace is linked to a remote issue)")]
@@ -200,12 +193,8 @@ impl McpServer {
             .fetch_workspace_issue_link(workspace_id)
             .await
             .unwrap_or((None, None));
-        // Local-only: a single implicit organization once a workspace resolves
-        // to a project.
-        let organization_id = project_id.map(|_| LOCAL_ORGANIZATION_ID);
 
         McpContext {
-            organization_id,
             project_id,
             issue_id,
             orchestrator_session_id,

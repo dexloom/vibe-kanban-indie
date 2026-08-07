@@ -8,7 +8,6 @@ async-trait.workspace = true
 backon.workspace = true
 chrono.workspace = true
 db.workspace = true
-enum_dispatch.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true

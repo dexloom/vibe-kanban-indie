@@ -8,7 +8,6 @@ function project(
 ): Pick<Project, 'id' | 'name' | 'parent_id'> {
   return {
     id,
-    organization_id: 'org-1',
     name: id,
     color: '0 0% 50%',
     sort_order: 0,

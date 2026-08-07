@@ -4,9 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { LinkIcon, PlusIcon } from '@phosphor-icons/react';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
-import { useAuth } from '@/shared/hooks/auth/useAuth';
-import { useOrgContext } from '@/shared/hooks/useOrgContext';
-import { useUserContext } from '@/shared/hooks/useUserContext';
+import { useWorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useProjectWorkspaceCreateDraft } from '@/shared/hooks/useProjectWorkspaceCreateDraft';
@@ -42,8 +40,7 @@ export function IssueWorkspacesSectionContainer({
   const queryClient = useQueryClient();
   const appNavigation = useAppNavigation();
   const { openWorkspaceCreateFromState } = useProjectWorkspaceCreateDraft();
-  const { userId } = useAuth();
-  const { workspaces } = useUserContext();
+  const { workspaces } = useWorkspacesContext();
 
   const {
     pullRequests,
@@ -53,7 +50,6 @@ export function IssueWorkspacesSectionContainer({
     isLoading: projectLoading,
   } = useProjectContext();
   const { activeWorkspaces, archivedWorkspaces } = useWorkspaceContext();
-  const { membersWithProfilesById, isLoading: orgLoading } = useOrgContext();
 
   const localWorkspacesById = useMemo(() => {
     const map = new Map<string, (typeof activeWorkspaces)[number]>();
@@ -88,8 +84,7 @@ export function IssueWorkspacesSectionContainer({
         }));
 
       // Get owner
-      const owner =
-        membersWithProfilesById.get(workspace.owner_user_id) ?? null;
+      const owner = null;
 
       return {
         id: workspace.id,
@@ -102,7 +97,6 @@ export function IssueWorkspacesSectionContainer({
         prs: linkedPrs,
         owner,
         updatedAt: workspace.updated_at,
-        isOwnedByCurrentUser: workspace.owner_user_id === userId,
         isRunning: localWorkspace?.isRunning,
         hasPendingApproval: localWorkspace?.hasPendingApproval,
         hasRunningDevServer: localWorkspace?.hasRunningDevServer,
@@ -111,16 +105,9 @@ export function IssueWorkspacesSectionContainer({
         latestProcessStatus: localWorkspace?.latestProcessStatus,
       };
     });
-  }, [
-    issueId,
-    getWorkspacesForIssue,
-    pullRequests,
-    membersWithProfilesById,
-    userId,
-    localWorkspacesById,
-  ]);
+  }, [issueId, getWorkspacesForIssue, pullRequests, localWorkspacesById]);
 
-  const isLoading = projectLoading || orgLoading;
+  const isLoading = projectLoading;
   const shouldAnimateCreateButton = useMemo(() => {
     if (issues.length !== 1) {
       return false;

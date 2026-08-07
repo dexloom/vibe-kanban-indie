@@ -4,27 +4,15 @@
 // Electric row types
 export type JsonValue = number | string | boolean | Array<JsonValue> | { [key in string]?: JsonValue } | null;
 
-export type Project = { id: string, organization_id: string, name: string, color: string, sort_order: number, parent_id: string | null, created_at: string, updated_at: string, };
+export type Project = { id: string, name: string, color: string, sort_order: number, parent_id: string | null, has_orchestrator_prompt: boolean, created_at: string, updated_at: string, };
 
-export type Notification = { id: string, organization_id: string, user_id: string, notification_type: NotificationType, payload: NotificationPayload, issue_id: string | null, comment_id: string | null, seen: boolean, dismissed_at: string | null, created_at: string, };
-
-export type NotificationGroupKind = "single" | "issue_changes" | "status_changes" | "comments" | "reactions" | "issue_deleted";
-
-export type NotificationPayload = { deeplink_path?: string | null, issue_id?: string | null, issue_simple_id?: string | null, issue_title?: string | null, actor_user_id?: string | null, comment_preview?: string | null, old_status_id?: string | null, new_status_id?: string | null, old_status_name?: string | null, new_status_name?: string | null, new_title?: string | null, old_priority?: IssuePriority | null, new_priority?: IssuePriority | null, assignee_user_id?: string | null, emoji?: string | null, };
-
-export type NotificationType = "issue_comment_added" | "issue_status_changed" | "issue_assignee_changed" | "issue_priority_changed" | "issue_unassigned" | "issue_comment_reaction" | "issue_deleted" | "issue_title_changed" | "issue_description_changed";
-
-export type Workspace = { id: string, project_id: string, owner_user_id: string, issue_id: string | null, local_workspace_id: string | null, name: string | null, archived: boolean, files_changed: number | null, lines_added: number | null, lines_removed: number | null, created_at: string, updated_at: string, };
+export type Workspace = { id: string, project_id: string, issue_id: string | null, local_workspace_id: string | null, name: string | null, archived: boolean, files_changed: number | null, lines_added: number | null, lines_removed: number | null, created_at: string, updated_at: string, };
 
 export type ProjectStatus = { id: string, project_id: string, name: string, color: string, sort_order: number, hidden: boolean, created_at: string, };
 
 export type Tag = { id: string, project_id: string, name: string, color: string, };
 
-export type Issue = { id: string, project_id: string, issue_number: number, simple_id: string, status_id: string, title: string, description: string | null, priority: IssuePriority | null, start_date: string | null, target_date: string | null, completed_at: string | null, sort_order: number, parent_issue_id: string | null, parent_issue_sort_order: number | null, extension_metadata: JsonValue, creator_user_id: string | null, created_at: string, updated_at: string, };
-
-export type IssueAssignee = { id: string, issue_id: string, user_id: string, assigned_at: string, };
-
-export type IssueFollower = { id: string, issue_id: string, user_id: string, };
+export type Issue = { id: string, project_id: string, issue_number: number, simple_id: string, status_id: string, title: string, description: string | null, priority: IssuePriority | null, start_date: string | null, target_date: string | null, completed_at: string | null, sort_order: number, parent_issue_id: string | null, parent_issue_sort_order: number | null, extension_metadata: JsonValue, created_at: string, updated_at: string, };
 
 export type IssueTag = { id: string, issue_id: string, tag_id: string, };
 
@@ -32,9 +20,7 @@ export type IssueRelationship = { id: string, issue_id: string, related_issue_id
 
 export type IssueRelationshipType = "blocking" | "related" | "has_duplicate";
 
-export type IssueComment = { id: string, issue_id: string, author_id: string | null, parent_id: string | null, message: string, created_at: string, updated_at: string, };
-
-export type IssueCommentReaction = { id: string, comment_id: string, user_id: string, emoji: string, created_at: string, };
+export type IssueComment = { id: string, issue_id: string, parent_id: string | null, message: string, created_at: string, updated_at: string, };
 
 export type IssuePriority = "urgent" | "high" | "medium" | "low";
 
@@ -42,7 +28,7 @@ export type IssueSortField = "sort_order" | "priority" | "created_at" | "updated
 
 export type ListIssuesQuery = { project_id: string, };
 
-export type SearchIssuesRequest = { project_id: string, status_id?: string, status_ids?: Array<string>, priority?: IssuePriority, parent_issue_id?: string, search?: string, simple_id?: string, assignee_user_id?: string, tag_id?: string, tag_ids?: Array<string>, sort_field?: IssueSortField, sort_direction?: SortDirection, limit?: number, offset?: number, };
+export type SearchIssuesRequest = { project_id: string, status_id?: string, status_ids?: Array<string>, priority?: IssuePriority, parent_issue_id?: string, search?: string, simple_id?: string, tag_id?: string, tag_ids?: Array<string>, sort_field?: IssueSortField, sort_direction?: SortDirection, limit?: number, offset?: number, };
 
 export type ListIssuesResponse = { issues: Array<Issue>, total_count: number, limit: number, offset: number, };
 
@@ -52,8 +38,8 @@ export type PullRequest = { id: string, url: string, number: number, status: Pul
 
 export type PullRequestIssue = { id: string, pull_request_id: string, issue_id: string, };
 
-export type CreatePullRequestIssueRequest = { 
-/**
+export type CreatePullRequestIssueRequest = {
+ /**
  * Optional client-generated ID. If not provided, server generates one.
  * Using client-generated IDs enables stable optimistic updates.
  */
@@ -61,29 +47,19 @@ id?: string, issue_id: string, url: string, number: number, status: PullRequestS
 
 export type SortDirection = "asc" | "desc";
 
-export type UserData = { user_id: string, first_name: string | null, last_name: string | null, username: string | null, };
-
-export type User = { id: string, email: string, first_name: string | null, last_name: string | null, username: string | null, created_at: string, updated_at: string, };
-
 export type CreateRemoteSessionResponse = { session_id: string, };
-
-export enum MemberRole { ADMIN = "ADMIN", MEMBER = "MEMBER" }
-
-export type OrganizationMember = { organization_id: string, user_id: string, role: MemberRole, joined_at: string, last_seen_at: string | null, };
 
 export type CreateProjectRequest = {
  /**
  * Optional client-generated ID. If not provided, server generates one.
  * Using client-generated IDs enables stable optimistic updates.
  */
-id?: string, organization_id: string, name: string, color: string, parent_id?: string | null, };
+id?: string, name: string, color: string, parent_id?: string | null, };
 
 export type UpdateProjectRequest = { name: string | null, color: string | null, sort_order: number | null, parent_id?: string | null, };
 
-export type UpdateNotificationRequest = { seen: boolean | null, };
-
-export type CreateTagRequest = { 
-/**
+export type CreateTagRequest = {
+ /**
  * Optional client-generated ID. If not provided, server generates one.
  * Using client-generated IDs enables stable optimistic updates.
  */
@@ -91,8 +67,8 @@ id?: string, project_id: string, name: string, color: string, };
 
 export type UpdateTagRequest = { name: string | null, color: string | null, };
 
-export type CreateProjectStatusRequest = { 
-/**
+export type CreateProjectStatusRequest = {
+ /**
  * Optional client-generated ID. If not provided, server generates one.
  * Using client-generated IDs enables stable optimistic updates.
  */
@@ -100,8 +76,8 @@ id?: string, project_id: string, name: string, color: string, sort_order: number
 
 export type UpdateProjectStatusRequest = { name: string | null, color: string | null, sort_order: number | null, hidden: boolean | null, };
 
-export type CreateIssueRequest = { 
-/**
+export type CreateIssueRequest = {
+ /**
  * Optional client-generated ID. If not provided, server generates one.
  * Using client-generated IDs enables stable optimistic updates.
  */
@@ -109,36 +85,22 @@ id?: string, project_id: string, status_id: string, title: string, description: 
 
 export type UpdateIssueRequest = { status_id?: string | null, title?: string | null, description?: string | null | null, priority?: IssuePriority | null | null, start_date?: string | null | null, target_date?: string | null | null, completed_at?: string | null | null, sort_order?: number | null, parent_issue_id?: string | null | null, parent_issue_sort_order?: number | null | null, extension_metadata?: JsonValue | null, };
 
-export type CreateIssueAssigneeRequest = { 
-/**
- * Optional client-generated ID. If not provided, server generates one.
- * Using client-generated IDs enables stable optimistic updates.
- */
-id?: string, issue_id: string, user_id: string, };
-
-export type CreateIssueFollowerRequest = { 
-/**
- * Optional client-generated ID. If not provided, server generates one.
- * Using client-generated IDs enables stable optimistic updates.
- */
-id?: string, issue_id: string, user_id: string, };
-
-export type CreateIssueTagRequest = { 
-/**
+export type CreateIssueTagRequest = {
+ /**
  * Optional client-generated ID. If not provided, server generates one.
  * Using client-generated IDs enables stable optimistic updates.
  */
 id?: string, issue_id: string, tag_id: string, };
 
-export type CreateIssueRelationshipRequest = { 
-/**
+export type CreateIssueRelationshipRequest = {
+ /**
  * Optional client-generated ID. If not provided, server generates one.
  * Using client-generated IDs enables stable optimistic updates.
  */
 id?: string, issue_id: string, related_issue_id: string, relationship_type: IssueRelationshipType, };
 
-export type CreateIssueCommentRequest = { 
-/**
+export type CreateIssueCommentRequest = {
+ /**
  * Optional client-generated ID. If not provided, server generates one.
  * Using client-generated IDs enables stable optimistic updates.
  */
@@ -146,18 +108,9 @@ id?: string, issue_id: string, message: string, parent_id: string | null, };
 
 export type UpdateIssueCommentRequest = { message: string | null, parent_id: string | null | null, };
 
-export type CreateIssueCommentReactionRequest = { 
+export type ExportRequest = {
 /**
- * Optional client-generated ID. If not provided, server generates one.
- * Using client-generated IDs enables stable optimistic updates.
- */
-id?: string, comment_id: string, emoji: string, };
-
-export type UpdateIssueCommentReactionRequest = { emoji: string | null, };
-
-export type ExportRequest = { organization_id: string, 
-/**
- * If empty, exports all projects in the organization.
+ * If empty, exports all projects.
  */
 project_ids: Array<string>, include_attachments: boolean, };
 
@@ -183,30 +136,9 @@ function defineShape<T>(
 // Individual shape definitions with embedded types
 export const PROJECTS_SHAPE = defineShape<Project>(
   'projects',
-  ['organization_id'] as const,
+  [] as const,
   '/v1/shape/projects',
   '/v1/fallback/projects'
-);
-
-export const NOTIFICATIONS_SHAPE = defineShape<Notification>(
-  'notifications',
-  ['user_id'] as const,
-  '/v1/shape/notifications',
-  '/v1/fallback/notifications'
-);
-
-export const ORGANIZATION_MEMBERS_SHAPE = defineShape<OrganizationMember>(
-  'organization_member_metadata',
-  ['organization_id'] as const,
-  '/v1/shape/organization_members',
-  '/v1/fallback/organization_members'
-);
-
-export const USERS_SHAPE = defineShape<User>(
-  'users',
-  ['organization_id'] as const,
-  '/v1/shape/users',
-  '/v1/fallback/users'
 );
 
 export const PROJECT_TAGS_SHAPE = defineShape<Tag>(
@@ -230,11 +162,11 @@ export const PROJECT_ISSUES_SHAPE = defineShape<Issue>(
   '/v1/fallback/issues'
 );
 
-export const USER_WORKSPACES_SHAPE = defineShape<Workspace>(
+export const WORKSPACES_SHAPE = defineShape<Workspace>(
   'workspaces',
-  ['owner_user_id'] as const,
-  '/v1/shape/user/workspaces',
-  '/v1/fallback/user_workspaces'
+  [] as const,
+  '/v1/shape/workspaces',
+  '/v1/fallback/workspaces'
 );
 
 export const PROJECT_WORKSPACES_SHAPE = defineShape<Workspace>(
@@ -242,20 +174,6 @@ export const PROJECT_WORKSPACES_SHAPE = defineShape<Workspace>(
   ['project_id'] as const,
   '/v1/shape/project/{project_id}/workspaces',
   '/v1/fallback/project_workspaces'
-);
-
-export const PROJECT_ISSUE_ASSIGNEES_SHAPE = defineShape<IssueAssignee>(
-  'issue_assignees',
-  ['project_id'] as const,
-  '/v1/shape/project/{project_id}/issue_assignees',
-  '/v1/fallback/issue_assignees'
-);
-
-export const PROJECT_ISSUE_FOLLOWERS_SHAPE = defineShape<IssueFollower>(
-  'issue_followers',
-  ['project_id'] as const,
-  '/v1/shape/project/{project_id}/issue_followers',
-  '/v1/fallback/issue_followers'
 );
 
 export const PROJECT_ISSUE_TAGS_SHAPE = defineShape<IssueTag>(
@@ -293,13 +211,6 @@ export const ISSUE_COMMENTS_SHAPE = defineShape<IssueComment>(
   '/v1/fallback/issue_comments'
 );
 
-export const ISSUE_REACTIONS_SHAPE = defineShape<IssueCommentReaction>(
-  'issue_comment_reactions',
-  ['issue_id'] as const,
-  '/v1/shape/issue/{issue_id}/reactions',
-  '/v1/fallback/issue_comment_reactions'
-);
-
 // =============================================================================
 // Mutation Definitions
 // =============================================================================
@@ -327,11 +238,6 @@ export const PROJECT_MUTATION = defineMutation<Project, CreateProjectRequest, Up
   '/v1/projects'
 );
 
-export const NOTIFICATION_MUTATION = defineMutation<Notification, unknown, UpdateNotificationRequest>(
-  'Notification',
-  '/v1/notifications'
-);
-
 export const TAG_MUTATION = defineMutation<Tag, CreateTagRequest, UpdateTagRequest>(
   'Tag',
   '/v1/tags'
@@ -347,16 +253,6 @@ export const ISSUE_MUTATION = defineMutation<Issue, CreateIssueRequest, UpdateIs
   '/v1/issues'
 );
 
-export const ISSUE_ASSIGNEE_MUTATION = defineMutation<IssueAssignee, CreateIssueAssigneeRequest, unknown>(
-  'IssueAssignee',
-  '/v1/issue_assignees'
-);
-
-export const ISSUE_FOLLOWER_MUTATION = defineMutation<IssueFollower, CreateIssueFollowerRequest, unknown>(
-  'IssueFollower',
-  '/v1/issue_followers'
-);
-
 export const ISSUE_TAG_MUTATION = defineMutation<IssueTag, CreateIssueTagRequest, unknown>(
   'IssueTag',
   '/v1/issue_tags'
@@ -370,11 +266,6 @@ export const ISSUE_RELATIONSHIP_MUTATION = defineMutation<IssueRelationship, Cre
 export const ISSUE_COMMENT_MUTATION = defineMutation<IssueComment, CreateIssueCommentRequest, UpdateIssueCommentRequest>(
   'IssueComment',
   '/v1/issue_comments'
-);
-
-export const ISSUE_COMMENT_REACTION_MUTATION = defineMutation<IssueCommentReaction, CreateIssueCommentReactionRequest, UpdateIssueCommentReactionRequest>(
-  'IssueCommentReaction',
-  '/v1/issue_comment_reactions'
 );
 
 export const PULL_REQUEST_ISSUE_MUTATION = defineMutation<PullRequestIssue, CreatePullRequestIssueRequest, unknown>(

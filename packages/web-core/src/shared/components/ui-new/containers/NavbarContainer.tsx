@@ -1,11 +1,9 @@
 import { useMemo, useCallback } from 'react';
 
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
-import { useUserContext } from '@/shared/hooks/useUserContext';
+import { useWorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
 import { useActions } from '@/shared/hooks/useActions';
 import { useSyncErrorContext } from '@/shared/hooks/useSyncErrorContext';
-import { useUserOrganizations } from '@/shared/hooks/useUserOrganizations';
-import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
 import {
   Navbar,
   type NavbarSectionItem,
@@ -13,7 +11,7 @@ import {
   type MobileTabId,
 } from '@vibe/ui/components/Navbar';
 import { BrandLockup } from '@vibe/ui/components/Logo';
-import { useAllOrganizationProjects } from '@/shared/hooks/useAllOrganizationProjects';
+import { useProjects } from '@/shared/hooks/useProjects';
 import { useShape } from '@/shared/integrations/electric/hooks';
 import { PROJECT_ISSUES_SHAPE } from 'shared/remote-types';
 import { RemoteIssueLink } from './RemoteIssueLink';
@@ -122,7 +120,7 @@ export function NavbarContainer({
 }) {
   const { executeAction } = useActions();
   const { workspace: selectedWorkspace, isCreateMode } = useWorkspaceContext();
-  const { workspaces } = useUserContext();
+  const { workspaces } = useWorkspacesContext();
   const syncErrorContext = useSyncErrorContext();
   const appNavigation = useAppNavigation();
   const destination = useCurrentAppDestination();
@@ -145,10 +143,7 @@ export function NavbarContainer({
     );
   }, [workspaces, selectedWorkspace?.id]);
 
-  const { data: orgsData } = useUserOrganizations();
-  const selectedOrgId = useOrganizationStore((s) => s.selectedOrgId);
-  const orgName =
-    orgsData?.organizations.find((o) => o.id === selectedOrgId)?.name ?? '';
+  // ADR-018 — projects are tenant-less; the org-name display is dropped.
 
   // Get action visibility context (includes all state for visibility/active/enabled)
   const actionCtx = useActionVisibilityContext();
@@ -188,7 +183,7 @@ export function NavbarContainer({
   const navbarTitle = isCreateMode
     ? 'Create Workspace'
     : isOnProjectPage
-      ? orgName
+      ? (selectedWorkspace?.branch ?? '')
       : selectedWorkspace?.branch;
 
   // Breadcrumbs: Project / Issue / Workspace (only on workspace pages with linked project)
@@ -199,10 +194,8 @@ export function NavbarContainer({
   const shouldResolveIssueBreadcrumb =
     shouldResolveBreadcrumbData && !!linkedIssueId;
 
-  const { data: allProjects, isLoading: isProjectsLoading } =
-    useAllOrganizationProjects({
-      enabled: shouldResolveBreadcrumbData,
-    });
+  const { data: allProjects = [], isLoading: isProjectsLoading } =
+    useProjects();
   const { data: projectIssues, isLoading: isProjectIssuesLoading } = useShape(
     PROJECT_ISSUES_SHAPE,
     { project_id: linkedProjectId || '' },

@@ -12,7 +12,6 @@ import {
   type IssueListRowTag,
   type IssueListRowRelationship,
 } from './IssueListRow';
-import type { KanbanAssigneeUser } from './KanbanAssignee';
 
 export interface IssueListSectionStatus {
   id: string;
@@ -24,7 +23,6 @@ export interface IssueListSectionProps {
   status: IssueListSectionStatus;
   issueIds: string[];
   issueMap: Record<string, IssueListRowIssue>;
-  issueAssigneesMap: Record<string, KanbanAssigneeUser[]>;
   getTagObjectsForIssue: (issueId: string) => IssueListRowTag[];
   getResolvedRelationshipsForIssue?: (
     issueId: string
@@ -41,7 +39,6 @@ export function IssueListSection({
   status,
   issueIds,
   issueMap,
-  issueAssigneesMap,
   getTagObjectsForIssue,
   getResolvedRelationshipsForIssue,
   onIssueClick,
@@ -116,7 +113,6 @@ export function IssueListSection({
                     statusColor={status.color}
                     tags={getTagObjectsForIssue(issue.id)}
                     relationships={getResolvedRelationshipsForIssue?.(issue.id)}
-                    assignees={issueAssigneesMap[issue.id] ?? []}
                     onClick={(e) => onIssueClick(issue.id, e)}
                     isSelected={selectedIssueId === issue.id}
                     isMultiSelectActive={isMultiSelectActive}

@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use api_types::LoginStatus;
 use axum::{
     Json, Router,
     body::Body,
@@ -90,7 +89,6 @@ impl Environment {
 pub struct UserSystemInfo {
     pub version: String,
     pub config: Config,
-    pub login_status: LoginStatus,
     #[serde(flatten)]
     pub profiles: ExecutorConfigs,
     pub environment: Environment,
@@ -105,12 +103,10 @@ async fn get_user_system_info(
     State(deployment): State<DeploymentImpl>,
 ) -> ResponseJson<ApiResponse<UserSystemInfo>> {
     let config = deployment.config().read().await.clone();
-    let login_status = deployment.get_login_status().await;
 
     let user_system_info = UserSystemInfo {
         version: env!("CARGO_PKG_VERSION").to_string(),
         config,
-        login_status,
         profiles: ExecutorConfigs::get_cached(),
         environment: Environment::new(),
         capabilities: {

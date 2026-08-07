@@ -4,7 +4,6 @@ import { createHmrContext } from '@/shared/lib/hmrContext';
 export interface AuthContextValue {
   isSignedIn: boolean;
   isLoaded: boolean;
-  userId: string | null;
 }
 
 export const AuthContext = createHmrContext<AuthContextValue | undefined>(

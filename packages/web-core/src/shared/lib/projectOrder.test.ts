@@ -5,7 +5,6 @@ import { sortProjectsByOrder, swapProjectSiblings } from './projectOrder';
 function project(overrides: Partial<Project> & { id: string }): Project {
   return {
     id: overrides.id,
-    organization_id: 'org-1',
     name: overrides.id,
     color: '0 0% 50%',
     sort_order: 0,

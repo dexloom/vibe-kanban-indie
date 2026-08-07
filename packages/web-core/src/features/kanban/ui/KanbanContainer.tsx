@@ -8,10 +8,9 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
-import { useOrgContext } from '@/shared/hooks/useOrgContext';
+import { useProjects } from '@/shared/hooks/useProjects';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import { useActions } from '@/shared/hooks/useActions';
-import { useAuth } from '@/shared/hooks/auth/useAuth';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import { cn } from '@/shared/lib/utils';
@@ -19,7 +18,6 @@ import { useCurrentKanbanRouteState } from '@/shared/hooks/useCurrentKanbanRoute
 import {
   useUiPreferencesStore,
   resolveKanbanProjectState,
-  KANBAN_ASSIGNEE_FILTER_VALUES,
   KANBAN_PROJECT_VIEW_IDS,
   type KanbanFilterState,
   type KanbanSortField,
@@ -38,7 +36,7 @@ import {
   type ProjectIssueCreateOptions,
   useKanbanIssueComposer,
 } from '@/shared/stores/useKanbanIssueComposerStore';
-import type { OrganizationMemberWithProfile } from 'shared/types';
+// ADR-019: User entity excised — no UserWithProfile import needed.
 import {
   KanbanProvider,
   KanbanBoard,
@@ -109,10 +107,6 @@ const areKanbanFiltersEqual = (
     return false;
   }
 
-  if (!areStringSetsEqual(left.assigneeIds, right.assigneeIds)) {
-    return false;
-  }
-
   if (!areStringSetsEqual(left.tagIds, right.tagIds)) {
     return false;
   }
@@ -178,8 +172,10 @@ function ProjectBreadcrumb({
 }
 
 /**
- * KanbanContainer displays the kanban board using data from ProjectContext and OrgContext.
- * Must be rendered within both OrgProvider and ProjectProvider.
+ * KanbanContainer displays the kanban board using data from ProjectContext
+ * (per-project issues/statuses/tags) plus the flat ProjectProvider
+ * (project list). Must be rendered within both ProjectProvider layers
+ * — the per-project one (issues) AND the flat one (project list).
  */
 export function KanbanContainer() {
   const isMobile = useIsMobile();
@@ -193,7 +189,6 @@ export function KanbanContainer() {
     issues,
     statuses,
     tags,
-    issueAssignees,
     issueTags,
     issueRelationships,
     getTagObjectsForIssue,
@@ -209,13 +204,9 @@ export function KanbanContainer() {
     isLoading: projectLoading,
   } = useProjectContext();
 
-  const {
-    projects,
-    membersWithProfilesById,
-    isLoading: orgLoading,
-  } = useOrgContext();
+  // Flat projects layer.
+  const { data: projects } = useProjects();
   const { activeWorkspaces } = useWorkspaceContext();
-  const { userId } = useAuth();
 
   // Get project name by finding the project matching current projectId
   const projectName = projects.find((p) => p.id === projectId)?.name ?? '';
@@ -252,7 +243,6 @@ export function KanbanContainer() {
     setDefaultCreateStatusId,
     executeAction,
     openPrioritySelection,
-    openAssigneeSelection,
     createIssue,
   } = useActions();
   const startCreate = useCallback(
@@ -346,7 +336,6 @@ export function KanbanContainer() {
 
   const { filteredIssues } = useKanbanFilters({
     issues,
-    issueAssignees,
     issueTags,
     issueRelationships,
     issuesById,
@@ -354,7 +343,6 @@ export function KanbanContainer() {
     filters: kanbanFilters,
     showSubIssues,
     hideBlocked,
-    currentUserId: userId,
   });
 
   const setKanbanSearchQuery = useCallback(
@@ -372,16 +360,6 @@ export function KanbanContainer() {
       setKanbanProjectViewFilters(projectId, activeViewId, {
         ...kanbanFilters,
         priorities,
-      });
-    },
-    [activeViewId, kanbanFilters, projectId, setKanbanProjectViewFilters]
-  );
-
-  const setKanbanAssignees = useCallback(
-    (assigneeIds: string[]) => {
-      setKanbanProjectViewFilters(projectId, activeViewId, {
-        ...kanbanFilters,
-        assigneeIds,
       });
     },
     [activeViewId, kanbanFilters, projectId, setKanbanProjectViewFilters]
@@ -511,27 +489,6 @@ export function KanbanContainer() {
     setDefaultCreateStatusId(defaultCreateStatusId);
   }, [defaultCreateStatusId, setDefaultCreateStatusId]);
 
-  const createAssigneeIds = useMemo(() => {
-    const assigneeIds = new Set<string>();
-
-    for (const assigneeId of kanbanFilters.assigneeIds) {
-      if (assigneeId === KANBAN_ASSIGNEE_FILTER_VALUES.UNASSIGNED) {
-        continue;
-      }
-
-      if (assigneeId === KANBAN_ASSIGNEE_FILTER_VALUES.SELF) {
-        if (userId) {
-          assigneeIds.add(userId);
-        }
-        continue;
-      }
-
-      assigneeIds.add(assigneeId);
-    }
-
-    return [...assigneeIds];
-  }, [kanbanFilters.assigneeIds, userId]);
-
   // Get statuses to display in list view (all or filtered to one)
   const listViewStatuses = useMemo(() => {
     if (listViewStatusFilter) {
@@ -608,26 +565,6 @@ export function KanbanContainer() {
     }
     return map;
   }, [issues]);
-
-  // Create a lookup map for issue assignees (issue_id -> OrganizationMemberWithProfile[])
-  const issueAssigneesMap = useMemo(() => {
-    const map: Record<string, OrganizationMemberWithProfile[]> = {};
-    for (const assignee of issueAssignees) {
-      const member = membersWithProfilesById.get(assignee.user_id);
-      if (member) {
-        if (!map[assignee.issue_id]) {
-          map[assignee.issue_id] = [];
-        }
-        map[assignee.issue_id].push(member);
-      }
-    }
-    return map;
-  }, [issueAssignees, membersWithProfilesById]);
-
-  const membersWithProfiles = useMemo(
-    () => [...membersWithProfilesById.values()],
-    [membersWithProfilesById]
-  );
 
   const localWorkspacesById = useMemo(() => {
     const map = new Map<string, (typeof activeWorkspaces)[number]>();
@@ -730,9 +667,8 @@ export function KanbanContainer() {
             linesAdded: workspace.lines_added ?? 0,
             linesRemoved: workspace.lines_removed ?? 0,
             prs: prsByWorkspaceId.get(workspace.id) ?? [],
-            owner: membersWithProfilesById.get(workspace.owner_user_id) ?? null,
+            owner: null,
             updatedAt: workspace.updated_at,
-            isOwnedByCurrentUser: workspace.owner_user_id === userId,
             isRunning: localWorkspace?.isRunning,
             hasPendingApproval: localWorkspace?.hasPendingApproval,
             hasRunningDevServer: localWorkspace?.hasRunningDevServer,
@@ -754,8 +690,6 @@ export function KanbanContainer() {
     getWorkspacesForIssue,
     localWorkspacesById,
     prsByWorkspaceId,
-    membersWithProfilesById,
-    userId,
   ]);
 
   // Calculate sort_order based on column index and issue position
@@ -1019,13 +953,10 @@ export function KanbanContainer() {
     (statusId?: string) => {
       const createPayload = {
         statusId: statusId ?? defaultCreateStatusId,
-        ...(createAssigneeIds.length > 0
-          ? { assigneeIds: createAssigneeIds }
-          : {}),
       };
       startCreate(createPayload);
     },
-    [createAssigneeIds, defaultCreateStatusId, startCreate]
+    [defaultCreateStatusId, startCreate]
   );
 
   // Inline editing callbacks for kanban cards
@@ -1036,14 +967,6 @@ export function KanbanContainer() {
       openPrioritySelection(projectId, ids);
     },
     [projectId, openPrioritySelection, selectedIssueIds, isMultiSelectActive]
-  );
-
-  const handleCardAssigneeClick = useCallback(
-    (issueId: string) => {
-      const ids = isMultiSelectActive ? [...selectedIssueIds] : [issueId];
-      openAssigneeSelection(projectId, ids);
-    },
-    [projectId, openAssigneeSelection, selectedIssueIds, isMultiSelectActive]
   );
 
   const handleCardMoreActionsClick = useCallback(
@@ -1093,7 +1016,7 @@ export function KanbanContainer() {
     [insertTag, projectId]
   );
 
-  const isLoading = projectLoading || orgLoading;
+  const isLoading = projectLoading;
 
   const breadcrumb = useMemo(
     () => buildProjectBreadcrumb(projects, projectId),
@@ -1161,19 +1084,16 @@ export function KanbanContainer() {
             isFiltersDialogOpen={isFiltersDialogOpen}
             onFiltersDialogOpenChange={setIsFiltersDialogOpen}
             tags={tags}
-            users={membersWithProfiles}
             activeViewId={activeViewId}
             onViewChange={handleKanbanProjectViewChange}
             viewIds={KANBAN_PROJECT_VIEW_IDS}
             projectId={projectId}
-            currentUserId={userId}
             filters={kanbanFilters}
             showSubIssues={showSubIssues}
             showWorkspaces={showWorkspaces}
             hasActiveFilters={hasActiveFilters}
             onSearchQueryChange={setKanbanSearchQuery}
             onPrioritiesChange={setKanbanPriorities}
-            onAssigneesChange={setKanbanAssignees}
             onTagsChange={setKanbanTags}
             onSortChange={setKanbanSort}
             onShowSubIssuesChange={setShowSubIssues}
@@ -1270,7 +1190,6 @@ export function KanbanContainer() {
                               description={issue.description}
                               priority={issue.priority}
                               tags={getTagObjectsForIssue(issue.id)}
-                              assignees={issueAssigneesMap[issue.id] ?? []}
                               pullRequests={issueCardPullRequests}
                               relationships={resolveRelationshipsForIssue(
                                 issue.id,
@@ -1282,10 +1201,6 @@ export function KanbanContainer() {
                               onPriorityClick={(e) => {
                                 e.stopPropagation();
                                 handleCardPriorityClick(issue.id);
-                              }}
-                              onAssigneeClick={(e) => {
-                                e.stopPropagation();
-                                handleCardAssigneeClick(issue.id);
                               }}
                               onMoreActionsClick={() =>
                                 handleCardMoreActionsClick(issue.id)
@@ -1371,7 +1286,6 @@ export function KanbanContainer() {
                 statuses={listViewStatuses}
                 items={items}
                 issueMap={issueMap}
-                issueAssigneesMap={issueAssigneesMap}
                 getTagObjectsForIssue={getTagObjectsForIssue}
                 getResolvedRelationshipsForIssue={
                   getResolvedRelationshipsForIssue

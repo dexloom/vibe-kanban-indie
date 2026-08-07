@@ -75,9 +75,6 @@
     },
     "currentDisabled": "Cannot select the current branch"
   },
-  "orgSwitcher": {
-    "organizations": "Organizations"
-  },
   "personal": "Personal",
   "signOut": "Sign out",
   "oauth": {},
@@ -91,7 +88,6 @@
   },
   "grouping": {
     "date": "Date",
-    "assignee": "Assignee",
     "label": "Label"
   },
   "workspaces": {
@@ -290,7 +286,6 @@
       "create-issue": "Create Issue",
       "change-issue-status": "Change Status",
       "change-issue-priority": "Change Priority",
-      "change-assignees": "Change Assignees",
       "make-sub-issue-of": "Make Sub-issue of",
       "add-sub-issue": "Add Sub-issue",
       "remove-parent-issue": "Remove Parent",
@@ -324,7 +319,6 @@
   "kanban": {
     "noVisibleStatuses": "All statuses are hidden. Use display settings or switch to another tab to view issues.",
     "noProjectFound": "No project found",
-    "unassigned": "Unassigned",
     "noTagsAvailable": "No tags available",
     "createNewIssue": "Create new issue",
     "selectWorkspace": "Run in workspace...",
@@ -334,16 +328,12 @@
     "createTag": "Create",
     "noPrCreated": "No PR created",
     "noCommentsYet": "No comments yet",
-    "createdBy": "Created by",
     "comments": "Comments",
     "enterCommentPlaceholder": "Enter your comment here...",
     "attachFile": "Attach file",
     "attachFileHint": "Attach files (max 20MB each)",
     "dropFilesHere": "Drop files here",
     "fileDropHint": "Any file type up to 20MB",
-    "unknownUser": "Unknown User",
-    "deletedUser": "Deleted User",
-    "replyQuotePrefix": "wrote:",
     "moreActions": "More actions",
     "closePanel": "Close panel",
     "copyLink": "Copy link",
@@ -373,9 +363,6 @@
       "active": "Active",
       "all": "All"
     },
-    "loginRequired": {
-      "description": "Please sign in to view this project."
-    },
     "team": "Team",
     "personal": "Personal",
     "searchPlaceholder": "Search issues...",
@@ -388,12 +375,9 @@
     "sortBy": "Sort",
     "sortAscending": "Ascending",
     "sortDescending": "Descending",
-    "assignee": "Assignee",
-    "self": "Me",
     "priority": "Priority",
     "subIssuesFilterLabel": "Sub-issues",
     "workspacesFilterLabel": "Workspaces",
-    "selectAssignees": "Select assignees...",
     "relationships": "Relationships",
     "noRelationships": "No relationships",
     "openProjectsGuide": "Projects guide",
@@ -402,17 +386,6 @@
     "createNewWorkspace": "Create new workspace",
     "workspaces": "Workspaces",
     "showingWorkspaces": "Showing {{count}} of {{total}}",
-    "changeColor": "Change color",
-    "editName": "Edit name",
-    "deleteStatus": "Delete status",
-    "cannotDeleteWithIssues": "Move issues first",
-    "lastVisibleStatus": "At least one status must be visible",
-    "showStatus": "Show status",
-    "hideStatus": "Hide status",
-    "newStatus": "New Status",
-    "visibleColumns": "Visible Columns",
-    "dragToRearrange": "Drag to re-arrange",
-    "addColumn": "Add column",
     "projectsGuide": {
       "intro": {
         "title": "Welcome",
@@ -420,19 +393,15 @@
       },
       "welcome": {
         "title": "Projects",
-        "content": "The project page is where you manage issues. You can view your issues as a kanban board, or as a list, and filter by status, tag, assignee and more."
+        "content": "The project page is where you manage issues. You can view your issues as a kanban board, or as a list, and filter by status, tag, and more."
       },
       "issues": {
         "title": "Issues",
-        "content": "Each issue represents a feature or problem to solve. Issues have statuses, priorities, assignees, tags, relationships, comments, sub-issues and more."
+        "content": "Each issue represents a feature or problem to solve. Issues have statuses, priorities, tags, relationships, comments, sub-issues and more."
       },
       "workspaces": {
         "title": "Workspaces",
         "content": "To start working on an issue, create a workspace. A single issue can have multiple workspaces. Issues describe the work to be done, workspaces are where the work happens."
-      },
-      "organizations": {
-        "title": "Invite your team",
-        "content": "We've automatically created a personal organization and initial project so you can get started with Vibe Kanban. Export your cloud data before shutdown."
       }
     },
     "currentWorkspace": "running here"
@@ -530,6 +499,18 @@
   "appBar": {
     "projects": "Projects"
   },
+  "orchestratorPromptEditor": {
+    "title": "Orchestrator prompt",
+    "subtitle": "Read by the orchestrator at the start of every tick. Edits apply live — no restart.",
+    "inheritedFrom": "Inherited from an ancestor project",
+    "usingDefault": "Using default behavior",
+    "placeholder": "Be terse. Use sparse commits. Always run the test suite before committing.",
+    "save": "Save",
+    "saving": "Saving…",
+    "clear": "Clear",
+    "saved": "Saved",
+    "missingProjectId": "No project id in route."
+  },
   "sidebar": {
     "workspacesSection": "Workspaces",
     "tasksSection": "Tasks",
@@ -537,11 +518,14 @@
     "tasksEmpty": "No statuses yet",
     "collapse": "Collapse",
     "expand": "Expand",
-    "unassigned": "Unassigned",
     "createChildBoard": "Create child board",
     "createProject": "Create project",
-    "notifications": "Notifications",
     "settings": "Settings",
-    "bottomBarLabel": "Sidebar actions"
+    "bottomBarLabel": "Sidebar actions",
+    "orchestratorPrompt": "Orchestrator prompt",
+    "orchestratorPromptSet": "Orchestrator prompt is set",
+    "projectActions": "Project actions",
+    "addChildBoard": "Add board",
+    "addOrchestratorPrompt": "Add orchestrator prompt"
   }
 }

@@ -42,10 +42,6 @@ import { ErrorAlert } from './ErrorAlert';
 export type IssuePanelMode = 'create' | 'edit';
 type IssuePriority = IssuePropertyRowProps['priority'];
 type IssueStatus = IssuePropertyRowProps['statuses'][number];
-type IssueAssignee = NonNullable<
-  IssuePropertyRowProps['assigneeUsers']
->[number];
-type IssueCreator = Exclude<IssuePropertyRowProps['creatorUser'], undefined>;
 export interface KanbanIssueTag extends IssueTagBase {
   project_id: string;
 }
@@ -55,7 +51,6 @@ export interface IssueFormData {
   description: string | null;
   statusId: string;
   priority: IssuePriority | null;
-  assigneeIds: string[];
   tagIds: string[];
   createDraftWorkspace: boolean;
 }
@@ -94,12 +89,8 @@ export interface KanbanIssuePanelProps {
   statuses: IssueStatus[];
   tags: KanbanIssueTag[];
 
-  // Resolved assignee profiles for avatar display
-  assigneeUsers?: IssueAssignee[];
-
   // Edit mode data
   issueId?: string | null;
-  creatorUser?: IssueCreator;
   parentIssue?: { id: string; simpleId: string } | null;
   onParentIssueClick?: () => void;
   onRemoveParentIssue?: () => void;
@@ -177,9 +168,7 @@ export function KanbanIssuePanel({
   onFormChange,
   statuses,
   tags,
-  assigneeUsers,
   issueId,
-  creatorUser,
   parentIssue,
   onParentIssueClick,
   onRemoveParentIssue,
@@ -216,9 +205,6 @@ export function KanbanIssuePanel({
   const isCreateMode = mode === 'create';
   const breadcrumbTextClass =
     'min-w-0 text-sm text-normal truncate rounded-sm px-1 py-0.5 hover:bg-panel hover:text-high transition-colors';
-  const creatorName =
-    creatorUser?.first_name?.trim() || creatorUser?.username?.trim() || null;
-  const showCreator = !isCreateMode && Boolean(creatorName);
 
   // Description edit state: in edit mode, show preview by default; in create mode, always editable
   const [isDescriptionEditing, setIsDescriptionEditing] =
@@ -319,18 +305,12 @@ export function KanbanIssuePanel({
           <IssuePropertyRow
             statusId={formData.statusId}
             priority={formData.priority}
-            assigneeIds={formData.assigneeIds}
-            assigneeUsers={assigneeUsers}
             statuses={statuses}
-            creatorUser={showCreator ? creatorUser : undefined}
             parentIssue={parentIssue}
             onParentIssueClick={onParentIssueClick}
             onRemoveParentIssue={onRemoveParentIssue}
             onStatusClick={() => onFormChange('statusId', formData.statusId)}
             onPriorityClick={() => onFormChange('priority', formData.priority)}
-            onAssigneeClick={() =>
-              onFormChange('assigneeIds', formData.assigneeIds)
-            }
             disabled={isSubmitting}
           />
         </div>

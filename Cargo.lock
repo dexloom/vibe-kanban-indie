@@ -3264,7 +3264,6 @@ dependencies = [
  "backon",
  "chrono",
  "db",
- "enum_dispatch",
  "serde",
  "serde_json",
  "tempfile",
@@ -4868,6 +4867,7 @@ version = "0.2.24-beta.1"
 dependencies = [
  "anyhow",
  "api-types",
+ "axum",
  "chrono",
  "db",
  "executors",
@@ -7969,6 +7969,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite 0.26.2",
  "tokio-util",
+ "tower",
  "tower-http 0.5.2",
  "tracing",
  "tracing-subscriber",

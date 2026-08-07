@@ -11,7 +11,6 @@ import {
 import { cn } from '../lib/cn';
 import { PriorityIcon, type PriorityLevel } from './PriorityIcon';
 import { StatusDot } from './StatusDot';
-import { KanbanAssignee, type KanbanAssigneeUser } from './KanbanAssignee';
 import { useTranslation } from 'react-i18next';
 import {
   DropdownMenu,
@@ -31,15 +30,9 @@ function formatRelativeTime(dateString: string): string {
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays > 0) {
-    return `${diffDays}d`;
-  }
-  if (diffHours > 0) {
-    return `${diffHours}h`;
-  }
-  if (diffMinutes > 0) {
-    return `${diffMinutes}m`;
-  }
+  if (diffDays > 0) return `${diffDays}d`;
+  if (diffHours > 0) return `${diffHours}h`;
+  if (diffMinutes > 0) return `${diffMinutes}m`;
   return 'now';
 }
 
@@ -50,11 +43,9 @@ export interface SubIssueRowProps {
   title: string;
   priority: PriorityLevel | null;
   statusColor: string;
-  assignees: KanbanAssigneeUser[];
   createdAt: string;
   onClick?: () => void;
   onPriorityClick?: (e: React.MouseEvent) => void;
-  onAssigneeClick?: (e: React.MouseEvent) => void;
   onMarkIndependentClick?: (e: React.MouseEvent) => void;
   onDeleteClick?: (e: React.MouseEvent) => void;
   className?: string;
@@ -67,11 +58,9 @@ export function SubIssueRow({
   title,
   priority,
   statusColor,
-  assignees,
   createdAt,
   onClick,
   onPriorityClick,
-  onAssigneeClick,
   onMarkIndependentClick,
   onDeleteClick,
   className,
@@ -138,19 +127,8 @@ export function SubIssueRow({
             <span className="text-base text-high truncate">{title}</span>
           </div>
 
-          {/* Right side: Assignee, Age */}
+          {/* Right side: Age + actions menu */}
           <div className="flex items-center gap-half shrink-0">
-            {onAssigneeClick ? (
-              <button
-                type="button"
-                onClick={onAssigneeClick}
-                className="cursor-pointer hover:bg-secondary rounded-sm transition-colors"
-              >
-                <KanbanAssignee assignees={assignees} />
-              </button>
-            ) : (
-              <KanbanAssignee assignees={assignees} />
-            )}
             <span className="text-sm text-low">
               {formatRelativeTime(createdAt)}
             </span>

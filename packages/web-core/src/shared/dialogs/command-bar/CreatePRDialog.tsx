@@ -20,7 +20,6 @@ import { useTranslation } from 'react-i18next';
 import { Workspace } from 'shared/types';
 import { Loader2 } from 'lucide-react';
 import { create, useModal } from '@ebay/nice-modal-react';
-import { useAuth } from '@/shared/hooks/auth/useAuth';
 import { useRepoBranches } from '@/shared/hooks/useRepoBranches';
 import {
   GhCliHelpInstructions,
@@ -61,7 +60,6 @@ const CreatePRDialogImpl = create<CreatePRDialogProps>(
   ({ attempt, repoId, targetBranch, issueIdentifier }) => {
     const modal = useModal();
     const { t } = useTranslation('tasks');
-    const { isLoaded } = useAuth();
     const { environment, config } = useUserSystem();
     const [prTitle, setPrTitle] = useState('');
     const [prBody, setPrBody] = useState('');
@@ -104,7 +102,7 @@ const CreatePRDialogImpl = create<CreatePRDialogProps>(
 
     // Initialize form when dialog opens
     useEffect(() => {
-      if (!modal.visible || !isLoaded) {
+      if (!modal.visible) {
         return;
       }
 
@@ -141,7 +139,7 @@ const CreatePRDialogImpl = create<CreatePRDialogProps>(
       return () => {
         isCancelled = true;
       };
-    }, [attempt.id, modal.visible, isLoaded, issueIdentifier]);
+    }, [attempt.id, modal.visible, issueIdentifier]);
 
     // Set default base branch when branches are loaded
     useEffect(() => {
@@ -244,11 +242,7 @@ const CreatePRDialogImpl = create<CreatePRDialogProps>(
             await showGhCliSetupDialog();
           } else {
             const providerName =
-              result.error.provider === 'git_hub'
-                ? 'GitHub'
-                : result.error.provider === 'azure_dev_ops'
-                  ? 'Azure DevOps'
-                  : 'Git host';
+              result.error.provider === 'git_hub' ? 'GitHub' : 'Git host';
             const action =
               result.error.type === 'cli_not_installed'
                 ? 'not installed'
@@ -327,11 +321,7 @@ const CreatePRDialogImpl = create<CreatePRDialogProps>(
                 {t('createPrDialog.description')}
               </DialogDescription>
             </DialogHeader>
-            {!isLoaded ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
+            {
               <div className="space-y-4 py-4">
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -427,7 +417,7 @@ const CreatePRDialogImpl = create<CreatePRDialogProps>(
                 )}
                 {error && <Alert variant="destructive">{error}</Alert>}
               </div>
-            )}
+            }
             <DialogFooter>
               <Button variant="outline" onClick={handleCancelCreatePR}>
                 {t('common:buttons.cancel')}

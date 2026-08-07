@@ -7,25 +7,20 @@ import {
   type Ref,
 } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { useTranslation } from 'react-i18next';
 import { IssueProvider } from '@/integrations/remote/IssueProvider';
 import { useIssueContext } from '@/shared/hooks/useIssueContext';
 import { useScratch } from '@/shared/hooks/useScratch';
 import { useDebouncedCallback } from '@/shared/hooks/useDebouncedCallback';
-import { useOrgContext } from '@/shared/hooks/useOrgContext';
-import { useCurrentUser } from '@/shared/hooks/auth/useCurrentUser';
 import { useIssueAttachments } from '@/shared/hooks/useIssueAttachments';
 import { attachmentsApi } from '@/shared/lib/api';
 import {
   IssueCommentsSection,
   type IssueCommentsEditorProps,
   type IssueCommentData,
-  type ReactionGroup,
 } from '@vibe/ui/components/IssueCommentsSection';
 import WYSIWYGEditor, {
   type WYSIWYGEditorRef,
 } from '@/shared/components/WYSIWYGEditor';
-import { MemberRole } from 'shared/remote-types';
 import { ScratchType } from 'shared/types';
 
 interface IssueCommentsSectionContainerProps {
@@ -47,17 +42,7 @@ export function IssueCommentsSectionContainer({
 }
 
 function IssueCommentsSectionContent() {
-  const { t } = useTranslation('common');
-  const { membersWithProfilesById } = useOrgContext();
   const issueContext = useIssueContext();
-  const { data: currentUser } = useCurrentUser();
-  const currentUserId = currentUser?.user_id ?? '';
-
-  // Check if current user is admin
-  const currentUserMember = currentUserId
-    ? membersWithProfilesById.get(currentUserId)
-    : undefined;
-  const isCurrentUserAdmin = currentUserMember?.role === MemberRole.ADMIN;
 
   // Ref to comment editor for programmatic focus
   const commentEditorRef = useRef<WYSIWYGEditorRef>(null);
@@ -170,103 +155,21 @@ function IssueCommentsSectionContent() {
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
 
-  // Transform IssueComment to IssueCommentData
+  // Transform IssueComment to IssueCommentData. ADR-019: no author attribution
+  // (single-developer fork — every comment is the owner's, no display needed).
   const commentsData = useMemo<IssueCommentData[]>(() => {
     return issueContext.comments
-      .map((comment) => {
-        const author = comment.author_id
-          ? membersWithProfilesById.get(comment.author_id)
-          : undefined;
-        const isAuthor =
-          comment.author_id !== null && comment.author_id === currentUserId;
-        const canModify = isAuthor || isCurrentUserAdmin;
-        return {
-          id: comment.id,
-          authorId: comment.author_id,
-          authorName: comment.author_id
-            ? author
-              ? `${author.first_name ?? ''} ${author.last_name ?? ''}`.trim() ||
-                author.email ||
-                t('kanban.unknownUser')
-              : t('kanban.unknownUser')
-            : t('kanban.deletedUser'),
-          message: comment.message,
-          createdAt: comment.created_at,
-          author: author ?? null,
-          canModify,
-        };
-      })
+      .map((comment) => ({
+        id: comment.id,
+        message: comment.message,
+        createdAt: comment.created_at,
+        canModify: true,
+      }))
       .sort(
         (a, b) =>
           new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       );
-  }, [
-    issueContext.comments,
-    membersWithProfilesById,
-    currentUserId,
-    isCurrentUserAdmin,
-    t,
-  ]);
-
-  // Group reactions by comment, then by emoji
-  const reactionsByCommentId = useMemo(() => {
-    const result = new Map<string, ReactionGroup[]>();
-
-    for (const comment of commentsData) {
-      const commentReactions = issueContext.getReactionsForComment(comment.id);
-      const emojiMap = new Map<
-        string,
-        {
-          count: number;
-          hasReacted: boolean;
-          reactionId: string | undefined;
-          userIds: string[];
-        }
-      >();
-
-      for (const reaction of commentReactions) {
-        const existing = emojiMap.get(reaction.emoji);
-        const isCurrentUser = reaction.user_id === currentUserId;
-
-        if (existing) {
-          existing.count++;
-          existing.userIds.push(reaction.user_id);
-          if (isCurrentUser) {
-            existing.hasReacted = true;
-            existing.reactionId = reaction.id;
-          }
-        } else {
-          emojiMap.set(reaction.emoji, {
-            count: 1,
-            hasReacted: isCurrentUser,
-            reactionId: isCurrentUser ? reaction.id : undefined,
-            userIds: [reaction.user_id],
-          });
-        }
-      }
-
-      const groups: ReactionGroup[] = Array.from(emojiMap.entries()).map(
-        ([emoji, data]) => ({
-          emoji,
-          count: data.count,
-          hasReacted: data.hasReacted,
-          reactionId: data.reactionId,
-          userNames: data.userIds.map((userId) => {
-            const member = membersWithProfilesById.get(userId);
-            return member
-              ? `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() ||
-                  member.email ||
-                  t('kanban.unknownUser')
-              : t('kanban.unknownUser');
-          }),
-        })
-      );
-
-      result.set(comment.id, groups);
-    }
-
-    return result;
-  }, [commentsData, issueContext, currentUserId, membersWithProfilesById, t]);
+  }, [issueContext.comments]);
 
   const handleSubmitComment = useCallback(async () => {
     if (!commentInput.trim()) return;
@@ -338,44 +241,6 @@ function IssueCommentsSectionContent() {
     [issueContext]
   );
 
-  const handleToggleReaction = useCallback(
-    (commentId: string, emoji: string) => {
-      // Check if user already has this reaction
-      const reactions = issueContext.getReactionsForComment(commentId);
-      const existingReaction = reactions.find(
-        (r) => r.user_id === currentUserId && r.emoji === emoji
-      );
-
-      if (existingReaction) {
-        // Remove the reaction
-        issueContext.removeReaction(existingReaction.id);
-      } else {
-        // Add the reaction
-        issueContext.insertReaction({
-          comment_id: commentId,
-          emoji,
-        });
-      }
-    },
-    [issueContext, currentUserId]
-  );
-
-  const handleReply = useCallback(
-    (authorName: string, message: string) => {
-      // Get first line of the message for the quote
-      const firstLine = message.split('\n')[0].trim();
-      const truncatedLine =
-        firstLine.length > 100 ? `${firstLine.slice(0, 100)}...` : firstLine;
-      const quote = `> ${authorName} ${t('kanban.replyQuotePrefix')}\n> ${truncatedLine}`;
-      setCommentInput(quote);
-      // Focus editor after setting value (setTimeout ensures value is set first)
-      setTimeout(() => {
-        commentEditorRef.current?.focus();
-      }, 0);
-    },
-    [t]
-  );
-
   const renderEditor = useCallback(
     ({
       value,
@@ -418,9 +283,6 @@ function IssueCommentsSectionContent() {
       onSaveEdit={handleSaveEdit}
       onCancelEdit={handleCancelEdit}
       onDeleteComment={handleDeleteComment}
-      reactionsByCommentId={reactionsByCommentId}
-      onToggleReaction={handleToggleReaction}
-      onReply={handleReply}
       isLoading={issueContext.isLoading}
       commentEditorRef={commentEditorRef}
       onPasteFiles={onPasteFiles}

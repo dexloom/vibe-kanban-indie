@@ -15,8 +15,8 @@ pub struct IssueWorkspace {
 }
 
 /// A linked workspace joined with the columns needed to synthesize the wire
-/// `Workspace` shape the frontend's `project_workspaces`/`user_workspaces`
-/// fallbacks expect.
+/// `Workspace` shape the frontend's `project_workspaces`/`workspaces` fallbacks
+/// expect.
 #[derive(Debug, Clone)]
 pub struct LinkedWorkspaceRow {
     pub workspace_id: Uuid,
@@ -135,7 +135,7 @@ impl IssueWorkspace {
         Ok(row.map(|r| r.workspace_id))
     }
 
-    /// All linked workspaces (for `user_workspaces`; local mode has one user).
+    /// All linked workspaces (for `workspaces`; single-developer fork — no per-user filter).
     pub async fn list_linked_all(
         pool: &SqlitePool,
     ) -> Result<Vec<LinkedWorkspaceRow>, sqlx::Error> {
@@ -244,7 +244,7 @@ mod tests {
         assert_eq!(rows[0].name.as_deref(), Some("ws"));
         assert_eq!(rows[0].current_pipeline_stage, None);
 
-        // user_workspaces (all links) sees it too.
+        // workspaces (all links) sees it too.
         assert_eq!(
             IssueWorkspace::list_linked_all(&pool).await.unwrap().len(),
             1

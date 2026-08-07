@@ -36,11 +36,10 @@ import { useTranslation } from 'react-i18next';
 import { DotsSixVerticalIcon, PlusIcon } from '@phosphor-icons/react';
 import { Button } from './Button';
 
-// Re-exported so existing imports keep compiling — `RemoteProjectsSettingsSection`
-// imports `DropResult` from `@vibe/ui/components/KanbanBoard`. The list-view
-// adapter in `KanbanContainer` retains hello-pangea for its own
-// `DragDropContext`. The cross-surface path (this file) no longer depends
-// on the hello-pangea runtime types.
+// Re-exported so existing imports keep compiling — the list-view adapter in
+// `KanbanContainer` retains hello-pangea for its own `DragDropContext` and
+// imports `DropResult` from here. The cross-surface path (this file) no
+// longer depends on the hello-pangea runtime types.
 export type { DropResult } from '@hello-pangea/dnd';
 
 export type Status = {

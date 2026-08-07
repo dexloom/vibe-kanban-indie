@@ -4,21 +4,12 @@ import type { LocalAttachmentMetadata } from './WorkspaceContext';
 import { cn } from '../lib/cn';
 import {
   DotsThreeIcon,
-  SmileyIcon,
   ArrowUpIcon,
   PencilSimpleIcon,
   TrashIcon,
-  ArrowBendUpLeftIcon,
   PaperclipIcon,
 } from '@phosphor-icons/react';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from './RadixTooltip';
 import { ErrorAlert } from './ErrorAlert';
-import { UserAvatar, type UserAvatarUser } from './UserAvatar';
 import { CollapsibleSectionHeader } from './CollapsibleSectionHeader';
 import {
   DropdownMenu,
@@ -26,24 +17,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from './Dropdown';
-import { EmojiPicker } from './EmojiPicker';
 
 export interface IssueCommentData {
   id: string;
-  authorId: string | null;
-  authorName: string;
   message: string;
   createdAt: string;
-  author?: UserAvatarUser | null;
   canModify: boolean;
-}
-
-export interface ReactionGroup {
-  emoji: string;
-  count: number;
-  hasReacted: boolean;
-  reactionId: string | undefined;
-  userNames: string[];
 }
 
 function formatRelativeTime(dateString: string): string {
@@ -91,9 +70,6 @@ interface IssueCommentsSectionProps {
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onDeleteComment: (id: string) => void;
-  reactionsByCommentId: Map<string, ReactionGroup[]>;
-  onToggleReaction: (commentId: string, emoji: string) => void;
-  onReply: (authorName: string, message: string) => void;
   isLoading?: boolean;
   commentEditorRef?: Ref<unknown>;
   onPasteFiles?: (files: File[]) => void;
@@ -118,9 +94,6 @@ export function IssueCommentsSection({
   onSaveEdit,
   onCancelEdit,
   onDeleteComment,
-  reactionsByCommentId,
-  onToggleReaction,
-  onReply,
   isLoading,
   commentEditorRef,
   onPasteFiles,
@@ -162,9 +135,6 @@ export function IssueCommentsSection({
               onSaveEdit={onSaveEdit}
               onCancelEdit={onCancelEdit}
               onDelete={() => onDeleteComment(comment.id)}
-              reactions={reactionsByCommentId.get(comment.id) ?? []}
-              onToggleReaction={(emoji) => onToggleReaction(comment.id, emoji)}
-              onReply={() => onReply(comment.authorName, comment.message)}
               renderEditor={renderEditor}
             />
           ))
@@ -198,26 +168,19 @@ export function IssueCommentsSection({
           )}
           <div className="flex items-center justify-end gap-half">
             {onBrowseAttachment && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={onBrowseAttachment}
-                      title={t('kanban.attachFile')}
-                      className={cn(
-                        'size-[22px] rounded-full bg-panel border border-border',
-                        'flex items-center justify-center',
-                        'text-low hover:text-normal transition-colors'
-                      )}
-                      aria-label={t('kanban.attachFile')}
-                    >
-                      <PaperclipIcon size={12} />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>{t('kanban.attachFileHint')}</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <button
+                type="button"
+                onClick={onBrowseAttachment}
+                title={t('kanban.attachFile')}
+                className={cn(
+                  'size-[22px] rounded-full bg-panel border border-border',
+                  'flex items-center justify-center',
+                  'text-low hover:text-normal transition-colors'
+                )}
+                aria-label={t('kanban.attachFile')}
+              >
+                <PaperclipIcon size={12} />
+              </button>
             )}
             <button
               type="button"
@@ -255,9 +218,6 @@ interface CommentItemProps {
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onDelete: () => void;
-  reactions: ReactionGroup[];
-  onToggleReaction: (emoji: string) => void;
-  onReply: () => void;
   renderEditor: (props: IssueCommentsEditorProps) => ReactNode;
 }
 
@@ -270,9 +230,6 @@ function CommentItem({
   onSaveEdit,
   onCancelEdit,
   onDelete,
-  reactions,
-  onToggleReaction,
-  onReply,
   renderEditor,
 }: CommentItemProps) {
   const { t } = useTranslation('common');
@@ -283,15 +240,6 @@ function CommentItem({
       {/* Header row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-base">
-          {comment.author ? (
-            <UserAvatar user={comment.author} className="size-4" />
-          ) : (
-            <div className="size-4 rounded-full bg-secondary border border-border flex items-center justify-center text-2xs text-low">
-              {comment.authorName.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <span className="font-medium text-low">{comment.authorName}</span>
-          <span className="font-medium text-low">·</span>
           <span className="font-light text-low">{timeAgo}</span>
         </div>
         {/* Menu dropdown - only shown if user can modify */}
@@ -356,56 +304,6 @@ function CommentItem({
           className: 'text-normal',
         })
       )}
-
-      {/* Reactions row */}
-      <div className="flex items-center gap-base flex-wrap">
-        {/* Existing reactions */}
-        <TooltipProvider>
-          {reactions.map((reaction) => (
-            <Tooltip key={reaction.emoji}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => onToggleReaction(reaction.emoji)}
-                  className={cn(
-                    'flex items-center gap-half px-base py-half rounded-sm',
-                    'border transition-colors',
-                    reaction.hasReacted
-                      ? 'bg-brand/10 border-brand text-brand'
-                      : 'bg-secondary border-border text-low hover:text-normal'
-                  )}
-                >
-                  <span className="color-emoji">{reaction.emoji}</span>
-                  <span className="text-xs">{reaction.count}</span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent className="bg-panel border border-border">
-                {reaction.userNames.join(', ')}
-              </TooltipContent>
-            </Tooltip>
-          ))}
-        </TooltipProvider>
-
-        {/* Add reaction button */}
-        <EmojiPicker onSelect={onToggleReaction}>
-          <button
-            type="button"
-            className="size-6 flex items-center justify-center text-low hover:text-normal rounded-sm hover:bg-secondary transition-colors"
-          >
-            <SmileyIcon size={16} />
-          </button>
-        </EmojiPicker>
-
-        {/* Reply button */}
-        <button
-          type="button"
-          onClick={onReply}
-          className="flex items-center gap-half text-low hover:text-normal transition-colors"
-        >
-          <ArrowBendUpLeftIcon size={16} />
-          <span className="font-light">{t('buttons.reply')}</span>
-        </button>
-      </div>
     </div>
   );
 }

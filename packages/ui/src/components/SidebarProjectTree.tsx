@@ -46,6 +46,13 @@ interface SidebarProjectTreeProps {
   /** ADR-015: opens `CreateRemoteProjectDialog` with `parentId` set so the
    *  new project is created as a child board of the supplied project id. */
   onCreateChildBoard?: (parentId: string) => void;
+  /** ADR-016: opens the orchestrator-prompt editor for the supplied
+   *  project id. The `+` menu's "Orchestrator prompt" item and the
+   *  prompt row's click both route through this. */
+  onSelectOrchestratorPrompt?: (projectId: string) => void;
+  /** ADR-016: project id whose prompt editor is currently open. Drives
+   *  the rendered row's `aria-current` and the active styling. */
+  activeProjectPromptId?: string | null;
   /** When >1 issues are selected, disable card drag-and-drop (PLAN §7.5). */
   isMultiSelectActive?: boolean;
   /** Id of the external <h2> that labels this section. Replaces the old aria-label. */
@@ -73,6 +80,8 @@ export function SidebarProjectTree({
   onSelectWorkspace,
   onSelectProject,
   onCreateChildBoard,
+  onSelectOrchestratorPrompt,
+  activeProjectPromptId = null,
   isMultiSelectActive = false,
   ariaLabelledBy,
   width = 256,
@@ -187,7 +196,10 @@ export function SidebarProjectTree({
   // (e.g. a nested-board `<childId>:workspaces` key from before the
   // root-only-Workspaces change). Recomputed on every treeData change —
   // short-circuit the work when the tree shape didn't change.
-  const liveTreeNodeIdsSet = useMemo(() => liveTreeNodeIds(treeData), [treeData]);
+  const liveTreeNodeIdsSet = useMemo(
+    () => liveTreeNodeIds(treeData),
+    [treeData]
+  );
 
   // Seed the open-state map from persistence + defaults. Recomputed only when
   // the project set changes; react-arborist consumes it exactly once at Tree
@@ -284,9 +296,7 @@ export function SidebarProjectTree({
       openStateRef.current = {
         ...openStateRef.current,
         [projectId]: true,
-        ...(liveTreeNodeIdsSet.has(wsNodeId)
-          ? { [wsNodeId]: true }
-          : {}),
+        ...(liveTreeNodeIdsSet.has(wsNodeId) ? { [wsNodeId]: true } : {}),
       };
       addedProject = true;
     }
@@ -386,9 +396,31 @@ export function SidebarProjectTree({
         onSelectProject(data.id);
       } else if (data.type === 'card') {
         onSelectIssue?.(data.issue.projectId, data.issue.id);
+      } else if (data.type === 'section' && data.kind === 'tasks') {
+        // ADR-015 follow-up: clicking the Tasks section (or anything under
+        // it) opens the project's kanban — same as clicking the project
+        // itself. The section carries `projectId`; status rows below it do
+        // too, so both route to the project.
+        onSelectProject(data.projectId);
+      } else if (data.type === 'status') {
+        onSelectProject(data.projectId);
+      } else if (data.type === 'orchestrator-prompt') {
+        // ADR-016: react-arborist's `onActivate` fires for BOTH
+        // pointer activation (row click) and keyboard activation
+        // (Enter / Space on the focused row). We intentionally rely on
+        // this single path — adding a separate `onRowClick` on the
+        // orchestrator-prompt row would double-fire for pointer
+        // events. The renderer (`OrchestratorPromptTreeNode`) does not
+        // wire `onRowClick` for this reason.
+        onSelectOrchestratorPrompt?.(data.projectId);
       }
     },
-    [onSelectWorkspace, onSelectProject, onSelectIssue]
+    [
+      onSelectWorkspace,
+      onSelectProject,
+      onSelectIssue,
+      onSelectOrchestratorPrompt,
+    ]
   );
 
   const handleToggle = useCallback(
@@ -442,6 +474,12 @@ export function SidebarProjectTree({
               width={containerWidth || width}
               height={height}
               indent={TREE_LAYOUT.indent}
+              // react-arborist applies `rowClassName` to the DefaultRow
+              // (the `[role=treeitem]` element it focuses on first click).
+              // Kill the focus ring there — the global `*:focus { ring-inset }`
+              // otherwise draws an outline around the just-clicked row on
+              // first activation after mount.
+              rowClassName="outline-none focus:outline-none focus:ring-0"
               rowHeight={(node) => {
                 if (node.data.type === 'leaf')
                   return TREE_LAYOUT.rowHeight.leaf;
@@ -449,6 +487,10 @@ export function SidebarProjectTree({
                   return TREE_LAYOUT.rowHeight.card;
                 if (node.data.type === 'project')
                   return TREE_LAYOUT.rowHeight.project;
+                // ADR-016: orchestrator-prompt + section nodes both fall
+                // through to the default row height — no dedicated slot
+                // needed. Collapsing the two paths keeps the call site
+                // honest.
                 return TREE_LAYOUT.rowHeight.default;
               }}
               overscanCount={TREE_LAYOUT.overscanCount}
@@ -465,7 +507,9 @@ export function SidebarProjectTree({
                 <TreeNodeRouter
                   {...props}
                   onCreateChildBoard={onCreateChildBoard}
+                  onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
                   activeProjectId={activeProjectId}
+                  activeProjectPromptId={activeProjectPromptId}
                   activeWorkspaceId={activeWorkspaceId}
                   activeIssueId={activeIssueId}
                   onSelectIssue={onSelectIssue}

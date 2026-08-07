@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   isLocalWorkspacesDestination,
+  isProjectDestination,
   isWorkspaceChatDestination,
   isWorkspacesDashboardDestination,
+  resolveKanbanRouteState,
 } from './appNavigation';
 
 describe('workspace navigation predicates', () => {
@@ -48,5 +50,34 @@ describe('workspace navigation predicates', () => {
         hostId: 'h',
       })
     ).toBe(false);
+  });
+});
+
+describe('ADR-016 orchestrator-prompt destination', () => {
+  it('is classified as a project destination', () => {
+    expect(
+      isProjectDestination({
+        kind: 'project-orchestrator-prompt',
+        projectId: 'p-1',
+      })
+    ).toBe(true);
+  });
+
+  it('resolveKanbanRouteState maps to projectId with sidebarMode: closed', () => {
+    // ADR-016: the editor IS the page — not a kanban side panel. No
+    // issue/workspace/draft, but the projectId is set so the tree's
+    // active row highlighting still works.
+    const state = resolveKanbanRouteState({
+      kind: 'project-orchestrator-prompt',
+      projectId: 'p-1',
+    });
+    expect(state.projectId).toBe('p-1');
+    expect(state.issueId).toBeNull();
+    expect(state.workspaceId).toBeNull();
+    expect(state.draftId).toBeNull();
+    expect(state.sidebarMode).toBe('closed');
+    expect(state.isPanelOpen).toBe(false);
+    expect(state.isCreateMode).toBe(false);
+    expect(state.isWorkspaceCreateMode).toBe(false);
   });
 });

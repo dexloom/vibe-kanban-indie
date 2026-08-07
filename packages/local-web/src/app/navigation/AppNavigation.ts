@@ -80,6 +80,16 @@ function resolveLocalDestinationFromPath(path: string): AppDestination | null {
       const projectId = getPathParam(routeParams, 'projectId');
       return projectId ? { kind: 'project', projectId } : null;
     }
+    case '/_app/projects/$projectId_/orchestrator-prompt': {
+      // ADR-016: full-pane editor for the per-project orchestrator
+      // prompt. The `_:orchestrator-prompt` suffix uses the same
+      // path-non-collision convention as `_/issues/$issueId` so the
+      // bare `/projects/{id}` route still matches.
+      const projectId = getPathParam(routeParams, 'projectId');
+      return projectId
+        ? { kind: 'project-orchestrator-prompt', projectId }
+        : null;
+    }
     case '/_app/projects/$projectId_/issues/$issueId': {
       const projectId = getPathParam(routeParams, 'projectId');
       const issueId = getPathParam(routeParams, 'issueId');
@@ -304,6 +314,11 @@ function destinationToLocalTarget(
           draftId: destination.draftId,
         },
       } as const;
+    case 'project-orchestrator-prompt':
+      return {
+        to: '/projects/$projectId/orchestrator-prompt',
+        params: { projectId: destination.projectId },
+      } as const;
   }
 }
 
@@ -363,6 +378,11 @@ export function createLocalAppNavigation(): AppNavigation {
     goToProjectWorkspaceCreate: (projectId, draftId, transition) =>
       navigateTo(
         { kind: 'project-workspace-create', projectId, draftId },
+        transition
+      ),
+    goToProjectOrchestratorPrompt: (projectId, transition) =>
+      navigateTo(
+        { kind: 'project-orchestrator-prompt', projectId },
         transition
       ),
   };

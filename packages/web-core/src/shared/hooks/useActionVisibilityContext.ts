@@ -14,7 +14,6 @@ import { useBranchStatus } from '@/shared/hooks/useBranchStatus';
 import { useShape } from '@/shared/integrations/electric/hooks';
 import { useExecutionProcessesContext } from '@/shared/hooks/useExecutionProcessesContext';
 import { useLogsPanel } from '@/shared/hooks/useLogsPanel';
-import { useAuth } from '@/shared/hooks/auth/useAuth';
 import { isProjectDestination } from '@/shared/lib/routes/appNavigation';
 import { useCurrentAppDestination } from '@/shared/hooks/useCurrentAppDestination';
 import { useCurrentKanbanRouteState } from '@/shared/hooks/useCurrentKanbanRouteState';
@@ -92,7 +91,6 @@ export function useActionVisibilityContext(
   const { data: branchStatus } = useBranchStatus(workspaceId);
   const { isAttemptRunningVisible } = useExecutionProcessesContext();
   const { logsPanelContent } = useLogsPanel();
-  const { isSignedIn } = useAuth();
 
   return useMemo(() => {
     // Compute isAllDiffsExpanded
@@ -151,7 +149,6 @@ export function useActionVisibilityContext(
       hasSelectedKanbanIssue,
       hasSelectedKanbanIssueParent,
       isCreatingIssue: kanbanCreateMode,
-      isSignedIn,
     };
   }, [
     layoutMode,
@@ -175,6 +172,5 @@ export function useActionVisibilityContext(
     hasSelectedKanbanIssue,
     hasSelectedKanbanIssueParent,
     kanbanCreateMode,
-    isSignedIn,
   ]);
 }

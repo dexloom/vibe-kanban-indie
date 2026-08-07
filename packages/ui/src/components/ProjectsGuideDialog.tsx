@@ -43,7 +43,7 @@ const ProjectsGuideDialogImpl = NiceModal.create<NoProps>(() => {
       title: t('kanban.projectsGuide.welcome.title', 'Projects'),
       content: t(
         'kanban.projectsGuide.welcome.content',
-        'The project page is where you manage issues. You can view your issues as a kanban board, or as a list, and filter by status, tag, assignee and more.'
+        'The project page is where you manage issues. You can view your issues as a kanban board, or as a list, and filter by status, tag, and more.'
       ),
       imageSrc: '/guide-images/projects-kanban.png',
     },
@@ -52,7 +52,7 @@ const ProjectsGuideDialogImpl = NiceModal.create<NoProps>(() => {
       title: t('kanban.projectsGuide.issues.title', 'Issues'),
       content: t(
         'kanban.projectsGuide.issues.content',
-        'Each issue represents a feature or problem to solve. Issues have statuses, priorities, assignees, tags, relationships, comments, sub-issues and more.'
+        'Each issue represents a feature or problem to solve. Issues have statuses, priorities, tags, relationships, comments, sub-issues and more.'
       ),
       imageSrc: '/guide-images/projects-issue.png',
     },
@@ -64,15 +64,6 @@ const ProjectsGuideDialogImpl = NiceModal.create<NoProps>(() => {
         'To start working on an issue, create a workspace. A single issue can have multiple workspaces. Issues describe the work to be done, workspaces are where the work happens.'
       ),
       imageSrc: '/guide-images/projects-workspaces.png',
-    },
-    {
-      id: 'organizations',
-      title: t('kanban.projectsGuide.organizations.title', 'Invite your team'),
-      content: t(
-        'kanban.projectsGuide.organizations.content',
-        "We've automatically created a personal organization, and initial project so you can easily get started with Vibe Kanban. You can also create new organizations and invite your team to collaborate."
-      ),
-      imageSrc: '/guide-images/projects-org-settings.png',
     },
   ];
 

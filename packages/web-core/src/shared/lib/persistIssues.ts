@@ -90,10 +90,13 @@ export function persistIssueSwap(
  * `case 'project-reorder'`) already slices the sibling group; this
  * helper just rewrites whatever it's given. Do not loosen that
  * contract without updating the call site.
+ *
+ * ADR-018 — projects are tenant-less; the legacy `orgId` param is
+ * dropped. The shape is refreshed with empty params (a single global
+ * cache key).
  */
 export function persistProjectReorder(
   swapped: { id: string }[],
-  orgId: string,
   options?: PersistIssuesOptions
 ): void {
   const STEP = 100;
@@ -101,8 +104,7 @@ export function persistProjectReorder(
     id: p.id,
     changes: { sort_order: i * STEP },
   }));
-  const refresh = () =>
-    refreshShapeSource(PROJECTS_SHAPE, { organization_id: orgId });
+  const refresh = () => refreshShapeSource(PROJECTS_SHAPE, {});
   bulkUpdateProjects(updates)
     .then(() => {
       try {

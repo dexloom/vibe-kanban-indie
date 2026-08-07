@@ -48,7 +48,6 @@ const issue = (overrides: Partial<Issue>): Issue => ({
   parent_issue_id: null,
   parent_issue_sort_order: null,
   extension_metadata: null,
-  creator_user_id: null,
   created_at: '2026-08-01T00:00:00.000Z',
   updated_at: '2026-08-01T00:00:00.000Z',
   ...overrides,
@@ -77,13 +76,26 @@ describe('buildTreeData', () => {
     // ADR-015: root's Workspaces section is now only rendered when the
     // aggregate is non-empty (mirrors the Unassigned gate). Seed one
     // workspace so the section appears.
+    // ADR-016: the orchestrator-prompt leaf is inserted between Tasks
+    // and child boards ONLY when the project has a prompt (added via the
+    // `+` menu). With no prompt and no child boards, the order is
+    // [Tasks, Workspaces].
     const tasks: ProjectTasksData = {
       statuses: [status('s1')],
       issues: [],
     };
     const input = baseInput({
       workspacesByProject: new Map([
-        ['p1', [{ id: 'w1', name: 'w1', createdAt: '2026-08-01T00:00:00.000Z' } as OutlinerWorkspace]],
+        [
+          'p1',
+          [
+            {
+              id: 'w1',
+              name: 'w1',
+              createdAt: '2026-08-01T00:00:00.000Z',
+            } as OutlinerWorkspace,
+          ],
+        ],
       ]),
       tasksByProject: new Map([['p1', tasks]]),
     });
@@ -94,6 +106,8 @@ describe('buildTreeData', () => {
     if (projectNode.type !== 'project') return;
     const tasksSection = projectNode.children[0]!;
     const workspacesSection = projectNode.children[1]!;
+    expect(tasksSection.type).toBe('section');
+    expect(workspacesSection.type).toBe('section');
     if (
       tasksSection.type !== 'section' ||
       workspacesSection.type !== 'section'
@@ -546,8 +560,10 @@ describe('buildTreeData', () => {
 
   it('groups nested boards under their parent after the sections', () => {
     // ADR-015: Workspace section only renders when aggregate is non-empty.
-    // Seed a workspace so the section renders; ordering is
-    // [Tasks, ...childBoards, Workspaces].
+    // ADR-016: the orchestrator-prompt leaf is rendered ONLY when the
+    // project has a prompt (added via `+`). None of these projects have
+    // `hasOrchestratorPrompt`, so the order is [Tasks, ...childBoards,
+    // Workspaces].
     const input = baseInput({
       projects: [
         project('p-root', { name: 'root' }),
@@ -564,9 +580,7 @@ describe('buildTreeData', () => {
           parentId: 'p-child-a',
         }),
       ],
-      workspacesByProject: new Map([
-        ['p-root', [ws('w-root')]],
-      ]),
+      workspacesByProject: new Map([['p-root', [ws('w-root')]]]),
     });
     const tree = buildTreeData(input);
     const root = tree[0]!;
@@ -589,6 +603,66 @@ describe('buildTreeData', () => {
     const nestedAChildren = childA.children.filter((c) => c.type === 'project');
     expect(nestedAChildren).toHaveLength(1);
     expect(nestedAChildren[0]!.id).toBe('p-grand');
+  });
+
+  /// ADR-016: the orchestrator-prompt leaf is rendered ONLY when the
+  /// project has a prompt (added via the `+` menu). A project with a
+  /// prompt gets the node between its Tasks and child boards; a project
+  /// WITHOUT one gets no node at all.
+  it('renders orchestrator-prompt leaf only when the project has a prompt', () => {
+    const input = baseInput({
+      projects: [
+        project('p-root', {
+          name: 'root',
+          hasOrchestratorPrompt: true,
+        }),
+        project('p-child', {
+          name: 'child',
+          parentId: 'p-root',
+          hasOrchestratorPrompt: false,
+        }),
+      ],
+    });
+    const tree = buildTreeData(input);
+    const root = tree[0]!;
+    if (root.type !== 'project') throw new Error('expected project');
+
+    // Root has a prompt: [Tasks, OrchestratorPrompt, child]. No workspaces
+    // section (no aggregates). The prompt row sits AT index 1.
+    const promptNode = root.children[1]!;
+    if (promptNode.type !== 'orchestrator-prompt') {
+      throw new Error('expected orchestrator-prompt at index 1');
+    }
+    expect(promptNode.projectId).toBe('p-root');
+    expect(promptNode.id).toBe('p-root:orchestrator-prompt');
+    expect(promptNode.hasPrompt).toBe(true);
+    expect(promptNode.label).toBe('sidebar.orchestratorPrompt');
+
+    // Child board has NO prompt → its children are [Tasks] only (no
+    // orchestrator-prompt node, no grand-child).
+    const childProject = root.children[2]!;
+    if (childProject.type !== 'project') {
+      throw new Error('expected nested project child');
+    }
+    const childHasPromptNode = childProject.children.some(
+      (c) => c.type === 'orchestrator-prompt'
+    );
+    expect(childHasPromptNode).toBe(false);
+  });
+
+  /// ADR-016: missing `hasOrchestratorPrompt` defaults to `false` (the
+  /// dot stays dark). This keeps pre-ADR-016 test fixtures working
+  /// without a forced rewrite — the buildTreeData path is the only
+  /// reader today.
+  it('omits the orchestrator-prompt node when hasOrchestratorPrompt is missing/false', () => {
+    const input = baseInput();
+    const tree = buildTreeData(input);
+    const root = tree[0]!;
+    if (root.type !== 'project') throw new Error('expected project');
+    const hasPromptNode = root.children.some(
+      (c) => c.type === 'orchestrator-prompt'
+    );
+    expect(hasPromptNode).toBe(false);
   });
 
   it('F-1: sibling projects sort by sortOrder (not UUID), so reorder survives refresh', () => {
@@ -644,7 +718,10 @@ describe('buildTreeData', () => {
 // 5. Unassigned is unchanged (keeps its own Workspaces section).
 // 6. Tasks section is unchanged (toggle-only).
 
-function ws(id: string, overrides: Partial<OutlinerWorkspace> = {}): OutlinerWorkspace {
+function ws(
+  id: string,
+  overrides: Partial<OutlinerWorkspace> = {}
+): OutlinerWorkspace {
   return {
     id,
     name: id,
@@ -669,10 +746,7 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
 
   it('root aggregates own + child-board workspaces deduplicated by id', () => {
     const input = baseInput({
-      projects: [
-        project('p-root'),
-        project('p-child', { parentId: 'p-root' }),
-      ],
+      projects: [project('p-root'), project('p-child', { parentId: 'p-root' })],
       workspacesByProject: new Map([
         ['p-root', [ws('w1'), ws('w2')]],
         ['p-child', [ws('w2'), ws('w3')]],
@@ -685,7 +759,11 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
       (c) => c.type === 'section' && c.kind === 'workspaces'
     );
     expect(wsSection).toBeDefined();
-    if (!wsSection || wsSection.type !== 'section' || wsSection.kind !== 'workspaces') {
+    if (
+      !wsSection ||
+      wsSection.type !== 'section' ||
+      wsSection.kind !== 'workspaces'
+    ) {
       throw new Error('expected workspaces section');
     }
     const allBuckets = wsSection.children.flatMap((b) =>
@@ -699,10 +777,7 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
   it('a workspace linked to both root AND a child appears exactly once', () => {
     // Membership is M:N; a workspace linked to root + child must dedupe by id.
     const input = baseInput({
-      projects: [
-        project('p-root'),
-        project('p-child', { parentId: 'p-root' }),
-      ],
+      projects: [project('p-root'), project('p-child', { parentId: 'p-root' })],
       workspacesByProject: new Map([
         ['p-root', [ws('w-shared')]],
         ['p-child', [ws('w-shared')]],
@@ -715,7 +790,11 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
       (c) => c.type === 'section' && c.kind === 'workspaces'
     );
     expect(wsSection).toBeDefined();
-    if (!wsSection || wsSection.type !== 'section' || wsSection.kind !== 'workspaces') {
+    if (
+      !wsSection ||
+      wsSection.type !== 'section' ||
+      wsSection.kind !== 'workspaces'
+    ) {
       throw new Error('expected workspaces section');
     }
     const ids = wsSection.children.flatMap((b) =>
@@ -724,27 +803,28 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
     expect(ids.filter((id) => id === 'w-shared')).toHaveLength(1);
 
     // The child board itself has NO Workspaces section (ADR-015 §4).
-    const child = root.children.find((c) => c.type === 'project' && c.id === 'p-child');
+    const child = root.children.find(
+      (c) => c.type === 'project' && c.id === 'p-child'
+    );
     if (!child || child.type !== 'project') throw new Error('expected child');
     const childSections = child.children.filter((c) => c.type === 'section');
     expect(childSections).toHaveLength(1);
-    expect(childSections[0]!.type === 'section' && childSections[0]!.kind).toBe('tasks');
+    expect(childSections[0]!.type === 'section' && childSections[0]!.kind).toBe(
+      'tasks'
+    );
   });
 
   it('child board (non-root) has NO Workspaces section in its children', () => {
     const input = baseInput({
-      projects: [
-        project('p-root'),
-        project('p-child', { parentId: 'p-root' }),
-      ],
-      workspacesByProject: new Map([
-        ['p-child', [ws('w-only-on-child')]],
-      ]),
+      projects: [project('p-root'), project('p-child', { parentId: 'p-root' })],
+      workspacesByProject: new Map([['p-child', [ws('w-only-on-child')]]]),
     });
     const tree = buildTreeData(input);
     const root = tree.find((n) => n.type === 'project' && n.id === 'p-root');
     if (!root || root.type !== 'project') throw new Error('expected root');
-    const child = root.children.find((c) => c.type === 'project' && c.id === 'p-child');
+    const child = root.children.find(
+      (c) => c.type === 'project' && c.id === 'p-child'
+    );
     if (!child || child.type !== 'project') throw new Error('expected child');
     const wsSection = child.children.find(
       (c) => c.type === 'section' && c.kind === 'workspaces'
@@ -752,10 +832,12 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
     expect(wsSection).toBeUndefined();
   });
 
-  it('root children order is [Tasks, ...childBoards, Workspaces]', () => {
+  it('root children order is [Tasks, OrchestratorPrompt, ...childBoards, Workspaces]', () => {
+    // ADR-016: the prompt node sits between Tasks and child boards, but
+    // ONLY when the root has a prompt (added via `+`).
     const input = baseInput({
       projects: [
-        project('p-root'),
+        project('p-root', { hasOrchestratorPrompt: true }),
         project('p-child-a', { parentId: 'p-root' }),
         project('p-child-b', { parentId: 'p-root' }),
       ],
@@ -768,25 +850,26 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
       if (c.type === 'section') {
         return `section:${c.kind}`;
       }
+      if (c.type === 'orchestrator-prompt') {
+        return `orchestrator-prompt:${c.projectId}`;
+      }
       return `project:${c.id}`;
     });
     expect(tags).toEqual([
       'section:tasks',
+      'orchestrator-prompt:p-root',
       'project:p-child-a',
       'project:p-child-b',
       'section:workspaces',
     ]);
   });
 
-  it('archived workspaces in subtree land in the root\'s archived bucket', () => {
+  it("archived workspaces in subtree land in the root's archived bucket", () => {
     // Two passes: aggregate active and aggregate archived separately, dedupe
     // each by id. A workspace is "archived" iff it appears in the
     // archivedWorkspacesByProject map; the active list must not include it.
     const input = baseInput({
-      projects: [
-        project('p-root'),
-        project('p-child', { parentId: 'p-root' }),
-      ],
+      projects: [project('p-root'), project('p-child', { parentId: 'p-root' })],
       workspacesByProject: new Map([
         ['p-root', [ws('w-active')]],
         ['p-child', [ws('w-active'), ws('w-other-active')]],
@@ -803,15 +886,23 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
       (c) => c.type === 'section' && c.kind === 'workspaces'
     );
     expect(wsSection).toBeDefined();
-    if (!wsSection || wsSection.type !== 'section' || wsSection.kind !== 'workspaces') {
+    if (
+      !wsSection ||
+      wsSection.type !== 'section' ||
+      wsSection.kind !== 'workspaces'
+    ) {
       throw new Error('expected workspaces section');
     }
-    const archivedBucket = wsSection.children.find((b) => b.bucketId === 'archived');
+    const archivedBucket = wsSection.children.find(
+      (b) => b.bucketId === 'archived'
+    );
     expect(archivedBucket).toBeDefined();
     const archivedIds = (archivedBucket?.children ?? []).map(
       (leaf) => leaf.workspace.id
     );
-    expect(new Set(archivedIds)).toEqual(new Set(['w-archived', 'w-archived-2']));
+    expect(new Set(archivedIds)).toEqual(
+      new Set(['w-archived', 'w-archived-2'])
+    );
     // The active workspaces must NOT appear in the archived bucket.
     expect(archivedIds).not.toContain('w-active');
   });
@@ -836,7 +927,11 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
       (c) => c.type === 'section' && c.kind === 'workspaces'
     );
     expect(wsSection).toBeDefined();
-    if (!wsSection || wsSection.type !== 'section' || wsSection.kind !== 'workspaces') {
+    if (
+      !wsSection ||
+      wsSection.type !== 'section' ||
+      wsSection.kind !== 'workspaces'
+    ) {
       throw new Error('expected workspaces section');
     }
     const ids = wsSection.children.flatMap((b) =>
