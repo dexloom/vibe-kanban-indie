@@ -1,5 +1,4 @@
 import {
-  BUCKET_DEFAULT_OPEN,
   BUCKET_ORDER,
   LEGACY_BUCKET_PERSIST_KEYS,
   type BucketId,
@@ -13,12 +12,21 @@ import {
 } from './types';
 
 /**
- * Read persisted open/closed state for each bucket from localStorage. Falls
- * back to the bucket defaults when nothing is stored yet (or storage is
- * unavailable). Safe to call during render.
+ * Read persisted open/closed state for each bucket from the pre-ADR-011
+ * per-bucket localStorage keys. Safe to call during render.
+ *
+ * Collapse-by-default (2026-08-07): the base is all-closed. Only buckets the
+ * user EXPLICITLY opened in the old per-bucket localStorage are surfaced —
+ * the legacy BUCKET_DEFAULT_OPEN (attention/running/idle open) no longer
+ * applies, so first-run users get the new collapsed default.
  */
 export function readLegacyBucketOpenState(): Record<BucketId, boolean> {
-  const out = { ...BUCKET_DEFAULT_OPEN };
+  const out: Record<BucketId, boolean> = {
+    attention: false,
+    running: false,
+    idle: false,
+    archived: false,
+  };
   if (typeof window === 'undefined') return out;
   try {
     for (const bucketId of Object.keys(
@@ -49,13 +57,16 @@ export function readLegacyBucketOpenState(): Record<BucketId, boolean> {
 // redux store owns open state. This module only seeds the initial map and
 // mirrors user toggles back to localStorage.
 //
-// SINGLE RULE MODEL — every consumer (tree seed, auto-open effect, web-core
-// loader gate) must derive from these helpers; the rule must never be
+// SINGLE RULE MODEL — every consumer (tree seed, late-arrival restore
+// effect) must derive from these helpers; the rule must never be
 // re-implemented inline:
-//   - `isTasksSectionOpen(stored, projectId)` — the "open unless explicitly
-//     closed" rule (owner decision 2026-08-03).
-//   - `deriveOpenTasksProjectIds(stored, live)` — web-core loader gate as a
-//     Set derivation (no consumer needs to enumerate keys).
+//   - `isTasksSectionOpen(stored, projectId)` — the "open only when
+//     explicitly persisted `true`" rule (collapse-by-default, owner
+//     decision 2026-08-07).
+//   - `deriveOpenTasksProjectIds(stored, live)` — persisted-open Set
+//     derivation. Retained for callers that want it; NOTE the web-core
+//     Tasks loader is no longer gated on this (it loads all live projects
+//     so counts render while collapsed — see SidebarProjectTasksRegistry).
 //   - `projectIdFromOpenStateKey(key)` — every project-scoped key has the
 //     shape `<projectId>:<rest>`; bare ids have no separator.
 
@@ -117,22 +128,27 @@ export function writeSidebarTreeOpenState(map: Record<string, boolean>): void {
 }
 
 /**
- * THE single rule for whether a project's Tasks section is open: open by
- * default, unless the user explicitly closed it (persisted `false`). Owner
- * decision 2026-08-03. Every consumer (tree seed, auto-open effect, loader
- * gate) must call this — never re-derive the rule inline.
+ * THE single rule for whether a project's Tasks section is open. Owner
+ * decision 2026-08-07: Tasks sections default CLOSED — open ONLY when the
+ * user explicitly opened it (persisted `true`). Every consumer (tree seed,
+ * late-arrival effect, loader gate) must call this — never re-derive the
+ * rule inline. (Previously defaulted open; the collapse-by-default redesign
+ * flipped it.)
  */
 export function isTasksSectionOpen(
   stored: Readonly<Record<string, boolean>>,
   projectId: string
 ): boolean {
-  return stored[makeTasksSectionId(projectId)] !== false;
+  return stored[makeTasksSectionId(projectId)] === true;
 }
 
 /**
  * Which of the given live projects have their Tasks loaders enabled. Derived
  * from the persisted blob + the live project set — the single derivation of
- * the web-core loader gate. Projects not in the blob default OPEN.
+ * the web-core loader gate. NOTE: post collapse-by-default (2026-08-07) the
+ * loader is decoupled from this rule and loads ALL live projects so counts
+ * render while collapsed; this helper is retained for back-compat / callers
+ * that still want the persisted-open derivation.
  */
 export function deriveOpenTasksProjectIds(
   stored: Readonly<Record<string, boolean>>,
@@ -157,8 +173,12 @@ export function projectIdFromOpenStateKey(key: string): string {
  * Build the `initialOpenState` map for <Tree>. Per-node resolution:
  *   1. value persisted in the sidebar-tree blob
  *   2. legacy per-bucket value (buckets only, first-run migration)
- *   3. default: project & Workspaces section & Tasks section (real projects
- *      only) & attention/running/idle buckets OPEN; archived bucket CLOSED.
+ *   3. default: CLOSED. Owner decision 2026-08-07 (collapse-by-default
+ *      redesign) — projects, Tasks sections, Workspaces sections, buckets,
+ *      and statuses all default collapsed; the user's explicit expand/
+ *      collapse persists across sessions. (Previously projects, Workspaces
+ *      sections, Tasks sections, and attention/running/idle buckets
+ *      defaulted OPEN.)
  *
  * Status nodes are INTENTIONALLY NOT seeded: their ids are unknown at mount
  * (tasks load lazily once the Tasks section is opened). With
@@ -187,23 +207,23 @@ export function buildSidebarTreeInitialOpenState(
   for (const project of projectNodes) {
     const projectId = project.id;
     const isUnassigned = projectId === UNASSIGNED_PROJECT_ID;
-    out[projectId] = stored[projectId] ?? true;
+    out[projectId] = stored[projectId] ?? false;
 
     const wsId = makeWorkspacesSectionId(projectId);
-    out[wsId] = stored[wsId] ?? true;
+    out[wsId] = stored[wsId] ?? false;
 
     for (const bucketId of BUCKET_ORDER) {
       const nodeId = `${projectId}:bucket:${bucketId}`;
-      out[nodeId] =
-        stored[nodeId] ?? legacy[bucketId] ?? BUCKET_DEFAULT_OPEN[bucketId];
+      // Legacy first-run migration: a pre-ADR-011 user's per-bucket open
+      // state is honored once; thereafter the blob owns the value. New
+      // users (no blob, no legacy) default CLOSED.
+      out[nodeId] = stored[nodeId] ?? legacy[bucketId] ?? false;
     }
 
-    // Tasks section: real projects only. Default OPEN via the central rule
-    // (owner decision 2026-08-03 — open regardless of status count; a user
-    // who closes it persists `false`, which the seed + auto-open + loader
-    // gate all respect). Unassigned never has a Tasks section, so do not
-    // emit an id for it (keeps the map clean and prevents a phantom
-    // persisted key).
+    // Tasks section: real projects only. Default CLOSED via the central
+    // rule (owner decision 2026-08-07). Unassigned never has a Tasks
+    // section, so do not emit an id for it (keeps the map clean and
+    // prevents a phantom persisted key).
     if (!isUnassigned) {
       const tasksId = makeTasksSectionId(projectId);
       out[tasksId] = isTasksSectionOpen(stored, projectId);

@@ -4,15 +4,22 @@ import type { ProjectTasksData } from '@vibe/ui/components/outliner/types';
 
 interface SidebarProjectTasksRegistryProps {
   projectIds: readonly string[];
-  openTasksProjectIds: ReadonlySet<string>;
   onTasksByProject: (map: ReadonlyMap<string, ProjectTasksData>) => void;
   onLoadingTasksProjectIds: (set: ReadonlySet<string>) => void;
 }
 
-/** Rules-of-hooks-safe registry for lazily enabled per-project task loaders. */
+/**
+ * Rules-of-hooks-safe registry for per-project task loaders.
+ *
+ * Collapse-by-default (2026-08-07): loads ALL live projects unconditionally
+ * so the Tasks-section open-task count badge renders while a section is
+ * collapsed. Previously the loader was gated on the Tasks section being
+ * open; that left collapsed sections without data (and thus without a
+ * count). For a single-dev local app the per-project Electric shapes are
+ * cheap enough to subscribe eagerly.
+ */
 export function SidebarProjectTasksRegistry({
   projectIds,
-  openTasksProjectIds,
   onTasksByProject,
   onLoadingTasksProjectIds,
 }: SidebarProjectTasksRegistryProps) {
@@ -83,7 +90,7 @@ export function SidebarProjectTasksRegistry({
         <ProjectTasksLoader
           key={projectId}
           projectId={projectId}
-          enabled={openTasksProjectIds.has(projectId)}
+          enabled={true}
           onData={reportData}
           onLoading={reportLoading}
         />

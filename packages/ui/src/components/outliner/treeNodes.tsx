@@ -1,5 +1,9 @@
 import type { NodeApi, NodeRendererProps } from 'react-arborist';
-import { NotePencilIcon, PlusIcon } from '@phosphor-icons/react';
+import {
+  ArrowSquareOutIcon,
+  NotePencilIcon,
+  PlusIcon,
+} from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/cn';
 import { useDraggable, useDropTarget } from '../dnd';
@@ -50,6 +54,7 @@ function ProjectTreeNode(
   props: TreeNodeRenderProps<ProjectNode> & {
     onCreateChildBoard?: (parentId: string) => void;
     onSelectOrchestratorPrompt?: (projectId: string) => void;
+    onOpenProjectPage?: (projectId: string) => void;
     activeProjectId: string | null;
     tintColor?: string | null;
     dimmed?: boolean;
@@ -61,6 +66,7 @@ function ProjectTreeNode(
     dragHandle,
     onCreateChildBoard,
     onSelectOrchestratorPrompt,
+    onOpenProjectPage,
     activeProjectId,
     tintColor,
     dimmed,
@@ -95,14 +101,19 @@ function ProjectTreeNode(
   // always exists, "Add" would lie.
   const showAddMenu =
     !isUnassigned && (onCreateChildBoard || onSelectOrchestratorPrompt);
+  // Collapse-by-default (2026-08-07): row click toggles expand/collapse;
+  // the open-page icon navigates to the project's kanban board. The
+  // Unassigned pseudo-project has no board, so no icon.
+  const showOpenIcon = !isUnassigned && onOpenProjectPage;
   return (
     <TreeRow
       node={node}
       style={style}
       dragHandle={dragHandle}
       isActive={isActive}
-      // ADR-015: row click navigates via react-arborist's onActivate
-      // (handleActivate → onSelectProject); the caret handles toggle.
+      // Collapse-by-default (2026-08-07): row click TOGGLES expand/collapse
+      // via react-arborist's onActivate (handleActivate → node.toggle);
+      // the open-page icon handles navigation to the kanban board.
       outerProps={{
         style: { touchAction: 'none' },
         ...(onPointerDown ? { onPointerDown } : {}),
@@ -135,7 +146,7 @@ function ProjectTreeNode(
           {getProjectInitials(project.name)}
         </span>
         <span
-          className="truncate"
+          className="flex-1 min-w-0 truncate"
           style={
             tintColor
               ? tintStyle(tintColor, isActive ? 1 : 0.8)
@@ -144,6 +155,28 @@ function ProjectTreeNode(
         >
           {project.name}
         </span>
+        {showOpenIcon && (
+          <button
+            aria-label={t('sidebar.openProjectPage', 'Open project board')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenProjectPage!(project.id);
+            }}
+            onPointerDown={(e) => {
+              // Same reason as the `+` trigger below: keep the icon's
+              // pointer-down independent of the row's drag binding so the
+              // click navigates instead of promoting a drag candidate.
+              e.stopPropagation();
+            }}
+            className={cn(
+              'shrink-0 rounded-sm p-0.5',
+              'text-low hover:text-high hover:bg-tertiary',
+              'transition-opacity focus:outline-none'
+            )}
+          >
+            <ArrowSquareOutIcon className="size-4.5" weight="bold" />
+          </button>
+        )}
         {showAddMenu && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -165,7 +198,7 @@ function ProjectTreeNode(
                   e.stopPropagation();
                 }}
                 className={cn(
-                  'ml-auto shrink-0 rounded-sm p-0.5',
+                  'shrink-0 rounded-sm p-0.5',
                   'text-low hover:text-high hover:bg-tertiary',
                   'transition-opacity focus:outline-none'
                 )}
@@ -210,11 +243,14 @@ function ProjectTreeNode(
 
 function SectionTreeNode(
   props: TreeNodeRenderProps<Extract<SectionNode, { kind: 'workspaces' }>> & {
+    onOpenWorkspacesPage?: () => void;
     tintColor?: string | null;
     dimmed?: boolean;
   }
 ) {
-  const { node, style, dragHandle, tintColor, dimmed } = props;
+  const { node, style, dragHandle, onOpenWorkspacesPage, tintColor, dimmed } =
+    props;
+  const { t } = useTranslation('common');
   return (
     <TreeRow
       node={node}
@@ -226,9 +262,30 @@ function SectionTreeNode(
         dimmed && DIM_ROW
       )}
     >
-      <span className="truncate" style={tintStyle(tintColor)}>
-        {node.data.label}
-      </span>
+      <div className="flex items-center gap-1">
+        <span className="flex-1 min-w-0 truncate" style={tintStyle(tintColor)}>
+          {node.data.label}
+        </span>
+        {onOpenWorkspacesPage && (
+          <button
+            aria-label={t('sidebar.openWorkspacesPage', 'Open workspaces')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenWorkspacesPage();
+            }}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+            }}
+            className={cn(
+              'shrink-0 rounded-sm p-0.5',
+              'text-low hover:text-high hover:bg-tertiary',
+              'transition-opacity focus:outline-none'
+            )}
+          >
+            <ArrowSquareOutIcon className="size-4" weight="bold" />
+          </button>
+        )}
+      </div>
     </TreeRow>
   );
 }
@@ -301,6 +358,8 @@ export function TreeNodeRouter(
   props: NodeRendererProps<SidebarTreeNode> & {
     onCreateChildBoard?: (parentId: string) => void;
     onSelectOrchestratorPrompt?: (projectId: string) => void;
+    onOpenProjectPage?: (projectId: string) => void;
+    onOpenWorkspacesPage?: () => void;
     activeProjectId: string | null;
     activeProjectPromptId?: string | null;
     activeWorkspaceId: string | null;
@@ -317,6 +376,8 @@ export function TreeNodeRouter(
     dragHandle,
     onCreateChildBoard,
     onSelectOrchestratorPrompt,
+    onOpenProjectPage,
+    onOpenWorkspacesPage,
     activeProjectId,
     activeProjectPromptId,
     activeWorkspaceId,
@@ -342,6 +403,7 @@ export function TreeNodeRouter(
           dragHandle={dragHandle}
           onCreateChildBoard={onCreateChildBoard}
           onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
+          onOpenProjectPage={onOpenProjectPage}
           activeProjectId={activeProjectId}
           tintColor={tintColor}
           dimmed={dimmed}
@@ -353,6 +415,7 @@ export function TreeNodeRouter(
           node={node as NodeApi<Extract<SectionNode, { kind: 'tasks' }>>}
           style={style}
           dragHandle={dragHandle}
+          onOpenProjectPage={onOpenProjectPage}
           tintColor={tintColor}
           dimmed={dimmed}
         />
@@ -361,6 +424,7 @@ export function TreeNodeRouter(
           node={node as NodeApi<Extract<SectionNode, { kind: 'workspaces' }>>}
           style={style}
           dragHandle={dragHandle}
+          onOpenWorkspacesPage={onOpenWorkspacesPage}
           tintColor={tintColor}
           dimmed={dimmed}
         />

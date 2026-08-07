@@ -45,7 +45,12 @@ export interface BuildTreeDataInput {
  * Rules (all asserted by tests in §5):
  *  - Per real project: Tasks section ABOVE Workspaces section.
  *  - Tasks section always present for real projects (even when empty).
- *  - Statuses: drop `hidden`, sort by `sort_order` ASC.
+ *  - Statuses: drop `hidden`, sort by `sort_order` ASC. Empty statuses
+ *    (zero cards) are ALSO dropped once task data has loaded (owner
+ *    decision 2026-08-07 — sidebar tree only; the kanban board keeps all
+ *    columns). While loading, empty statuses are kept to avoid flicker.
+ *  - `openTaskCount`: total issue cards under non-done statuses. A status
+ *    is "done" when its name matches `isDoneStatusName`.
  *  - Cards: group by `status_id`; within a status, **top-level issues** (no
  *    parent_issue_id, or whose parent is missing) sorted by `sort_order` ASC;
  *    **sub-issues nested under their parent card**, sorted by
@@ -76,7 +81,12 @@ export function buildTreeData(input: BuildTreeDataInput): SidebarTreeNode[] {
     input.unassignedActive.length > 0 ||
     input.unassignedArchived.length > 0
   ) {
-    projectNodes.push(buildUnassignedNode(input, t));
+    // Owner decision 2026-08-07: the orphan-workspaces pseudo-project is
+    // labelled "Orchestrator", tinted with the brand orange
+    // (`--brand: 25 82% 54%`), and pinned to the TOP of the list (above
+    // all real projects). The internal id stays `UNASSIGNED_PROJECT_ID`
+    // so open-state persistence and drag-disable logic are unchanged.
+    projectNodes.unshift(buildUnassignedNode(input, t));
   }
   return projectNodes;
 }
@@ -217,12 +227,26 @@ function dedupeById(
   return out;
 }
 
+/**
+ * A status is treated as "done" (excluded from the open-task count) when its
+ * name matches a common completion term (case-insensitive, trimmed). Project
+ * statuses are user-defined with no enum, so this is a name heuristic — the
+ * owner decision 2026-08-07. Statuses whose names don't match are counted as
+ * open regardless of intent.
+ */
+export function isDoneStatusName(name: string): boolean {
+  return /^(done|complete|completed|close|closed|resolved|finished)$/i.test(
+    name.trim()
+  );
+}
+
 function buildTasksSection(
   projectId: string,
   input: BuildTreeDataInput,
   t: (k: string, fallback?: string) => string
 ): TasksSectionNode {
   const data = input.tasksByProject.get(projectId);
+  const isLoading = input.loadingTasksProjectIds.has(projectId);
   const visibleStatuses = (data?.statuses ?? [])
     .filter((s) => !s.hidden)
     .slice()
@@ -237,9 +261,18 @@ function buildTasksSection(
     else issuesByStatus.set(issue.status_id, [issue]);
   }
 
+  // Hide empty status columns, but ONLY once task data has loaded. While
+  // loading (or never-loaded) a status with zero issues is ambiguous — data
+  // may still be arriving — so keep it to avoid flicker and to show the
+  // configured columns before counts arrive.
+  const dataLoaded = data !== undefined && !isLoading;
   const statusNodes: StatusNode[] = visibleStatuses
     .slice()
     .sort((a, b) => a.sort_order - b.sort_order)
+    .filter((status) => {
+      if (!dataLoaded) return true;
+      return (issuesByStatus.get(status.id)?.length ?? 0) > 0;
+    })
     .map((status) => ({
       id: makeStatusNodeId(projectId, status.id),
       type: 'status',
@@ -250,13 +283,24 @@ function buildTasksSection(
       children: buildCardForest(issuesByStatus.get(status.id) ?? []),
     }));
 
+  // Open-task count: total issue cards across NON-done statuses (sub-issues
+  // included — each card is a real task). Counted against ALL visible
+  // statuses (not just the non-empty ones) so a done column's cards are
+  // excluded while the done column itself can still be dropped into.
+  let openTaskCount = 0;
+  for (const status of visibleStatuses) {
+    if (isDoneStatusName(status.name)) continue;
+    openTaskCount += issuesByStatus.get(status.id)?.length ?? 0;
+  }
+
   return {
     id: makeTasksSectionId(projectId),
     type: 'section',
     kind: 'tasks',
     projectId,
     label: t('sidebar.tasksSection'),
-    isLoading: input.loadingTasksProjectIds.has(projectId),
+    isLoading,
+    openTaskCount,
     children: statusNodes,
   };
 }
@@ -398,8 +442,9 @@ function buildUnassignedNode(
   return {
     id: UNASSIGNED_PROJECT_ID,
     type: 'project',
-    name: t('sidebar.unassigned'),
-    color: '0 0% 60%',
+    name: t('sidebar.orchestrator', 'Orchestrator'),
+    // Brand orange (the default theme's `--brand: 25 82% 54%`).
+    color: '25 82% 54%',
     parentId: null,
     // Unassigned is a pseudo-project; the user never drags it, so its
     // sort_order is meaningless. `0` matches the default in

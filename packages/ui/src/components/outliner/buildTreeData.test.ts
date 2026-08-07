@@ -3,7 +3,7 @@ import type { Issue, ProjectStatus } from 'shared/remote-types';
 import type { CardNode, SidebarProject } from './types';
 import { UNASSIGNED_PROJECT_ID } from './types';
 import type { OutlinerWorkspace } from './types';
-import { buildTreeData } from './buildTreeData';
+import { buildTreeData, isDoneStatusName } from './buildTreeData';
 import type { ProjectTasksData } from './types';
 
 const project = (
@@ -152,7 +152,12 @@ describe('buildTreeData', () => {
         status('s1', { sort_order: 1 }),
         status('s2', { sort_order: 2 }),
       ],
-      issues: [],
+      // One issue per status so each survives the empty-status filter.
+      issues: [
+        issue({ id: 'i1', status_id: 's1' }),
+        issue({ id: 'i2', status_id: 's2' }),
+        issue({ id: 'i3', status_id: 's3' }),
+      ],
     };
     const input = baseInput({ tasksByProject: new Map([['p1', tasks]]) });
     const tree = buildTreeData(input);
@@ -168,7 +173,12 @@ describe('buildTreeData', () => {
   it('drops statuses flagged hidden', () => {
     const tasks: ProjectTasksData = {
       statuses: [status('s-visible'), status('s-hidden', { hidden: true })],
-      issues: [issue({ id: 'i-orphan', status_id: 's-hidden' })],
+      // s-visible keeps a card so it survives the empty-status filter; the
+      // hidden status is dropped regardless of card count.
+      issues: [
+        issue({ id: 'i-kept', status_id: 's-visible' }),
+        issue({ id: 'i-orphan', status_id: 's-hidden' }),
+      ],
     };
     const input = baseInput({ tasksByProject: new Map([['p1', tasks]]) });
     const tree = buildTreeData(input);
@@ -179,9 +189,129 @@ describe('buildTreeData', () => {
       throw new Error('expected tasks');
     const statusIds = tasksSection.children.map((c) => c.statusId);
     expect(statusIds).toEqual(['s-visible']);
-    expect(tasksSection.children.every((c) => c.children.length === 0)).toBe(
-      true
-    );
+    expect(tasksSection.children[0]!.children.map((c) => c.issue.id)).toEqual([
+      'i-kept',
+    ]);
+  });
+
+  it('hides empty status columns once task data has loaded', () => {
+    const tasks: ProjectTasksData = {
+      statuses: [status('s-full'), status('s-empty')],
+      issues: [issue({ id: 'i1', status_id: 's-full' })],
+    };
+    const input = baseInput({ tasksByProject: new Map([['p1', tasks]]) });
+    const tree = buildTreeData(input);
+    const projectNode = tree[0]!;
+    if (projectNode.type !== 'project') throw new Error('expected project');
+    const tasksSection = projectNode.children[0]!;
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
+    expect(tasksSection.children.map((c) => c.statusId)).toEqual(['s-full']);
+  });
+
+  it('KEEPS empty status columns while task data is still loading (no flicker)', () => {
+    const tasks: ProjectTasksData = {
+      statuses: [status('s-full'), status('s-empty')],
+      issues: [issue({ id: 'i1', status_id: 's-full' })],
+    };
+    const input = baseInput({
+      tasksByProject: new Map([['p1', tasks]]),
+      loadingTasksProjectIds: new Set(['p1']),
+    });
+    const tree = buildTreeData(input);
+    const projectNode = tree[0]!;
+    if (projectNode.type !== 'project') throw new Error('expected project');
+    const tasksSection = projectNode.children[0]!;
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
+    expect(tasksSection.children.map((c) => c.statusId)).toEqual([
+      's-full',
+      's-empty',
+    ]);
+  });
+
+  it('KEEPS empty status columns when the project has never loaded', () => {
+    const input = baseInput();
+    const tree = buildTreeData(input);
+    const projectNode = tree[0]!;
+    if (projectNode.type !== 'project') throw new Error('expected project');
+    const tasksSection = projectNode.children[0]!;
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
+    expect(tasksSection.children).toEqual([]);
+  });
+
+  it('openTaskCount counts cards under non-done statuses (sub-issues included)', () => {
+    const tasks: ProjectTasksData = {
+      statuses: [
+        status('todo'),
+        status('doing', { sort_order: 1 }),
+        status('done', { sort_order: 2 }),
+      ],
+      issues: [
+        issue({ id: 't1', status_id: 'todo' }),
+        issue({ id: 't2', status_id: 'todo' }),
+        issue({ id: 'd1', status_id: 'doing' }),
+        issue({ id: 'dn1', status_id: 'done' }),
+        issue({ id: 'dn2', status_id: 'done' }),
+      ],
+    };
+    const input = baseInput({ tasksByProject: new Map([['p1', tasks]]) });
+    const tree = buildTreeData(input);
+    const projectNode = tree[0]!;
+    if (projectNode.type !== 'project') throw new Error('expected project');
+    const tasksSection = projectNode.children[0]!;
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
+    // todo(2) + doing(1) = 3; done excluded.
+    expect(tasksSection.openTaskCount).toBe(3);
+  });
+
+  it('isDoneStatusName matches common completion terms (case-insensitive, trimmed)', () => {
+    const done = [
+      'done',
+      'Done',
+      '  DONE  ',
+      'complete',
+      'Completed',
+      'closed',
+      'Closed',
+      'resolved',
+      'finished',
+    ];
+    for (const name of done) expect(isDoneStatusName(name)).toBe(true);
+    const open = [
+      'todo',
+      'in progress',
+      'In Review',
+      'backlog',
+      's1',
+      'shipped',
+    ];
+    for (const name of open) expect(isDoneStatusName(name)).toBe(false);
+  });
+
+  it('openTaskCount excludes done statuses even when they still hold cards (done column hidden-but-counted)', () => {
+    // "Done" has 2 cards → the empty filter KEEPS the Done column (it's not
+    // empty), but openTaskCount must still exclude those cards.
+    const tasks: ProjectTasksData = {
+      statuses: [status('todo'), status('done', { sort_order: 1 })],
+      issues: [
+        issue({ id: 't1', status_id: 'todo' }),
+        issue({ id: 'dn1', status_id: 'done' }),
+        issue({ id: 'dn2', status_id: 'done' }),
+      ],
+    };
+    const input = baseInput({ tasksByProject: new Map([['p1', tasks]]) });
+    const tree = buildTreeData(input);
+    const projectNode = tree[0]!;
+    if (projectNode.type !== 'project') throw new Error('expected project');
+    const tasksSection = projectNode.children[0]!;
+    if (tasksSection.type !== 'section' || tasksSection.kind !== 'tasks')
+      throw new Error('expected tasks');
+    expect(tasksSection.openTaskCount).toBe(1);
+    // Done column IS rendered (it has cards) — only excluded from the count.
+    expect(tasksSection.children.map((c) => c.name)).toEqual(['todo', 'done']);
   });
 
   it('groups issues by status_id', () => {

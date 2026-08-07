@@ -36,7 +36,13 @@ interface SidebarProps {
   isLoadingProjects?: boolean;
   isLoadingWorkspaces?: boolean;
   onSelectWorkspace: (id: string) => void;
-  onSelectProject: (id: string) => void;
+  /** Collapse-by-default (2026-08-07): opens the project's kanban board when
+   *  the open-page icon is clicked on a project row or Tasks section. Row
+   *  clicks toggle expand/collapse. */
+  onOpenProjectPage?: (projectId: string) => void;
+  /** Opens the flat workspaces dashboard when the open-page icon is clicked
+   *  on a Workspaces section row. */
+  onOpenWorkspacesPage?: () => void;
   /** ADR-015: opens `CreateRemoteProjectDialog` with `parentId` set so the
    *  new project is created as a child board of the supplied project id. */
   onCreateChildBoard?: (parentId: string) => void;
@@ -75,7 +81,8 @@ export function Sidebar({
   isLoadingProjects,
   isLoadingWorkspaces,
   onSelectWorkspace,
-  onSelectProject,
+  onOpenProjectPage,
+  onOpenWorkspacesPage,
   onCreateChildBoard,
   onSelectOrchestratorPrompt,
   isMultiSelectActive,
@@ -123,7 +130,8 @@ export function Sidebar({
         onSelectIssue={onSelectIssue}
         isLoading={isLoadingProjects || isLoadingWorkspaces}
         onSelectWorkspace={onSelectWorkspace}
-        onSelectProject={onSelectProject}
+        onOpenProjectPage={onOpenProjectPage}
+        onOpenWorkspacesPage={onOpenWorkspacesPage}
         onCreateChildBoard={onCreateChildBoard}
         onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
         isMultiSelectActive={isMultiSelectActive}

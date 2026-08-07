@@ -1,4 +1,4 @@
-import { SpinnerIcon } from '@phosphor-icons/react';
+import { ArrowSquareOutIcon, SpinnerIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/cn';
 import { DIM_ROW, HOVER_ROW, TINT_ROW, tintStyle } from './layout';
@@ -8,14 +8,18 @@ import type {
   TreeNodeRenderProps,
 } from './types';
 
-/** Tasks section header with visible-status count and first-load feedback. */
+/** Tasks section header with the open-task count (cards under non-done
+ * statuses) and first-load feedback. Row click toggles expand/collapse;
+ * the open-page icon navigates to the project's kanban board. */
 export function TasksSectionNode({
   node,
   style,
   dragHandle,
+  onOpenProjectPage,
   tintColor,
   dimmed,
 }: TreeNodeRenderProps<TasksSectionNodeData> & {
+  onOpenProjectPage?: (projectId: string) => void;
   tintColor?: string | null;
   dimmed?: boolean;
 }) {
@@ -34,22 +38,37 @@ export function TasksSectionNode({
       )}
     >
       <div className="flex items-center gap-1">
-        <span className="truncate" style={tintStyle(tintColor)}>
+        <span className="flex-1 min-w-0 truncate" style={tintStyle(tintColor)}>
           {section.label}
         </span>
         {section.isLoading ? (
           <SpinnerIcon
             aria-label={t('sidebar.tasksLoading')}
-            className="ml-auto size-3 shrink-0 animate-spin text-low"
+            className="shrink-0 size-3 animate-spin text-low"
           />
-        ) : section.children.length === 0 ? (
-          <span className="ml-auto text-2xs font-normal text-low opacity-70">
-            {t('sidebar.tasksEmpty')}
-          </span>
         ) : (
-          <span className="ml-auto text-2xs font-normal text-low opacity-70">
-            {section.children.length}
+          <span className="shrink-0 text-2xs font-normal text-low opacity-70">
+            {section.openTaskCount}
           </span>
+        )}
+        {onOpenProjectPage && (
+          <button
+            aria-label={t('sidebar.openProjectPage', 'Open project board')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenProjectPage(section.projectId);
+            }}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+            }}
+            className={cn(
+              'shrink-0 rounded-sm p-0.5',
+              'text-low hover:text-high hover:bg-tertiary',
+              'transition-opacity focus:outline-none'
+            )}
+          >
+            <ArrowSquareOutIcon className="size-4" weight="bold" />
+          </button>
         )}
       </div>
     </TreeRow>

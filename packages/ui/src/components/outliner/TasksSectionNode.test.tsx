@@ -22,6 +22,7 @@ function node(isLoading: boolean): NodeApi<TasksSectionNodeData> {
       projectId: 'project-1',
       label: 'Tasks',
       isLoading,
+      openTaskCount: 1,
       children: [
         {
           id: 'project-1:status:todo',
@@ -43,14 +44,14 @@ function node(isLoading: boolean): NodeApi<TasksSectionNodeData> {
 }
 
 describe('TasksSectionNode', () => {
-  it('shows a spinner instead of the status count while loading', () => {
+  it('shows a spinner instead of the open-task count while loading', () => {
     render(<TasksSectionNode node={node(true)} style={{}} />);
 
     expect(screen.getByLabelText('Loading tasks…')).toBeTruthy();
     expect(screen.queryByText('1')).toBeNull();
   });
 
-  it('shows the visible status count when loading is complete', () => {
+  it('shows the open-task count when loading is complete', () => {
     render(<TasksSectionNode node={node(false)} style={{}} />);
 
     expect(screen.queryByLabelText('Loading tasks…')).toBeNull();

@@ -42,7 +42,13 @@ interface SidebarProjectTreeProps {
   onSelectIssue?: (projectId: string, issueId: string) => void;
   isLoading?: boolean;
   onSelectWorkspace: (id: string) => void;
-  onSelectProject: (id: string) => void;
+  /** Collapse-by-default (2026-08-07): opens the project's kanban board when
+   *  the user clicks the open-page icon on a project row or Tasks section.
+   *  Row clicks themselves toggle expand/collapse. */
+  onOpenProjectPage?: (projectId: string) => void;
+  /** Opens the flat workspaces dashboard when the user clicks the open-page
+   *  icon on a Workspaces section row. */
+  onOpenWorkspacesPage?: () => void;
   /** ADR-015: opens `CreateRemoteProjectDialog` with `parentId` set so the
    *  new project is created as a child board of the supplied project id. */
   onCreateChildBoard?: (parentId: string) => void;
@@ -78,7 +84,8 @@ export function SidebarProjectTree({
   onSelectIssue,
   isLoading = false,
   onSelectWorkspace,
-  onSelectProject,
+  onOpenProjectPage,
+  onOpenWorkspacesPage,
   onCreateChildBoard,
   onSelectOrchestratorPrompt,
   activeProjectPromptId = null,
@@ -258,6 +265,14 @@ export function SidebarProjectTree({
     }
   }, [height]);
 
+  // Late-arrival open-state restore (collapse-by-default, 2026-08-07).
+  // initialOpenState is consumed by react-arborist exactly once at Tree
+  // mount; when projects arrive asynchronously AFTER mount, their persisted
+  // open state was never seeded. This effect restores persisted-OPEN nodes
+  // for late arrivals WITHOUT forcing anything open — a brand-new project
+  // (no persisted state) stays collapsed per the default. The persisted
+  // state is read FRESH from storage here (not the mount-time openStateRef,
+  // which may be empty when projects land after mount).
   useEffect(() => {
     if (!treeReadyRef.current) return;
     const api = treeRef.current;
@@ -269,46 +284,38 @@ export function SidebarProjectTree({
       return;
     }
 
-    // ADR-015: only ROOT projects render a Workspaces section, and only when
-    // the aggregate is non-empty. Whether this project actually has one is a
-    // property of the BUILT tree, not of `parentId` — Unassigned (parentId
-    // null, but not a real project) and empty-aggregate roots must be handled
-    // by the same rule. Gate on the node existing in the live tree.
+    // Read FRESH persisted state for the current project set.
+    const stored = readSidebarTreeOpenState(currentProjectIds);
     let addedProject = false;
     for (const projectId of currentProjectIds) {
       if (seenProjectIdsRef.current.has(projectId)) continue;
       seenProjectIdsRef.current.add(projectId);
-      api.open(projectId);
+      // Restore ONLY persisted-OPEN nodes; absence of a persisted value
+      // means default CLOSED (the user never expanded it).
+      if (stored[projectId] === true) {
+        api.open(projectId);
+      }
       const wsNodeId = makeWorkspacesSectionId(projectId);
-      if (liveTreeNodeIdsSet.has(wsNodeId)) {
+      if (liveTreeNodeIdsSet.has(wsNodeId) && stored[wsNodeId] === true) {
         api.open(wsNodeId);
       }
-      // A persisted-open Tasks section must restore too. initialOpenState is
-      // seed-once, and when projects arrive asynchronously after the Tree
-      // consumed its mount-time map (empty), the stored-open Tasks id was
-      // never seeded — so open it explicitly here (unless the user explicitly
-      // closed it). The web-core loader gate hydrates from the same blob, so
-      // statuses load once it's open.
       const tasksId = makeTasksSectionId(projectId);
-      if (isTasksSectionOpen(openStateRef.current, projectId)) {
+      if (isTasksSectionOpen(stored, projectId)) {
         api.open(tasksId);
       }
-      openStateRef.current = {
-        ...openStateRef.current,
-        [projectId]: true,
-        ...(liveTreeNodeIdsSet.has(wsNodeId) ? { [wsNodeId]: true } : {}),
-      };
       addedProject = true;
     }
 
     if (addedProject) {
-      // New project appeared mid-session (e.g. created in another tab). Its
-      // persisted status/card open-state lives in the blob but not in the
-      // mount-time snapshot, so refresh the replay source to include it.
-      persistedOpenRef.current = readSidebarTreeOpenState(currentProjectIds);
-      scheduleOpenStateWrite();
+      // Keep the in-memory mirror + replay source in sync with what we just
+      // applied so subsequent toggles/prunes see the restored values.
+      openStateRef.current = { ...openStateRef.current, ...stored };
+      persistedOpenRef.current = {
+        ...persistedOpenRef.current,
+        ...stored,
+      };
     }
-  }, [projectKey, liveTreeNodeIdsSet, scheduleOpenStateWrite]);
+  }, [projectKey, liveTreeNodeIdsSet]);
 
   // Replay persisted status/card open state onto lazily-loaded nodes. Statuses
   // only mount after the Tasks section opens (lazy gate), so their ids are not
@@ -392,18 +399,21 @@ export function SidebarProjectTree({
       const data = node.data;
       if (data.type === 'leaf') {
         onSelectWorkspace(data.workspace.id);
-      } else if (data.type === 'project') {
-        onSelectProject(data.id);
       } else if (data.type === 'card') {
         onSelectIssue?.(data.issue.projectId, data.issue.id);
-      } else if (data.type === 'section' && data.kind === 'tasks') {
-        // ADR-015 follow-up: clicking the Tasks section (or anything under
-        // it) opens the project's kanban — same as clicking the project
-        // itself. The section carries `projectId`; status rows below it do
-        // too, so both route to the project.
-        onSelectProject(data.projectId);
-      } else if (data.type === 'status') {
-        onSelectProject(data.projectId);
+      } else if (
+        data.type === 'project' ||
+        (data.type === 'section' && data.kind === 'tasks') ||
+        data.type === 'status'
+      ) {
+        // Collapse-by-default (2026-08-07): row activation (click AND
+        // keyboard Enter/Space) TOGGLES expand/collapse for projects, Tasks
+        // sections, and status columns. Navigation to the kanban board /
+        // workspaces dashboard is handled by the dedicated open-page icons
+        // on those rows (see treeNodes.tsx), which stop propagation so this
+        // activate path never fires for an icon click. Card / leaf /
+        // orchestrator-prompt rows keep navigating on activation.
+        node.toggle();
       } else if (data.type === 'orchestrator-prompt') {
         // ADR-016: react-arborist's `onActivate` fires for BOTH
         // pointer activation (row click) and keyboard activation
@@ -415,12 +425,7 @@ export function SidebarProjectTree({
         onSelectOrchestratorPrompt?.(data.projectId);
       }
     },
-    [
-      onSelectWorkspace,
-      onSelectProject,
-      onSelectIssue,
-      onSelectOrchestratorPrompt,
-    ]
+    [onSelectWorkspace, onSelectIssue, onSelectOrchestratorPrompt]
   );
 
   const handleToggle = useCallback(
@@ -508,6 +513,8 @@ export function SidebarProjectTree({
                   {...props}
                   onCreateChildBoard={onCreateChildBoard}
                   onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
+                  onOpenProjectPage={onOpenProjectPage}
+                  onOpenWorkspacesPage={onOpenWorkspacesPage}
                   activeProjectId={activeProjectId}
                   activeProjectPromptId={activeProjectPromptId}
                   activeWorkspaceId={activeWorkspaceId}

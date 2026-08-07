@@ -47,8 +47,8 @@ beforeEach(() => {
 });
 
 describe('isTasksSectionOpen', () => {
-  it('defaults a real project to OPEN when no entry is persisted', () => {
-    expect(isTasksSectionOpen({}, 'p1')).toBe(true);
+  it('defaults a real project to CLOSED when no entry is persisted (collapse-by-default 2026-08-07)', () => {
+    expect(isTasksSectionOpen({}, 'p1')).toBe(false);
   });
 
   it('returns false when the entry is explicitly persisted false', () => {
@@ -59,33 +59,31 @@ describe('isTasksSectionOpen', () => {
     expect(isTasksSectionOpen({ 'p1:tasks': true }, 'p1')).toBe(true);
   });
 
-  it('ignores entries for other projects', () => {
-    expect(isTasksSectionOpen({ 'p2:tasks': false }, 'p1')).toBe(true);
+  it('ignores entries for other projects (defaults CLOSED)', () => {
+    expect(isTasksSectionOpen({ 'p2:tasks': false }, 'p1')).toBe(false);
   });
 });
 
 describe('deriveOpenTasksProjectIds', () => {
-  it('returns every live project when no entry is persisted', () => {
-    expect(deriveOpenTasksProjectIds({}, ['p1', 'p2'])).toEqual(
-      new Set(['p1', 'p2'])
-    );
+  it('returns NO projects when nothing is persisted (collapse-by-default)', () => {
+    expect(deriveOpenTasksProjectIds({}, ['p1', 'p2'])).toEqual(new Set());
   });
 
-  it('includes a project with an explicit true entry', () => {
+  it('includes ONLY a project with an explicit true entry', () => {
     expect(
       deriveOpenTasksProjectIds({ 'p1:tasks': true }, ['p1', 'p2'])
-    ).toEqual(new Set(['p1', 'p2']));
+    ).toEqual(new Set(['p1']));
   });
 
-  it('excludes a project with an explicit false entry', () => {
+  it('excludes a project with an explicit false entry (and all default-closed ones)', () => {
     expect(
       deriveOpenTasksProjectIds({ 'p2:tasks': false }, ['p1', 'p2'])
-    ).toEqual(new Set(['p1']));
+    ).toEqual(new Set());
   });
 
   it('only considers given live ids — ignores a persisted-open id not in the live set', () => {
     expect(deriveOpenTasksProjectIds({ 'gone:tasks': true }, ['p1'])).toEqual(
-      new Set(['p1'])
+      new Set()
     );
   });
 
@@ -151,12 +149,13 @@ describe('readSidebarTreeOpenState GC filter (regression)', () => {
   });
 });
 
-// Regression: buildSidebarTreeInitialOpenState still honors the new rule via
-// isTasksSectionOpen. Centralizing the rule must not regress the seed map.
-describe('buildSidebarTreeInitialOpenState (Tasks-open rule)', () => {
-  it('seeds a real project Tasks section OPEN when nothing is persisted', () => {
+// Regression: buildSidebarTreeInitialOpenState still honors the rule via
+// isTasksSectionOpen. Collapse-by-default (2026-08-07): Tasks sections and
+// every other level seed CLOSED absent persisted state.
+describe('buildSidebarTreeInitialOpenState (collapse-by-default)', () => {
+  it('seeds a real project Tasks section CLOSED when nothing is persisted', () => {
     const tree: readonly SidebarTreeNode[] = [projectNode('p1')];
-    expect(buildSidebarTreeInitialOpenState(tree)['p1:tasks']).toBe(true);
+    expect(buildSidebarTreeInitialOpenState(tree)['p1:tasks']).toBe(false);
   });
 
   it('seeds a real project Tasks section CLOSED when explicitly persisted false', () => {
@@ -166,6 +165,47 @@ describe('buildSidebarTreeInitialOpenState (Tasks-open rule)', () => {
     );
     const tree: readonly SidebarTreeNode[] = [projectNode('p1')];
     expect(buildSidebarTreeInitialOpenState(tree)['p1:tasks']).toBe(false);
+  });
+
+  it('seeds a real project Tasks section OPEN when explicitly persisted true', () => {
+    window.localStorage.setItem(
+      SIDEBAR_BLOB_KEY,
+      JSON.stringify({ v: 1, state: { 'p1:tasks': true } })
+    );
+    const tree: readonly SidebarTreeNode[] = [projectNode('p1')];
+    expect(buildSidebarTreeInitialOpenState(tree)['p1:tasks']).toBe(true);
+  });
+
+  it('seeds the project row, Workspaces section, and buckets CLOSED by default', () => {
+    const tree: readonly SidebarTreeNode[] = [projectNode('p1')];
+    const state = buildSidebarTreeInitialOpenState(tree);
+    expect(state['p1']).toBe(false);
+    expect(state['p1:workspaces']).toBe(false);
+    expect(state['p1:bucket:attention']).toBe(false);
+    expect(state['p1:bucket:running']).toBe(false);
+    expect(state['p1:bucket:idle']).toBe(false);
+    expect(state['p1:bucket:archived']).toBe(false);
+  });
+
+  it('honors persisted-OPEN values for project, workspaces section, and buckets', () => {
+    window.localStorage.setItem(
+      SIDEBAR_BLOB_KEY,
+      JSON.stringify({
+        v: 1,
+        state: {
+          p1: true,
+          'p1:workspaces': true,
+          'p1:bucket:attention': true,
+        },
+      })
+    );
+    const tree: readonly SidebarTreeNode[] = [projectNode('p1')];
+    const state = buildSidebarTreeInitialOpenState(tree);
+    expect(state['p1']).toBe(true);
+    expect(state['p1:workspaces']).toBe(true);
+    expect(state['p1:bucket:attention']).toBe(true);
+    // Unpersisted buckets still default CLOSED.
+    expect(state['p1:bucket:idle']).toBe(false);
   });
 });
 
@@ -209,6 +249,7 @@ describe('liveTreeNodeIds (ADR-015 stale-key GC)', () => {
             kind: 'tasks',
             projectId: 'p1',
             label: 'Tasks',
+            openTaskCount: 0,
             children: [],
           },
           {
@@ -240,6 +281,7 @@ describe('liveTreeNodeIds (ADR-015 stale-key GC)', () => {
                 kind: 'tasks',
                 projectId: 'p2',
                 label: 'Tasks',
+                openTaskCount: 0,
                 children: [],
               },
             ],

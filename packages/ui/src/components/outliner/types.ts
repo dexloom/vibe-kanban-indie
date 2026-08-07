@@ -127,6 +127,10 @@ export interface TasksSectionNode {
   label: string;
   /** True on first open, while statuses+issues are still loading. */
   isLoading?: boolean;
+  /** Count of open task cards (issues under non-done statuses, sub-issues
+   *  included). The Tasks section badge shows this number — NOT the number
+   *  of status columns. See `isDoneStatusName` for the done heuristic. */
+  openTaskCount: number;
   children: StatusNode[];
 }
 

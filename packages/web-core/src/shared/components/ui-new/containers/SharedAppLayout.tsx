@@ -40,10 +40,6 @@ import { useWorkspaceProjectMembership } from '@/shared/hooks/useWorkspaceProjec
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import type { SidebarWorkspace } from '@/shared/hooks/useWorkspaces';
 import type { OutlinerWorkspace } from '@vibe/ui/components/outliner/types';
-import {
-  deriveOpenTasksProjectIds,
-  readSidebarTreeOpenState,
-} from '@vibe/ui/components/outliner/openState';
 import { DragProvider, type DragCompletion } from '@vibe/ui/components/dnd';
 import { resolveDragEnd } from '@/shared/lib/resolveDragEnd';
 import {
@@ -103,14 +99,10 @@ export function SharedAppLayout() {
   );
   const [orderedProjects, setOrderedProjects] =
     useState<RemoteProject[]>(sortedProjects);
-  // The gate effect (below) is the single setter for the Tasks-loader gate
-  // set — it derives the gate from the persisted open-state blob once the
-  // live project list is known. The previous up-front hydration was
-  // superseded by that derivation (which uses the central `isTasksSectionOpen`
-  // rule via `deriveOpenTasksProjectIds`).
-  const [openTasksProjectIds, setOpenTasksProjectIds] = useState<
-    ReadonlySet<string>
-  >(() => new Set());
+  // Collapse-by-default (2026-08-07): the per-project Tasks loaders run for
+  // ALL live projects (see SidebarProjectTasksRegistry) so the open-task
+  // count badges render while sections are collapsed. The previous
+  // open-state-gated loader set is no longer needed.
   const [tasksByProject, setTasksByProject] = useState<
     ReadonlyMap<string, ProjectTasksData>
   >(() => new Map());
@@ -155,17 +147,6 @@ export function SharedAppLayout() {
     (projectIds: ReadonlySet<string>) => setLoadingTasksProjectIds(projectIds),
     []
   );
-  const handleTasksExpansionChange = useCallback(
-    (projectId: string, isOpen: boolean) => {
-      setOpenTasksProjectIds((previous) => {
-        const next = new Set(previous);
-        if (isOpen) next.add(projectId);
-        else next.delete(projectId);
-        return next;
-      });
-    },
-    []
-  );
   const handleSelectIssue = useCallback(
     (projectId: string, issueId: string) => {
       appNavigation.goToProjectIssue(projectId, issueId);
@@ -179,6 +160,13 @@ export function SharedAppLayout() {
     },
     [appNavigation]
   );
+
+  // Collapse-by-default (2026-08-07): the Workspaces section's open-page icon
+  // opens the flat workspaces dashboard (per owner decision — there is no
+  // per-project workspaces route).
+  const handleOpenWorkspacesPage = useCallback(() => {
+    appNavigation.goToWorkspaces();
+  }, [appNavigation]);
 
   // ADR-016: open the per-project orchestrator-prompt editor pane.
   // Triggered by the sidebar tree's `+` menu item and the prompt row's
@@ -493,21 +481,6 @@ export function SharedAppLayout() {
     [sidebarProjects]
   );
 
-  // Enable the Tasks loader gate once the project list is known. The
-  // persistence rule ("open unless explicitly closed") lives in
-  // `@vibe/ui/components/outliner/openState.isTasksSectionOpen` and is applied
-  // here via `deriveOpenTasksProjectIds` — single source of truth, no inline
-  // re-derivation. Projects load asynchronously, so we must NOT run this while
-  // realProjectIds is still empty — deriving then would drop every project's
-  // gate before it ever arrives (reload loses all open Tasks).
-  useEffect(() => {
-    if (realProjectIds.length === 0) return;
-    const stored = readSidebarTreeOpenState(new Set(realProjectIds));
-    setOpenTasksProjectIds(() =>
-      deriveOpenTasksProjectIds(stored, realProjectIds)
-    );
-  }, [realProjectIds]);
-
   // Single mapper used by both active and archived OutlinerWorkspace memos.
   // SidebarWorkspace is the union element type for both source arrays.
   const toOutlinerWorkspace = (ws: SidebarWorkspace): OutlinerWorkspace => ({
@@ -544,7 +517,6 @@ export function SharedAppLayout() {
         <KanbanDragHandlerProvider value={providerValue}>
           <SidebarProjectTasksRegistry
             projectIds={realProjectIds}
-            openTasksProjectIds={openTasksProjectIds}
             onTasksByProject={handleTasksByProject}
             onLoadingTasksProjectIds={handleLoadingTasks}
           />
@@ -570,7 +542,6 @@ export function SharedAppLayout() {
                     activeIssueId={activeIssueId}
                     tasksByProject={tasksByProject}
                     loadingTasksProjectIds={loadingTasksProjectIds}
-                    onTasksExpansionChange={handleTasksExpansionChange}
                     onSelectIssue={handleSelectIssue}
                     workspaces={outlinerWorkspaces}
                     archivedWorkspaces={outlinerArchivedWorkspaces}
@@ -578,7 +549,8 @@ export function SharedAppLayout() {
                     isLoadingProjects={isLoading}
                     isLoadingWorkspaces={isWorkspacesListLoading}
                     onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
-                    onSelectProject={handleProjectClick}
+                    onOpenProjectPage={handleProjectClick}
+                    onOpenWorkspacesPage={handleOpenWorkspacesPage}
                     onSelectOrchestratorPrompt={handleSelectOrchestratorPrompt}
                     onCreateChildBoard={handleCreateChildBoard}
                     isMultiSelectActive={isMultiSelectActive}
@@ -639,7 +611,6 @@ export function SharedAppLayout() {
                       activeIssueId={activeIssueId}
                       tasksByProject={tasksByProject}
                       loadingTasksProjectIds={loadingTasksProjectIds}
-                      onTasksExpansionChange={handleTasksExpansionChange}
                       onSelectIssue={handleSelectIssue}
                       workspaces={outlinerWorkspaces}
                       archivedWorkspaces={outlinerArchivedWorkspaces}
@@ -649,8 +620,12 @@ export function SharedAppLayout() {
                       onSelectWorkspace={(id) =>
                         appNavigation.goToWorkspace(id)
                       }
-                      onSelectProject={(id) => {
+                      onOpenProjectPage={(id) => {
                         handleProjectClick(id);
+                        setIsDrawerOpen(false);
+                      }}
+                      onOpenWorkspacesPage={() => {
+                        handleOpenWorkspacesPage();
                         setIsDrawerOpen(false);
                       }}
                       onSelectOrchestratorPrompt={(id) => {

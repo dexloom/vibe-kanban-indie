@@ -514,7 +514,7 @@
     "workspacesSection": "Workspaces",
     "tasksSection": "Tasks",
     "tasksLoading": "Loading tasks…",
-    "tasksEmpty": "No statuses yet",
+    "orchestrator": "Orchestrator",
     "collapse": "Collapse",
     "expand": "Expand",
     "createChildBoard": "Create child board",
@@ -525,6 +525,8 @@
     "orchestratorPromptSet": "Orchestrator prompt is set",
     "projectActions": "Project actions",
     "addChildBoard": "Add board",
-    "addOrchestratorPrompt": "Add orchestrator prompt"
+    "addOrchestratorPrompt": "Add orchestrator prompt",
+    "openProjectPage": "Open project board",
+    "openWorkspacesPage": "Open workspaces"
   }
 }

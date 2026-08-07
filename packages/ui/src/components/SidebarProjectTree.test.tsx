@@ -16,7 +16,7 @@ vi.mock('react-i18next', () => ({
       ({
         'sidebar.tasksSection': 'Tasks',
         'sidebar.workspacesSection': 'Workspaces',
-        'sidebar.tasksEmpty': 'No statuses yet',
+        'sidebar.orchestrator': 'Orchestrator',
         'sidebar.orchestratorPrompt': 'Orchestrator prompt',
         'sidebar.orchestratorPromptSet': 'Orchestrator prompt is set',
         'sidebar.addOrchestratorPrompt': 'Add orchestrator prompt',
@@ -154,7 +154,7 @@ function renderTree(
     membership?: Map<string, Set<string>>;
     onTasksExpansionChange?: (projectId: string, isOpen: boolean) => void;
     onSelectIssue?: (projectId: string, issueId: string) => void;
-    onSelectProject?: (id: string) => void;
+    onOpenProjectPage?: (id: string) => void;
     onCreateChildBoard?: (parentId: string) => void;
     onSelectOrchestratorPrompt?: (projectId: string) => void;
   } = {}
@@ -167,7 +167,7 @@ function renderTree(
       membership={overrides.membership ?? new Map()}
       activeWorkspaceId={null}
       onSelectWorkspace={vi.fn()}
-      onSelectProject={overrides.onSelectProject ?? vi.fn()}
+      onOpenProjectPage={overrides.onOpenProjectPage}
       onCreateChildBoard={overrides.onCreateChildBoard}
       onSelectOrchestratorPrompt={overrides.onSelectOrchestratorPrompt}
       tasksByProject={
@@ -202,8 +202,9 @@ function outerRowForText(text: string): HTMLElement {
   return row as HTMLElement;
 }
 
-/** Click a row's caret button (expand/collapse). ADR-015 follow-up: row
- * click now opens the kanban (onActivate), only the caret toggles. */
+/** Click a row's caret button (expand/collapse). Collapse-by-default
+ * (2026-08-07): row click toggles too (handleActivate → node.toggle); the
+ * caret is the keyboard/explicit-toggle affordance. */
 function caretFor(text: string): HTMLButtonElement {
   const row = outerRowForText(text);
   const caret = row.querySelector('button[aria-label]') as HTMLButtonElement;
@@ -213,6 +214,8 @@ function caretFor(text: string): HTMLButtonElement {
 
 describe('SidebarProjectTree tasks integration', () => {
   it('renders Tasks above Workspaces within a project', () => {
+    // Collapse-by-default: seed the project open so its sections render.
+    seedBlob({ 'project-1': true });
     // ADR-015: roots render a Workspaces section only when the aggregate
     // is non-empty. Seed a workspace so the section appears.
     const membership = new Map<string, Set<string>>([
@@ -240,10 +243,11 @@ describe('SidebarProjectTree tasks integration', () => {
   });
 
   it('reports Tasks section open and closed state', async () => {
+    seedBlob({ 'project-1': true, 'project-1:tasks': true });
     const onTasksExpansionChange = vi.fn();
     renderTree({ onTasksExpansionChange });
 
-    // Tasks defaults OPEN (owner decision); the first caret click collapses it.
+    // Tasks is seeded OPEN; the first caret click collapses it.
     fireEvent.click(caretFor('Tasks'));
     await waitFor(() =>
       expect(onTasksExpansionChange).toHaveBeenLastCalledWith(
@@ -259,11 +263,11 @@ describe('SidebarProjectTree tasks integration', () => {
   });
 
   it('selects an issue when its title row is clicked', async () => {
+    seedBlob({ 'project-1': true, 'project-1:tasks': true });
     const onSelectIssue = vi.fn();
     renderTree({ onSelectIssue });
 
-    // Tasks is open by default — no need to expand it first. The status
-    // row's caret opens it (row click now navigates to the project).
+    // Tasks is seeded open; the status 'Todo' has cards so its caret opens it.
     fireEvent.click(caretFor('Todo'));
     fireEvent.click(await screen.findByText('Fix auth'));
 
@@ -272,52 +276,51 @@ describe('SidebarProjectTree tasks integration', () => {
     );
   });
 
-  it('navigates to a project exactly once on row click and does NOT toggle (ADR-015)', async () => {
-    const onSelectProject = vi.fn();
-    renderTree({ onSelectProject });
+  it('row click toggles the project; the open-page icon navigates without toggling', async () => {
+    seedBlob({ 'project-1': true }); // project open, Tasks closed (default)
+    const onOpenProjectPage = vi.fn();
+    renderTree({ onOpenProjectPage });
 
-    // The project defaults open; clicking the row must navigate once
-    // (onActivate) and leave the row's children visible (the caret handles
-    // toggle). Pre-ADR-015 this asserted toggling; the row-click now
-    // only navigates.
     await waitFor(() => expect(screen.getByText('Tasks')).toBeTruthy());
+    // Row click toggles the project closed (children vanish).
     fireEvent.click(rowForText('Project One'));
-
-    await waitFor(() => expect(onSelectProject).toHaveBeenCalledTimes(1));
-    // Children (Tasks + Workspaces) remain visible — row click did not toggle.
-    await waitFor(() => expect(screen.queryByText('Tasks')).toBeTruthy());
-  });
-
-  it('the caret toggles a project row closed (ADR-015)', async () => {
-    renderTree();
-
-    // Default open: Tasks visible. The caret button is the first
-    // button[aria-label] inside the project row.
-    await waitFor(() => expect(screen.getByText('Tasks')).toBeTruthy());
-    const projectRow = outerRowForText('Project One');
-    // The t() mock returns the key directly, so the aria-label is the
-    // raw i18n key `sidebar.collapse`.
-    const caret = projectRow.querySelector(
-      'button[aria-label="sidebar.collapse"]'
-    ) as HTMLButtonElement;
-    expect(caret).toBeTruthy();
-    fireEvent.click(caret);
     await waitFor(() => expect(screen.queryByText('Tasks')).toBeNull());
+
+    // Re-open via caret, then the open-page icon navigates without toggling.
+    fireEvent.click(caretFor('Project One'));
+    await waitFor(() => expect(screen.getByText('Tasks')).toBeTruthy());
+    // The project row's icon is the first open-page icon in DOM order
+    // (the Tasks section also renders one).
+    const icon = screen.getAllByLabelText('sidebar.openProjectPage')[0]!;
+    fireEvent.click(icon);
+    await waitFor(() =>
+      expect(onOpenProjectPage).toHaveBeenCalledWith('project-1')
+    );
+    // Project stays open (icon did not toggle).
+    expect(screen.getByText('Tasks')).toBeTruthy();
   });
 
-  it('renders a caret for statuses with cards and a bullet for empty statuses', async () => {
+  it('the caret toggles a project row open (collapse-by-default)', async () => {
     renderTree();
 
-    // Tasks is open by default — statuses are already visible.
+    // Default closed: Tasks NOT visible. The caret opens the project.
+    await waitFor(() => expect(screen.queryByText('Tasks')).toBeNull());
+    fireEvent.click(caretFor('Project One'));
+    await waitFor(() => expect(screen.getByText('Tasks')).toBeTruthy());
+  });
+
+  it('renders a caret for non-empty statuses and hides empty statuses', async () => {
+    seedBlob({ 'project-1': true, 'project-1:tasks': true });
+    renderTree();
+
+    // Tasks is seeded open — the non-empty status is visible.
     await waitFor(() => expect(screen.getByText('Todo')).toBeTruthy());
 
     const todoRow = outerRowForText('Todo');
-    const reviewRow = outerRowForText('Review');
-
     // Non-empty status: expandable caret button.
     expect(todoRow.querySelector('button[aria-label]')).not.toBeNull();
-    // Empty status: bullet, no caret button.
-    expect(reviewRow.querySelector('button[aria-label]')).toBeNull();
+    // Empty status 'Review' is hidden entirely (empty-column filter).
+    expect(screen.queryByText('Review')).toBeNull();
   });
 });
 
@@ -388,9 +391,10 @@ describe('SidebarProjectTree open-state persistence', () => {
     );
   });
 
-  it('auto-opens a project added mid-session including its Tasks section', async () => {
-    // ADR-015: a root renders a Workspaces section only when the aggregate
-    // is non-empty. Seed a workspace for project-1 so its section renders.
+  it('a project added mid-session stays collapsed by default (collapse-by-default)', async () => {
+    // project-1 seeded open with its Workspaces section open so the initial
+    // render shows one Workspaces row.
+    seedBlob({ 'project-1': true, 'project-1:workspaces': true });
     const initialMembership = new Map<string, Set<string>>([
       ['ws-1', new Set(['project-1'])],
     ]);
@@ -429,7 +433,6 @@ describe('SidebarProjectTree open-state persistence', () => {
         membership={afterMembership}
         activeWorkspaceId={null}
         onSelectWorkspace={vi.fn()}
-        onSelectProject={vi.fn()}
         tasksByProject={
           new Map([['project-1', { statuses: [statusTodo], issues: [issue] }]])
         }
@@ -438,28 +441,20 @@ describe('SidebarProjectTree open-state persistence', () => {
       />
     );
 
-    // New project + its Workspaces section auto-opened → a second Workspaces
-    // row is now visible.
-    await waitFor(() =>
-      expect(screen.getAllByText('Workspaces')).toHaveLength(2)
-    );
-    // Tasks defaults OPEN, so the new project's Tasks section auto-opens too.
-    const tasksRows = screen.getAllByText('Tasks');
-    expect(tasksRows).toHaveLength(2);
-    expect(
-      (tasksRows[1] as HTMLElement)
-        .closest('[role="treeitem"]')
-        ?.getAttribute('aria-expanded')
-    ).toBe('true');
+    // project-2 appears as a root row but stays collapsed — no second
+    // Workspaces/Tasks row appears.
+    await waitFor(() => expect(screen.getByText('Project Two')).toBeTruthy());
+    expect(screen.getAllByText('Workspaces')).toHaveLength(1);
+    expect(screen.getAllByText('Tasks')).toHaveLength(1);
   });
 
   it('prunes persisted keys for projects removed while the app is open', async () => {
+    seedBlob({ 'project-1': true }); // project open so Tasks is reachable
     const { rerender } = renderTree();
 
-    // Toggle the Tasks section (default open → close) so a project-scoped
-    // key lands in the blob.
+    // Tasks defaults closed; open it so a project-scoped key lands in the blob.
     fireEvent.click(caretFor('Tasks'));
-    await waitFor(() => expect(readBlob()['project-1:tasks']).toBe(false));
+    await waitFor(() => expect(readBlob()['project-1:tasks']).toBe(true));
 
     // Remove the only project → prune effect drops all its keys.
     rerender(
@@ -470,7 +465,6 @@ describe('SidebarProjectTree open-state persistence', () => {
         membership={new Map()}
         activeWorkspaceId={null}
         onSelectWorkspace={vi.fn()}
-        onSelectProject={vi.fn()}
         tasksByProject={new Map()}
         loadingTasksProjectIds={new Set()}
         activeIssueId={null}
@@ -507,14 +501,14 @@ describe('SidebarProjectTree open-state persistence', () => {
     unmount2();
   });
 
-  it('auto-opens Unassigned Workspaces section when it first appears mid-session (ADR-015)', async () => {
+  it('Unassigned appears collapsed when it first appears mid-session (collapse-by-default)', async () => {
     // Start with no orphan workspaces: Unassigned absent.
     const { rerender } = renderTree({
       projects: [projectOne],
       workspaces: [],
       membership: new Map(),
     });
-    expect(screen.queryByText('Unassigned')).toBeNull();
+    expect(screen.queryByText('Orchestrator')).toBeNull();
 
     // A workspace loses its membership → Unassigned appears mid-session.
     rerender(
@@ -531,16 +525,16 @@ describe('SidebarProjectTree open-state persistence', () => {
         membership={new Map()}
         activeWorkspaceId={null}
         onSelectWorkspace={vi.fn()}
-        onSelectProject={vi.fn()}
         tasksByProject={new Map()}
         loadingTasksProjectIds={new Set()}
         activeIssueId={null}
       />
     );
 
-    // Unassigned row auto-opened, and its Workspaces section auto-opened —
-    // bucket labels visible without any caret click.
-    await waitFor(() => expect(screen.getByText('Idle')).toBeTruthy());
+    // The pseudo-project row appears (labelled "Orchestrator") but stays
+    // collapsed — bucket labels are NOT visible without an explicit expand.
+    await waitFor(() => expect(screen.getByText('Orchestrator')).toBeTruthy());
+    expect(screen.queryByText('Idle')).toBeNull();
   });
 
   /// ADR-016: the prompt row renders between Tasks and any child boards.
@@ -548,6 +542,7 @@ describe('SidebarProjectTree open-state persistence', () => {
   /// brand-coloured dot is shown only when `hasOrchestratorPrompt` is
   /// true (mirrors the wire `has_orchestrator_prompt` flag).
   it('renders the orchestrator-prompt row and fires onSelectOrchestratorPrompt', async () => {
+    seedBlob({ 'project-1': true }); // project open so the prompt row renders
     const onSelectOrchestratorPrompt = vi.fn();
     renderTree({
       onSelectOrchestratorPrompt,

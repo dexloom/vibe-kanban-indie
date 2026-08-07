@@ -61,10 +61,10 @@ beforeEach(() => {
 });
 
 describe('buildSidebarTreeInitialOpenState', () => {
-  it('defaults the Tasks section to OPEN for a real project', () => {
+  it('defaults the Tasks section to CLOSED for a real project (collapse-by-default)', () => {
     const tree: readonly SidebarTreeNode[] = [projectNode('p1')];
     const out = buildSidebarTreeInitialOpenState(tree);
-    expect(out['p1:tasks']).toBe(true);
+    expect(out['p1:tasks']).toBe(false);
   });
 
   it('does not seed any status node ids', () => {
@@ -74,13 +74,19 @@ describe('buildSidebarTreeInitialOpenState', () => {
     expect(statusKeys).toEqual([]);
   });
 
-  it('preserves bucket defaults from BUCKET_DEFAULT_OPEN', () => {
+  it('defaults ALL buckets CLOSED (collapse-by-default)', () => {
     const tree: readonly SidebarTreeNode[] = [projectNode('p1')];
     const out = buildSidebarTreeInitialOpenState(tree);
     for (const bucketId of BUCKET_ORDER) {
-      const expected = bucketId === 'archived' ? false : true;
-      expect(out[`p1:bucket:${bucketId}`]).toBe(expected);
+      expect(out[`p1:bucket:${bucketId}`]).toBe(false);
     }
+  });
+
+  it('defaults the project row and Workspaces section CLOSED', () => {
+    const tree: readonly SidebarTreeNode[] = [projectNode('p1')];
+    const out = buildSidebarTreeInitialOpenState(tree);
+    expect(out['p1']).toBe(false);
+    expect(out['p1:workspaces']).toBe(false);
   });
 
   it('lets a persisted Tasks-section value override the default', () => {
@@ -91,6 +97,16 @@ describe('buildSidebarTreeInitialOpenState', () => {
     const tree: readonly SidebarTreeNode[] = [projectNode('p1')];
     const out = buildSidebarTreeInitialOpenState(tree);
     expect(out['p1:tasks']).toBe(false);
+  });
+
+  it('honors a persisted-OPEN Tasks-section value', () => {
+    window.localStorage.setItem(
+      SIDEBAR_BLOB_KEY,
+      JSON.stringify({ v: 1, state: { 'p1:tasks': true } })
+    );
+    const tree: readonly SidebarTreeNode[] = [projectNode('p1')];
+    const out = buildSidebarTreeInitialOpenState(tree);
+    expect(out['p1:tasks']).toBe(true);
   });
 
   it('does not emit a tasks id for the Unassigned pseudo-project', () => {
@@ -108,17 +124,23 @@ describe('buildSidebarTreeInitialOpenState', () => {
     ).toBe(false);
   });
 
-  it('migrates legacy per-bucket values when the blob is empty', () => {
+  it('migrates legacy per-bucket values when the blob is empty (collapse-by-default base)', () => {
+    // Only EXPLICITLY-set legacy values surface; absent legacy keys default
+    // CLOSED (the new collapse-by-default base, not the old BUCKET_DEFAULT_OPEN).
     window.localStorage.setItem(
       `vibe.ui.collapsible.${LEGACY_BUCKET_PERSIST_KEYS.attention}`,
       'false'
     );
+    window.localStorage.setItem(
+      `vibe.ui.collapsible.${LEGACY_BUCKET_PERSIST_KEYS.running}`,
+      'true'
+    );
     const tree: readonly SidebarTreeNode[] = [projectNode('p1')];
     const out = buildSidebarTreeInitialOpenState(tree);
-    expect(out['p1:bucket:attention']).toBe(false);
-    expect(out['p1:bucket:running']).toBe(true);
-    expect(out['p1:bucket:idle']).toBe(true);
-    expect(out['p1:bucket:archived']).toBe(false);
+    expect(out['p1:bucket:attention']).toBe(false); // explicit legacy false
+    expect(out['p1:bucket:running']).toBe(true); // explicit legacy true
+    expect(out['p1:bucket:idle']).toBe(false); // no legacy → closed
+    expect(out['p1:bucket:archived']).toBe(false); // no legacy → closed
   });
 });
 
@@ -174,6 +196,7 @@ describe('findTreeNodeById', () => {
           kind: 'tasks',
           projectId: 'p1',
           label: 'Tasks',
+          openTaskCount: 0,
           children: [
             {
               id: 'p1:status:s1',
