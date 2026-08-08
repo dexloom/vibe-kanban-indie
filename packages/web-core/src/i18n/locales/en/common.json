@@ -148,7 +148,10 @@
       "emptyRunning": "No workspaces running.",
       "emptyRecentlyActive": "No recent activity.",
       "emptyArchived": "No archived workspaces.",
-      "summary": "{{active}} active · {{archived}} archived · {{running}} running · {{attention}} need attention"
+      "summary": "{{active}} active · {{archived}} archived · {{running}} running · {{attention}} need attention",
+      "filterAll": "All",
+      "filterProject": "Project: {{name}}",
+      "filterProjectNone": "Project"
     },
     "outliner": {
       "attention": "Attention"

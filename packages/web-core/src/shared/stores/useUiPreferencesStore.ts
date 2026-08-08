@@ -363,6 +363,13 @@ type State = {
   selectedProjectId: string | null;
   createDraftWorkspaceByDefault: boolean;
 
+  // Workspaces dashboard project filter (2026-08-07): when set, the
+  // /workspaces dashboard narrows to this project's workspaces. In-memory
+  // only (not persisted) — set by the sidebar Workspaces section icon and
+  // cleared via the dashboard's "All workspaces" toggle.
+  workspacesDashboardProjectId: string | null;
+  setWorkspacesDashboardProjectId: (projectId: string | null) => void;
+
   // UI preferences actions
   setRepoAction: (repoId: string, action: RepoAction) => void;
   setExpanded: (key: string, value: boolean) => void;
@@ -498,6 +505,9 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
   // Last selected project (ADR-018 — `selectedOrgId` removed)
   selectedProjectId: null,
   createDraftWorkspaceByDefault: DEFAULT_CREATE_DRAFT_WORKSPACE_BY_DEFAULT,
+
+  // Workspaces dashboard project filter (in-memory only).
+  workspacesDashboardProjectId: null,
 
   // UI preferences actions
   setRepoAction: (repoId, action) =>
@@ -868,6 +878,8 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
 
   // Last selected project actions
   setSelectedProjectId: (projectId) => set({ selectedProjectId: projectId }),
+  setWorkspacesDashboardProjectId: (projectId) =>
+    set({ workspacesDashboardProjectId: projectId }),
   setCreateDraftWorkspaceByDefault: (value) =>
     set({ createDraftWorkspaceByDefault: value }),
 }));

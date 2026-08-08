@@ -243,7 +243,7 @@ function ProjectTreeNode(
 
 function SectionTreeNode(
   props: TreeNodeRenderProps<Extract<SectionNode, { kind: 'workspaces' }>> & {
-    onOpenWorkspacesPage?: () => void;
+    onOpenWorkspacesPage?: (projectId: string) => void;
     tintColor?: string | null;
     dimmed?: boolean;
   }
@@ -251,6 +251,7 @@ function SectionTreeNode(
   const { node, style, dragHandle, onOpenWorkspacesPage, tintColor, dimmed } =
     props;
   const { t } = useTranslation('common');
+  const projectId = node.data.projectId;
   return (
     <TreeRow
       node={node}
@@ -266,12 +267,12 @@ function SectionTreeNode(
         <span className="flex-1 min-w-0 truncate" style={tintStyle(tintColor)}>
           {node.data.label}
         </span>
-        {onOpenWorkspacesPage && (
+        {onOpenWorkspacesPage && projectId && (
           <button
             aria-label={t('sidebar.openWorkspacesPage', 'Open workspaces')}
             onClick={(e) => {
               e.stopPropagation();
-              onOpenWorkspacesPage();
+              onOpenWorkspacesPage(projectId);
             }}
             onPointerDown={(e) => {
               e.stopPropagation();
@@ -359,7 +360,7 @@ export function TreeNodeRouter(
     onCreateChildBoard?: (parentId: string) => void;
     onSelectOrchestratorPrompt?: (projectId: string) => void;
     onOpenProjectPage?: (projectId: string) => void;
-    onOpenWorkspacesPage?: () => void;
+    onOpenWorkspacesPage?: (projectId: string) => void;
     activeProjectId: string | null;
     activeProjectPromptId?: string | null;
     activeWorkspaceId: string | null;

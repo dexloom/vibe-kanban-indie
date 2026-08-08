@@ -317,30 +317,33 @@ function buildWorkspacesSection(
     idle,
     archived: archivedBucket,
   } = categorizeWorkspacesForOutliner(active, archived);
-  const buckets: BucketNode[] = BUCKET_ORDER.map((bucketId) => ({
-    id: `${projectId}:bucket:${bucketId}`,
-    type: 'bucket',
-    bucketId,
-    name: t(BUCKETS[bucketId].labelKey),
-    children: (bucketId === 'attention'
-      ? attention
-      : bucketId === 'running'
-        ? running
-        : bucketId === 'idle'
-          ? idle
-          : archivedBucket
-    ).map(
-      (workspace): LeafNode => ({
-        id: workspace.id,
-        type: 'leaf',
-        workspace,
-      })
-    ),
-  }));
+  const buckets: BucketNode[] = BUCKET_ORDER.map(
+    (bucketId): BucketNode => ({
+      id: `${projectId}:bucket:${bucketId}`,
+      type: 'bucket',
+      bucketId,
+      name: t(BUCKETS[bucketId].labelKey),
+      children: (bucketId === 'attention'
+        ? attention
+        : bucketId === 'running'
+          ? running
+          : bucketId === 'idle'
+            ? idle
+            : archivedBucket
+      ).map(
+        (workspace): LeafNode => ({
+          id: workspace.id,
+          type: 'leaf',
+          workspace,
+        })
+      ),
+    })
+  ).filter((bucket) => bucket.children.length > 0);
   return {
     id: makeWorkspacesSectionId(projectId),
     type: 'section',
     kind: 'workspaces',
+    projectId,
     label: t('sidebar.workspacesSection'),
     children: buckets,
   };

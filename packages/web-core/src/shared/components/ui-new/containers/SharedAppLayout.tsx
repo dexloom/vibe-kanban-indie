@@ -15,7 +15,11 @@ import { SidebarProjectTasksRegistry } from '@/shared/components/sidebar/Sidebar
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentAppDestination } from '@/shared/hooks/useCurrentAppDestination';
 import { useCurrentKanbanRouteState } from '@/shared/hooks/useCurrentKanbanRouteState';
-import type { ProjectTasksData } from '@vibe/ui/components/outliner/types';
+import {
+  type ProjectTasksData,
+  type OutlinerWorkspace,
+  UNASSIGNED_PROJECT_ID,
+} from '@vibe/ui/components/outliner/types';
 import { getProjectDestination } from '@/shared/lib/routes/appNavigation';
 import { CommandBarDialog } from '@/shared/dialogs/command-bar/CommandBarDialog';
 import {
@@ -39,7 +43,6 @@ import {
 import { useWorkspaceProjectMembership } from '@/shared/hooks/useWorkspaceProjectMembership';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import type { SidebarWorkspace } from '@/shared/hooks/useWorkspaces';
-import type { OutlinerWorkspace } from '@vibe/ui/components/outliner/types';
 import { DragProvider, type DragCompletion } from '@vibe/ui/components/dnd';
 import { resolveDragEnd } from '@/shared/lib/resolveDragEnd';
 import {
@@ -170,11 +173,20 @@ export function SharedAppLayout() {
   );
 
   // Collapse-by-default (2026-08-07): the Workspaces section's open-page icon
-  // opens the flat workspaces dashboard (per owner decision — there is no
-  // per-project workspaces route).
-  const handleOpenWorkspacesPage = useCallback(() => {
-    appNavigation.goToWorkspaces();
-  }, [appNavigation]);
+  // opens the workspaces dashboard scoped to that project. The Unassigned
+  // pseudo-project opens the unfiltered (all-workspaces) dashboard.
+  const setWorkspacesDashboardProjectId = useUiPreferencesStore(
+    (s) => s.setWorkspacesDashboardProjectId
+  );
+  const handleOpenWorkspacesPage = useCallback(
+    (projectId: string) => {
+      setWorkspacesDashboardProjectId(
+        projectId === UNASSIGNED_PROJECT_ID ? null : projectId
+      );
+      appNavigation.goToWorkspaces();
+    },
+    [appNavigation, setWorkspacesDashboardProjectId]
+  );
 
   // ADR-016: open the per-project orchestrator-prompt editor pane.
   // Triggered by the sidebar tree's `+` menu item and the prompt row's
@@ -632,8 +644,8 @@ export function SharedAppLayout() {
                         handleProjectClick(id);
                         setIsDrawerOpen(false);
                       }}
-                      onOpenWorkspacesPage={() => {
-                        handleOpenWorkspacesPage();
+                      onOpenWorkspacesPage={(projectId) => {
+                        handleOpenWorkspacesPage(projectId);
                         setIsDrawerOpen(false);
                       }}
                       onSelectOrchestratorPrompt={(id) => {

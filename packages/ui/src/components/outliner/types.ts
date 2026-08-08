@@ -113,6 +113,10 @@ export interface WorkspacesSectionNode {
   id: WorkspacesSectionId;
   type: 'section';
   kind: 'workspaces';
+  /** Project id echoed so the renderer can scope the open-page icon
+   *  (`onOpenWorkspacesPage(projectId)`) to this project's workspaces. The
+   *  Unassigned pseudo-project uses `UNASSIGNED_PROJECT_ID`. */
+  projectId: string;
   label: string;
   children: BucketNode[];
 }

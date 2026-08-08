@@ -256,6 +256,7 @@ describe('liveTreeNodeIds (ADR-015 stale-key GC)', () => {
             id: 'p1:workspaces',
             type: 'section',
             kind: 'workspaces',
+            projectId: 'p1',
             label: 'Workspaces',
             children: [
               {

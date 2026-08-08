@@ -46,7 +46,7 @@ interface SidebarProps {
   onOpenProjectPage?: (projectId: string) => void;
   /** Opens the flat workspaces dashboard when the open-page icon is clicked
    *  on a Workspaces section row. */
-  onOpenWorkspacesPage?: () => void;
+  onOpenWorkspacesPage?: (projectId: string) => void;
   /** ADR-015: opens `CreateRemoteProjectDialog` with `parentId` set so the
    *  new project is created as a child board of the supplied project id. */
   onCreateChildBoard?: (parentId: string) => void;
