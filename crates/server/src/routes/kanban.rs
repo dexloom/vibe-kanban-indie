@@ -18,13 +18,13 @@ use std::{
 use api_types::{
     CreateIssueRelationshipRequest, CreateIssueRequest, CreateIssueTagRequest, Issue as ApiIssue,
     IssuePriority, IssueRelationship as ApiIssueRelationship, IssueRelationshipType,
-    IssueSortField, IssueTag as ApiIssueTag, ListIssueRelationshipsResponse, ListIssueTagsResponse,
-    ListIssuesResponse, ListProjectStatusesResponse, ListProjectsResponse,
-    ListPullRequestsResponse, ListTagsResponse, MutationResponse, OrchestratorPromptResponse,
-    OrchestratorPromptSource, Project as ApiProject, ProjectStatus as ApiProjectStatus,
-    PullRequest as ApiPullRequest, PullRequestStatus, ResolvedOrchestratorPromptResponse,
-    SearchIssuesRequest, SortDirection, Tag as ApiTag, UpdateIssueRequest,
-    UpdateOrchestratorPromptRequest,
+    IssueSortField, IssueTag as ApiIssueTag, ListIssueRelationshipsQuery,
+    ListIssueRelationshipsResponse, ListIssueTagsResponse, ListIssuesResponse,
+    ListProjectStatusesResponse, ListProjectsResponse, ListPullRequestsResponse, ListTagsResponse,
+    MutationResponse, OrchestratorPromptResponse, OrchestratorPromptSource, Project as ApiProject,
+    ProjectStatus as ApiProjectStatus, PullRequest as ApiPullRequest, PullRequestStatus,
+    ResolvedOrchestratorPromptResponse, SearchIssuesRequest, SortDirection, Tag as ApiTag,
+    UpdateIssueRequest, UpdateOrchestratorPromptRequest,
 };
 use axum::{
     Router,
@@ -693,15 +693,41 @@ async fn delete_issue_tag(
 
 async fn list_issue_relationships(
     State(deployment): State<DeploymentImpl>,
-    Query(q): Query<IssueScope>,
+    Query(q): Query<ListIssueRelationshipsQuery>,
 ) -> Result<ResponseJson<ApiResponse<ListIssueRelationshipsResponse>>, ApiError> {
-    let issue_relationships = DbIssueRelationship::list_by_issue(&deployment.db().pool, q.issue_id)
-        .await?
-        .into_iter()
-        .map(to_api_relationship)
-        .collect();
+    list_issue_relationships_with_pool(&deployment.db().pool, q).await
+}
+
+/// One route, two scopes (same `ListIssueRelationshipsResponse` shape):
+///
+/// - `?issue_id=` — unchanged: that issue's OUTGOING rows only.
+/// - `?project_id=` — the project's whole edge set in one call, so the
+///   orchestrator's lane dependency gate costs one request per sweep instead of
+///   one per non-terminal card (which is what forced it to cap the gate and
+///   hold candidates it could not verify).
+///
+/// Exactly one is required: neither is an unscoped table read, and both at once
+/// is an ambiguous caller rather than a meaningful intersection.
+async fn list_issue_relationships_with_pool(
+    pool: &sqlx::SqlitePool,
+    q: ListIssueRelationshipsQuery,
+) -> Result<ResponseJson<ApiResponse<ListIssueRelationshipsResponse>>, ApiError> {
+    let rows = match (q.issue_id, q.project_id) {
+        (Some(issue_id), None) => DbIssueRelationship::list_by_issue(pool, issue_id).await?,
+        (None, Some(project_id)) => DbIssueRelationship::list_by_project(pool, project_id).await?,
+        (Some(_), Some(_)) => {
+            return Err(ApiError::BadRequest(
+                "provide either issue_id or project_id, not both".into(),
+            ));
+        }
+        (None, None) => {
+            return Err(ApiError::BadRequest(
+                "issue_id or project_id is required".into(),
+            ));
+        }
+    };
     Ok(ok(ListIssueRelationshipsResponse {
-        issue_relationships,
+        issue_relationships: rows.into_iter().map(to_api_relationship).collect(),
     }))
 }
 
@@ -1193,6 +1219,239 @@ mod tests {
         assert_eq!(root_key, "ACME");
         assert_eq!(sub_key, "ACME-SUB");
         assert_eq!(leaf_key, "ACME-SUB-X");
+    }
+
+    /// A board's lanes: `lanes[i][j]` is the j-th card of lane i, chained
+    /// `card0 -blocking-> card1 -> card2 -> ...` within the lane and sharing no
+    /// edge across lanes (that absence of an edge is the parallelism).
+    struct Board {
+        project_id: Uuid,
+        lanes: Vec<Vec<Uuid>>,
+    }
+
+    /// Seed `lanes` × `cards_per_lane` issues in a fresh project, chained by
+    /// `blocking` edges inside each lane.
+    async fn seed_board(
+        pool: &SqlitePool,
+        key: &str,
+        lanes: usize,
+        cards_per_lane: usize,
+    ) -> Board {
+        use super::{DbIssue, DbIssueRelationship, DbProjectStatus, NewIssue};
+
+        clear_key_chain_cache();
+        let project_id = Uuid::new_v4();
+        DbProject::create(
+            pool,
+            NewProject {
+                id: project_id,
+                name: key,
+                key: Some(key),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let status_id = Uuid::new_v4();
+        DbProjectStatus::create(pool, status_id, project_id, "Todo", "#94a3b8", 0, false)
+            .await
+            .unwrap();
+
+        let mut board = Board {
+            project_id,
+            lanes: Vec::new(),
+        };
+        for lane in 0..lanes {
+            let mut cards = Vec::new();
+            for card in 0..cards_per_lane {
+                let id = Uuid::new_v4();
+                DbIssue::create(
+                    pool,
+                    NewIssue {
+                        id,
+                        project_id,
+                        status_id,
+                        title: &format!("{key} lane {lane} card {card}"),
+                        description: None,
+                        priority: None,
+                        start_date: None,
+                        target_date: None,
+                        completed_at: None,
+                        sort_order: card as f64,
+                        parent_issue_id: None,
+                        parent_issue_sort_order: None,
+                        extension_metadata: "{}",
+                        key,
+                    },
+                )
+                .await
+                .unwrap();
+                cards.push(id);
+            }
+            for pair in cards.windows(2) {
+                DbIssueRelationship::create(pool, Uuid::new_v4(), pair[0], pair[1], "blocking")
+                    .await
+                    .unwrap();
+            }
+            board.lanes.push(cards);
+        }
+        board
+    }
+
+    /// The route under test, wired to a bare pool the way the real handler is
+    /// wired to the deployment's pool.
+    fn relationships_app(pool: SqlitePool) -> axum::Router {
+        use api_types::ListIssueRelationshipsQuery;
+        use axum::{
+            Router,
+            extract::{Query, State},
+            routing::get,
+        };
+
+        async fn list_rels(
+            State(pool): State<SqlitePool>,
+            Query(q): Query<ListIssueRelationshipsQuery>,
+        ) -> Result<impl axum::response::IntoResponse, crate::error::ApiError> {
+            super::list_issue_relationships_with_pool(&pool, q).await
+        }
+
+        Router::new()
+            .route("/api/issue-relationships", get(list_rels))
+            .with_state(pool)
+    }
+
+    async fn get_json(
+        app: &axum::Router,
+        uri: &str,
+    ) -> (axum::http::StatusCode, serde_json::Value) {
+        use axum::{
+            body::{Body, to_bytes},
+            http::Request,
+        };
+        use tower::ServiceExt;
+
+        let response = app
+            .clone()
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+        (status, body)
+    }
+
+    /// VIBE-3: the lane dependency gate must be able to read a board's whole
+    /// edge set in ONE call. 3 lanes × 4 cards = 9 `blocking` edges; a second
+    /// project's edges must not leak in.
+    #[tokio::test]
+    async fn project_scope_returns_the_whole_edge_set_in_one_call() {
+        use axum::http::StatusCode;
+
+        let pool = pool().await;
+        let board = seed_board(&pool, "LANE", 3, 4).await;
+        let other = seed_board(&pool, "OTHER", 2, 3).await;
+        let app = relationships_app(pool);
+
+        let (status, body) = get_json(
+            &app,
+            &format!("/api/issue-relationships?project_id={}", board.project_id),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+
+        let rows = body["data"]["issue_relationships"].as_array().unwrap();
+        // 3 lanes × (4 cards - 1) chain edges.
+        assert_eq!(rows.len(), 9, "whole edge set in one call; got {rows:#?}");
+
+        let mut got: Vec<(Uuid, Uuid)> = rows
+            .iter()
+            .map(|r| {
+                (
+                    serde_json::from_value(r["issue_id"].clone()).unwrap(),
+                    serde_json::from_value(r["related_issue_id"].clone()).unwrap(),
+                )
+            })
+            .collect();
+        let mut expected: Vec<(Uuid, Uuid)> = board
+            .lanes
+            .iter()
+            .flat_map(|lane| lane.windows(2).map(|p| (p[0], p[1])))
+            .collect();
+        got.sort();
+        expected.sort();
+        assert_eq!(got, expected, "edges must be this project's chains exactly");
+
+        let other_cards: Vec<Uuid> = other.lanes.into_iter().flatten().collect();
+        assert!(
+            !got.iter()
+                .any(|(a, b)| other_cards.contains(a) || other_cards.contains(b)),
+            "another project's edges must not leak into a project-scoped read"
+        );
+    }
+
+    /// The pre-existing `?issue_id=` contract is load-bearing for its current
+    /// caller: OUTGOING rows only (`WHERE issue_id = ?`), same envelope, same
+    /// row fields. Adding `?project_id=` must not move any of it.
+    #[tokio::test]
+    async fn issue_scope_response_shape_is_unchanged() {
+        use axum::http::StatusCode;
+        use serde_json::json;
+
+        let pool = pool().await;
+        let board = seed_board(&pool, "PIN", 1, 3).await;
+        let app = relationships_app(pool);
+        // The middle card: blocked by card 0, blocking card 2. Only the
+        // outgoing edge may come back.
+        let (a, b, c) = (board.lanes[0][0], board.lanes[0][1], board.lanes[0][2]);
+
+        let (status, body) =
+            get_json(&app, &format!("/api/issue-relationships?issue_id={b}")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["success"], json!(true));
+
+        let rows = body["data"]["issue_relationships"].as_array().unwrap();
+        assert_eq!(
+            rows.len(),
+            1,
+            "outgoing rows only — the a->b edge is not b's"
+        );
+        let row = rows[0].as_object().unwrap();
+        let mut keys: Vec<&str> = row.keys().map(String::as_str).collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            [
+                "created_at",
+                "id",
+                "issue_id",
+                "related_issue_id",
+                "relationship_type"
+            ],
+            "row fields are the frozen wire shape"
+        );
+        assert_eq!(row["issue_id"], json!(b));
+        assert_eq!(row["related_issue_id"], json!(c));
+        assert_eq!(row["relationship_type"], json!("blocking"));
+        assert_ne!(row["issue_id"], json!(a));
+
+        // Exactly one scope: neither and both are caller errors, not an
+        // unscoped table read.
+        let (status, _) = get_json(&app, "/api/issue-relationships").await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let (status, _) = get_json(
+            &app,
+            &format!(
+                "/api/issue-relationships?issue_id={b}&project_id={}",
+                board.project_id
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
     }
 
     /// The kanban router must build without a matchit path conflict (e.g.

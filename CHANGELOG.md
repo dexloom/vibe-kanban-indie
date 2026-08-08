@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Project-scoped relationship reads** (VIBE-3). `GET /api/issue-relationships`
+  now also accepts `?project_id=<id>`, returning the project's whole edge set —
+  every row with either endpoint in the project — in one call. The lane
+  dependency gate previously had to ask "what does X block" per card, one HTTP
+  request per non-terminal card every sweep, which is what forced it to cap the
+  gate and hold candidates it could not verify. The existing `?issue_id=` scope
+  is unchanged (that issue's outgoing rows only); exactly one scope is required.
+
 ### Fixed
 
 - **Restored the MCP issue + project tools** — `list_issues`, `get_issue`,

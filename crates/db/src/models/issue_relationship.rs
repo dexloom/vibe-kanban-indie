@@ -37,6 +37,37 @@ impl IssueRelationship {
         .await
     }
 
+    /// Every relationship row belonging to a project — the whole edge set in
+    /// one query, so a caller gating on `blocking` edges (the orchestrator's
+    /// lane gate) does not need one round-trip per card.
+    ///
+    /// A row belongs to the project when EITHER endpoint's issue does: an edge
+    /// whose blocker lives elsewhere still blocks a card in this project, and
+    /// dropping it would blind the gate to exactly the case it exists to catch.
+    /// The endpoints are matched with `IN` subqueries rather than a JOIN so a
+    /// row with both endpoints in the project is returned once, not twice.
+    pub async fn list_by_project(
+        pool: &SqlitePool,
+        project_id: Uuid,
+    ) -> Result<Vec<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            IssueRelationship,
+            r#"SELECT id as "id!: Uuid",
+                      issue_id as "issue_id!: Uuid",
+                      related_issue_id as "related_issue_id!: Uuid",
+                      relationship_type,
+                      created_at as "created_at!: DateTime<Utc>"
+               FROM issue_relationships
+               WHERE issue_id IN (SELECT id FROM issues WHERE project_id = $1)
+                  OR related_issue_id IN (SELECT id FROM issues WHERE project_id = $2)
+               ORDER BY created_at ASC"#,
+            project_id,
+            project_id
+        )
+        .fetch_all(pool)
+        .await
+    }
+
     pub async fn create(
         pool: &SqlitePool,
         id: Uuid,

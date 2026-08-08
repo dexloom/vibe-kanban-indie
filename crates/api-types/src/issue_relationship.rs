@@ -34,9 +34,19 @@ pub struct CreateIssueRelationshipRequest {
     pub relationship_type: IssueRelationshipType,
 }
 
+/// Scope for `GET /api/issue-relationships`. Exactly one field must be set.
+///
+/// - `issue_id` — the original contract: that issue's OUTGOING rows only
+///   (`WHERE issue_id = ?`).
+/// - `project_id` — the project's whole edge set in one call, so a caller
+///   gating on `blocking` edges pays one request per board sweep instead of
+///   one per card.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ListIssueRelationshipsQuery {
-    pub issue_id: Uuid,
+    #[serde(default)]
+    pub issue_id: Option<Uuid>,
+    #[serde(default)]
+    pub project_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
