@@ -4,6 +4,7 @@ import type { MouseEvent, ReactNode } from 'react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  CaretRightIcon,
   CircleDashedIcon,
   DotsThreeIcon,
   PlusIcon,
@@ -129,6 +130,14 @@ export type KanbanCardContentProps<TTag extends KanbanTag = KanbanTag> = {
   pullRequests?: KanbanPullRequest[];
   relationships?: KanbanRelationship[];
   isSubIssue?: boolean;
+  /** Number of sub-issues this card has. When > 0, an expandable "↳ N"
+   *  badge renders on the card; expanding reveals the children inline
+   *  (rendered by the container). */
+  subIssueCount?: number;
+  /** Whether this card's sub-issues are currently expanded. */
+  isSubIssuesExpanded?: boolean;
+  /** Toggle the inline sub-issue expansion for this card. */
+  onToggleSubIssues?: () => void;
   isLoading?: boolean;
   className?: string;
   onPriorityClick?: (e: MouseEvent) => void;
@@ -146,6 +155,9 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
   pullRequests = [],
   relationships = [],
   isSubIssue,
+  subIssueCount,
+  isSubIssuesExpanded,
+  onToggleSubIssues,
   isLoading = false,
   className,
   onPriorityClick,
@@ -323,6 +335,37 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
           )}
         </div>
       )}
+
+      {/* Row 6: Sub-issues expandable badge (parent cards only). */}
+      {!!subIssueCount &&
+        subIssueCount > 0 &&
+        onToggleSubIssues && (
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSubIssues();
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              aria-expanded={isSubIssuesExpanded}
+              aria-label={t('kanban.subIssuesCount', { count: subIssueCount })}
+              className="flex items-center gap-half -m-half px-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
+            >
+              <CaretRightIcon
+                className={cn(
+                  'size-3 transition-transform',
+                  isSubIssuesExpanded && 'rotate-90'
+                )}
+                weight="bold"
+              />
+              <span className="text-sm">
+                {t('kanban.subIssueIndicator')}
+              </span>
+              <span className="text-sm">{subIssueCount}</span>
+            </button>
+          </div>
+        )}
     </div>
   );
 }

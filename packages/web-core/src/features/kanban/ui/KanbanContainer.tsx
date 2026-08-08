@@ -69,7 +69,7 @@ import {
   DropdownMenuTrigger,
 } from '@vibe/ui/components/Dropdown';
 import { SearchableTagDropdownContainer } from '@/shared/components/SearchableTagDropdownContainer';
-import type { IssuePriority } from 'shared/remote-types';
+import type { Issue, IssuePriority } from 'shared/remote-types';
 import { PROJECT_WORKSPACES_SHAPE } from 'shared/remote-types';
 import { refreshShapeSource } from '@/shared/lib/electric/collections';
 import { useIssueMultiSelect } from '@/shared/hooks/useIssueMultiSelect';
@@ -565,6 +565,48 @@ export function KanbanContainer() {
     }
     return map;
   }, [issues]);
+
+  // Sub-issue expansion on the board (2026-08-07): parent cards that have
+  // children show an expandable "↳ N" badge; expanding reveals the children
+  // inline. Computed from the FULL issues list (not the filtered one) so the
+  // badge appears even when the Sub-issues filter hides standalone sub-issue
+  // cards. A sub-issue lives under its parent regardless of which status
+  // column the child itself sits in.
+  const childrenByParentId = useMemo(() => {
+    const map = new Map<string, Issue[]>();
+    for (const issue of issues) {
+      const pid = issue.parent_issue_id;
+      if (!pid) continue;
+      const arr = map.get(pid);
+      if (arr) arr.push(issue);
+      else map.set(pid, [issue]);
+    }
+    for (const arr of map.values()) {
+      arr.sort(
+        (a, b) =>
+          (a.parent_issue_sort_order ?? 0) - (b.parent_issue_sort_order ?? 0)
+      );
+    }
+    return map;
+  }, [issues]);
+
+  const statusById = useMemo(() => {
+    const map = new Map<string, (typeof statuses)[number]>();
+    for (const s of statuses) map.set(s.id, s);
+    return map;
+  }, [statuses]);
+
+  const [expandedSubIssueParents, setExpandedSubIssueParents] = useState<
+    Set<string>
+  >(() => new Set());
+  const toggleSubIssuesExpanded = useCallback((parentId: string) => {
+    setExpandedSubIssueParents((prev) => {
+      const next = new Set(prev);
+      if (next.has(parentId)) next.delete(parentId);
+      else next.add(parentId);
+      return next;
+    });
+  }, []);
 
   const localWorkspacesById = useMemo(() => {
     const map = new Map<string, (typeof activeWorkspaces)[number]>();
@@ -1167,6 +1209,12 @@ export function KanbanContainer() {
                           return !workspaceIdsShownOnCard.has(pr.workspace_id);
                         });
 
+                        const subIssueChildren =
+                          childrenByParentId.get(issue.id) ?? [];
+                        const isSubIssuesExpanded = expandedSubIssueParents.has(
+                          issue.id
+                        );
+
                         return (
                           <KanbanCard
                             key={issue.id}
@@ -1197,6 +1245,11 @@ export function KanbanContainer() {
                                 issuesById
                               )}
                               isSubIssue={!!issue.parent_issue_id}
+                              subIssueCount={subIssueChildren.length}
+                              isSubIssuesExpanded={isSubIssuesExpanded}
+                              onToggleSubIssues={() =>
+                                toggleSubIssuesExpanded(issue.id)
+                              }
                               isMobile={isMobile}
                               onPriorityClick={(e) => {
                                 e.stopPropagation();
@@ -1232,6 +1285,44 @@ export function KanbanContainer() {
                                 ),
                               }}
                             />
+                            {/* Inline sub-issues (expanded). Rendered under the
+                                parent card, each row opens that sub-issue. */}
+                            {isSubIssuesExpanded &&
+                              subIssueChildren.length > 0 && (
+                                <div className="mt-half flex flex-col gap-half border-l-2 border-border pl-half">
+                                  {subIssueChildren.map((child) => {
+                                    const childStatus = statusById.get(
+                                      child.status_id
+                                    );
+                                    return (
+                                      <button
+                                        key={child.id}
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openIssue(child.id);
+                                        }}
+                                        onMouseDown={(e) => e.stopPropagation()}
+                                        className="flex w-full items-center gap-half rounded-sm px-half py-half text-left text-sm text-normal hover:bg-secondary transition-colors"
+                                      >
+                                        <span
+                                          aria-hidden="true"
+                                          className="size-2 shrink-0 rounded-full"
+                                          style={{
+                                            backgroundColor: `hsl(${childStatus?.color ?? '0 0% 60%'})`,
+                                          }}
+                                        />
+                                        <span className="shrink-0 font-ibm-plex-mono text-sm text-low">
+                                          {child.simple_id}
+                                        </span>
+                                        <span className="truncate">
+                                          {child.title}
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             {issueWorkspaces.length > 0 && (
                               <div className="mt-base flex flex-col gap-half">
                                 {issueWorkspaces.map((workspace) => (
