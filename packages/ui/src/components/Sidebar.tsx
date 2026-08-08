@@ -32,7 +32,11 @@ interface SidebarProps {
   loadingTasksProjectIds?: ReadonlySet<string>;
   activeIssueId?: string | null;
   onTasksExpansionChange?: (projectId: string, isOpen: boolean) => void;
-  onSelectIssue?: (projectId: string, issueId: string) => void;
+  onSelectIssue?: (
+    projectId: string,
+    issueId: string,
+    parentIssueId?: string | null
+  ) => void;
   isLoadingProjects?: boolean;
   isLoadingWorkspaces?: boolean;
   onSelectWorkspace: (id: string) => void;

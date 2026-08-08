@@ -39,7 +39,11 @@ interface SidebarProjectTreeProps {
   loadingTasksProjectIds?: ReadonlySet<string>;
   activeIssueId?: string | null;
   onTasksExpansionChange?: (projectId: string, isOpen: boolean) => void;
-  onSelectIssue?: (projectId: string, issueId: string) => void;
+  onSelectIssue?: (
+    projectId: string,
+    issueId: string,
+    parentIssueId?: string | null
+  ) => void;
   isLoading?: boolean;
   onSelectWorkspace: (id: string) => void;
   /** Collapse-by-default (2026-08-07): opens the project's kanban board when
@@ -409,7 +413,11 @@ export function SidebarProjectTree({
         if (data.children.length > 0) {
           node.toggle();
         } else {
-          onSelectIssue?.(data.issue.projectId, data.issue.id);
+          onSelectIssue?.(
+            data.issue.projectId,
+            data.issue.id,
+            data.issue.parentIssueId
+          );
         }
       } else if (
         data.type === 'project' ||

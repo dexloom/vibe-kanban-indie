@@ -12,7 +12,11 @@ interface CardNodeRowProps extends TreeNodeRenderProps<CardNode> {
    * Defaults to `false` so the prop is optional in tests / non-DnD contexts. */
   isMultiSelectActive?: boolean;
   /** Opens the task page when the ↗ icon on a parent card is clicked. */
-  onSelectIssue?: (projectId: string, issueId: string) => void;
+  onSelectIssue?: (
+    projectId: string,
+    issueId: string,
+    parentIssueId?: string | null
+  ) => void;
   tintColor?: string | null;
   dimmed?: boolean;
 }
@@ -85,7 +89,7 @@ export function CardNodeRow({
             aria-label={t('sidebar.openIssuePage', 'Open task')}
             onClick={(e) => {
               e.stopPropagation();
-              onSelectIssue(issue.projectId, issue.id);
+              onSelectIssue(issue.projectId, issue.id, issue.parentIssueId);
             }}
             onPointerDown={(e) => {
               // Keep the icon's pointer-down independent of the row's

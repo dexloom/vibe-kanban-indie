@@ -281,7 +281,7 @@ describe('SidebarProjectTree tasks integration', () => {
     const icon = screen.getByLabelText('sidebar.openIssuePage');
     fireEvent.click(icon);
     await waitFor(() =>
-      expect(onSelectIssue).toHaveBeenCalledWith('project-1', 'issue-1')
+      expect(onSelectIssue).toHaveBeenCalledWith('project-1', 'issue-1', null)
     );
   });
 
@@ -303,7 +303,7 @@ describe('SidebarProjectTree tasks integration', () => {
     fireEvent.click(await screen.findByText('Fix auth'));
 
     await waitFor(() =>
-      expect(onSelectIssue).toHaveBeenCalledWith('project-1', 'issue-1')
+      expect(onSelectIssue).toHaveBeenCalledWith('project-1', 'issue-1', null)
     );
   });
 

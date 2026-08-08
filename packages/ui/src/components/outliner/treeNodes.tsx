@@ -363,7 +363,11 @@ export function TreeNodeRouter(
     activeProjectId: string | null;
     activeProjectPromptId?: string | null;
     activeWorkspaceId: string | null;
-    onSelectIssue?: (projectId: string, issueId: string) => void;
+    onSelectIssue?: (
+      projectId: string,
+      issueId: string,
+      parentIssueId?: string | null
+    ) => void;
     activeIssueId?: string | null;
     /** Mirrors KanbanCard's `dragDisabled={isMultiSelectActive}` — tree card
      * drag is disabled while the kanban's bulk-select mode is on (PLAN §7.5). */

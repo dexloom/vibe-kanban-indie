@@ -148,8 +148,16 @@ export function SharedAppLayout() {
     []
   );
   const handleSelectIssue = useCallback(
-    (projectId: string, issueId: string) => {
-      appNavigation.goToProjectIssue(projectId, issueId);
+    (projectId: string, issueId: string, parentIssueId?: string | null) => {
+      // Clicking a sub-issue in the left pane opens it on its PARENT's board
+      // (the sub-board route — the regular board filtered to the parent's
+      // children), so the user sees the sub-issue in context with its
+      // siblings. A top-level issue opens its own panel on the main board.
+      if (parentIssueId) {
+        appNavigation.goToProjectIssueSubBoard(projectId, parentIssueId);
+      } else {
+        appNavigation.goToProjectIssue(projectId, issueId);
+      }
     },
     [appNavigation]
   );
