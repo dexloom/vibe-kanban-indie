@@ -65,6 +65,14 @@ impl McpServer {
             + Self::task_attempts_tools_router()
             + Self::session_tools_router()
             + Self::approvals_tools_router()
+            // ADR-016 (reachability amendment): per-tick orchestrator prompt
+            // lookup. Every real client — including the sombra_plugins
+            // orchestrator, whose `.mcp.json` passes no `--mode` — connects
+            // in global mode, so the prompt tool must live here to be
+            // reachable. Prompts are owner-authored text in a local,
+            // auth-less DB (already exposed via the REST resolve endpoint);
+            // mode was never a confidentiality boundary.
+            + Self::orchestrator_prompt_tools_router()
     }
 
     pub fn orchestrator_mode_router() -> rmcp::handler::server::tool::ToolRouter<Self> {
@@ -74,9 +82,10 @@ impl McpServer {
             // Orchestrators need to answer questions / approve plans (and stop
             // runaway executions) for the headed agents they drive.
             + Self::approvals_tools_router()
-            // ADR-016: per-tick orchestrator prompt lookup. Card-scoped
-            // agents must NOT read sibling prompts; this router is
-            // exposed only to the orchestrator instance.
+            // ADR-016: per-tick orchestrator prompt lookup. Kept here as well
+            // so orchestrator mode stays coherent if a client is ever
+            // launched with `--mode orchestrator`; the reachable surface is
+            // the global router above.
             + Self::orchestrator_prompt_tools_router();
         router.remove_route("list_workspaces");
         router.remove_route("delete_workspace");
@@ -494,6 +503,10 @@ mod tests {
             "delete_workspace".to_string(),
             "get_context".to_string(),
             "get_execution".to_string(),
+            // ADR-016 reachability amendment: the per-tick prompt read is in
+            // the global router (the mode the orchestrator connects with), so
+            // one session can both read board prompts and sweep.
+            "get_orchestrator_prompt".to_string(),
             "get_issue".to_string(),
             "get_repo".to_string(),
             "link_workspace_issue".to_string(),
@@ -548,20 +561,28 @@ mod tests {
         }
     }
 
-    /// ADR-016: `get_orchestrator_prompt` is orchestrator-only — card-scoped
-    /// agents must never read sibling prompts. Asserting the NEGATIVE here
-    /// (global mode does NOT expose it) catches a regression where someone
-    /// adds the router to the wrong scope.
+    /// ADR-016 reachability amendment: `get_orchestrator_prompt` must be
+    /// exposed by the GLOBAL router — the mode the orchestrator plugin
+    /// actually connects with (`.mcp.json` passes no `--mode`) — so one MCP
+    /// session can both read board prompts and drive a full sweep
+    /// (`list_workspaces`, `start_workspace`, the card surface). Asserting
+    /// the POSITIVE here catches a regression where someone re-restricts
+    /// the tool to the unreachable orchestrator-only router.
     #[test]
-    fn orchestrator_prompt_tool_is_orchestrator_only() {
+    fn orchestrator_prompt_tool_is_reachable_in_global_mode() {
         let orch = tool_names(McpServer::orchestrator_mode_router());
         let global = tool_names(McpServer::global_mode_router());
 
         assert!(orch.contains("get_orchestrator_prompt"));
         assert!(
-            !global.contains("get_orchestrator_prompt"),
-            "get_orchestrator_prompt MUST NOT be in the global_mode router"
+            global.contains("get_orchestrator_prompt"),
+            "get_orchestrator_prompt MUST be in the global_mode router — \
+             the orchestrator plugin connects with no --mode flag"
         );
+        // One session, full sweep: prompt read + workspace discovery +
+        // dispatch must coexist in the same router.
+        assert!(global.contains("list_workspaces"));
+        assert!(global.contains("start_workspace"));
     }
 
     #[test]

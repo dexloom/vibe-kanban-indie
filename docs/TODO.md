@@ -45,10 +45,13 @@ geometry then (no fork needed).
 
 ## Orchestrator prompts (ADR-016)
 
-- **Cross-repo canary (open).** Add a per-tick test asserting the
-  `sombra_plugins` orchestrator actually calls `get_orchestrator_prompt`
-  (vs silently using built-in behavior). The `mcp_get_orchestrator_prompt_*`
-  tests cover only the wire half.
+- ~~**Cross-repo canary (open).**~~ **Closed 2026-08-08** (card VIBE-5,
+  MCP-mode reachability amendment in ADR-016). The contract is "read the
+  resolved prompt per tick", not "call the MCP tool specifically" — the
+  plugin reads via the REST resolve endpoint and the MCP tool (now in the
+  global router, hence reachable) hits the same server-side resolver. A
+  transport-specific canary would lock the plugin to one wire for no
+  benefit.
 - **Migration `20260806000001` is frozen** by the SHA-384 checksum guard.
   Its comment still says "first non-empty wins" (historical text);
   resolution semantics (stack) live in ADR-016. Never edit the file.

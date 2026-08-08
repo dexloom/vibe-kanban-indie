@@ -35,9 +35,11 @@ impl McpServer {
     /// ADR-016: per-tick orchestrator prompt lookup. The orchestrator calls
     /// this at the start of every tick with the current card's project_id
     /// and uses the returned text as its instruction. Edits apply live (no
-    /// cache) — the next tick reads the new value. Registered in
-    /// `orchestrator_mode_router` ONLY; card-scoped agents must not read
-    /// sibling prompts.
+    /// cache) — the next tick reads the new value. Registered in BOTH
+    /// routers (ADR-016 reachability amendment): the orchestrator plugin
+    /// connects in global mode (no `--mode` flag), so global registration
+    /// is what makes the tool reachable; orchestrator mode keeps it so a
+    /// `--mode orchestrator` launch stays coherent.
     ///
     /// Stack semantics (ADR-016 stack amendment): `orchestrator_prompt` is
     /// a STACK of every non-empty prompt in the parent chain, rendered as

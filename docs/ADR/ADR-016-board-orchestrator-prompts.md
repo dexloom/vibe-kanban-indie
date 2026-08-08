@@ -136,10 +136,49 @@ plus `source`, so the stack amendment requires **no out-of-repo change**.
   context has no implicit project id).
 - Registered in `orchestrator_mode_router` ONLY (card-scoped agents must not read sibling
   prompts). New file `crates/mcp/src/task_server/tools/orchestrator_prompt.rs`.
+  **Amended 2026-08-08 — see "MCP-mode reachability amendment" below: the tool is now
+  registered in BOTH routers; global-mode registration is the reachable one.**
 - **Cross-repo contract**: the external sombra_plugins orchestrator MUST call
   `get_orchestrator_prompt` with the current card's `project_id` at the start of every tick, MUST
   NOT cache across ticks (edits apply live), and MUST treat `source: "default"` as "no custom
   instruction — use built-in behavior". Recorded as an issue in sombra_plugins.
+
+### MCP-mode reachability amendment (2026-08-08)
+
+The original registration ("orchestrator_mode_router ONLY") made the tool **unreachable in
+practice**: the sombra_plugins orchestrator's `.mcp.json` runs `npx vibe-kanban-indie --mcp`
+with **no `--mode` flag**, so it connects in global mode — the one mode that did NOT expose
+the prompt tool. Orchestrator mode additionally lacks `list_workspaces` / `start_workspace`,
+so no single MCP mode could both read board prompts and drive a sweep. (The plugin's working
+path today is the REST resolve endpoint, which needs no mode change; this amendment is a
+coherence fix, not an unblock.)
+
+**Decision (option (a) of card VIBE-5):** register `get_orchestrator_prompt` in
+`global_mode_router` (and keep it in `orchestrator_mode_router` so a `--mode orchestrator`
+launch stays coherent). The original sibling-prompt restriction is dropped, because:
+
+1. **Mode was never an isolation boundary.** Card-scoped agents also connect in global mode
+   (the default), and nothing ever launched an MCP server with `--mode orchestrator` — the
+   restriction isolated the tool from its only intended consumer while protecting nothing.
+2. **Prompts are not secrets.** They are owner-authored plain text in a local, auth-less
+   SQLite DB, already readable by any local process via
+   `GET /api/projects/<id>/orchestrator-prompt/resolve`. This is a solo-dev fork; there is no
+   confidentiality boundary to enforce.
+3. **The residual concern is prompt-following, not tool access.** A card-scoped agent could
+   read a sibling board's prompt, but the text is inert unless the agent chooses to act on
+   it — and the tool requires an explicit `project_id` the card agent has no reason to
+   supply. The tool description scopes its intended use (orchestrator per-tick read).
+
+Option (b) — completing orchestrator mode with `list_workspaces` + issue tools and switching
+the plugin to `--mode orchestrator` — was rejected: it is a larger change, touches the
+plugin's dispatch primitive (`run_issue_in_workspace` instead of `start_workspace`), and buys
+an isolation boundary that (per points 1–3) does not exist.
+
+The wire contract is unchanged: `source: "default"` still means "no prompt at any scope —
+use built-in behavior", and the stack rendering is untouched. Exact tool-name-set tests now
+cover BOTH routers (`global_mode_exposes_the_full_card_surface` — extended to include
+`get_orchestrator_prompt`, and `orchestrator_mode_exposes_only_scoped_workflow_tools`), plus a
+positive reachability assertion (`orchestrator_prompt_tool_is_reachable_in_global_mode`).
 
 ### Sidebar tree
 
@@ -203,14 +242,17 @@ plus `source`, so the stack amendment requires **no out-of-repo change**.
 - None — all design questions resolved in the synthesis (storage, API, MCP tool, tree node,
   editor, fallback order, migration discipline).
 - Follow-up: update the sombra_plugins orchestrator to call `get_orchestrator_prompt` per tick.
-- **Cross-repo canary (open)**: a per-tick canary test asserting the orchestrator
-  actually calls `get_orchestrator_prompt` (vs. silently skipping the read and
-  using built-in behavior every tick) should be added the next time the
-  orchestrator fixture is touched. Without it, a regression in sombra_plugins
-  (the orchestrator stops calling the tool) would slip through silently — the
-  prompt edits would apply, the resolver would still return them, but the
-  orchestrator would never read them. The `mcp_get_orchestrator_prompt_decodes_envelope`
-  regression in `crates/mcp` only covers the wire half of the contract.
+- ~~**Cross-repo canary (open)**~~ **(closed 2026-08-08 — MCP-mode reachability
+  amendment).** The canary's premise was that the orchestrator reads the prompt
+  ONLY via the MCP tool, so a sombra_plugins regression (stops calling it)
+  would slip silently. That premise no longer holds: the plugin deliberately
+  reads via `GET /api/projects/<id>/orchestrator-prompt/resolve` (no mode
+  change needed), and the MCP tool is a second, now-reachable path to the same
+  server-side resolver. The contract is "read the resolved prompt per tick",
+  not "call this specific transport" — a transport-specific canary would lock
+  the plugin to one wire for no benefit. The resolver itself is covered by
+  `crates/db` chain-walk tests and the `mcp_get_orchestrator_prompt_*` wire
+  tests.
 
 ## Implementation order (TDD)
 
