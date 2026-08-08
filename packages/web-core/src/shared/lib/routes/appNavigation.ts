@@ -140,6 +140,9 @@ export interface KanbanRouteState {
   isWorkspaceCreateMode: boolean;
   hasInvalidWorkspaceCreateDraftId: boolean;
   isPanelOpen: boolean;
+  /** Sub-issue board mode (2026-08-07): when set, the regular kanban board
+   *  is filtered to show only the children of this parent issue. */
+  parentIssueId: string | null;
 }
 
 export function getDestinationHostId(
@@ -319,5 +322,10 @@ export function resolveKanbanRouteState(
       projectDestination.kind !== 'project' &&
       projectDestination.kind !== 'project-orchestrator-prompt' &&
       projectDestination.kind !== 'project-issue-sub-board',
+    // Sub-issue board: the parent whose children the board is filtered to.
+    parentIssueId:
+      projectDestination?.kind === 'project-issue-sub-board'
+        ? projectDestination.parentIssueId
+        : null,
   };
 }

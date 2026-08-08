@@ -28,7 +28,7 @@ import {
 } from '../model/hooks/useKanbanFilters';
 import { type BulkUpdateIssueItem } from '@/shared/lib/remoteApi';
 import { persistIssues, persistIssueSwap } from '@/shared/lib/persistIssues';
-import { PlusIcon, DotsThreeIcon } from '@phosphor-icons/react';
+import { ArrowLeftIcon, PlusIcon, DotsThreeIcon } from '@phosphor-icons/react';
 import { Actions } from '@/shared/actions';
 import {
   buildKanbanIssueComposerKey,
@@ -212,6 +212,18 @@ export function KanbanContainer() {
   const projectName = projects.find((p) => p.id === projectId)?.name ?? '';
 
   const selectedKanbanIssueId = routeState.issueId;
+  // Sub-issue board mode (2026-08-07): when on the sub-board route, the
+  // board is filtered to show only the children of the parent issue. The
+  // regular KanbanContainer UI (columns, drag-and-drop, etc.) is reused —
+  // only the candidate issue set is narrowed.
+  const parentIssueId = routeState.parentIssueId;
+  const boardIssues = useMemo(
+    () =>
+      parentIssueId
+        ? issues.filter((i) => i.parent_issue_id === parentIssueId)
+        : issues,
+    [issues, parentIssueId]
+  );
   const issueComposerKey = useMemo(
     () => buildKanbanIssueComposerKey(routeState.hostId, projectId),
     [routeState.hostId, projectId]
@@ -335,7 +347,7 @@ export function KanbanContainer() {
   }, [statuses]);
 
   const { filteredIssues } = useKanbanFilters({
-    issues,
+    issues: boardIssues,
     issueTags,
     issueRelationships,
     issuesById,
@@ -1151,6 +1163,32 @@ export function KanbanContainer() {
         </div>
       </div>
 
+      {parentIssueId && (
+        <div className="flex shrink-0 items-center gap-base border-b border-border px-double py-half">
+          <button
+            type="button"
+            onClick={() =>
+              appNavigation.goToProjectIssue(projectId, parentIssueId)
+            }
+            className="flex items-center gap-half rounded-sm p-half text-low hover:bg-secondary hover:text-normal transition-colors"
+            aria-label={t('kanban.subIssueBoardBack')}
+          >
+            <ArrowLeftIcon className="size-icon-sm" weight="bold" />
+          </button>
+          <div className="flex min-w-0 items-center gap-half text-sm">
+            <span className="shrink-0 text-low">{projectName}</span>
+            <span className="shrink-0 text-low">/</span>
+            <span className="shrink-0 font-ibm-plex-mono text-low">
+              {issuesById.get(parentIssueId)?.simple_id ?? ''}
+            </span>
+            <span className="truncate text-normal">
+              {issuesById.get(parentIssueId)?.title ??
+                t('kanban.subIssueBoardTitle')}
+            </span>
+          </div>
+        </div>
+      )}
+
       {kanbanViewMode === 'kanban' ? (
         visibleStatuses.length === 0 ? (
           <div className="flex-1 flex items-center justify-center">
@@ -1173,14 +1211,16 @@ export function KanbanContainer() {
                           />
                           <p className="m-0 text-sm">{status.name}</p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleAddTask(status.id)}
-                          className="p-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
-                          aria-label="Add task"
-                        >
-                          <PlusIcon className="size-icon-xs" weight="bold" />
-                        </button>
+                        {!parentIssueId && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddTask(status.id)}
+                            className="p-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
+                            aria-label="Add task"
+                          >
+                            <PlusIcon className="size-icon-xs" weight="bold" />
+                          </button>
+                        )}
                       </div>
                     </KanbanHeader>
                     <KanbanCards
