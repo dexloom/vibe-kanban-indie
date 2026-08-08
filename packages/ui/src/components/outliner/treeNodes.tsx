@@ -382,6 +382,7 @@ export function TreeNodeRouter(
     activeProjectPromptId,
     activeWorkspaceId,
     activeIssueId,
+    onSelectIssue,
     isMultiSelectActive,
   } = props;
   // ADR-016 usability: every project is color-coded — each node gets its
@@ -480,6 +481,7 @@ export function TreeNodeRouter(
           dragHandle={dragHandle}
           activeIssueId={activeIssueId}
           isMultiSelectActive={isMultiSelectActive}
+          onSelectIssue={onSelectIssue}
           tintColor={tintColor}
           dimmed={dimmed}
         />

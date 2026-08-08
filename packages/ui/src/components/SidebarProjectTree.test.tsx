@@ -262,12 +262,43 @@ describe('SidebarProjectTree tasks integration', () => {
     );
   });
 
-  it('selects an issue when its title row is clicked', async () => {
+  it('parent card row toggles subissues; the ↗ icon opens the task page', async () => {
     seedBlob({ 'project-1': true, 'project-1:tasks': true });
     const onSelectIssue = vi.fn();
     renderTree({ onSelectIssue });
 
     // Tasks is seeded open; the status 'Todo' has cards so its caret opens it.
+    fireEvent.click(caretFor('Todo'));
+    const card = await screen.findByText('Fix auth');
+
+    // Row click toggles the parent card open (reveals the sub-issue) and does
+    // NOT navigate.
+    fireEvent.click(card);
+    await waitFor(() => expect(screen.getByText('Sub issue')).toBeTruthy());
+    expect(onSelectIssue).not.toHaveBeenCalled();
+
+    // The ↗ icon on the parent card opens the task page.
+    const icon = screen.getByLabelText('sidebar.openIssuePage');
+    fireEvent.click(icon);
+    await waitFor(() =>
+      expect(onSelectIssue).toHaveBeenCalledWith('project-1', 'issue-1')
+    );
+  });
+
+  it('a leaf card (no subissues) opens the task page on row click', async () => {
+    seedBlob({ 'project-1': true, 'project-1:tasks': true });
+    const onSelectIssue = vi.fn();
+    renderTree({
+      onSelectIssue,
+      // Only the parent issue — no sub-issue — so its card is a leaf.
+      tasksByProject: new Map([
+        [
+          'project-1',
+          { statuses: [statusTodo, statusReview], issues: [issue] },
+        ],
+      ]),
+    });
+
     fireEvent.click(caretFor('Todo'));
     fireEvent.click(await screen.findByText('Fix auth'));
 

@@ -527,6 +527,7 @@
     "addChildBoard": "Add board",
     "addOrchestratorPrompt": "Add orchestrator prompt",
     "openProjectPage": "Open project board",
-    "openWorkspacesPage": "Open workspaces"
+    "openWorkspacesPage": "Open workspaces",
+    "openIssuePage": "Open task"
   }
 }

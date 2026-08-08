@@ -400,7 +400,17 @@ export function SidebarProjectTree({
       if (data.type === 'leaf') {
         onSelectWorkspace(data.workspace.id);
       } else if (data.type === 'card') {
-        onSelectIssue?.(data.issue.projectId, data.issue.id);
+        // A PARENT card (has subissues) toggles open on activation so the
+        // user can reveal its children by clicking the row — consistent with
+        // project/Tasks/status rows. A LEAF card (no subissues) opens the
+        // task page. The dedicated ↗ icon on parent cards (see CardNodeRow)
+        // always opens the task page regardless, with stopPropagation so it
+        // never hits this toggle path.
+        if (data.children.length > 0) {
+          node.toggle();
+        } else {
+          onSelectIssue?.(data.issue.projectId, data.issue.id);
+        }
       } else if (
         data.type === 'project' ||
         (data.type === 'section' && data.kind === 'tasks') ||
