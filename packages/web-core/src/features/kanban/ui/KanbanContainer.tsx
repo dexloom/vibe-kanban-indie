@@ -346,6 +346,12 @@ export function KanbanContainer() {
     return ids;
   }, [statuses]);
 
+  // Sub-issue board (parentIssueId set): every candidate already has a
+  // `parent_issue_id`. The `showSubIssues` filter DROPS exactly those, so if
+  // the user has it off (the default) the board would be empty. Force it on
+  // here so the children always pass through the filter pipeline.
+  const effectiveShowSubIssues = showSubIssues || !!parentIssueId;
+
   const { filteredIssues } = useKanbanFilters({
     issues: boardIssues,
     issueTags,
@@ -353,7 +359,7 @@ export function KanbanContainer() {
     issuesById,
     doneStatusIds,
     filters: kanbanFilters,
-    showSubIssues,
+    showSubIssues: effectiveShowSubIssues,
     hideBlocked,
   });
 
