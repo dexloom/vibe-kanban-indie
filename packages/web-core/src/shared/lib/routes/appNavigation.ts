@@ -37,7 +37,15 @@ export type AppDestination =
   // `sidebarMode: 'closed'` — the editor IS the page, not a kanban side
   // panel. Wired to the prompt row's onActivate and the `+` menu's
   // "Orchestrator prompt" item.
-  | { kind: 'project-orchestrator-prompt'; projectId: string };
+  | { kind: 'project-orchestrator-prompt'; projectId: string }
+  // Sub-issue board (2026-08-07): a full-page kanban of one parent issue's
+  // children grouped by status. `parentIssueId` is the parent whose
+  // children are shown. `sidebarMode: 'closed'` — it's its own page.
+  | {
+      kind: 'project-issue-sub-board';
+      projectId: string;
+      parentIssueId: string;
+    };
 
 export type NavigationTransition = {
   replace?: boolean;
@@ -83,6 +91,11 @@ export interface AppNavigation {
     projectId: string,
     transition?: NavigationTransition
   ): void;
+  goToProjectIssueSubBoard(
+    projectId: string,
+    parentIssueId: string,
+    transition?: NavigationTransition
+  ): void;
 }
 
 type ProjectDestinationKind =
@@ -91,7 +104,8 @@ type ProjectDestinationKind =
   | 'project-issue-workspace'
   | 'project-issue-workspace-create'
   | 'project-workspace-create'
-  | 'project-orchestrator-prompt';
+  | 'project-orchestrator-prompt'
+  | 'project-issue-sub-board';
 
 type WorkspaceDestinationKind =
   | 'workspaces'
@@ -152,6 +166,7 @@ export function isProjectDestination(
     case 'project-issue-workspace-create':
     case 'project-workspace-create':
     case 'project-orchestrator-prompt':
+    case 'project-issue-sub-board':
       return true;
     default:
       return false;
@@ -270,8 +285,10 @@ export function resolveKanbanRouteState(
     switch (projectDestination.kind) {
       case 'project':
       case 'project-orchestrator-prompt':
-        // ADR-016: the editor IS the page. `sidebarMode: 'closed'`
-        // collapses the kanban side panel — there's no card to edit.
+      case 'project-issue-sub-board':
+        // ADR-016 / sub-issue board: the page IS the content.
+        // `sidebarMode: 'closed'` collapses the kanban side panel — there's
+        // no card to edit.
         return 'closed';
       case 'project-issue':
         return 'issue';
@@ -300,6 +317,7 @@ export function resolveKanbanRouteState(
     isPanelOpen:
       !!projectDestination &&
       projectDestination.kind !== 'project' &&
-      projectDestination.kind !== 'project-orchestrator-prompt',
+      projectDestination.kind !== 'project-orchestrator-prompt' &&
+      projectDestination.kind !== 'project-issue-sub-board',
   };
 }

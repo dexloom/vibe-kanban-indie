@@ -138,6 +138,17 @@ function resolveLocalDestinationFromPath(path: string): AppDestination | null {
           }
         : null;
     }
+    case '/_app/projects/$projectId_/issues/$issueId_/sub-board': {
+      const projectId = getPathParam(routeParams, 'projectId');
+      const issueId = getPathParam(routeParams, 'issueId');
+      return projectId && issueId
+        ? {
+            kind: 'project-issue-sub-board',
+            projectId,
+            parentIssueId: issueId,
+          }
+        : null;
+    }
     case '/_app/projects/$projectId_/issues/$issueId_/hosts/$hostId/workspaces/create/$draftId': {
       const projectId = getPathParam(routeParams, 'projectId');
       const issueId = getPathParam(routeParams, 'issueId');
@@ -319,6 +330,14 @@ function destinationToLocalTarget(
         to: '/projects/$projectId/orchestrator-prompt',
         params: { projectId: destination.projectId },
       } as const;
+    case 'project-issue-sub-board':
+      return {
+        to: '/projects/$projectId/issues/$issueId/sub-board',
+        params: {
+          projectId: destination.projectId,
+          issueId: destination.parentIssueId,
+        },
+      } as const;
   }
 }
 
@@ -383,6 +402,11 @@ export function createLocalAppNavigation(): AppNavigation {
     goToProjectOrchestratorPrompt: (projectId, transition) =>
       navigateTo(
         { kind: 'project-orchestrator-prompt', projectId },
+        transition
+      ),
+    goToProjectIssueSubBoard: (projectId, parentIssueId, transition) =>
+      navigateTo(
+        { kind: 'project-issue-sub-board', projectId, parentIssueId },
         transition
       ),
   };

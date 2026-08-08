@@ -7,6 +7,7 @@ import {
   CaretRightIcon,
   CircleDashedIcon,
   DotsThreeIcon,
+  KanbanIcon,
   PlusIcon,
 } from '@phosphor-icons/react';
 import { cn } from '../lib/cn';
@@ -138,6 +139,8 @@ export type KanbanCardContentProps<TTag extends KanbanTag = KanbanTag> = {
   isSubIssuesExpanded?: boolean;
   /** Toggle the inline sub-issue expansion for this card. */
   onToggleSubIssues?: () => void;
+  /** Open the full-page sub-issue board for this parent card. */
+  onOpenSubBoard?: () => void;
   isLoading?: boolean;
   className?: string;
   onPriorityClick?: (e: MouseEvent) => void;
@@ -158,6 +161,7 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
   subIssueCount,
   isSubIssuesExpanded,
   onToggleSubIssues,
+  onOpenSubBoard,
   isLoading = false,
   className,
   onPriorityClick,
@@ -336,34 +340,53 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
         </div>
       )}
 
-      {/* Row 6: Sub-issues expandable badge (parent cards only). */}
+      {/* Row 6: Sub-issues expandable badge + sub-board link (parent cards). */}
       {!!subIssueCount &&
         subIssueCount > 0 &&
-        onToggleSubIssues && (
-          <div className="flex items-center">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleSubIssues();
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-              aria-expanded={isSubIssuesExpanded}
-              aria-label={t('kanban.subIssuesCount', { count: subIssueCount })}
-              className="flex items-center gap-half -m-half px-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
-            >
-              <CaretRightIcon
-                className={cn(
-                  'size-3 transition-transform',
-                  isSubIssuesExpanded && 'rotate-90'
-                )}
-                weight="bold"
-              />
-              <span className="text-sm">
-                {t('kanban.subIssueIndicator')}
-              </span>
-              <span className="text-sm">{subIssueCount}</span>
-            </button>
+        (onToggleSubIssues || onOpenSubBoard) && (
+          <div className="flex items-center gap-half">
+            {onToggleSubIssues && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleSubIssues();
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                aria-expanded={isSubIssuesExpanded}
+                aria-label={t('kanban.subIssuesCount', {
+                  count: subIssueCount,
+                })}
+                className="flex items-center gap-half -m-half px-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
+              >
+                <CaretRightIcon
+                  className={cn(
+                    'size-3 transition-transform',
+                    isSubIssuesExpanded && 'rotate-90'
+                  )}
+                  weight="bold"
+                />
+                <span className="text-sm">
+                  {t('kanban.subIssueIndicator')}
+                </span>
+                <span className="text-sm">{subIssueCount}</span>
+              </button>
+            )}
+            {onOpenSubBoard && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenSubBoard();
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                aria-label={t('kanban.subIssueBoardTitle')}
+                title={t('kanban.subIssueBoardTitle')}
+                className="-m-half ml-auto flex items-center p-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
+              >
+                <KanbanIcon className="size-icon-xs" weight="bold" />
+              </button>
+            )}
           </div>
         )}
     </div>

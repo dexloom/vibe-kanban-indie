@@ -1250,6 +1250,12 @@ export function KanbanContainer() {
                               onToggleSubIssues={() =>
                                 toggleSubIssuesExpanded(issue.id)
                               }
+                              onOpenSubBoard={() =>
+                                appNavigation.goToProjectIssueSubBoard(
+                                  projectId,
+                                  issue.id
+                                )
+                              }
                               isMobile={isMobile}
                               onPriorityClick={(e) => {
                                 e.stopPropagation();

@@ -362,6 +362,8 @@
     "subIssuesCount": "{{count}} sub-issues",
     "subIssuesCount_one": "{{count}} sub-issue",
     "subIssuesCount_other": "{{count}} sub-issues",
+    "subIssueBoardTitle": "Sub-issue board",
+    "subIssueBoardBack": "Back to parent",
     "viewTabs": {
       "active": "Active",
       "all": "All"
