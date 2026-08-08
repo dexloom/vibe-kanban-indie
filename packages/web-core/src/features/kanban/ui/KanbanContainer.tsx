@@ -236,9 +236,26 @@ export function KanbanContainer() {
         closeKanbanIssueComposer(issueComposerKey);
       }
 
-      appNavigation.goToProjectIssue(projectId, issueId);
+      // On the sub-board, selecting a card stays on the sub-board (keeps the
+      // parent filter) and just swaps the open child via the `?issue=` search
+      // param. Otherwise navigate to the main issue route.
+      if (parentIssueId) {
+        appNavigation.goToProjectIssueSubBoard(
+          projectId,
+          parentIssueId,
+          issueId
+        );
+      } else {
+        appNavigation.goToProjectIssue(projectId, issueId);
+      }
     },
-    [isIssueComposerOpen, issueComposerKey, appNavigation, projectId]
+    [
+      isIssueComposerOpen,
+      issueComposerKey,
+      appNavigation,
+      projectId,
+      parentIssueId,
+    ]
   );
   const openIssueWorkspace = useCallback(
     (issueId: string, workspaceAttemptId: string) => {

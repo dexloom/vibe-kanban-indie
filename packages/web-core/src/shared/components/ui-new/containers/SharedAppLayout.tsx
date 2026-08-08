@@ -158,7 +158,11 @@ export function SharedAppLayout() {
       // children), so the user sees the sub-issue in context with its
       // siblings. A top-level issue opens its own panel on the main board.
       if (parentIssueId) {
-        appNavigation.goToProjectIssueSubBoard(projectId, parentIssueId);
+        appNavigation.goToProjectIssueSubBoard(
+          projectId,
+          parentIssueId,
+          issueId
+        );
       } else {
         appNavigation.goToProjectIssue(projectId, issueId);
       }

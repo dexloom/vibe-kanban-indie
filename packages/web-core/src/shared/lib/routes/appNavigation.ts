@@ -40,11 +40,13 @@ export type AppDestination =
   | { kind: 'project-orchestrator-prompt'; projectId: string }
   // Sub-issue board (2026-08-07): a full-page kanban of one parent issue's
   // children grouped by status. `parentIssueId` is the parent whose
-  // children are shown. `sidebarMode: 'closed'` — it's its own page.
+  // children are shown; `selectedIssueId` optionally opens one child's panel
+  // directly (carried via the route `?issue=` search param).
   | {
       kind: 'project-issue-sub-board';
       projectId: string;
       parentIssueId: string;
+      selectedIssueId?: string;
     };
 
 export type NavigationTransition = {
@@ -94,6 +96,7 @@ export interface AppNavigation {
   goToProjectIssueSubBoard(
     projectId: string,
     parentIssueId: string,
+    selectedIssueId?: string,
     transition?: NavigationTransition
   ): void;
 }

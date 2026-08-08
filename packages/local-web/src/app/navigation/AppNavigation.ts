@@ -337,6 +337,9 @@ function destinationToLocalTarget(
           projectId: destination.projectId,
           issueId: destination.parentIssueId,
         },
+        ...(destination.selectedIssueId
+          ? { search: { issue: destination.selectedIssueId } }
+          : {}),
       } as const;
   }
 }
@@ -404,9 +407,19 @@ export function createLocalAppNavigation(): AppNavigation {
         { kind: 'project-orchestrator-prompt', projectId },
         transition
       ),
-    goToProjectIssueSubBoard: (projectId, parentIssueId, transition) =>
+    goToProjectIssueSubBoard: (
+      projectId,
+      parentIssueId,
+      selectedIssueId,
+      transition
+    ) =>
       navigateTo(
-        { kind: 'project-issue-sub-board', projectId, parentIssueId },
+        {
+          kind: 'project-issue-sub-board',
+          projectId,
+          parentIssueId,
+          ...(selectedIssueId ? { selectedIssueId } : {}),
+        },
         transition
       ),
   };
