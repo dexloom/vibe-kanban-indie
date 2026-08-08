@@ -305,6 +305,7 @@ async fn import_project(pool: &SqlitePool, cfg: &ProjectConfig) -> anyhow::Resul
                 color,
                 idx as i64,
                 false,
+                idx == names.len() - 1,
             )
             .await?;
         }
@@ -329,6 +330,7 @@ pub async fn seed_default_statuses(pool: &SqlitePool, project_id: Uuid) -> anyho
             color,
             idx as i64,
             false,
+            idx == DEFAULT_STATUSES.len() - 1,
         )
         .await?;
     }
@@ -537,6 +539,7 @@ mod tests {
                 "#fff",
                 i as i64,
                 false,
+                i == 2,
             )
             .await
             .unwrap();

@@ -167,6 +167,7 @@ fn to_api_status(s: DbProjectStatus) -> ApiProjectStatus {
         color: s.color,
         sort_order: s.sort_order as i32,
         hidden: s.hidden,
+        is_terminal: s.is_terminal,
         created_at: s.created_at,
     }
 }

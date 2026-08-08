@@ -13,6 +13,9 @@ pub struct ProjectStatus {
     pub color: String,
     pub sort_order: i32,
     pub hidden: bool,
+    /// Explicit "this column means finished" marker (supersedes the old
+    /// hidden ∪ last-visible positional heuristic).
+    pub is_terminal: bool,
     pub created_at: DateTime<Utc>,
 }
 
@@ -27,6 +30,8 @@ pub struct CreateProjectStatusRequest {
     pub color: String,
     pub sort_order: i32,
     pub hidden: bool,
+    #[serde(default)]
+    pub is_terminal: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -39,6 +44,8 @@ pub struct UpdateProjectStatusRequest {
     pub sort_order: Option<i32>,
     #[serde(default, deserialize_with = "some_if_present")]
     pub hidden: Option<bool>,
+    #[serde(default, deserialize_with = "some_if_present")]
+    pub is_terminal: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

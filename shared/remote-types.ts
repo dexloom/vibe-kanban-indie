@@ -8,7 +8,7 @@ export type Project = { id: string, name: string, color: string, sort_order: num
 
 export type Workspace = { id: string, project_id: string, issue_id: string | null, local_workspace_id: string | null, name: string | null, archived: boolean, files_changed: number | null, lines_added: number | null, lines_removed: number | null, created_at: string, updated_at: string, };
 
-export type ProjectStatus = { id: string, project_id: string, name: string, color: string, sort_order: number, hidden: boolean, created_at: string, };
+export type ProjectStatus = { id: string, project_id: string, name: string, color: string, sort_order: number, hidden: boolean, is_terminal: boolean, created_at: string, };
 
 export type Tag = { id: string, project_id: string, name: string, color: string, };
 
@@ -72,9 +72,9 @@ export type CreateProjectStatusRequest = {
  * Optional client-generated ID. If not provided, server generates one.
  * Using client-generated IDs enables stable optimistic updates.
  */
-id?: string, project_id: string, name: string, color: string, sort_order: number, hidden: boolean, };
+id?: string, project_id: string, name: string, color: string, sort_order: number, hidden: boolean, is_terminal?: boolean, };
 
-export type UpdateProjectStatusRequest = { name: string | null, color: string | null, sort_order: number | null, hidden: boolean | null, };
+export type UpdateProjectStatusRequest = { name: string | null, color: string | null, sort_order: number | null, hidden: boolean | null, is_terminal: boolean | null, };
 
 export type CreateIssueRequest = {
  /**

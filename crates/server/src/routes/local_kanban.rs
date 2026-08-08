@@ -648,6 +648,7 @@ async fn create_status(
         &req.color,
         req.sort_order as i64,
         req.hidden,
+        req.is_terminal,
     )
     .await?;
     Ok(mutation(row))
@@ -665,6 +666,7 @@ async fn update_status(
         req.color.as_deref(),
         req.sort_order.map(|v| v as i64),
         req.hidden,
+        req.is_terminal,
     )
     .await?
     .ok_or_else(|| ApiError::BadRequest("status not found".into()))?;
@@ -696,6 +698,7 @@ async fn bulk_statuses(
             item.changes.color.as_deref(),
             item.changes.sort_order.map(|v| v as i64),
             item.changes.hidden,
+            item.changes.is_terminal,
         )
         .await?
         {
@@ -1321,6 +1324,7 @@ mod tests {
             "#fff",
             0,
             false,
+            false,
         )
         .await
         .unwrap();
@@ -1577,6 +1581,7 @@ mod tests {
             "Todo",
             "#6366f1",
             0,
+            false,
             false,
         )
         .await

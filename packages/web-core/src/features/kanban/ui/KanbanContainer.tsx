@@ -330,19 +330,14 @@ export function KanbanContainer() {
   const shouldAnimateCreateButton = issues.length === 0;
 
   // Compute resolved status IDs for the blocked filter.
-  // A blocking issue is considered resolved when it's in:
-  // - The last visible status (rightmost kanban column, e.g. "Done")
-  // - Any hidden status (terminal states like "Cancelled" that don't appear as columns)
+  // A blocking issue is considered resolved when it's in a terminal column —
+  // the backend marks those explicitly via `is_terminal` (reordering columns
+  // can no longer change which one is "done").
   const doneStatusIds = useMemo(() => {
     const ids = new Set<string>();
     for (const s of statuses) {
-      if (s.hidden) ids.add(s.id);
+      if (s.is_terminal) ids.add(s.id);
     }
-    const sorted = statuses
-      .filter((s) => !s.hidden)
-      .sort((a, b) => a.sort_order - b.sort_order);
-    const lastVisible = sorted[sorted.length - 1];
-    if (lastVisible) ids.add(lastVisible.id);
     return ids;
   }, [statuses]);
 

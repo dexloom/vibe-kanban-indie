@@ -208,6 +208,8 @@ pub struct ProjectStatus {
     pub sort_order: i64,
     #[serde(default)]
     pub hidden: bool,
+    #[serde(default)]
+    pub is_terminal: bool,
 }
 
 /// Mirror of the wire `Issue` (a kanban card). Subset used for display.

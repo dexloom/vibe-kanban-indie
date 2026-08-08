@@ -276,6 +276,7 @@ fn sample_kanban() -> KanbanView {
             color: "#6366f1".into(),
             sort_order: 0,
             hidden: false,
+            is_terminal: false,
         }],
         issues_by_status,
         workspaces: Vec::new(),
