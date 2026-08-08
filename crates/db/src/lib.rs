@@ -26,12 +26,14 @@ async fn run_migrations(pool: &Pool<Sqlite>) -> Result<(), Error> {
                     )));
                 }
 
-                if !cfg!(windows) {
-                    // On non-Windows platforms, we do not attempt to auto-fix checksum mismatches
-                    return Err(sqlx::Error::Migrate(Box::new(
-                        MigrateError::VersionMismatch(version),
-                    )));
-                }
+                // Release builds: a checksum mismatch on an already-applied
+                // migration is almost always benign drift — a comment edit in a
+                // released migration (e.g. the 20260805000001 "subprojects →
+                // nested boards" wording change), Windows CRLF differences, etc.
+                // The schema is already correct, so heal the recorded checksum
+                // to the current file's and retry. This applies on ALL platforms
+                // (previously Windows-only); without it, users who applied an
+                // older wording of a migration can't start the app after update.
 
                 // Guard against infinite loop
                 if !processed_versions.insert(version) {
@@ -40,10 +42,8 @@ async fn run_migrations(pool: &Pool<Sqlite>) -> Result<(), Error> {
                     )));
                 }
 
-                // On Windows, there can be checksum mismatches due to line ending differences
-                // or other platform-specific issues. Update the stored checksum and retry.
                 tracing::warn!(
-                    "Migration version {} has checksum mismatch, updating stored checksum (likely platform-specific difference)",
+                    "Migration version {} has checksum mismatch, updating stored checksum (likely a comment/line-ending drift)",
                     version
                 );
 
