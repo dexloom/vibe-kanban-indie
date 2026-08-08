@@ -1717,6 +1717,7 @@ mod tests {
             "#6366f1",
             0,
             false,
+            false,
         )
         .await
         .unwrap();

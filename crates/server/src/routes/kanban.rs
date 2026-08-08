@@ -1210,7 +1210,8 @@ mod tests {
         lanes: usize,
         cards_per_lane: usize,
     ) -> Board {
-        use super::{DbIssue, DbIssueRelationship, DbProjectStatus, NewIssue};
+        use super::{DbIssue, DbIssueRelationship, DbProjectStatus};
+        use db::models::issue::NewIssue;
 
         clear_key_chain_cache();
         let project_id = Uuid::new_v4();
@@ -1230,9 +1231,11 @@ mod tests {
         .unwrap();
 
         let status_id = Uuid::new_v4();
-        DbProjectStatus::create(pool, status_id, project_id, "Todo", "#94a3b8", 0, false)
-            .await
-            .unwrap();
+        DbProjectStatus::create(
+            pool, status_id, project_id, "Todo", "#94a3b8", 0, false, false,
+        )
+        .await
+        .unwrap();
 
         let mut board = Board {
             project_id,

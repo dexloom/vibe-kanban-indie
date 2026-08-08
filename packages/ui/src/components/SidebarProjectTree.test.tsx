@@ -69,6 +69,7 @@ const statusTodo: ProjectStatus = {
   color: '210 50% 50%',
   sort_order: 0,
   hidden: false,
+  is_terminal: false,
   created_at: '2026-08-03T00:00:00.000Z',
 };
 

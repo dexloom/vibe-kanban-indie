@@ -28,6 +28,7 @@ const status = (
   color: '0 0% 50%',
   sort_order: 0,
   hidden: false,
+  is_terminal: false,
   created_at: '2026-08-01T00:00:00.000Z',
   ...overrides,
 });
