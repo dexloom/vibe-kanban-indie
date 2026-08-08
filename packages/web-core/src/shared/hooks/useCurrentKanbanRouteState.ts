@@ -40,6 +40,9 @@ export function useCurrentKanbanRouteState(): KanbanRouteState {
             ...routeState,
             issueId: subBoardSelectedIssue,
             sidebarMode: 'issue',
+            // resolveKanbanRouteState returns isPanelOpen:false for the
+            // sub-board; opening a child's panel via ?issue= must flip it.
+            isPanelOpen: true,
           }
         : routeState;
     return {
