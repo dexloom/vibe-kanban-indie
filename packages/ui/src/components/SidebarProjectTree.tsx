@@ -53,6 +53,9 @@ interface SidebarProjectTreeProps {
   /** Opens the flat workspaces dashboard when the user clicks the open-page
    *  icon on a Workspaces section row. */
   onOpenWorkspacesPage?: (projectId: string) => void;
+  /** Opens the most-recent workspace under the Orchestrator (Unassigned)
+   *  pseudo-project when its ⚡ icon is clicked. */
+  onOpenLastWorkspace?: () => void;
   /** ADR-015: opens `CreateRemoteProjectDialog` with `parentId` set so the
    *  new project is created as a child board of the supplied project id. */
   onCreateChildBoard?: (parentId: string) => void;
@@ -90,6 +93,7 @@ export function SidebarProjectTree({
   onSelectWorkspace,
   onOpenProjectPage,
   onOpenWorkspacesPage,
+  onOpenLastWorkspace,
   onCreateChildBoard,
   onSelectOrchestratorPrompt,
   activeProjectPromptId = null,
@@ -533,6 +537,7 @@ export function SidebarProjectTree({
                   onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
                   onOpenProjectPage={onOpenProjectPage}
                   onOpenWorkspacesPage={onOpenWorkspacesPage}
+                  onOpenLastWorkspace={onOpenLastWorkspace}
                   activeProjectId={activeProjectId}
                   activeProjectPromptId={activeProjectPromptId}
                   activeWorkspaceId={activeWorkspaceId}

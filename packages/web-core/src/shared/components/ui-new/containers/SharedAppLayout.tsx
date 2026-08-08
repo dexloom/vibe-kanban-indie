@@ -42,6 +42,7 @@ import {
 } from 'shared/remote-types';
 import { useWorkspaceProjectMembership } from '@/shared/hooks/useWorkspaceProjectMembership';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
+import { compareWorkspaceDashboardRecency } from '@/shared/lib/workspaceStatus/workspaceStatus';
 import type { SidebarWorkspace } from '@/shared/hooks/useWorkspaces';
 import { DragProvider, type DragCompletion } from '@vibe/ui/components/dnd';
 import { resolveDragEnd } from '@/shared/lib/resolveDragEnd';
@@ -531,6 +532,28 @@ export function SharedAppLayout() {
     [archivedWorkspaces]
   );
 
+  // Orchestrator ⚡ icon: open the most-recent workspace under the
+  // Orchestrator (Unassigned) pseudo-project directly from the top-level row,
+  // skipping the expand → Workspaces → bucket drill-down. Prefers active
+  // workspaces, falls back to archived; sorts by dashboard recency.
+  const handleOpenLastOrchestratorWorkspace = useCallback(() => {
+    const isUnassignedWs = (ws: OutlinerWorkspace) =>
+      !(membership.get(ws.id)?.size ?? 0);
+    const candidates = [
+      ...outlinerWorkspaces.filter(isUnassignedWs),
+      ...outlinerArchivedWorkspaces.filter(isUnassignedWs),
+    ];
+    if (candidates.length === 0) return;
+    const sorted = [...candidates].sort(compareWorkspaceDashboardRecency);
+    const last = sorted[0];
+    if (last) appNavigation.goToWorkspace(last.id);
+  }, [
+    outlinerWorkspaces,
+    outlinerArchivedWorkspaces,
+    membership,
+    appNavigation,
+  ]);
+
   return (
     <SyncErrorProvider>
       <DragProvider onDrop={handleCrossSurfaceDragEnd}>
@@ -571,6 +594,7 @@ export function SharedAppLayout() {
                     onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
                     onOpenProjectPage={handleProjectClick}
                     onOpenWorkspacesPage={handleOpenWorkspacesPage}
+                    onOpenLastWorkspace={handleOpenLastOrchestratorWorkspace}
                     onSelectOrchestratorPrompt={handleSelectOrchestratorPrompt}
                     onCreateChildBoard={handleCreateChildBoard}
                     isMultiSelectActive={isMultiSelectActive}
@@ -646,6 +670,10 @@ export function SharedAppLayout() {
                       }}
                       onOpenWorkspacesPage={(projectId) => {
                         handleOpenWorkspacesPage(projectId);
+                        setIsDrawerOpen(false);
+                      }}
+                      onOpenLastWorkspace={() => {
+                        handleOpenLastOrchestratorWorkspace();
                         setIsDrawerOpen(false);
                       }}
                       onSelectOrchestratorPrompt={(id) => {

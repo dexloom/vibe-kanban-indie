@@ -1,6 +1,7 @@
 import type { NodeApi, NodeRendererProps } from 'react-arborist';
 import {
   ArrowSquareOutIcon,
+  LightningIcon,
   NotePencilIcon,
   PlusIcon,
 } from '@phosphor-icons/react';
@@ -55,6 +56,9 @@ function ProjectTreeNode(
     onCreateChildBoard?: (parentId: string) => void;
     onSelectOrchestratorPrompt?: (projectId: string) => void;
     onOpenProjectPage?: (projectId: string) => void;
+    /** Opens the most-recent workspace under the Orchestrator (Unassigned)
+     *  pseudo-project. Rendered only on that row. */
+    onOpenLastWorkspace?: () => void;
     activeProjectId: string | null;
     tintColor?: string | null;
     dimmed?: boolean;
@@ -67,6 +71,7 @@ function ProjectTreeNode(
     onCreateChildBoard,
     onSelectOrchestratorPrompt,
     onOpenProjectPage,
+    onOpenLastWorkspace,
     activeProjectId,
     tintColor,
     dimmed,
@@ -155,6 +160,26 @@ function ProjectTreeNode(
         >
           {project.name}
         </span>
+        {isUnassigned && onOpenLastWorkspace && (
+          <button
+            aria-label={t('sidebar.openOrchestratorWorkspace', 'Open last workspace')}
+            title={t('sidebar.openOrchestratorWorkspace', 'Open last workspace')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenLastWorkspace();
+            }}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+            }}
+            className={cn(
+              'shrink-0 rounded-sm p-0.5',
+              'text-low hover:text-high hover:bg-tertiary',
+              'transition-opacity focus:outline-none'
+            )}
+          >
+            <LightningIcon className="size-4.5" weight="fill" />
+          </button>
+        )}
         {showOpenIcon && (
           <button
             aria-label={t('sidebar.openProjectPage', 'Open project board')}
@@ -361,6 +386,7 @@ export function TreeNodeRouter(
     onSelectOrchestratorPrompt?: (projectId: string) => void;
     onOpenProjectPage?: (projectId: string) => void;
     onOpenWorkspacesPage?: (projectId: string) => void;
+    onOpenLastWorkspace?: () => void;
     activeProjectId: string | null;
     activeProjectPromptId?: string | null;
     activeWorkspaceId: string | null;
@@ -383,6 +409,7 @@ export function TreeNodeRouter(
     onSelectOrchestratorPrompt,
     onOpenProjectPage,
     onOpenWorkspacesPage,
+    onOpenLastWorkspace,
     activeProjectId,
     activeProjectPromptId,
     activeWorkspaceId,
@@ -410,6 +437,7 @@ export function TreeNodeRouter(
           onCreateChildBoard={onCreateChildBoard}
           onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
           onOpenProjectPage={onOpenProjectPage}
+          onOpenLastWorkspace={onOpenLastWorkspace}
           activeProjectId={activeProjectId}
           tintColor={tintColor}
           dimmed={dimmed}
