@@ -76,7 +76,7 @@ Many tools accept an optional `project_id` parameter. When running inside a work
 
 | Tool | Purpose | Required Parameters | Optional Parameters | Returns |
 |------|---------|-------------------|-------------------|---------|
-| `list_issues` | List issues in a project | None | `project_id`<br/>`status`<br/>`priority`<br/>`search`<br/>`simple_id`<br/>`parent_issue_id`<br/>`tag_id`<br/>`tag_name`<br/>`limit`<br/>`offset` | Paginated list of thin summary rows: `id`, `simple_id`, `title`, `status`, `updated_at`, plus `priority`/`parent_issue_id`/PR fields only when set. Never the description; null fields are omitted - use `get_issue` for detail. |
+| `list_issues` | List issues in a project | None | `project_id`<br/>`status`<br/>`priority`<br/>`search`<br/>`simple_id`<br/>`parent_issue_id`<br/>`tag_id`<br/>`tag_name`<br/>`sort_field`<br/>`sort_direction`<br/>`limit`<br/>`offset` | Paginated list of thin summary rows: `id`, `simple_id`, `title`, `status`, `updated_at`, plus `priority`/`parent_issue_id`/PR fields only when set. Never the description; null fields are omitted - use `get_issue` for detail. |
 | `create_issue` | Create a new issue | `title` | `project_id`<br/>`description`<br/>`priority`<br/>`parent_issue_id` | Created issue ID |
 | `get_issue` | Get detailed issue information | `issue_id` | None | Full issue details with tags, relationships, sub-issues, and PRs |
 | `update_issue` | Update an existing issue | `issue_id` | `title`<br/>`description`<br/>`status`<br/>`priority`<br/>`parent_issue_id` | Minimal ack: `id`, `simple_id`, `status`, `status_id`, `updated_at`, `changed[]`, plus echoes of the changed fields. Never the description body (only `description_chars`) - use `get_issue` for the card body. |

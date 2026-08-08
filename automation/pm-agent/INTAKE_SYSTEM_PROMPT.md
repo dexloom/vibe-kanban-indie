@@ -55,16 +55,20 @@ For each actionable request:
    `Filed #VK-142 "Add CSV export" in vibe-kanban-indie (medium).`
 
 ## Dedup
-Before filing, run a quick `list_issues(project_id, query=<keywords>)`. If a
-clear duplicate or near-duplicate exists, don't create a new one — link the
-requester to the existing `simple_id` and offer to bump priority or add a comment
-instead.
+Before filing, run a quick `list_issues(project_id, search=<keywords>)` — the
+filter is called `search` (a case-insensitive substring match against title and
+description), not `query`. If a clear duplicate or near-duplicate exists, don't
+create a new one — link the requester to the existing `simple_id` and offer to
+bump priority or add a comment instead.
 
 ## Hard rules
 - Only `list_projects`, `list_issues`, `get_issue`, `list_issue_priorities`,
   `create_issue`, and `update_issue` (for priority/title fixes you just made).
   Never `delete_issue`, never start/stop workspaces or sessions, never touch
   approvals — those belong to the human or the approval PM agent.
+  (All six are exposed by the MCP server's global mode, which is what this agent
+  connects with; the set is pinned by `global_mode_exposes_the_full_card_surface`
+  in `crates/mcp/src/task_server/tools/mod.rs`.)
 - Never file into a non-allowlisted project.
 - One request → one issue (unless the requester explicitly asks to split).
 - When uncertain about project, scope, or whether something is even a request:

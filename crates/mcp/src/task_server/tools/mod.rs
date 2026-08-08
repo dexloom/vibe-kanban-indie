@@ -1,8 +1,9 @@
 use std::str::FromStr;
 
-use api_types::Issue;
-use db::models::execution_process::ExecutionProcessStatus;
+use api_types::{Issue, ListProjectStatusesResponse, ProjectStatus};
+use db::models::{execution_process::ExecutionProcessStatus, tag::Tag};
 use executors::executors::BaseCodingAgent;
+use regex::Regex;
 use rmcp::{
     ErrorData,
     model::{CallToolResult, Content},
@@ -39,7 +40,9 @@ mod approvals;
 mod context;
 mod issue_relationships;
 mod issue_tags;
+mod issues;
 mod orchestrator_prompt;
+mod projects;
 mod repos;
 mod sessions;
 mod task_attempts;
@@ -50,6 +53,13 @@ impl McpServer {
         Self::context_tools_router()
             + Self::workspaces_tools_router()
             + Self::repos_tools_router()
+            // The card surface every board-driving agent depends on
+            // (orchestrator, intake, product). Deleted alongside the cloud
+            // stack in e41e2c16 and restored here: the tools were always
+            // local-REST-backed, only their module names said "remote".
+            // `global_mode_exposes_the_full_card_surface` pins the set.
+            + Self::projects_tools_router()
+            + Self::issues_tools_router()
             + Self::issue_tags_tools_router()
             + Self::issue_relationships_tools_router()
             + Self::task_attempts_tools_router()
@@ -215,6 +225,51 @@ impl McpServer {
         Ok(())
     }
 
+    // Expands @tagname references in text by replacing them with tag content.
+    async fn expand_tags(&self, text: &str) -> String {
+        let tag_pattern = match Regex::new(r"@([^\s@]+)") {
+            Ok(re) => re,
+            Err(_) => return text.to_string(),
+        };
+
+        let tag_names: Vec<String> = tag_pattern
+            .captures_iter(text)
+            .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
+
+        if tag_names.is_empty() {
+            return text.to_string();
+        }
+
+        let url = self.url("/api/tags");
+        let tags: Vec<Tag> = match self.client.get(&url).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                match resp.json::<ApiResponseEnvelope<Vec<Tag>>>().await {
+                    Ok(envelope) if envelope.success => envelope.data.unwrap_or_default(),
+                    _ => return text.to_string(),
+                }
+            }
+            _ => return text.to_string(),
+        };
+
+        let tag_map: std::collections::HashMap<&str, &str> = tags
+            .iter()
+            .map(|t| (t.tag_name.as_str(), t.content.as_str()))
+            .collect();
+
+        let result = tag_pattern.replace_all(text, |caps: &regex::Captures| {
+            let tag_name = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+            match tag_map.get(tag_name) {
+                Some(content) => (*content).to_string(),
+                None => caps.get(0).map(|m| m.as_str()).unwrap_or("").to_string(),
+            }
+        });
+
+        result.into_owned()
+    }
+
     // Resolves a project_id from an explicit parameter or falls back to context.
     fn resolve_project_id(&self, explicit: Option<Uuid>) -> Result<Uuid, ToolError> {
         if let Some(id) = explicit {
@@ -228,6 +283,67 @@ impl McpServer {
         Err(ToolError::message(
             "project_id is required (not available from workspace context)",
         ))
+    }
+
+    // Fetches project statuses for a project.
+    async fn fetch_project_statuses(
+        &self,
+        project_id: Uuid,
+    ) -> Result<Vec<ProjectStatus>, ToolError> {
+        let url = self.url(&format!("/api/project-statuses?project_id={}", project_id));
+        let response: ListProjectStatusesResponse = self.send_json(self.client.get(&url)).await?;
+        Ok(response.project_statuses)
+    }
+
+    /// Pure: resolve a status NAME to its id against an already-fetched status list.
+    ///
+    /// Case-insensitive. The error message is read VERBATIM by the orchestrator prompt
+    /// ("use one of those exact names"), so its wording must not drift. See VIBE-2 / SPEC §4.2.
+    fn status_id_from_name(
+        statuses: &[ProjectStatus],
+        status_name: &str,
+    ) -> Result<Uuid, ToolError> {
+        statuses
+            .iter()
+            .find(|s| s.name.eq_ignore_ascii_case(status_name))
+            .map(|s| s.id)
+            .ok_or_else(|| {
+                let available: Vec<&str> = statuses.iter().map(|s| s.name.as_str()).collect();
+                ToolError::message(format!(
+                    "Unknown status '{}'. Available statuses: {:?}",
+                    status_name, available
+                ))
+            })
+    }
+
+    /// Pure: resolve a status id to its display name against an already-fetched status list.
+    /// Falls back to the UUID string when the id is not in the list — the same fallback this
+    /// crate has always had.
+    fn status_name_from_id(statuses: &[ProjectStatus], status_id: Uuid) -> String {
+        statuses
+            .iter()
+            .find(|s| s.id == status_id)
+            .map(|s| s.name.clone())
+            .unwrap_or_else(|| status_id.to_string())
+    }
+
+    // Gets the default status_id for a project (first non-hidden status by sort_order).
+    async fn default_status_id(&self, project_id: Uuid) -> Result<Uuid, ToolError> {
+        let statuses = self.fetch_project_statuses(project_id).await?;
+        statuses
+            .iter()
+            .filter(|s| !s.hidden)
+            .min_by_key(|s| s.sort_order)
+            .map(|s| s.id)
+            .ok_or_else(|| ToolError::message("No visible statuses found for project"))
+    }
+
+    // Resolves a status_id to its display name. Falls back to UUID string if lookup fails.
+    async fn resolve_status_name(&self, project_id: Uuid, status_id: Uuid) -> String {
+        match self.fetch_project_statuses(project_id).await {
+            Ok(statuses) => Self::status_name_from_id(&statuses, status_id),
+            Err(_) => status_id.to_string(),
+        }
     }
 
     // Links a workspace to a remote issue by fetching issue.project_id and calling link endpoint.
@@ -286,7 +402,7 @@ mod tests {
     use rmcp::handler::server::tool::ToolRouter;
     use uuid::Uuid;
 
-    use super::McpServer;
+    use super::{McpServer, ProjectStatus};
     use crate::task_server::{McpContext, McpMode, McpRepoContext};
 
     static RUSTLS_PROVIDER: Once = Once::new();
@@ -351,6 +467,85 @@ mod tests {
         // unblock and stop agents.
         assert!(actual.contains("respond_to_approval"));
         assert!(actual.contains("stop_execution"));
+    }
+
+    /// Global mode is the ONLY mode the plugin connects with (`.mcp.json` passes
+    /// no `--mode`), so this exact-set assertion is the release gate for the
+    /// whole agent-facing tool surface.
+    ///
+    /// ⚠️ Why an exact set and not a bag of `contains` checks: `e41e2c16` deleted
+    /// the issue + project tools as collateral of the cloud-stack removal and
+    /// nothing failed — every board-driving agent (orchestrator, intake,
+    /// product) silently lost its entire card surface. A router-level `+` that
+    /// disappears in a refactor now fails HERE, at `cargo test`, instead of at
+    /// an operator's first tick against a fresh npm release.
+    ///
+    /// Adding a tool is a deliberate act: extend this set in the same commit.
+    #[test]
+    fn global_mode_exposes_the_full_card_surface() {
+        let actual = tool_names(McpServer::global_mode_router());
+        let expected = BTreeSet::from([
+            "add_issue_tag".to_string(),
+            "create_issue".to_string(),
+            "create_issue_relationship".to_string(),
+            "create_session".to_string(),
+            "delete_issue".to_string(),
+            "delete_issue_relationship".to_string(),
+            "delete_workspace".to_string(),
+            "get_context".to_string(),
+            "get_execution".to_string(),
+            "get_issue".to_string(),
+            "get_repo".to_string(),
+            "link_workspace_issue".to_string(),
+            "list_issue_priorities".to_string(),
+            "list_issue_tags".to_string(),
+            "list_issues".to_string(),
+            "list_pending_approvals".to_string(),
+            "list_projects".to_string(),
+            "list_repos".to_string(),
+            "list_sessions".to_string(),
+            "list_tags".to_string(),
+            "list_workspaces".to_string(),
+            "remove_issue_tag".to_string(),
+            "respond_to_approval".to_string(),
+            "run_issue_in_workspace".to_string(),
+            "run_session_prompt".to_string(),
+            "start_workspace".to_string(),
+            "stop_execution".to_string(),
+            "update_cleanup_script".to_string(),
+            "update_dev_server_script".to_string(),
+            "update_issue".to_string(),
+            "update_session".to_string(),
+            "update_setup_script".to_string(),
+            "update_workspace".to_string(),
+        ]);
+
+        assert_eq!(actual, expected);
+    }
+
+    /// The seven tools the board-driving agents' allowlists name by hand. Named
+    /// individually (on top of the exact-set assertion above) so a failure says
+    /// WHICH card tool went missing, not just "the set changed".
+    #[test]
+    fn global_mode_keeps_every_tool_the_board_agents_allowlist() {
+        let actual = tool_names(McpServer::global_mode_router());
+
+        for tool in [
+            "list_issues",
+            "get_issue",
+            "create_issue",
+            "update_issue",
+            "delete_issue",
+            "list_issue_priorities",
+            "list_projects",
+        ] {
+            assert!(
+                actual.contains(tool),
+                "`{tool}` MUST stay in the global_mode router - the plugin's agent \
+                 allowlists name it exactly, and without it every board-driving \
+                 agent loses part of its card surface"
+            );
+        }
     }
 
     /// ADR-016: `get_orchestrator_prompt` is orchestrator-only — card-scoped
@@ -430,5 +625,60 @@ mod tests {
         let serialized = serde_json::to_value(&context).expect("context should serialize");
 
         assert!(serialized.get("orchestrator_session_id").is_none());
+    }
+
+    fn status_fixture(id: Uuid, name: &str) -> ProjectStatus {
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "project_id": "11111111-1111-1111-1111-111111111111",
+            "name": name,
+            "color": "#000000",
+            "sort_order": 0,
+            "hidden": false,
+            "created_at": "2026-01-01T00:00:00Z"
+        }))
+        .expect("fixture JSON should deserialize into ProjectStatus")
+    }
+
+    #[test]
+    fn status_id_from_name_matches_case_insensitively() {
+        let in_progress = Uuid::new_v4();
+        let statuses = [
+            status_fixture(Uuid::new_v4(), "Todo"),
+            status_fixture(in_progress, "In Progress"),
+        ];
+
+        assert_eq!(
+            McpServer::status_id_from_name(&statuses, "in progress").unwrap(),
+            in_progress
+        );
+        // Round-trips to the board's CANONICAL casing — this is why `update_issue` reports the
+        // resolved name rather than echoing what the caller typed.
+        assert_eq!(
+            McpServer::status_name_from_id(&statuses, in_progress),
+            "In Progress"
+        );
+    }
+
+    #[test]
+    fn status_id_from_name_error_text_is_unchanged() {
+        // The orchestrator prompt reads this string VERBATIM. Byte-for-byte pin.
+        let statuses = [
+            status_fixture(Uuid::new_v4(), "Todo"),
+            status_fixture(Uuid::new_v4(), "In Progress"),
+        ];
+
+        let err = McpServer::status_id_from_name(&statuses, "Shipped").unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unknown status 'Shipped'. Available statuses: [\"Todo\", \"In Progress\"]"
+        );
+
+        // An unknown id falls back to the UUID string rather than erroring.
+        let missing = Uuid::new_v4();
+        assert_eq!(
+            McpServer::status_name_from_id(&statuses, missing),
+            missing.to_string()
+        );
     }
 }

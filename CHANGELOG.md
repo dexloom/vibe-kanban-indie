@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Restored the MCP issue + project tools** — `list_issues`, `get_issue`,
+  `create_issue`, `update_issue`, `delete_issue`, `list_issue_priorities` and
+  `list_projects`. They were deleted as collateral of the cloud-stack removal
+  (`e41e2c16`), which took `remote_issues.rs` / `remote_projects.rs` with it even
+  though both talked to the *local* REST routes — only the module names said
+  "remote". The result was silent and total: every board-driving agent
+  (orchestrator, intake, product) lost its entire card surface on
+  `0.2.24-beta.*`, with a dead orchestrator for anyone on the `beta` dist-tag.
+  Recovered from the deleting commit's parent rather than rewritten, so the
+  response shapes stay byte-compatible with `0.2.23` — in particular
+  `list_issues`' thin rows, `update_issue`'s minimal ack, and the
+  `updated_at` stamp the orchestrator's card cache compares by exact string
+  equality. Modules are now `issues.rs` / `projects.rs`; nothing "remote"
+  remains. `list_issues`' filter set is unchanged except `assignee_user_id`,
+  whose backing field no longer exists after the user-entity excision.
+  The global-mode tool-name set is now pinned by an exact-set test, so this
+  class of regression fails `cargo test` instead of shipping. See
+  `docs/ADR/ADR-022-mcp-card-tool-surface.md`.
+
 ## [0.2.24-beta.1] - 2026-08-05
 
 ### Added
