@@ -35,7 +35,7 @@ use axum::{
 use db::models::{
     execution_process::ExecutionProcess,
     file::{CommentAttachment, IssueAttachment},
-    issue::{Issue as DbIssue, NewIssue},
+    issue::Issue as DbIssue,
     issue_relationship::IssueRelationship as DbIssueRelationship,
     issue_workspace::IssueWorkspace,
     kanban_tag::{IssueTag as DbIssueTag, KanbanTag},
@@ -53,7 +53,7 @@ use std::str::FromStr;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
-use super::local_kanban::{derive_key_chain, merge_and_update_issue};
+use super::local_kanban::{create_issue_record, merge_and_update_issue};
 use crate::{
     DeploymentImpl,
     error::ApiError,
@@ -580,35 +580,7 @@ async fn create_issue(
     State(deployment): State<DeploymentImpl>,
     Json(req): Json<CreateIssueRequest>,
 ) -> Result<ResponseJson<ApiResponse<MutationResponse<ApiIssue>>>, ApiError> {
-    let pool = &deployment.db().pool;
-    let project = DbProject::find_by_id(pool, req.project_id)
-        .await?
-        .ok_or_else(|| ApiError::BadRequest("project not found".into()))?;
-    let key = derive_key_chain(pool, project.id).await?;
-    let id = req.id.unwrap_or_else(Uuid::new_v4);
-    let priority = req.priority.as_ref().map(|p| priority_str(p).to_string());
-    let ext = serde_json::to_string(&req.extension_metadata).unwrap_or_else(|_| "{}".to_string());
-
-    let issue = DbIssue::create(
-        pool,
-        NewIssue {
-            id,
-            project_id: req.project_id,
-            status_id: req.status_id,
-            title: &req.title,
-            description: req.description.as_deref(),
-            priority: priority.as_deref(),
-            start_date: req.start_date,
-            target_date: req.target_date,
-            completed_at: req.completed_at,
-            sort_order: req.sort_order,
-            parent_issue_id: req.parent_issue_id,
-            parent_issue_sort_order: req.parent_issue_sort_order,
-            extension_metadata: &ext,
-            key: &key,
-        },
-    )
-    .await?;
+    let issue = create_issue_record(&deployment.db().pool, req).await?;
     Ok(mutated(to_api_issue(issue)))
 }
 
@@ -995,7 +967,7 @@ mod tests {
     use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
     use uuid::Uuid;
 
-    use super::derive_key_chain;
+    use super::super::local_kanban::derive_key_chain;
 
     async fn pool() -> SqlitePool {
         let pool = SqlitePoolOptions::new()

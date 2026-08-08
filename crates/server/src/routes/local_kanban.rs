@@ -717,16 +717,64 @@ async fn delete_status(
 // Issues
 // ---------------------------------------------------------------------------
 
-async fn create_issue(
-    State(deployment): State<DeploymentImpl>,
-    ResponseJson(req): ResponseJson<CreateIssueRequest>,
-) -> Result<ResponseJson<MutationResponse<DbIssue>>, ApiError> {
-    let pool = &deployment.db().pool;
+/// Write-time hierarchy guard for `parent_issue_id`. Rejects, with distinct
+/// errors: self-parenting (`A→A`), a parent in a different project, a missing
+/// parent, and any cycle (`A→B→A`) detected by walking the proposed parent's
+/// ancestor chain with a visited set. Consumers can then walk parent chains
+/// without their own guards (the frontend's `buildTreeData` truncation stays
+/// as belt-and-braces only).
+pub(crate) async fn validate_issue_parent(
+    pool: &SqlitePool,
+    child_id: Uuid,
+    child_project_id: Uuid,
+    parent_id: Uuid,
+) -> Result<(), ApiError> {
+    if parent_id == child_id {
+        return Err(ApiError::BadRequest(
+            "issue cannot be its own parent".into(),
+        ));
+    }
+    let mut visited = std::collections::HashSet::new();
+    let mut cursor = Some(parent_id);
+    while let Some(id) = cursor {
+        if id == child_id {
+            return Err(ApiError::BadRequest(
+                "parent issue would create a cycle".into(),
+            ));
+        }
+        if !visited.insert(id) {
+            // Pre-existing anomaly in the chain (should be impossible once
+            // this guard is in place); stop rather than loop forever.
+            break;
+        }
+        let Some(ancestor) = DbIssue::find_by_id(pool, id).await? else {
+            return Err(ApiError::BadRequest("parent issue not found".into()));
+        };
+        if ancestor.project_id != child_project_id {
+            return Err(ApiError::BadRequest(
+                "parent issue is in a different project".into(),
+            ));
+        }
+        cursor = ancestor.parent_issue_id;
+    }
+    Ok(())
+}
+
+/// Shared create path for both kanban routers (`/v1/issues` and
+/// `/v1/fallback`-paired mutations). Validates the project and the parent
+/// hierarchy before writing.
+pub(crate) async fn create_issue_record(
+    pool: &SqlitePool,
+    req: CreateIssueRequest,
+) -> Result<DbIssue, ApiError> {
     if DbProject::find_by_id(pool, req.project_id).await?.is_none() {
         return Err(ApiError::BadRequest("project not found".into()));
     }
-    let key = derive_key_chain(pool, req.project_id).await?;
     let id = req.id.unwrap_or_else(Uuid::new_v4);
+    if let Some(parent_id) = req.parent_issue_id {
+        validate_issue_parent(pool, id, req.project_id, parent_id).await?;
+    }
+    let key = derive_key_chain(pool, req.project_id).await?;
     let priority = req.priority.as_ref().map(|p| priority_str(p).to_string());
     let ext = serde_json::to_string(&req.extension_metadata).unwrap_or_else(|_| "{}".to_string());
 
@@ -750,6 +798,14 @@ async fn create_issue(
         },
     )
     .await?;
+    Ok(issue)
+}
+
+async fn create_issue(
+    State(deployment): State<DeploymentImpl>,
+    ResponseJson(req): ResponseJson<CreateIssueRequest>,
+) -> Result<ResponseJson<MutationResponse<DbIssue>>, ApiError> {
+    let issue = create_issue_record(&deployment.db().pool, req).await?;
     Ok(mutation(issue))
 }
 
@@ -788,6 +844,15 @@ pub(crate) async fn merge_and_update_issue(
         Some(v) => v,
         None => existing.parent_issue_id,
     };
+    // Hierarchy guard: only an explicit SET of a parent needs validation
+    // (`None` keeps the existing — already validated — parent; `Some(None)`
+    // clears it, which can never introduce a cycle or cross-project edge).
+    if let Some(parent_id) = parent_issue_id
+        && req.parent_issue_id.is_some()
+        && Some(parent_id) != existing.parent_issue_id
+    {
+        validate_issue_parent(pool, id, existing.project_id, parent_id).await?;
+    }
     let parent_issue_sort_order = match req.parent_issue_sort_order {
         Some(v) => v,
         None => existing.parent_issue_sort_order,
@@ -1590,5 +1655,326 @@ mod tests {
         .expect("issue exists");
         assert!(updated.extension_metadata.get("pipeline").is_none());
         assert!(updated.extension_metadata.get("intake").is_some());
+    }
+
+    // -----------------------------------------------------------------
+    // Hierarchy integrity guards (ADR-022)
+    // -----------------------------------------------------------------
+
+    fn issue_req(
+        project_id: Uuid,
+        status_id: Uuid,
+        id: Option<Uuid>,
+        parent: Option<Uuid>,
+    ) -> api_types::CreateIssueRequest {
+        api_types::CreateIssueRequest {
+            id,
+            project_id,
+            status_id,
+            title: "Card".into(),
+            description: None,
+            priority: None,
+            start_date: None,
+            target_date: None,
+            completed_at: None,
+            sort_order: 0.0,
+            parent_issue_id: parent,
+            parent_issue_sort_order: None,
+            extension_metadata: serde_json::json!({}),
+        }
+    }
+
+    fn patch_parent(parent: Option<Uuid>) -> api_types::UpdateIssueRequest {
+        api_types::UpdateIssueRequest {
+            status_id: None,
+            title: None,
+            description: None,
+            priority: None,
+            start_date: None,
+            target_date: None,
+            completed_at: None,
+            sort_order: None,
+            parent_issue_id: Some(parent),
+            parent_issue_sort_order: None,
+            extension_metadata: None,
+        }
+    }
+
+    async fn project_with_status(pool: &SqlitePool, name: &str) -> (DbProject, DbProjectStatus) {
+        let project = create_project_record(pool, Uuid::new_v4(), name, "#6366f1", None)
+            .await
+            .unwrap();
+        let status = DbProjectStatus::create(
+            pool,
+            Uuid::new_v4(),
+            project.id,
+            "Todo",
+            "#6366f1",
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+        (project, status)
+    }
+
+    /// Create path: self-parent (`A→A`) is rejected before any row is written.
+    #[tokio::test]
+    async fn create_issue_record_rejects_self_parent() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let (project, status) = project_with_status(&pool, "Acme").await;
+        let id = Uuid::new_v4();
+
+        let err =
+            super::create_issue_record(&pool, issue_req(project.id, status.id, Some(id), Some(id)))
+                .await
+                .unwrap_err();
+        match err {
+            ApiError::BadRequest(msg) => assert_eq!(msg, "issue cannot be its own parent"),
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+        assert!(
+            DbIssue::find_by_id(&pool, id).await.unwrap().is_none(),
+            "no row may be written for a rejected parent"
+        );
+    }
+
+    /// Create path: a parent in a different project is rejected distinctly.
+    #[tokio::test]
+    async fn create_issue_record_rejects_cross_project_parent() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let (project_a, status_a) = project_with_status(&pool, "Alpha").await;
+        let (project_b, status_b) = project_with_status(&pool, "Beta").await;
+        let parent =
+            super::create_issue_record(&pool, issue_req(project_a.id, status_a.id, None, None))
+                .await
+                .unwrap();
+
+        let err = super::create_issue_record(
+            &pool,
+            issue_req(project_b.id, status_b.id, None, Some(parent.id)),
+        )
+        .await
+        .unwrap_err();
+        match err {
+            ApiError::BadRequest(msg) => assert_eq!(msg, "parent issue is in a different project"),
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+    }
+
+    /// Create path: a nonexistent parent is rejected distinctly (the schema
+    /// FK would catch it later — this guard makes the error explicit).
+    #[tokio::test]
+    async fn create_issue_record_rejects_missing_parent() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let (project, status) = project_with_status(&pool, "Acme").await;
+
+        let err = super::create_issue_record(
+            &pool,
+            issue_req(project.id, status.id, None, Some(Uuid::new_v4())),
+        )
+        .await
+        .unwrap_err();
+        match err {
+            ApiError::BadRequest(msg) => assert_eq!(msg, "parent issue not found"),
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+    }
+
+    /// Create path: a valid same-project parent is accepted.
+    #[tokio::test]
+    async fn create_issue_record_accepts_valid_parent() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let (project, status) = project_with_status(&pool, "Acme").await;
+        let parent =
+            super::create_issue_record(&pool, issue_req(project.id, status.id, None, None))
+                .await
+                .unwrap();
+        let child = super::create_issue_record(
+            &pool,
+            issue_req(project.id, status.id, None, Some(parent.id)),
+        )
+        .await
+        .unwrap();
+        assert_eq!(child.parent_issue_id, Some(parent.id));
+    }
+
+    /// PATCH path: self-parent (`A→A`) is rejected distinctly.
+    #[tokio::test]
+    async fn merge_and_update_issue_rejects_self_parent() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let (project, status) = project_with_status(&pool, "Acme").await;
+        let issue = create_issue_for(&pool, &project, &status, "Card")
+            .await
+            .unwrap();
+
+        let err = super::merge_and_update_issue(&pool, issue.id, patch_parent(Some(issue.id)))
+            .await
+            .unwrap_err();
+        match err {
+            ApiError::BadRequest(msg) => assert_eq!(msg, "issue cannot be its own parent"),
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+        assert_eq!(
+            DbIssue::find_by_id(&pool, issue.id)
+                .await
+                .unwrap()
+                .unwrap()
+                .parent_issue_id,
+            None,
+            "a rejected PATCH must not mutate the row"
+        );
+    }
+
+    /// PATCH path: a cycle (`A→B→A`) is rejected distinctly, and the
+    /// intermediate edges are left untouched.
+    #[tokio::test]
+    async fn merge_and_update_issue_rejects_cycle() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let (project, status) = project_with_status(&pool, "Acme").await;
+        let a = create_issue_for(&pool, &project, &status, "A")
+            .await
+            .unwrap();
+        let b =
+            super::create_issue_record(&pool, issue_req(project.id, status.id, None, Some(a.id)))
+                .await
+                .unwrap();
+
+        let err = super::merge_and_update_issue(&pool, a.id, patch_parent(Some(b.id)))
+            .await
+            .unwrap_err();
+        match err {
+            ApiError::BadRequest(msg) => assert_eq!(msg, "parent issue would create a cycle"),
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+        assert_eq!(
+            DbIssue::find_by_id(&pool, a.id)
+                .await
+                .unwrap()
+                .unwrap()
+                .parent_issue_id,
+            None
+        );
+        assert_eq!(
+            DbIssue::find_by_id(&pool, b.id)
+                .await
+                .unwrap()
+                .unwrap()
+                .parent_issue_id,
+            Some(a.id)
+        );
+    }
+
+    /// PATCH path: a cross-project parent is rejected distinctly.
+    #[tokio::test]
+    async fn merge_and_update_issue_rejects_cross_project_parent() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let (project_a, status_a) = project_with_status(&pool, "Alpha").await;
+        let (project_b, status_b) = project_with_status(&pool, "Beta").await;
+        let parent = create_issue_for(&pool, &project_a, &status_a, "Parent")
+            .await
+            .unwrap();
+        let child = create_issue_for(&pool, &project_b, &status_b, "Child")
+            .await
+            .unwrap();
+
+        let err = super::merge_and_update_issue(&pool, child.id, patch_parent(Some(parent.id)))
+            .await
+            .unwrap_err();
+        match err {
+            ApiError::BadRequest(msg) => assert_eq!(msg, "parent issue is in a different project"),
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+    }
+
+    /// PATCH path: a valid same-project reparent succeeds, clearing a parent
+    /// (`Some(None)`) succeeds, and re-sending the UNCHANGED parent is a
+    /// no-op (does not re-trigger validation).
+    #[tokio::test]
+    async fn merge_and_update_issue_allows_valid_reparent_and_clear() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let (project, status) = project_with_status(&pool, "Acme").await;
+        let parent = create_issue_for(&pool, &project, &status, "Parent")
+            .await
+            .unwrap();
+        let child = create_issue_for(&pool, &project, &status, "Child")
+            .await
+            .unwrap();
+
+        let updated = super::merge_and_update_issue(&pool, child.id, patch_parent(Some(parent.id)))
+            .await
+            .unwrap()
+            .expect("issue exists");
+        assert_eq!(updated.parent_issue_id, Some(parent.id));
+
+        // Same value again — no-op, must not error.
+        let updated = super::merge_and_update_issue(&pool, child.id, patch_parent(Some(parent.id)))
+            .await
+            .unwrap()
+            .expect("issue exists");
+        assert_eq!(updated.parent_issue_id, Some(parent.id));
+
+        // Clearing the parent is always allowed.
+        let updated = super::merge_and_update_issue(&pool, child.id, patch_parent(None))
+            .await
+            .unwrap()
+            .expect("issue exists");
+        assert_eq!(updated.parent_issue_id, None);
+    }
+
+    /// ADR-022 delete semantics: deleting a parent promotes its children to
+    /// roots (`ON DELETE SET NULL`) rather than cascading or blocking.
+    #[tokio::test]
+    async fn delete_parent_promotes_children_to_roots() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let (project, status) = project_with_status(&pool, "Acme").await;
+        let parent = create_issue_for(&pool, &project, &status, "Parent")
+            .await
+            .unwrap();
+        let child = super::create_issue_record(
+            &pool,
+            issue_req(project.id, status.id, None, Some(parent.id)),
+        )
+        .await
+        .unwrap();
+        let grandchild = super::create_issue_record(
+            &pool,
+            issue_req(project.id, status.id, None, Some(child.id)),
+        )
+        .await
+        .unwrap();
+
+        DbIssue::delete(&pool, parent.id).await.unwrap();
+
+        assert!(
+            DbIssue::find_by_id(&pool, parent.id)
+                .await
+                .unwrap()
+                .is_none(),
+            "parent row is gone"
+        );
+        let child_after = DbIssue::find_by_id(&pool, child.id)
+            .await
+            .unwrap()
+            .expect("child survives the parent delete");
+        assert_eq!(
+            child_after.parent_issue_id, None,
+            "deleting a parent promotes its children to roots (ON DELETE SET NULL)"
+        );
+        // The grandchild chain is untouched — it still points at the child.
+        let grandchild_after = DbIssue::find_by_id(&pool, grandchild.id)
+            .await
+            .unwrap()
+            .expect("grandchild survives");
+        assert_eq!(grandchild_after.parent_issue_id, Some(child.id));
     }
 }
