@@ -107,7 +107,7 @@ The issue panel has collapsible sections for related work:
   issue, where coding agents do the work. Use the **+** to create a new workspace
   or link an existing one; you can link several to run agents in parallel.
 - **Sub-Issues** — child issues for breaking work down (see below).
-- **Comments** — a discussion thread for the issue, with emoji reactions.
+- **Comments** — a discussion thread for the issue.
 
 <Frame>
   <img style={{maxHeight: "300px"}} src="/images/issue-mgmt-link-workspace.png" alt="Issue panel showing the Workspaces section with Create and link buttons" />
@@ -126,7 +126,9 @@ child issue or link an existing one.
 - Each sub-issue has its **own independent status** — completing all children does
   not auto-complete the parent.
 - A sub-issue shows a **Parent** link to navigate back.
-- Sub-issues are one level deep — a sub-issue can't have its own sub-issues.
+- Sub-issues **nest recursively** — a sub-issue can have its own sub-issues, so you
+  can break work down to arbitrary depth. The board guards against self-parenting,
+  cycles, and cross-project links at write time.
 
 ## 7. Issue actions and the command bar
 

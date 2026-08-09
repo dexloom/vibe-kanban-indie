@@ -23,7 +23,7 @@ shortest path to understanding what is new. If you are new, start with the
 | Area | Upstream Vibe Kanban | Vibe Kanban Indie |
 |---|---|---|
 | Hosting | Cloud-backed projects and issues | Fully local — SQLite is the source of truth, no account |
-| Auth | Team accounts, sign-in | None — single local user |
+| Auth | Team accounts, sign-in | None — always signed in, no user or org entity |
 | Board data | ElectricSQL cloud sync | Local REST with a built-in fallback transport |
 | Control surfaces | Web UI | Web UI **plus** a terminal cockpit (`vibe-tui`) and Telegram |
 | Automation | Manual dispatch | Orchestrator + agent crew + per-card pipelines |
@@ -35,8 +35,10 @@ Indie removes the cloud entirely. Projects, repositories, board columns, and
 issues live in a SQLite database on your machine; there is no sign-in and nothing
 syncs off-box.
 
-- **No cloud, no auth.** A single predefined local user creates and is assigned
-  issues. There is one organisation and no team concept.
+- **No cloud, no auth, no user entity.** There is no sign-in, no team, no
+  organisation, and no assignee model — the board is authored locally by you, and
+  nothing syncs off-box. A trivial always-signed-in local gate is all that remains
+  of upstream's auth surface.
 - **Fallback transport.** The board reads from local `/v1/fallback/*` endpoints
   and mutates through local `/v1/*` endpoints, satisfying the same optimistic-update
   handshakes the cloud client expected — without ElectricSQL.
@@ -115,11 +117,12 @@ your actual codebase before drafting the spec.
 
 ## A local MCP server
 
-The `vibe-kanban` MCP server is fully local in Indie — its project, issue, and org
-tools target the local backend rather than the disabled cloud API. It runs in
-**global** mode (board-wide tools, including approval tools so a supervising agent
-can unblock work) or **orchestrator** mode (the dispatch subset), and accepts its
-launcher options as environment variables for a declarative `.mcp.json`.
+The `vibe-kanban` MCP server is fully local in Indie — its project, issue,
+workspace, and repository tools target the local backend rather than the
+disabled cloud API. It runs in **global** mode (board-wide tools, including
+approval tools so a supervising agent can unblock work) or **orchestrator** mode
+(the dispatch subset), and accepts its launcher options as environment
+variables for a declarative `.mcp.json`.
 
 <Card title="Vibe Kanban MCP server" icon="plug" href="/integrations/vibe-kanban-mcp-server">
   The MCP tools, launch modes, and how agents drive the board through them.

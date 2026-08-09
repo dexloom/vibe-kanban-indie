@@ -1,19 +1,18 @@
 ---
 title: "Interface Guide"
-description: "Understanding the Workspaces four-panel layout and navigation"
+description: "Understanding the Workspaces view layout, the global sidebar, and navigation"
 ---
 
 <Frame>
-<img style={{maxHeight: "400px"}} src="/images/workspaces-interface-overview.png" alt="Workspaces interface showing the four-panel layout with labels for each section" />
+<img style={{maxHeight: "400px"}} src="/images/workspaces-interface-overview.png" alt="Workspaces interface showing the global sidebar with the conversation, context, and details panels" />
 </Frame>
 
-The Workspaces UI uses a flexible four-panel layout designed for efficient AI-assisted development workflows.
+The Workspaces view is where you drive a single workspace. Navigation — projects, boards, and the list of workspaces — lives in the **global sidebar** on the far left of the app (see [Projects](/board/projects)); the view itself is built from three panels.
 
 ## Panel Overview
 
 | Panel | Position | Purpose |
 |-------|----------|---------|
-| **Workspace Sidebar** | Left edge | List of all workspaces with status indicators |
 | **Conversation Panel** | Left main | Chat with coding agents, session management |
 | **Context Panel** | Right main | Changes, logs, or preview (toggleable) |
 | **Details Sidebar** | Right edge | Git status, terminal, notes |
@@ -27,7 +26,6 @@ The navbar at the top of the workspace provides quick access to common actions.
 | Icon | Action | Description |
 |:----:|--------|-------------|
 | <Icon icon="box-archive" /> | Archive Workspace | Move workspace to/from archive |
-| <Icon icon="arrow-right-from-bracket" /> | Open in Old UI | Switch to the classic interface |
 
 ### Right Section - Panel Controls
 
@@ -44,32 +42,33 @@ The navbar at the top of the workspace provides quick access to common actions.
 
 | Icon | Action | Description |
 |:----:|--------|-------------|
+| <Icon icon="robot" /> | Spawn Orchestrator | Start the singleton orchestrator agent |
 | <Icon icon="list" /> | Command Bar | Open the command bar |
-| <Icon icon="bullhorn" /> | Feedback | Send feedback about Workspaces |
-| <Icon icon="circle-question" /> | Workspaces Guide | Open the onboarding guide |
+| <Icon icon="circle-question" /> | Projects Guide | Open the onboarding guide |
 | <Icon icon="gear" /> | Settings | Open application settings |
 
 <Tip>
 When the Changes panel is open, additional diff controls appear for toggling between side-by-side and inline views.
 </Tip>
 
-## Workspace Sidebar
+## Global sidebar & navigation
+
+Projects, boards, and workspaces all live in the **global sidebar** on the far left of the app, in the same place from every screen. It is a project-scoped tree:
+
+- **Projects** at the top, with a **+** to create one. A project can hold **child boards** (see [Projects](/board/projects)).
+- Under each project: a **Tasks** section (the project's issue cards) and, on root projects only, a **Workspaces** section that aggregates every workspace linked anywhere in that project's subtree.
+- **Workspaces** appear as leaves, grouped into **Active / Running / Idle / Archived** buckets. Click a leaf to open that workspace.
+- A project with an **orchestrator prompt** shows a prompt node (see [Orchestrator](/cockpit/orchestrator)).
 
 <Frame>
-<img style={{maxHeight: "350px"}} src="/images/workspaces-sidebar.png" alt="Workspace sidebar in flat list layout showing workspaces with timestamps and change counts" />
+<img style={{maxHeight: "350px"}} src="/images/workspaces-sidebar-accordion.png" alt="Sidebar tree grouping workspaces by Needs Attention, Idle, and Running" />
 </Frame>
 
-The left sidebar displays all your workspaces at a glance.
+For a flat, cross-project list of workspaces with search and filtering, open the **Workspaces dashboard** (`/workspaces`).
 
-Switch to accordion layout to group workspaces by status:
+### Workspace status indicators
 
-<Frame>
-<img style={{maxHeight: "350px"}} src="/images/workspaces-sidebar-accordion.png" alt="Workspace sidebar in accordion layout grouped by Needs Attention, Idle, and Running" />
-</Frame>
-
-### Status Indicators
-
-Each workspace shows its current state:
+Each workspace leaf shows its current state:
 
 | Indicator | Meaning |
 |-----------|---------|
@@ -80,22 +79,15 @@ Each workspace shows its current state:
 | **Dev Server** | Blue indicator when dev server is running |
 | **PR Status** | Badge showing linked pull request status |
 
-### Workspace Actions
+### Creating a new workspace
 
-- **Search**: Filter workspaces by name or branch
-- **Pin**: Keep important workspaces at the top
-- **Archive**: Move completed workspaces out of the main list
-- **Layout toggle**: Switch between flat list and accordion (grouped by status)
-
-### Creating a New Workspace
+Start a new workspace from the **Workspaces dashboard**, or from an issue's **Workspaces** section (its **+** links a workspace to that issue). The interface switches to create mode:
 
 <Frame>
 <img style={{maxHeight: "400px"}} src="/images/workspaces-create-new.png" alt="Create Workspace view showing project selection, repositories panel, and task description input" />
 </Frame>
 
-Click the **+** button at the top of the sidebar to create a new workspace. The interface switches to create mode:
-
-1. **Select a project** from the Project dropdown in the right sidebar
+1. **Select a project** from the Project dropdown
 2. **Add repositories** - click repos from the "Add Repositories" list or browse for repos on disk
 3. **Set target branch** - each selected repo shows its target branch (click to change)
 4. **Describe your task** in the chat input at the bottom
@@ -218,7 +210,7 @@ See [Repositories](/workspaces/repositories) for details on managing repositorie
 </Frame>
 
 <Note>
-The integrated terminal is a new feature exclusive to the Workspaces UI and is not available in the classic interface.
+The integrated terminal runs commands directly in the workspace's own environment.
 </Note>
 
 The expandable terminal lets you run commands directly in your workspace:
@@ -235,7 +227,7 @@ The expandable terminal lets you run commands directly in your workspace:
 </Frame>
 
 <Note>
-Workspace notes are a new feature exclusive to the Workspaces UI and are not available in the classic interface.
+Workspace notes save automatically and are private to each workspace.
 </Note>
 
 The expandable notes section lets you document important information:

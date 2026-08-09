@@ -1,4 +1,4 @@
-# ADR-014: Runtime-Editable Allowed Origins
+# ADR-024: Runtime-Editable Allowed Origins
 
 **Status**: Accepted
 **Date**: 2026-08-05

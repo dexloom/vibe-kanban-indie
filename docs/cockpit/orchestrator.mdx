@@ -67,6 +67,35 @@ Approvals, reviews, merges, and answering an agent's questions stay outside the
 orchestrator's default scope: the coding agent drives its own pipeline, and you make
 the decisions.
 
+## Per-project and per-board prompts
+
+You can give the orchestrator **scoped instructions** that apply only when it works a
+card in a particular project or board — a project-level baseline, refined further per
+board. Prompts are plain text you edit in the app, and they apply **live**: the
+orchestrator re-reads the resolved prompt on every tick, so editing never requires
+restarting its session.
+
+- **Edit from the sidebar.** A project row's **+** menu offers **Add orchestrator
+  prompt**, which opens a full-page editor with a textarea, an explicit **Save**, and
+  a **Clear** (writes an empty prompt). Once a prompt is saved, an **Orchestrator
+  prompt** node appears under that project or board in the tree, with a dot that
+  marks a prompt is set there.
+- **Stack resolution.** The orchestrator receives **every** non-empty prompt in the
+  parent chain, ordered most-specific first: the board's prompt, then the project
+  baseline. Where sections agree they stack additively; on a direct conflict the more
+  specific (board) section wins. Clearing a board's prompt falls back to the project
+  baseline.
+- **Inheritance badges.** When a board's own prompt is empty, the editor shows
+  *Inherited from an ancestor project* (if a parent sets one) or *Using default
+  behaviour* (if nothing in the chain does). `source: "default"` means the
+  orchestrator uses its built-in behaviour for that card.
+
+<Tip>
+Because resolution walks the chain each tick, you can set a broad baseline on the
+root project and tighten it per board without duplicating the baseline into each
+board's prompt.
+</Tip>
+
 When you spawn the orchestrator you can opt into **directives** — extra behaviours it
 applies on each tick:
 

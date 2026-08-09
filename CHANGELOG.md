@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   whose backing field no longer exists after the user-entity excision.
   The global-mode tool-name set is now pinned by an exact-set test, so this
   class of regression fails `cargo test` instead of shipping. See
-  `docs/ADR/ADR-022-mcp-card-tool-surface.md`.
+  `docs/ADR/ADR-023-mcp-card-tool-surface.md`.
 
 ## [0.2.24-beta.1] - 2026-08-05
 

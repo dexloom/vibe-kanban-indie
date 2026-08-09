@@ -18,22 +18,24 @@ The Settings dialog provides a streamlined, tabbed interface for configuring Vib
 ## Settings Tabs
 
 <Frame>
-<img src="/images/settings-general.png" alt="Settings dialog showing the tabbed interface with General, Projects, Repositories, Agents, and MCP Servers tabs" />
+<img src="/images/settings-general.png" alt="Settings dialog showing the tabbed interface with General, Pipeline, Routines, Repositories, Agents, MCP Servers, and Telegram tabs" />
 </Frame>
 
 The settings dialog is organised into the following tabs:
 
 | Tab | Description |
 |-----|-------------|
-| **General** | Appearance, default agent, editor, git, and notifications |
-| **Projects** | Project-specific settings |
+| **General** | Appearance, default agent, editor, git, network access, notifications, and tags |
+| **Pipeline** | The per-card pipeline stage definitions, edited as TOML |
+| **Routines** | Recurrent routines that run on a schedule |
 | **Repositories** | Repository scripts (dev server, setup, cleanup) |
 | **Agents** | Agent profiles and variants |
 | **MCP Servers** | Model Context Protocol server configuration |
+| **Telegram** | Bridge status and a send-test-message button (read-only; the TOML is hand-edited) |
 
 ## General
 
-Configure appearance, default agent, editor, git preferences, notifications, and tags.
+Configure appearance, default agent, editor, git preferences, network access, notifications, and tags.
 
 <Card title="General Settings" icon="gear" href="/settings/general">
   Complete guide to general settings including appearance, editor configuration, and more
@@ -76,6 +78,16 @@ Configure Model Context Protocol servers to extend coding agent capabilities wit
 
 <Card title="Connecting MCP Servers" icon="server" href="/settings/mcp-servers">
   Configure MCP servers within Vibe Kanban for your coding agents
+</Card>
+
+## Telegram
+
+The Telegram tab is a read-only status panel for the send-only escalation bridge: it
+shows whether the bridge is running and offers a **Send test message** button. The
+bridge itself is configured in `~/.vibe-kanban/telegram.toml`, not from this tab.
+
+<Card title="Telegram Orchestration" icon="telegram" href="/cockpit/telegram">
+  How the bridge works, the TOML format, and per-worktree topics
 </Card>
 
 ## Related Documentation

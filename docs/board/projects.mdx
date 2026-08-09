@@ -89,6 +89,33 @@ columns **only if the project has none yet**. Once a project has columns, they
 are managed in the app and the TOML list is ignored.
 </Note>
 
+## Nested projects and boards
+
+A project can hold **child boards**, giving you a hierarchy like a product made of
+sub-products, each with its own kanban. Every project node — root or nested board —
+owns its own board; nesting is data-only, so the kanban itself never changes.
+
+<Frame>
+  <img src="/images/cloud/project-kanban-board.png" alt="Project kanban board with a parent-chain breadcrumb in the header" />
+</Frame>
+
+- **Create a child board** from the sidebar: hover a project row and click its **+**
+  menu, then choose **Add board**. The new board's parent is the row you clicked.
+- **Each board numbers issues independently.** A board's issue keys are built from
+  its parent chain — a root `ACME` issues `ACME-1`, while a child board `SUB` under
+  it issues `ACME-SUB-1`. Rename a board and the chain still derives correctly.
+- **Navigate the hierarchy** with the breadcrumb in the board header, which walks the
+  parent chain. Clicking a segment opens that board's kanban.
+- **Reordering is sibling-only.** You can drag-reorder projects within the same
+  parent; cross-project issue moves stay blocked, so an issue always lives in exactly
+  one board.
+
+<Tip>
+The sidebar's **Workspaces** section appears only on root projects and aggregates
+every workspace linked anywhere in that project's subtree, deduplicated — so you
+get one flat overview rather than one per board.
+</Tip>
+
 ## Project settings
 
 Rename a project or change its colour from project settings (the gear icon next
@@ -111,6 +138,10 @@ You can also manage projects and repositories from **Settings** →
 Deleting a project is permanent. All issues, comments, and data within it are
 removed. There is no undo.
 </Warning>
+
+A project that has **child boards cannot be deleted** until its boards are removed
+first — the board refuses the delete and lists the children blocking it. This stops
+you from wiping a whole subtree by accident.
 
 ## Related documentation
 

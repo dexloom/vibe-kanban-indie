@@ -1,4 +1,4 @@
-# ADR-022: The MCP card-tool surface is a pinned contract
+# ADR-023: The MCP card-tool surface is a pinned contract
 
 - **Status**: Accepted
 - **Date**: 2026-08-08

@@ -14,8 +14,10 @@ binary from source). There is no hosted service, no account, and no sign-in.
 
 - **SQLite is the source of truth.** Projects, repositories, board columns, issues,
   workspaces, and sessions all live in a local SQLite database.
-- **A single local user.** One predefined user (named `Local` by default) creates
-  and is assigned issues. There is one organisation and no team.
+- **No user or organisation entity.** The data model has no user, assignee,
+  team, membership, or organisation concept — the single-developer reality is the
+  data model. The board is always signed-in behind a trivial local gate, and there
+  is nothing to invite or switch between.
 - **Portable static config.** Projects, repos, columns, and executor profiles can
   be exported to and imported from a `projects.toml` bundle for backup or to
   recreate a setup elsewhere. The database stays authoritative — see
