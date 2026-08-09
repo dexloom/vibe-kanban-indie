@@ -31,6 +31,7 @@ Parse the `‹vk approval_id=… exec=… kind=…›` footer to get the ids you
   - `kind=approval` → use `approve` or `deny` (optionally with `reason`).
   - `kind=question` → use `answer` with `answers=[{question, answer:[label,…]}]`.
 - **Create a task** (when the human asks) → `start_workspace(name, prompt, executor, repositories=[{repo_id, branch}])`.
+  - `branch` MUST be an existing branch (e.g. `main`). If unsure, use `main`. The server falls back to `main`/`master` automatically if the branch is missing.
 - **Steer a running task** → `run_session_prompt(session_id, prompt)` (follow-up)
   or `queue_message(session_id, message)`.
 - **Inspect** → `list_workspaces`, `list_sessions`, `get_execution`.

@@ -134,12 +134,18 @@ impl ManagedWorkspace {
             .await?
             .ok_or(RepoError::NotFound)?;
 
-        if !git.check_branch_exists(&repo.path, &repo_ref.target_branch)? {
-            return Err(WorkspaceError::BranchNotFound {
-                repo_name: repo.name,
-                branch: repo_ref.target_branch.clone(),
-            });
-        }
+        // Resolve an existing base branch. If the requested branch doesn't
+        // exist, fall back to the repo's configured default, then to the
+        // conventional `main`/`master`. Without this, an MCP/orchestrator
+        // start with a typo'd or stale branch hard-fails with a 400 that the
+        // driving agent may not recover from.
+        let effective_branch = resolve_existing_branch(
+            git,
+            &repo.path,
+            &repo.name,
+            &repo_ref.target_branch,
+            repo.default_target_branch.as_deref(),
+        )?;
 
         if WorkspaceRepo::find_by_workspace_and_repo_id(
             &self.db.pool,
@@ -152,7 +158,11 @@ impl ManagedWorkspace {
             return Err(WorkspaceError::RepoAlreadyAttached);
         }
 
-        self.attach_repository(repo_ref).await?;
+        let attach_input = WorkspaceRepoInput {
+            repo_id: repo_ref.repo_id,
+            target_branch: effective_branch,
+        };
+        self.attach_repository(&attach_input).await?;
         self.refresh().await?;
         Ok(())
     }
@@ -649,5 +659,89 @@ impl WorkspaceManager {
         }
 
         Ok(())
+    }
+}
+
+/// Pick an existing branch to use as the worktree base.
+///
+/// Tries the requested branch first; if it doesn't exist, walks the fallback
+/// chain (repo default → `main` → `master`) and returns the first existing
+/// one, logging a warning. If none exist, returns
+/// [`WorkspaceError::BranchNotFound`] for the *originally requested* branch so
+/// the error message stays actionable.
+fn resolve_existing_branch(
+    git: &GitService,
+    repo_path: &Path,
+    repo_name: &str,
+    requested: &str,
+    repo_default: Option<&str>,
+) -> Result<String, WorkspaceError> {
+    for candidate in fallback_branch_candidates(requested, repo_default) {
+        if git.check_branch_exists(repo_path, &candidate)? {
+            if candidate != requested {
+                warn!(
+                    repo = repo_name,
+                    requested = requested,
+                    fallback = %candidate,
+                    "Requested branch does not exist; falling back to existing base branch"
+                );
+            }
+            return Ok(candidate);
+        }
+    }
+    Err(WorkspaceError::BranchNotFound {
+        repo_name: repo_name.to_string(),
+        branch: requested.to_string(),
+    })
+}
+
+/// Build the ordered, de-duplicated list of branch candidates for fallback
+/// resolution: the requested branch, the repo's configured default, then the
+/// conventional `main`/`master`.
+fn fallback_branch_candidates(requested: &str, repo_default: Option<&str>) -> Vec<String> {
+    let mut candidates: Vec<String> = Vec::new();
+    for candidate in [Some(requested), repo_default, Some("main"), Some("master")]
+        .into_iter()
+        .flatten()
+    {
+        if !candidates.iter().any(|c| c == candidate) {
+            candidates.push(candidate.to_string());
+        }
+    }
+    candidates
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn candidates_start_with_requested() {
+        let c = fallback_branch_candidates("feature/x", Some("develop"));
+        assert_eq!(c.first().unwrap(), "feature/x");
+    }
+
+    #[test]
+    fn candidates_include_default_then_main_master() {
+        let c = fallback_branch_candidates("feature/x", Some("develop"));
+        assert_eq!(c, vec!["feature/x", "develop", "main", "master"]);
+    }
+
+    #[test]
+    fn candidates_without_repo_default() {
+        let c = fallback_branch_candidates("feature/x", None);
+        assert_eq!(c, vec!["feature/x", "main", "master"]);
+    }
+
+    #[test]
+    fn candidates_dedup_when_requested_equals_default() {
+        let c = fallback_branch_candidates("main", Some("main"));
+        assert_eq!(c, vec!["main", "master"]);
+    }
+
+    #[test]
+    fn candidates_dedup_when_default_is_master() {
+        let c = fallback_branch_candidates("feature", Some("master"));
+        assert_eq!(c, vec!["feature", "master", "main"]);
     }
 }

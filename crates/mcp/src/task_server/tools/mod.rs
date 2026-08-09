@@ -656,6 +656,7 @@ mod tests {
             "color": "#000000",
             "sort_order": 0,
             "hidden": false,
+            "is_terminal": false,
             "created_at": "2026-01-01T00:00:00Z"
         }))
         .expect("fixture JSON should deserialize into ProjectStatus")

@@ -2028,6 +2028,7 @@ mod tests {
                         // non-hidden statuses, so `create_issue` lands on Todo.
                         "sort_order": 0,
                         "hidden": false,
+                        "is_terminal": false,
                         "created_at": CREATED_STAMP,
                     },
                     {
@@ -2037,6 +2038,7 @@ mod tests {
                         "color": "#3355ff",
                         "sort_order": 1,
                         "hidden": false,
+                        "is_terminal": false,
                         "created_at": CREATED_STAMP,
                     },
                 ]
