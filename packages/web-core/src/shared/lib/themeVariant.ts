@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   DEFAULT_THEME_VARIANT,
   type ThemeVariant,
   useThemeVariant,
 } from '@/shared/stores/useUiPreferencesStore';
+import { useUserSystem } from '@/shared/hooks/useUserSystem';
 
 /**
  * Theme variants ("skins") are drop-in CSS files served from
@@ -13,8 +14,11 @@ import {
  *   1. setting `document.documentElement.dataset.themeVariant`, and
  *   2. ensuring the matching stylesheet is loaded.
  *
- * Variants are applied on top of the Light/Dark/System mode and are a purely
- * client-side preference (persisted to localStorage via the UI prefs store).
+ * Variants are applied on top of the Light/Dark/System mode. The
+ * authoritative copy lives in the backend config (`config.theme_variant`)
+ * so the preference survives across dev/npx/different-origin frontends;
+ * localStorage is used as a fast client-side cache for the initial paint
+ * (see `useSyncThemeVariantFromConfig`).
  */
 
 export type ThemeManifestEntry = {
@@ -71,6 +75,44 @@ export function useApplyThemeVariant(): void {
   useEffect(() => {
     applyThemeVariant(variant);
   }, [variant]);
+}
+
+/**
+ * Reconcile the client-side theme variant store with the backend config.
+ * localStorage (the store's initial source) is per-origin, so it is empty on
+ * the first visit from a different origin (dev vs npx vs another port).
+ *
+ * On first hydration we reconcile once:
+ *   - If the backend has a real skin → adopt it (restores the preference
+ *     across origins / fresh browsers).
+ *   - Else if localStorage has a real skin → push it up to the config
+ *     (one-time migration of a pre-existing client-only preference).
+ *
+ * After hydration the store is authoritative for the session; user changes
+ * flow settings UI → store → config save, and the optimistic cache update in
+ * `updateAndSaveConfig` keeps both sides aligned.
+ */
+export function useSyncThemeVariantFromConfig(): void {
+  const { config, updateAndSaveConfig } = useUserSystem();
+  const [variant, setVariant] = useThemeVariant();
+  const hydrated = useRef(false);
+
+  useEffect(() => {
+    if (hydrated.current) return;
+    const persisted = config?.theme_variant;
+    if (!persisted) return; // config not loaded yet
+
+    hydrated.current = true;
+
+    const persistedIsReal = persisted !== DEFAULT_THEME_VARIANT;
+    const localIsReal = variant !== DEFAULT_THEME_VARIANT;
+
+    if (persistedIsReal) {
+      if (persisted !== variant) setVariant(persisted);
+    } else if (localIsReal) {
+      updateAndSaveConfig({ theme_variant: variant });
+    }
+  }, [config?.theme_variant, variant, setVariant, updateAndSaveConfig]);
 }
 
 let manifestCache: ThemeManifestEntry[] | null = null;

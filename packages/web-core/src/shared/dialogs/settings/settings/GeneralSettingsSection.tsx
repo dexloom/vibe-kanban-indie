@@ -310,7 +310,10 @@ export function GeneralSettingsSection() {
           <SettingsSelect
             value={themeVariant}
             options={themeVariantOptions}
-            onChange={(value) => setThemeVariant(value)}
+            onChange={(value) => {
+              setThemeVariant(value);
+              updateAndSaveConfig({ theme_variant: value });
+            }}
           />
         </SettingsField>
 

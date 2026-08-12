@@ -5,7 +5,10 @@ import i18n from '@/i18n';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import { ThemeProvider } from '@web/app/providers/ThemeProvider';
 import { useUiPreferencesScratch } from '@/shared/hooks/useUiPreferencesScratch';
-import { useApplyThemeVariant } from '@/shared/lib/themeVariant';
+import {
+  useApplyThemeVariant,
+  useSyncThemeVariantFromConfig,
+} from '@/shared/lib/themeVariant';
 import { WorkspacesProvider } from '@/shared/providers/remote/WorkspacesProvider';
 import '@/app/styles/new/index.css';
 
@@ -14,6 +17,7 @@ function RootRouteComponent() {
 
   useUiPreferencesScratch();
   useApplyThemeVariant();
+  useSyncThemeVariantFromConfig();
 
   return (
     <I18nextProvider i18n={i18n}>

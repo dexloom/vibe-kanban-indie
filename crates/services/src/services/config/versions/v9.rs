@@ -36,6 +36,15 @@ fn default_iterm_tabs() -> bool {
     true
 }
 
+/// Theme variant ("skin") applied on top of the Light/Dark/System mode.
+/// `"default"` means no extra skin; other values map to a drop-in CSS file
+/// served at `/themes/<id>.css`. Persisted here so the preference survives
+/// across dev/npx/different-origin frontends (localStorage alone is scoped
+/// per-origin and gets lost when switching run modes).
+fn default_theme_variant() -> String {
+    "default".to_string()
+}
+
 /// A single per-card pipeline stage. Stages are defined in pipeline files
 /// (`~/.vibe-kanban/pipelines/*.toml`, loaded by `services::services::pipelines`
 /// into `Pipeline.stages`). The New Issue "Pipeline" control lets the operator
@@ -98,6 +107,10 @@ pub struct Config {
     /// instead of opening a new window per session.
     #[serde(default = "default_iterm_tabs")]
     pub iterm_tabs: bool,
+    /// Theme variant ("skin") applied on top of the light/dark mode.
+    /// `"default"` = no extra skin; other values select a `/themes/<id>.css`.
+    #[serde(default = "default_theme_variant")]
+    pub theme_variant: String,
     /// User-configured extra origins allowed by the origin-check middleware
     /// (in addition to loopback + same-origin). Each entry is a full URL
     /// like `http://192.168.1.50:3001`. Editable via Settings UI.
@@ -137,6 +150,7 @@ impl Config {
             host_nickname: old_config.host_nickname,
             terminal: default_terminal(),
             iterm_tabs: default_iterm_tabs(),
+            theme_variant: default_theme_variant(),
             allowed_origins: Vec::new(),
             pipeline_steps: None,
         }
@@ -195,6 +209,7 @@ impl Default for Config {
             host_nickname: None,
             terminal: default_terminal(),
             iterm_tabs: default_iterm_tabs(),
+            theme_variant: default_theme_variant(),
             allowed_origins: Vec::new(),
             pipeline_steps: None,
         }
@@ -312,6 +327,34 @@ mod tests {
             .unwrap();
         let back = Config::from(value.to_string());
         assert!(back.allowed_origins.is_empty());
+        assert_eq!(back.config_version, "v9");
+    }
+
+    #[test]
+    fn v9_round_trips_theme_variant() {
+        let cfg = Config {
+            theme_variant: "ghost-white".to_string(),
+            ..Default::default()
+        };
+        let raw = serde_json::to_string(&cfg).unwrap();
+        let back = Config::from(raw);
+        assert_eq!(back.theme_variant, "ghost-white");
+        assert_eq!(back.config_version, "v9");
+    }
+
+    #[test]
+    fn v9_config_without_theme_variant_defaults_to_default() {
+        // A v9 blob that predates the theme_variant field must deserialise
+        // with theme_variant == "default" (serde default).
+        let cfg = Config::default();
+        let mut value = serde_json::to_value(&cfg).unwrap();
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("theme_variant")
+            .unwrap();
+        let back = Config::from(value.to_string());
+        assert_eq!(back.theme_variant, "default");
         assert_eq!(back.config_version, "v9");
     }
 }

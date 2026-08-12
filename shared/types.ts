@@ -669,6 +669,11 @@ terminal: TerminalKind,
  */
 iterm_tabs: boolean, 
 /**
+ * Theme variant ("skin") applied on top of the light/dark mode.
+ * `"default"` = no extra skin; other values select a `/themes/<id>.css`.
+ */
+theme_variant: string, 
+/**
  * User-configured extra origins allowed by the origin-check middleware
  * (in addition to loopback + same-origin). Each entry is a full URL
  * like `http://192.168.1.50:3001`. Editable via Settings UI.
