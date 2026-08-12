@@ -1,0 +1,187 @@
+/* ============================================================
+   Vibe Kanban theme — "Ghost White"
+   P4 white-phosphor monochrome VDU: cold blue-black base, paper-white
+   accent, no chromatic UI colour. Monospace throughout, soft white
+   bloom + vignette.
+   From the "Kanban Terminal Themes" board-white mockup.
+
+   Note: like Noir Neon, the horizontal scanline overlay is omitted
+   (the mockup renders only the accent wash + vignette layers).
+
+   Deliberately monochrome: the only saturated tokens are the two the
+   mockup keeps for state (green success, red error). Syntax colours
+   follow the same rule, so code reads as a monochrome terminal listing
+   rather than a colour editor.
+
+   Scoped to html[data-theme-variant="ghost-white"]. Overrides the
+   private design tokens (--_*) + bg/text/brand tokens so every
+   component inherits the palette automatically.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+html[data-theme-variant='ghost-white'] {
+  color-scheme: dark;
+
+  /* --- core surfaces / text --- */
+  --_background: 220 33% 4%; /* #06080c */
+  --_foreground: 223 69% 95%; /* #e9eefb */
+  --_primary: 222 100% 97%; /* #eef3ff phosphor white */
+  --_primary-foreground: 222 33% 6%; /* #0a0d14 */
+  --_secondary: 220 27% 6%; /* #0c0f15 */
+  --_secondary-foreground: 223 69% 95%;
+  --_muted: 220 27% 9%; /* #10141c */
+  --_muted-foreground: 222 15% 60%; /* #8a93a8 */
+  --_accent: 220 25% 12%; /* #161b25 */
+  --_accent-foreground: 223 69% 95%;
+  --_destructive: 0 100% 71%; /* #ff6d6d */
+  --_destructive-foreground: 0 0% 100%;
+  --_border: 221 21% 20%; /* #29303f */
+  --_input: 220 27% 6%;
+  --_ring: 222 100% 97%;
+
+  /* --- status ---
+     The "working" accent is a pale blue-white rather than amber, keeping
+     the monochrome VDU read; danger stays red. */
+  --_success: 127 61% 77%; /* #9fe8a8 */
+  --_success-foreground: 127 61% 14%;
+  --_warning: 221 40% 85%; /* #c9d3e8 */
+  --_warning-foreground: 222 33% 10%;
+  --_info: 222 100% 97%;
+  --_info-foreground: 222 33% 6%;
+  --_neutral: 220 25% 12%;
+  --_neutral-foreground: 223 69% 95%;
+
+  /* --- console / terminal --- */
+  --_console-background: 220 43% 3%; /* #04060a rail-dark */
+  --_console-foreground: 223 69% 95%;
+  --_console-success: 127 61% 77%;
+  --_console-error: 0 100% 71%;
+
+  /* --- text levels --- */
+  --text-high: 222 100% 97%;
+  --text-normal: 223 69% 95%;
+  --text-low: 222 15% 60%;
+
+  /* --- surfaces --- */
+  --_bg-primary-default: 220 33% 4%;
+  --_bg-secondary-default: 220 27% 6%;
+  --_bg-panel-default: 220 27% 9%;
+
+  /* --- brand / accent --- */
+  --brand: 222 100% 97%; /* #eef3ff */
+  --brand-hover: 0 0% 100%;
+  --brand-secondary: 221 16% 62%; /* #8d97ad */
+  --error: 0 100% 71%;
+  --success: 127 61% 77%;
+  --merged: 271 81% 66%;
+  --text-on-brand: 222 33% 6%;
+
+  /* --- syntax highlighting (monochrome VDU: greys + the two state hues) --- */
+  --_syntax-keyword: #eef3ff;
+  --_syntax-function: #c9d3e8;
+  --_syntax-constant: #b6c2da;
+  --_syntax-string: #9fe8a8;
+  --_syntax-variable: #e9eefb;
+  --_syntax-comment: #525b6e;
+  --_syntax-tag: #c9d3e8;
+  --_syntax-punctuation: #8a93a8;
+  --_syntax-deleted: #ff6d6d;
+}
+
+/* ===== monospace everywhere =====
+   The base layer sets font-family explicitly on html/body/#root, so we must
+   override all three (+ the .font-ibm-plex-sans utility) to beat it. */
+html[data-theme-variant='ghost-white'],
+html[data-theme-variant='ghost-white'] body,
+html[data-theme-variant='ghost-white'] #root,
+html[data-theme-variant='ghost-white'] .font-ibm-plex-sans {
+  font-family:
+    'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo,
+    monospace !important;
+  letter-spacing: 0.01em;
+}
+
+/* Form controls don't inherit font-family by default */
+html[data-theme-variant='ghost-white'] button,
+html[data-theme-variant='ghost-white'] input,
+html[data-theme-variant='ghost-white'] textarea,
+html[data-theme-variant='ghost-white'] select {
+  font-family: inherit;
+}
+
+/* ===== phosphor wash (very faint animated white bloom) ===== */
+html[data-theme-variant='ghost-white']::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9001;
+  background: rgba(238, 243, 255, 0.02);
+  animation: vk-ghost-white-flicker 5.5s infinite steps(60);
+}
+@keyframes vk-ghost-white-flicker {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  3% {
+    opacity: 0.9;
+  }
+  6% {
+    opacity: 0.35;
+  }
+  9% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0.55;
+  }
+  53% {
+    opacity: 0.85;
+  }
+  56% {
+    opacity: 0.45;
+  }
+}
+
+/* ===== vignette ===== */
+html[data-theme-variant='ghost-white']::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9002;
+  background: radial-gradient(
+    120% 90% at 50% 50%,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+}
+
+/* ===== white-phosphor glow ===== */
+html[data-theme-variant='ghost-white'] .text-brand,
+html[data-theme-variant='ghost-white'] .text-high {
+  text-shadow:
+    0 0 6px hsl(var(--brand) / 0.45),
+    0 0 16px hsl(var(--brand) / 0.2);
+}
+
+/* ===== brand wordmark: KANBAN reversed into a filled white box ===== */
+html[data-theme-variant='ghost-white'] [data-brand-word='kanban'] {
+  background-color: hsl(var(--brand));
+  color: hsl(var(--text-on-brand));
+  padding: 0.18em 0.4em;
+  border-radius: 4px;
+  box-shadow:
+    0 0 6px hsl(var(--brand) / 0.55),
+    0 0 16px hsl(var(--brand) / 0.25);
+  text-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-variant='ghost-white']::before {
+    animation: none;
+    opacity: 0.55;
+  }
+}

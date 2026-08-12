@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Four new terminal theme variants** — Violet Synth (magenta-on-violet
+  synthwave with cyan status accents), Ghost White (P4 white-phosphor
+  monochrome VDU), Redline (alert-red console, amber warnings) and Paper TTY
+  (light hardcopy teletype, ribbon-red ink), bringing the skin set to eight.
+  Paper TTY is the first *light* variant and pins its own surface aliases so it
+  looks the same whether the app is in Light or Dark mode. Drop-in as ever: CSS
+  file plus `themes/index.json` entry, no rebuild.
 - **Project-scoped relationship reads** (VIBE-3). `GET /api/issue-relationships`
   now also accepts `?project_id=<id>`, returning the project's whole edge set —
   every row with either endpoint in the project — in one call. The lane

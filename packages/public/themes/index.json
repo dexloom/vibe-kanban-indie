@@ -20,6 +20,26 @@
       "id": "noir-neon",
       "name": "Noir Neon",
       "description": "Near-black charcoal base with electric neon-orange accent and soft glow."
+    },
+    {
+      "id": "violet-synth",
+      "name": "Violet Synth",
+      "description": "Synthwave console: magenta glow on deep violet, cyan status accents."
+    },
+    {
+      "id": "ghost-white",
+      "name": "Ghost White",
+      "description": "P4 white-phosphor monochrome VDU on cold blue-black."
+    },
+    {
+      "id": "redline",
+      "name": "Redline",
+      "description": "Alert-red console on scorched near-black, amber warnings."
+    },
+    {
+      "id": "paper-tty",
+      "name": "Paper TTY",
+      "description": "Light hardcopy teletype: warm paper stock, ribbon-red ink."
     }
   ]
 }

@@ -1,0 +1,181 @@
+/* ============================================================
+   Vibe Kanban theme — "Violet Synth"
+   Magenta-glow synthwave console on a deep violet base, with cyan
+   status accents. Monospace throughout, soft magenta wash + vignette.
+   From the "Kanban Terminal Themes" board-violet mockup.
+
+   Note: like Noir Neon, the horizontal scanline overlay is omitted
+   (the mockup renders only the accent wash + vignette layers).
+
+   Scoped to html[data-theme-variant="violet-synth"]. Overrides the
+   private design tokens (--_*) + bg/text/brand tokens so every
+   component inherits the palette automatically.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+html[data-theme-variant='violet-synth'] {
+  color-scheme: dark;
+
+  /* --- core surfaces / text --- */
+  --_background: 267 39% 5%; /* #0b0710 */
+  --_foreground: 272 37% 93%; /* #eee7f4 */
+  --_primary: 294 89% 63%; /* #e44df5 magenta */
+  --_primary-foreground: 288 84% 7%; /* #1c0322 */
+  --_secondary: 270 30% 8%; /* #140e1a */
+  --_secondary-foreground: 272 37% 93%;
+  --_muted: 268 29% 10%; /* #191221 */
+  --_muted-foreground: 273 11% 58%; /* #94879f */
+  --_accent: 267 28% 13%; /* #1f1729 */
+  --_accent-foreground: 272 37% 93%;
+  --_destructive: 0 100% 65%; /* #ff4d4d */
+  --_destructive-foreground: 0 0% 100%;
+  --_border: 265 21% 21%; /* #332a40 */
+  --_input: 270 30% 8%;
+  --_ring: 294 89% 63%;
+
+  /* --- status ---
+     The mockup re-tints the "in progress / working" accent from amber to
+     cyan (#38d2f0); danger stays unmistakably red. */
+  --_success: 126 57% 60%; /* #5fd36a */
+  --_success-foreground: 126 57% 12%;
+  --_warning: 190 86% 58%; /* #38d2f0 */
+  --_warning-foreground: 190 86% 12%;
+  --_info: 294 89% 63%;
+  --_info-foreground: 288 84% 7%;
+  --_neutral: 267 28% 13%;
+  --_neutral-foreground: 272 37% 93%;
+
+  /* --- console / terminal --- */
+  --_console-background: 276 38% 3%; /* #070409 rail-dark */
+  --_console-foreground: 272 37% 93%;
+  --_console-success: 126 57% 60%;
+  --_console-error: 0 100% 65%;
+
+  /* --- text levels --- */
+  --text-high: 272 40% 96%;
+  --text-normal: 272 37% 93%;
+  --text-low: 273 11% 58%;
+
+  /* --- surfaces --- */
+  --_bg-primary-default: 267 39% 5%;
+  --_bg-secondary-default: 270 30% 8%;
+  --_bg-panel-default: 268 29% 10%;
+
+  /* --- brand / accent --- */
+  --brand: 294 89% 63%; /* #e44df5 */
+  --brand-hover: 294 89% 73%;
+  --brand-secondary: 289 44% 45%; /* #9440a6 */
+  --error: 0 100% 65%;
+  --success: 126 57% 60%;
+  --merged: 271 81% 66%;
+  --text-on-brand: 288 84% 7%;
+
+  /* --- syntax highlighting (magenta/cyan on violet) --- */
+  --_syntax-keyword: #e44df5;
+  --_syntax-function: #38d2f0;
+  --_syntax-constant: #b98cff;
+  --_syntax-string: #5fd36a;
+  --_syntax-variable: #eee7f4;
+  --_syntax-comment: #5c5169;
+  --_syntax-tag: #38d2f0;
+  --_syntax-punctuation: #94879f;
+  --_syntax-deleted: #ff4d4d;
+}
+
+/* ===== monospace everywhere =====
+   The base layer sets font-family explicitly on html/body/#root, so we must
+   override all three (+ the .font-ibm-plex-sans utility) to beat it. */
+html[data-theme-variant='violet-synth'],
+html[data-theme-variant='violet-synth'] body,
+html[data-theme-variant='violet-synth'] #root,
+html[data-theme-variant='violet-synth'] .font-ibm-plex-sans {
+  font-family:
+    'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo,
+    monospace !important;
+  letter-spacing: 0.01em;
+}
+
+/* Form controls don't inherit font-family by default */
+html[data-theme-variant='violet-synth'] button,
+html[data-theme-variant='violet-synth'] input,
+html[data-theme-variant='violet-synth'] textarea,
+html[data-theme-variant='violet-synth'] select {
+  font-family: inherit;
+}
+
+/* ===== phosphor wash (very faint animated magenta bloom) ===== */
+html[data-theme-variant='violet-synth']::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9001;
+  background: rgba(228, 77, 245, 0.022);
+  animation: vk-violet-synth-flicker 5.5s infinite steps(60);
+}
+@keyframes vk-violet-synth-flicker {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  3% {
+    opacity: 0.9;
+  }
+  6% {
+    opacity: 0.35;
+  }
+  9% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0.55;
+  }
+  53% {
+    opacity: 0.85;
+  }
+  56% {
+    opacity: 0.45;
+  }
+}
+
+/* ===== vignette ===== */
+html[data-theme-variant='violet-synth']::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9002;
+  background: radial-gradient(
+    120% 90% at 50% 50%,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+}
+
+/* ===== magenta accent glow ===== */
+html[data-theme-variant='violet-synth'] .text-brand,
+html[data-theme-variant='violet-synth'] .text-high {
+  text-shadow:
+    0 0 6px hsl(var(--brand) / 0.5),
+    0 0 16px hsl(var(--brand) / 0.24);
+}
+
+/* ===== brand wordmark: KANBAN reversed into a filled magenta box ===== */
+html[data-theme-variant='violet-synth'] [data-brand-word='kanban'] {
+  background-color: hsl(var(--brand));
+  color: hsl(var(--text-on-brand));
+  padding: 0.18em 0.4em;
+  border-radius: 4px;
+  box-shadow:
+    0 0 6px hsl(var(--brand) / 0.6),
+    0 0 16px hsl(var(--brand) / 0.3);
+  text-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-variant='violet-synth']::before {
+    animation: none;
+    opacity: 0.55;
+  }
+}

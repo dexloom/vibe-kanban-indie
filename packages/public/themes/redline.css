@@ -1,0 +1,183 @@
+/* ============================================================
+   Vibe Kanban theme — "Redline"
+   Alert-red console on a scorched near-black base, amber warnings.
+   Monospace throughout, red bloom + vignette.
+   From the "Kanban Terminal Themes" board-redline mockup.
+
+   Note: like Noir Neon, the horizontal scanline overlay is omitted
+   (the mockup renders only the accent wash + vignette layers).
+
+   Because red is the *brand* accent here, the mockup shifts the danger
+   signal to orange (#ff8f4d) so destructive states stay distinguishable
+   from ordinary chrome; warnings keep their amber.
+
+   Scoped to html[data-theme-variant="redline"]. Overrides the private
+   design tokens (--_*) + bg/text/brand tokens so every component
+   inherits the palette automatically.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+html[data-theme-variant='redline'] {
+  color-scheme: dark;
+
+  /* --- core surfaces / text --- */
+  --_background: 0 30% 4%; /* #0d0707 */
+  --_foreground: 9 33% 92%; /* #f2e7e5 */
+  --_primary: 0 100% 64%; /* #ff4646 alert red */
+  --_primary-foreground: 0 71% 7%; /* #1e0505 */
+  --_secondary: 0 24% 7%; /* #170e0e */
+  --_secondary-foreground: 9 33% 92%;
+  --_muted: 0 22% 9%; /* #1c1212 */
+  --_muted-foreground: 7 11% 56%; /* #9c8683 */
+  --_accent: 0 21% 11%; /* #231717 */
+  --_accent-foreground: 9 33% 92%;
+  --_destructive: 22 100% 65%; /* #ff8f4d — orange, red is the accent */
+  --_destructive-foreground: 22 100% 10%;
+  --_border: 0 18% 19%; /* #3a2828 */
+  --_input: 0 24% 7%;
+  --_ring: 0 100% 64%;
+
+  /* --- status --- */
+  --_success: 126 57% 60%; /* #5fd36a */
+  --_success-foreground: 126 57% 12%;
+  --_warning: 37 100% 62%; /* #ffb43d */
+  --_warning-foreground: 37 100% 12%;
+  --_info: 0 100% 64%;
+  --_info-foreground: 0 71% 7%;
+  --_neutral: 0 21% 11%;
+  --_neutral-foreground: 9 33% 92%;
+
+  /* --- console / terminal --- */
+  --_console-background: 0 38% 3%; /* #090404 rail-dark */
+  --_console-foreground: 9 33% 92%;
+  --_console-success: 126 57% 60%;
+  --_console-error: 22 100% 65%;
+
+  /* --- text levels --- */
+  --text-high: 9 40% 96%;
+  --text-normal: 9 33% 92%;
+  --text-low: 7 11% 56%;
+
+  /* --- surfaces --- */
+  --_bg-primary-default: 0 30% 4%;
+  --_bg-secondary-default: 0 24% 7%;
+  --_bg-panel-default: 0 22% 9%;
+
+  /* --- brand / accent --- */
+  --brand: 0 100% 64%; /* #ff4646 */
+  --brand-hover: 0 100% 72%;
+  --brand-secondary: 0 54% 43%; /* #a83232 */
+  --error: 22 100% 65%;
+  --success: 126 57% 60%;
+  --merged: 271 81% 66%;
+  --text-on-brand: 0 71% 7%;
+
+  /* --- syntax highlighting (hot palette on scorched black) --- */
+  --_syntax-keyword: #ff4646;
+  --_syntax-function: #ffb43d;
+  --_syntax-constant: #ffce6a;
+  --_syntax-string: #5fd36a;
+  --_syntax-variable: #f2e7e5;
+  --_syntax-comment: #66504d;
+  --_syntax-tag: #ffb43d;
+  --_syntax-punctuation: #9c8683;
+  --_syntax-deleted: #ff8f4d;
+}
+
+/* ===== monospace everywhere =====
+   The base layer sets font-family explicitly on html/body/#root, so we must
+   override all three (+ the .font-ibm-plex-sans utility) to beat it. */
+html[data-theme-variant='redline'],
+html[data-theme-variant='redline'] body,
+html[data-theme-variant='redline'] #root,
+html[data-theme-variant='redline'] .font-ibm-plex-sans {
+  font-family:
+    'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo,
+    monospace !important;
+  letter-spacing: 0.01em;
+}
+
+/* Form controls don't inherit font-family by default */
+html[data-theme-variant='redline'] button,
+html[data-theme-variant='redline'] input,
+html[data-theme-variant='redline'] textarea,
+html[data-theme-variant='redline'] select {
+  font-family: inherit;
+}
+
+/* ===== phosphor wash (very faint animated red bloom) ===== */
+html[data-theme-variant='redline']::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9001;
+  background: rgba(255, 70, 70, 0.022);
+  animation: vk-redline-flicker 5.5s infinite steps(60);
+}
+@keyframes vk-redline-flicker {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  3% {
+    opacity: 0.9;
+  }
+  6% {
+    opacity: 0.35;
+  }
+  9% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0.55;
+  }
+  53% {
+    opacity: 0.85;
+  }
+  56% {
+    opacity: 0.45;
+  }
+}
+
+/* ===== vignette ===== */
+html[data-theme-variant='redline']::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9002;
+  background: radial-gradient(
+    120% 90% at 50% 50%,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+}
+
+/* ===== alert-red accent glow ===== */
+html[data-theme-variant='redline'] .text-brand,
+html[data-theme-variant='redline'] .text-high {
+  text-shadow:
+    0 0 6px hsl(var(--brand) / 0.5),
+    0 0 16px hsl(var(--brand) / 0.24);
+}
+
+/* ===== brand wordmark: KANBAN reversed into a filled red box ===== */
+html[data-theme-variant='redline'] [data-brand-word='kanban'] {
+  background-color: hsl(var(--brand));
+  color: hsl(var(--text-on-brand));
+  padding: 0.18em 0.4em;
+  border-radius: 4px;
+  box-shadow:
+    0 0 6px hsl(var(--brand) / 0.6),
+    0 0 16px hsl(var(--brand) / 0.28);
+  text-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-variant='redline']::before {
+    animation: none;
+    opacity: 0.55;
+  }
+}
