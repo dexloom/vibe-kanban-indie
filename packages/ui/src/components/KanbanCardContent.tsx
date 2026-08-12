@@ -366,9 +366,7 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
                   )}
                   weight="bold"
                 />
-                <span className="text-sm">
-                  {t('kanban.subIssueIndicator')}
-                </span>
+                <span className="text-sm">{t('kanban.subIssueIndicator')}</span>
                 <span className="text-sm">{subIssueCount}</span>
               </button>
             )}

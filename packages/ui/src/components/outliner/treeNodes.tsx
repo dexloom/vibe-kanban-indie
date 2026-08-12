@@ -162,8 +162,14 @@ function ProjectTreeNode(
         </span>
         {isUnassigned && onOpenLastWorkspace && (
           <button
-            aria-label={t('sidebar.openOrchestratorWorkspace', 'Open last workspace')}
-            title={t('sidebar.openOrchestratorWorkspace', 'Open last workspace')}
+            aria-label={t(
+              'sidebar.openOrchestratorWorkspace',
+              'Open last workspace'
+            )}
+            title={t(
+              'sidebar.openOrchestratorWorkspace',
+              'Open last workspace'
+            )}
             onClick={(e) => {
               e.stopPropagation();
               onOpenLastWorkspace();
