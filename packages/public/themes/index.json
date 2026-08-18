@@ -1,45 +1,86 @@
 {
   "$comment": "Drop-in theme manifest for Vibe Kanban (local web). Add a new entry + a matching <id>.css file in this folder to register a custom theme; no rebuild required. Each CSS file scopes its token overrides to html[data-theme-variant=\"<id>\"].",
+  "$projectColorComment": "Optional per-theme `projectColor` re-paints sidebar project dots via a phosphor-duotone map: each project's perceptual luminance is normalised across the preset palette's range and mapped onto a shadow->highlight ramp, so projects stay distinguishable as brightness steps while adopting the theme's hue (Ghost White = B&W shades, Redline = crimson embers, Amber = gold). `main` is the theme's signature accent used for the orchestrator 'prompt set' indicator; omit it to fall back to --brand. Values are bare HSL triples ('H S% L%'). Omit the whole `projectColor` block to show raw project colors.",
   "themes": [
     {
       "id": "navy-hud",
       "name": "Navy HUD",
-      "description": "Cyan-on-navy sci-fi HUD with CRT scanlines and glow."
+      "description": "Cyan-on-navy sci-fi HUD with CRT scanlines and glow.",
+      "projectColor": {
+        "shadow": "214 55% 45%",
+        "highlight": "190 98% 62%",
+        "main": "190 98% 60%"
+      }
     },
     {
       "id": "phosphor",
       "name": "Phosphor",
-      "description": "Classic green-CRT terminal, heavy scanlines, monochrome mono."
+      "description": "Classic green-CRT terminal, heavy scanlines, monochrome mono.",
+      "projectColor": {
+        "shadow": "140 50% 40%",
+        "highlight": "127 61% 70%",
+        "main": "127 61% 65%"
+      }
     },
     {
       "id": "amber",
       "name": "Amber Terminal",
-      "description": "Amber command-line aesthetic on deep navy, CRT texture."
+      "description": "Amber command-line aesthetic on deep navy, CRT texture.",
+      "projectColor": {
+        "shadow": "32 70% 42%",
+        "highlight": "46 92% 66%",
+        "main": "45 93% 62%"
+      }
     },
     {
       "id": "noir-neon",
       "name": "Noir Neon",
-      "description": "Near-black charcoal base with electric neon-orange accent and soft glow."
+      "description": "Near-black charcoal base with electric neon-orange accent and soft glow.",
+      "projectColor": {
+        "shadow": "0 0% 45%",
+        "highlight": "28 100% 62%",
+        "main": "28 100% 60%"
+      }
     },
     {
       "id": "violet-synth",
       "name": "Violet Synth",
-      "description": "Synthwave console: magenta glow on deep violet, cyan status accents."
+      "description": "Synthwave console: magenta glow on deep violet, cyan status accents.",
+      "projectColor": {
+        "shadow": "275 55% 48%",
+        "highlight": "300 81% 68%",
+        "main": "300 81% 66%"
+      }
     },
     {
       "id": "ghost-white",
       "name": "Ghost White",
-      "description": "P4 white-phosphor monochrome VDU on cold blue-black."
+      "description": "P4 white-phosphor monochrome VDU on cold blue-black.",
+      "projectColor": {
+        "shadow": "222 25% 45%",
+        "highlight": "220 50% 90%",
+        "main": "222 100% 94%"
+      }
     },
     {
       "id": "redline",
       "name": "Redline",
-      "description": "Alert-red console on scorched near-black, amber warnings."
+      "description": "Alert-red console on scorched near-black, amber warnings.",
+      "projectColor": {
+        "shadow": "0 65% 45%",
+        "highlight": "0 100% 66%",
+        "main": "37 100% 62%"
+      }
     },
     {
       "id": "paper-tty",
       "name": "Paper TTY",
-      "description": "Light hardcopy teletype: warm paper stock, ribbon-red ink."
+      "description": "Light hardcopy teletype: warm paper stock, ribbon-red ink.",
+      "projectColor": {
+        "shadow": "0 0% 30%",
+        "highlight": "32 65% 48%",
+        "main": "0 60% 45%"
+      }
     }
   ]
 }

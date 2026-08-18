@@ -21,10 +21,21 @@ import { useUserSystem } from '@/shared/hooks/useUserSystem';
  * (see `useSyncThemeVariantFromConfig`).
  */
 
+export type ThemeProjectColor = {
+  /** Shadow end of the duotone ramp (low-luminance projects), bare HSL "H S% L%". */
+  shadow: string;
+  /** Highlight end of the duotone ramp (high-luminance projects), bare HSL "H S% L%". */
+  highlight: string;
+  /** Theme signature accent for the orchestrator "prompt set" dot. Falls back to --brand. */
+  main?: string;
+};
+
 export type ThemeManifestEntry = {
   id: string;
   name: string;
   description?: string;
+  /** Optional phosphor-duotone config for sidebar project colors. */
+  projectColor?: ThemeProjectColor;
 };
 
 type ThemeManifest = {

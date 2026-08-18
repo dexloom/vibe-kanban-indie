@@ -9,6 +9,7 @@ import { cn } from '@/shared/lib/utils';
 import { NavbarContainer } from './NavbarContainer';
 import { Sidebar } from '@vibe/ui/components/Sidebar';
 import { MobileDrawer } from '@vibe/ui/components/MobileDrawer';
+import { ProjectColorTransformContext } from '@vibe/ui/lib/projectColor';
 import { SidebarBottomActions } from './SidebarBottomActions';
 import { SidebarProjectTasksRegistry } from '@/shared/components/sidebar/SidebarProjectTasksRegistry';
 
@@ -21,6 +22,7 @@ import {
   UNASSIGNED_PROJECT_ID,
 } from '@vibe/ui/components/outliner/types';
 import { getProjectDestination } from '@/shared/lib/routes/appNavigation';
+import { useThemedProjectColor } from '@/shared/lib/projectColorTheme';
 import { CommandBarDialog } from '@/shared/dialogs/command-bar/CommandBarDialog';
 import {
   CreateProjectDialog,
@@ -558,6 +560,11 @@ export function SharedAppLayout() {
     appNavigation,
   ]);
 
+  // Theme-aware sidebar project colour (phosphor-duotone transform + the
+  // orchestrator accent). Provided to sidebar project dots via context; the
+  // accent is mirrored onto :root as --vk-theme-main by the hook itself.
+  const themedProjectColor = useThemedProjectColor();
+
   return (
     <SyncErrorProvider>
       <DragProvider onDrop={handleCrossSurfaceDragEnd}>
@@ -581,32 +588,40 @@ export function SharedAppLayout() {
                   {/* Desktop sidebar: project tree + bottom notification/user
                 slots. Spans the full left column; the top drag-region strip
                 lives inside the Sidebar itself. */}
-                  <Sidebar
-                    projects={sidebarProjects}
-                    activeProjectId={activeProjectId}
-                    activeProjectPromptId={activeProjectPromptId}
-                    activeWorkspaceId={workspaceId ?? null}
-                    activeIssueId={activeIssueId}
-                    tasksByProject={tasksByProject}
-                    loadingTasksProjectIds={loadingTasksProjectIds}
-                    onSelectIssue={handleSelectIssue}
-                    workspaces={outlinerWorkspaces}
-                    archivedWorkspaces={outlinerArchivedWorkspaces}
-                    membership={membership}
-                    isLoadingProjects={isLoading}
-                    isLoadingWorkspaces={isWorkspacesListLoading}
-                    onSelectWorkspace={(id) => appNavigation.goToWorkspace(id)}
-                    onOpenProjectPage={handleProjectClick}
-                    onOpenWorkspacesPage={handleOpenWorkspacesPage}
-                    onOpenLastWorkspace={handleOpenLastOrchestratorWorkspace}
-                    onSelectOrchestratorPrompt={handleSelectOrchestratorPrompt}
-                    onCreateChildBoard={handleCreateChildBoard}
-                    isMultiSelectActive={isMultiSelectActive}
-                    headerActions={
-                      <CreateProjectButton onClick={handleCreateProject} />
-                    }
-                    bottomActions={<SidebarBottomActions />}
-                  />
+                  <ProjectColorTransformContext.Provider
+                    value={themedProjectColor.transform}
+                  >
+                    <Sidebar
+                      projects={sidebarProjects}
+                      activeProjectId={activeProjectId}
+                      activeProjectPromptId={activeProjectPromptId}
+                      activeWorkspaceId={workspaceId ?? null}
+                      activeIssueId={activeIssueId}
+                      tasksByProject={tasksByProject}
+                      loadingTasksProjectIds={loadingTasksProjectIds}
+                      onSelectIssue={handleSelectIssue}
+                      workspaces={outlinerWorkspaces}
+                      archivedWorkspaces={outlinerArchivedWorkspaces}
+                      membership={membership}
+                      isLoadingProjects={isLoading}
+                      isLoadingWorkspaces={isWorkspacesListLoading}
+                      onSelectWorkspace={(id) =>
+                        appNavigation.goToWorkspace(id)
+                      }
+                      onOpenProjectPage={handleProjectClick}
+                      onOpenWorkspacesPage={handleOpenWorkspacesPage}
+                      onOpenLastWorkspace={handleOpenLastOrchestratorWorkspace}
+                      onSelectOrchestratorPrompt={
+                        handleSelectOrchestratorPrompt
+                      }
+                      onCreateChildBoard={handleCreateChildBoard}
+                      isMultiSelectActive={isMultiSelectActive}
+                      headerActions={
+                        <CreateProjectButton onClick={handleCreateProject} />
+                      }
+                      bottomActions={<SidebarBottomActions />}
+                    />
+                  </ProjectColorTransformContext.Provider>
                   {/* Content column: Navbar on top, Outlet below. */}
                   <div className="flex flex-col min-h-0 min-w-0">
                     <NavbarContainer
@@ -651,46 +666,50 @@ export function SharedAppLayout() {
                   </div>
 
                   <div className="flex-1 min-h-0 overflow-y-auto">
-                    <Sidebar
-                      projects={sidebarProjects}
-                      activeProjectId={activeProjectId}
-                      activeProjectPromptId={activeProjectPromptId}
-                      activeWorkspaceId={workspaceId ?? null}
-                      activeIssueId={activeIssueId}
-                      tasksByProject={tasksByProject}
-                      loadingTasksProjectIds={loadingTasksProjectIds}
-                      onSelectIssue={handleSelectIssue}
-                      workspaces={outlinerWorkspaces}
-                      archivedWorkspaces={outlinerArchivedWorkspaces}
-                      membership={membership}
-                      isLoadingProjects={isLoading}
-                      isLoadingWorkspaces={isWorkspacesListLoading}
-                      onSelectWorkspace={(id) =>
-                        appNavigation.goToWorkspace(id)
-                      }
-                      onOpenProjectPage={(id) => {
-                        handleProjectClick(id);
-                        setIsDrawerOpen(false);
-                      }}
-                      onOpenWorkspacesPage={(projectId) => {
-                        handleOpenWorkspacesPage(projectId);
-                        setIsDrawerOpen(false);
-                      }}
-                      onOpenLastWorkspace={() => {
-                        handleOpenLastOrchestratorWorkspace();
-                        setIsDrawerOpen(false);
-                      }}
-                      onSelectOrchestratorPrompt={(id) => {
-                        handleSelectOrchestratorPrompt(id);
-                        setIsDrawerOpen(false);
-                      }}
-                      onCreateChildBoard={handleCreateChildBoard}
-                      isMultiSelectActive={isMultiSelectActive}
-                      headerActions={
-                        <CreateProjectButton onClick={handleCreateProject} />
-                      }
-                      bottomActions={<SidebarBottomActions />}
-                    />
+                    <ProjectColorTransformContext.Provider
+                      value={themedProjectColor.transform}
+                    >
+                      <Sidebar
+                        projects={sidebarProjects}
+                        activeProjectId={activeProjectId}
+                        activeProjectPromptId={activeProjectPromptId}
+                        activeWorkspaceId={workspaceId ?? null}
+                        activeIssueId={activeIssueId}
+                        tasksByProject={tasksByProject}
+                        loadingTasksProjectIds={loadingTasksProjectIds}
+                        onSelectIssue={handleSelectIssue}
+                        workspaces={outlinerWorkspaces}
+                        archivedWorkspaces={outlinerArchivedWorkspaces}
+                        membership={membership}
+                        isLoadingProjects={isLoading}
+                        isLoadingWorkspaces={isWorkspacesListLoading}
+                        onSelectWorkspace={(id) =>
+                          appNavigation.goToWorkspace(id)
+                        }
+                        onOpenProjectPage={(id) => {
+                          handleProjectClick(id);
+                          setIsDrawerOpen(false);
+                        }}
+                        onOpenWorkspacesPage={(projectId) => {
+                          handleOpenWorkspacesPage(projectId);
+                          setIsDrawerOpen(false);
+                        }}
+                        onOpenLastWorkspace={() => {
+                          handleOpenLastOrchestratorWorkspace();
+                          setIsDrawerOpen(false);
+                        }}
+                        onSelectOrchestratorPrompt={(id) => {
+                          handleSelectOrchestratorPrompt(id);
+                          setIsDrawerOpen(false);
+                        }}
+                        onCreateChildBoard={handleCreateChildBoard}
+                        isMultiSelectActive={isMultiSelectActive}
+                        headerActions={
+                          <CreateProjectButton onClick={handleCreateProject} />
+                        }
+                        bottomActions={<SidebarBottomActions />}
+                      />
+                    </ProjectColorTransformContext.Provider>
                   </div>
                 </div>
               </MobileDrawer>

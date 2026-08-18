@@ -7,6 +7,7 @@ import {
 } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/cn';
+import { useProjectColorTransform } from '../../lib/projectColor';
 import { useDraggable, useDropTarget } from '../dnd';
 import {
   DropdownMenu,
@@ -80,6 +81,13 @@ function ProjectTreeNode(
   const project = node.data;
   const isActive = project.id === activeProjectId;
   const isUnassigned = project.id === UNASSIGNED_PROJECT_ID;
+  // Theme-aware project colour: duotone-mapped when a themed skin is active,
+  // raw colour otherwise (identity transform). Applied to the avatar dot, the
+  // project name's own-colour branch, and the propagated ancestor tint so the
+  // whole sidebar stays internally consistent.
+  const transformColor = useProjectColorTransform();
+  const projectColor = transformColor(project.color);
+  const displayTint = tintColor ? transformColor(tintColor) : tintColor;
   const isExpandable = !node.isLeaf;
   const isDragActive = useDragActive();
   const candidateId = useDragCandidate();
@@ -143,8 +151,8 @@ function ProjectTreeNode(
             isUnassigned && 'opacity-70'
           )}
           style={{
-            color: `hsl(${project.color})`,
-            backgroundColor: `hsl(${project.color} / 0.18)`,
+            color: `hsl(${projectColor})`,
+            backgroundColor: `hsl(${projectColor} / 0.18)`,
           }}
           aria-hidden="true"
         >
@@ -153,9 +161,9 @@ function ProjectTreeNode(
         <span
           className="flex-1 min-w-0 truncate"
           style={
-            tintColor
-              ? tintStyle(tintColor, isActive ? 1 : 0.8)
-              : { color: `hsl(${project.color})` }
+            displayTint
+              ? tintStyle(displayTint, isActive ? 1 : 0.8)
+              : { color: `hsl(${projectColor})` }
           }
         >
           {project.name}
@@ -378,7 +386,10 @@ function OrchestratorPromptTreeNode(
               'Orchestrator prompt is set'
             )}
             data-testid={`orchestrator-prompt-dot-${data.projectId}`}
-            className="ml-auto size-1.5 shrink-0 rounded-full bg-brand"
+            className="ml-auto size-1.5 shrink-0 rounded-full"
+            style={{
+              backgroundColor: 'hsl(var(--vk-theme-main, var(--brand)))',
+            }}
           />
         )}
       </div>
