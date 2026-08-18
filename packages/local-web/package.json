@@ -2,7 +2,7 @@
   "name": "@vibe/local-web",
   "description": "vibe-kanban-indie local web app — the single-developer, self-hosted UI (no team, no cloud).",
   "private": true,
-  "version": "0.2.26",
+  "version": "0.2.27",
   "type": "module",
   "scripts": {
     "dev": "VITE_OPEN=${VITE_OPEN:-false} vite",
