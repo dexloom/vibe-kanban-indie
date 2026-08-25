@@ -10,7 +10,11 @@ use tokio_util::sync::CancellationToken;
 use tower_http::validate_request::ValidateRequestHeaderLayer;
 use utils::assets::asset_dir;
 
-use crate::{DeploymentImpl, middleware, middleware::origin::validate_origin, routes};
+use crate::{
+    DeploymentImpl, middleware,
+    middleware::origin::{validate_origin, validate_preview_proxy_host},
+    routes,
+};
 
 /// A running server instance. Callers can read the port, then call `serve()`
 /// to run the server until the shutdown token is cancelled.
@@ -47,7 +51,14 @@ impl ServerHandle {
 
         let app_router = routes::router(self.deployment.clone());
         let proxy_router: axum::Router = routes::preview::subdomain_router(self.deployment.clone())
-            .layer(ValidateRequestHeaderLayer::custom(validate_origin));
+            .layer(ValidateRequestHeaderLayer::custom(validate_origin))
+            // The preview proxy addresses upstream dev servers as
+            // `<target_port>.localhost:<proxy_port>`, so it takes the variant that
+            // also accepts `*.localhost` (RFC 6761 reserves it to loopback, so it
+            // is not registrable in public DNS and not a rebinding vector).
+            .layer(ValidateRequestHeaderLayer::custom(
+                validate_preview_proxy_host,
+            ));
 
         // Seed the origin-check middleware with the saved config's allowed origins
         // (env var VK_ALLOWED_ORIGINS is the fallback when the config list is empty).

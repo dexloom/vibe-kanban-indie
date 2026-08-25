@@ -96,5 +96,14 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .nest("/api", api_routes)
         .merge(v1_routes)
         .layer(CompressionLayer::new())
+        // Outermost layer, and deliberately so: the Host guard has to see
+        // every request before anything else does — `/api/*`, `/v1/*`,
+        // WebSocket upgrades and the embedded frontend's static files alike.
+        // Adding it per-sub-router (as the Origin check is) would leave the
+        // static routes uncovered. See `middleware::origin` for why a
+        // non-loopback Host is a DNS-rebinding attempt.
+        .layer(ValidateRequestHeaderLayer::custom(
+            middleware::validate_loopback_host,
+        ))
         .into_make_service()
 }

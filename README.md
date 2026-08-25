@@ -199,14 +199,15 @@ The following environment variables can be configured at build time or runtime:
 | `MCP_PORT` | Runtime | Value of `BACKEND_PORT` | MCP server connection port |
 | `DISABLE_WORKTREE_CLEANUP` | Runtime | Not set | Disable all git worktree cleanup including orphan and expired workspace cleanup (for debugging) |
 | `VK_ALLOWED_ORIGINS` | Runtime | Not set | Comma-separated list of origins that are allowed to make backend API requests (e.g., `https://my-vibekanban-frontend.com`) |
+| `VK_ALLOWED_HOSTS` | Runtime | Not set | Comma-separated list of authorities the server will answer to in addition to loopback (e.g., `vk.example.com,192.168.1.50:3000`). `*` accepts any `Host`. Read once at start-up |
 
 **Build-time variables** must be set when running `pnpm run build`. **Runtime variables** are read when the application starts.
 
 #### Self-Hosting with a Reverse Proxy or Custom Domain
 
-When running Vibe Kanban behind a reverse proxy (e.g., nginx, Caddy, Traefik) or on a custom domain, you must set the `VK_ALLOWED_ORIGINS` environment variable. Without this, the browser's Origin header won't match the backend's expected host, and API requests will be rejected with a 403 Forbidden error.
+When running Vibe Kanban behind a reverse proxy (e.g., nginx, Caddy, Traefik) or on a custom domain, you must set **two** environment variables.
 
-Set it to the full origin URL(s) where your frontend is accessible:
+`VK_ALLOWED_ORIGINS` — the full origin URL(s) where your frontend is accessible. Without this, the browser's Origin header won't match the backend's expected host, and API requests will be rejected with a 403 Forbidden error:
 
 ```bash
 # Single origin
@@ -215,6 +216,18 @@ VK_ALLOWED_ORIGINS=https://vk.example.com
 # Multiple origins (comma-separated)
 VK_ALLOWED_ORIGINS=https://vk.example.com,https://vk-staging.example.com
 ```
+
+`VK_ALLOWED_HOSTS` — the hostname(s) you browse to. The server only answers requests whose `Host` header is a loopback authority (`localhost`, `127.0.0.0/8`, `[::1]`, any port); everything else gets a 403 explaining why. That check is what stops a public website from resolving its own hostname to `127.0.0.1` and driving your unauthenticated local board from your browser (DNS rebinding). Add the names you actually use:
+
+```bash
+# Bare authority or full URL; no port means "any port"
+VK_ALLOWED_HOSTS=vk.example.com,192.168.1.50:3000
+
+# Accept any Host header — only behind a proxy that already restricts access
+VK_ALLOWED_HOSTS=*
+```
+
+A reverse proxy that rewrites the upstream `Host` to the loopback address it dials (Caddy: `reverse_proxy 127.0.0.1:3000 { header_up Host {upstream_hostport} }`) satisfies the check without any `VK_ALLOWED_HOSTS` entry. `VK_ALLOWED_HOSTS` is read once at start-up, so changing it needs a restart — deliberately, since a rejected `Host` 403s every route including the Settings UI.
 
 ### Remote Deployment
 

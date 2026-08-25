@@ -55,21 +55,28 @@ If `kanban.sh` is running it binds to `127.0.0.1`. To test from a phone you want
 ~/yt/kanban.sh stop
 ```
 
-### Step 2 — Start the server on all interfaces with a fixed port
-
-```bash
-HOST=0.0.0.0 BACKEND_PORT=55763 ~/.vibe-kanban/bin/v0.2.23/macos-arm64/vibe-kanban
-```
-
-- `HOST=0.0.0.0` makes the server listen on all interfaces (default is `127.0.0.1`).
-- `BACKEND_PORT` (or `PORT`) pins the port instead of auto-assigning one.
-- The same port serves both the API and the embedded frontend.
-
-### Step 3 — Get your tailnet hostname
+### Step 2 — Get your tailnet hostname
 
 ```bash
 tailscale status --json | python3 -c "import sys,json; print(json.load(sys.stdin)['Self']['DNSName'].rstrip('.'))"
 ```
+
+### Step 3 — Start the server on all interfaces with a fixed port
+
+```bash
+TS_HOSTNAME=$(tailscale status --json | python3 -c "import sys,json; print(json.load(sys.stdin)['Self']['DNSName'].rstrip('.'))")
+HOST=0.0.0.0 BACKEND_PORT=55763 \
+  VK_ALLOWED_HOSTS="${TS_HOSTNAME}:55763" \
+  VK_ALLOWED_ORIGINS="http://${TS_HOSTNAME}:55763" \
+  ~/.vibe-kanban/bin/v0.2.23/macos-arm64/vibe-kanban
+```
+
+- `HOST=0.0.0.0` makes the server listen on all interfaces (default is `127.0.0.1`).
+- `BACKEND_PORT` (or `PORT`) pins the port instead of auto-assigning one.
+- `VK_ALLOWED_HOSTS` is **required**: the server only answers requests whose `Host` header is a loopback authority, so requests addressed to your tailnet name are rejected with `403 Forbidden` until you list it. That check is what stops a public website from pointing its own hostname at `127.0.0.1` and driving your board from your browser.
+- `VK_ALLOWED_ORIGINS` covers the separate `Origin` check for the same name.
+- Both are read at start-up; changing either needs a restart.
+- The same port serves both the API and the embedded frontend.
 
 ### Step 4 — Open the UI from your phone
 
@@ -101,11 +108,14 @@ Plain `http://` over Tailscale works for most testing. If you need a trusted HTT
    cat > Caddyfile << EOF
    ${TS_HOSTNAME}:55763 {
        tls ${TS_HOSTNAME}.crt ${TS_HOSTNAME}.key
-       reverse_proxy 127.0.0.1:55763
+       reverse_proxy 127.0.0.1:55764 {
+           header_up Host {upstream_hostport}
+       }
    }
    EOF
    caddy run --config Caddyfile
    ```
+   Run the server on a different port than Caddy (`BACKEND_PORT=55764` here) and let Caddy own `55763`. `header_up Host {upstream_hostport}` rewrites the upstream `Host` to `127.0.0.1:55764`, which satisfies the loopback-`Host` check without a `VK_ALLOWED_HOSTS` entry — but `VK_ALLOWED_ORIGINS` still needs `https://${TS_HOSTNAME}:55763`, since the browser's `Origin` is unaffected by the proxy.
 4. Phone: `https://<hostname>:55763`
 
 > Certs expire after 90 days. Re-run `tailscale cert $TS_HOSTNAME` to renew.
@@ -118,6 +128,7 @@ Plain `http://` over Tailscale works for most testing. If you need a trusted HTT
 |---|---|
 | Phone can't reach the URL | Open Tailscale app on phone → toggle ON. Run `tailscale status` on Mac to verify both devices are connected |
 | Phone shows certificate warning | Re-run `tailscale cert $TS_HOSTNAME` — certs may have expired (90-day lifetime) |
-| Server says port already in use | Another instance is running. `pkill -f vibe-kanban`, then retry Step 2 |
+| Server says port already in use | Another instance is running. `pkill -f vibe-kanban`, then retry Step 3 |
+| `403 Forbidden` with a message about loopback hosts | The tailnet name isn't in `VK_ALLOWED_HOSTS`. The response body names the rejected `Host` — add it (with the port) and restart |
 | `ping <hostname>` doesn't resolve | Enable MagicDNS in Tailscale admin: https://login.tailscale.com/admin/dns |
 | Back to local dev | Stop the manual server (`Ctrl+C`), then `~/yt/kanban.sh start` |

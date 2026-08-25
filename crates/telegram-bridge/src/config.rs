@@ -94,6 +94,9 @@ async fn resolve_backend() -> Result<(String, String)> {
         return Ok((format!("{url}/api"), format!("{ws}/api")));
     }
     let host = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+    // `HOST` is a bind address; `0.0.0.0`/`::` are not dialable and the
+    // backend's loopback-Host guard rejects them as a Host header.
+    let host = utils::net::dialable_host(&host).to_string();
     let port = match std::env::var("BACKEND_PORT").or_else(|_| std::env::var("PORT")) {
         Ok(p) => p.parse::<u16>().context("invalid port")?,
         Err(_) => utils::port_file::read_port_file("vibe-kanban")

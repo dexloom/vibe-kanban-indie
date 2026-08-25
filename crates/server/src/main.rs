@@ -1,7 +1,11 @@
 use anyhow::{self, Error as AnyhowError};
 use axum::Router;
 use deployment::{Deployment, DeploymentError};
-use server::{DeploymentImpl, middleware::origin::validate_origin, routes};
+use server::{
+    DeploymentImpl,
+    middleware::origin::{validate_origin, validate_preview_proxy_host},
+    routes,
+};
 use services::services::container::ContainerService;
 use sqlx::Error as SqlxError;
 use strip_ansi_escapes::strip;
@@ -195,7 +199,14 @@ async fn main() -> Result<(), VibeKanbanError> {
     }
 
     let proxy_router: Router = routes::preview::subdomain_router(deployment.clone())
-        .layer(ValidateRequestHeaderLayer::custom(validate_origin));
+        .layer(ValidateRequestHeaderLayer::custom(validate_origin))
+        // The preview proxy addresses upstream dev servers as
+        // `<target_port>.localhost:<proxy_port>`, so it takes the variant that
+        // also accepts `*.localhost` (RFC 6761 reserves it to loopback, so it
+        // is not registrable in public DNS and not a rebinding vector).
+        .layer(ValidateRequestHeaderLayer::custom(
+            validate_preview_proxy_host,
+        ));
 
     let main_shutdown = shutdown_token.clone();
     let proxy_shutdown = shutdown_token.clone();

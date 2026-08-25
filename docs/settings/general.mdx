@@ -175,6 +175,20 @@ environment variable (set by the dev script to your frontend port). Adding origi
 here overrides that seed; clearing the list restores the env-based behaviour.
 </Note>
 
+<Warning>
+**Allowed Origins is only half of it.** The backend also rejects any request whose
+`Host` header is not a loopback authority (`localhost`, `127.0.0.0/8`, `[::1]`,
+any port) — the defence against a public website resolving its own hostname to
+`127.0.0.1` and driving your unauthenticated board from your browser. Reaching the
+app by a LAN IP, tunnel, or VPN name needs that name in the `VK_ALLOWED_HOSTS`
+environment variable *as well as* an entry here.
+
+`VK_ALLOWED_HOSTS` is intentionally **not** editable from this page: a rejected
+`Host` returns 403 for every route, Settings included, so a UI knob could never be
+used to recover. Set it in the environment and restart. See
+[Remote Access](/remote-access).
+</Warning>
+
 ## Notifications
 
 <Frame>

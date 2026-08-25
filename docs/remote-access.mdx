@@ -31,8 +31,18 @@ front.
 ## Bind the server to your network
 
 By default the backend binds to `127.0.0.1`, which is only reachable from the
-host itself. Set `HOST` so other devices can connect, and declare the origins
-you'll browse from with `VK_ALLOWED_ORIGINS`.
+host itself. Set `HOST` so other devices can connect, then declare the hostname
+you'll browse to with `VK_ALLOWED_HOSTS` and the origin with
+`VK_ALLOWED_ORIGINS`.
+
+<Warning>
+**Two separate checks have to pass.** The server only answers requests whose
+`Host` header is a loopback authority (`localhost`, `127.0.0.0/8`, `[::1]`, any
+port) — that is what stops a public website from resolving its own hostname to
+`127.0.0.1` and then driving your local board from your browser (a DNS-rebinding
+attack). Reaching the board by any other name needs that name in
+`VK_ALLOWED_HOSTS`, and its origin in `VK_ALLOWED_ORIGINS`.
+</Warning>
 
 <Steps>
 <Step title="Bind to all interfaces">
@@ -48,15 +58,45 @@ you'll browse from with `VK_ALLOWED_ORIGINS`.
   </Warning>
 </Step>
 
-<Step title="Allow your browsing origin">
-  When you access the UI by any host other than `localhost`, the browser's
-  `Origin` header won't match and requests are rejected with `403 Forbidden`.
-  List the origins you'll use:
+<Step title="Allow the hostname you browse to">
+  Every request whose `Host` header is not loopback is rejected with `403
+  Forbidden` and a body explaining why. List the hostnames you'll type into the
+  address bar:
 
   ```bash
-  VK_ALLOWED_ORIGINS="https://host.your-tailnet.ts.net,http://192.168.1.50:3000" \
+  VK_ALLOWED_HOSTS="host.your-tailnet.ts.net,192.168.1.50:3000" \
     HOST=0.0.0.0 npx vibe-kanban-indie
   ```
+
+  Entries are comma-separated. Each one is a bare authority
+  (`192.168.1.50:3000`) or a full URL whose authority is used
+  (`https://host.your-tailnet.ts.net`), so you can paste the same values you use
+  for `VK_ALLOWED_ORIGINS`. **An entry with no port matches that host on any
+  port**; an entry with a port matches only that port.
+
+  <Note>
+  `VK_ALLOWED_HOSTS=*` accepts any `Host` header, which switches the guard off.
+  Only do this behind a proxy that already restricts who can reach the server —
+  it re-opens the DNS-rebinding hole for anyone who can point a hostname at your
+  machine.
+  </Note>
+</Step>
+
+<Step title="Allow your browsing origin">
+  When you access the UI by any host other than `localhost`, the browser's
+  `Origin` header won't match either, and requests are rejected with `403
+  Forbidden`. List the origins you'll use:
+
+  ```bash
+  VK_ALLOWED_HOSTS="host.your-tailnet.ts.net,192.168.1.50:3000" \
+    VK_ALLOWED_ORIGINS="https://host.your-tailnet.ts.net,http://192.168.1.50:3000" \
+    HOST=0.0.0.0 npx vibe-kanban-indie
+  ```
+
+  Unlike `VK_ALLOWED_ORIGINS`, which is also editable at runtime under
+  **Settings → Network**, `VK_ALLOWED_HOSTS` is read once at start-up and needs
+  a restart to change. It has to be: a rejected `Host` returns 403 for *every*
+  route, the Settings page included, so a UI knob could not be used to recover.
 
   <Check>
   Open the URL on your other device. The board should load and stay
@@ -76,7 +116,17 @@ that combines **Tailscale** (stable networking + certificates) with **Caddy**
 fifteen minutes.
 
 Other tunnels such as Cloudflare Tunnel or ngrok work the same way: expose the
-web UI, then add the tunnel URL to `VK_ALLOWED_ORIGINS`.
+web UI, then add the tunnel hostname to `VK_ALLOWED_HOSTS` and the tunnel URL to
+`VK_ALLOWED_ORIGINS`.
+
+<Tip>
+A reverse proxy can satisfy the `Host` guard on its own. Configure it to rewrite
+the upstream `Host` to the loopback address it dials — in Caddy,
+`reverse_proxy 127.0.0.1:3000 { header_up Host {upstream_hostport} }` — and the
+backend sees `127.0.0.1:3000` and needs no `VK_ALLOWED_HOSTS` entry. Proxies
+that forward the public `Host` unchanged (Caddy's default) do need the public
+name listed.
+</Tip>
 
 ## Open your editor on the remote host
 
