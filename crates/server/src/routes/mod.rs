@@ -100,10 +100,12 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         // every request before anything else does — `/api/*`, `/v1/*`,
         // WebSocket upgrades and the embedded frontend's static files alike.
         // Adding it per-sub-router (as the Origin check is) would leave the
-        // static routes uncovered. See `middleware::origin` for why a
-        // non-loopback Host is a DNS-rebinding attempt.
+        // static routes uncovered. A reverse proxy cannot stand in for this:
+        // the rebound request comes from a browser inside the perimeter and
+        // goes straight to this port, never traversing the edge. See
+        // `middleware::origin`.
         .layer(ValidateRequestHeaderLayer::custom(
-            middleware::validate_loopback_host,
+            middleware::validate_host,
         ))
         .into_make_service()
 }

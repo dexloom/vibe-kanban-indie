@@ -8,9 +8,10 @@ localhost:3001, relay.localhost:3001, *.relay.localhost:3001 {
 
     @app expression `{http.request.host} == "localhost:3001" || {http.request.host} == "localhost"`
     handle @app {
-        # `header_up Host` rewrites the upstream Host to 127.0.0.1:3000, which
-        # satisfies the backend's loopback-Host guard (see ADR-025). Drop it and
-        # the public hostname must be listed in VK_ALLOWED_HOSTS instead.
+        # `header_up Host` rewrites the upstream Host to 127.0.0.1:3000, an IP
+        # literal, which the backend's Host guard accepts unconditionally (see
+        # ADR-025). Drop it and the public hostname — a name — must be listed in
+        # VK_ALLOWED_HOSTS instead.
         reverse_proxy 127.0.0.1:3000 {
             header_up Host {upstream_hostport}
         }

@@ -174,13 +174,24 @@ pub fn set_allowed_origins(origins: &[String]) {
 // Host-header guard (DNS-rebinding defence)
 // ---------------------------------------------------------------------------
 //
-// The server binds to loopback and has no authentication, so the only thing
-// standing between it and a hostile web page is the browser. A page on the
-// public internet can point *its own* hostname at 127.0.0.1 (DNS rebinding)
-// and then talk to this server as same-origin — the `Origin` check above
-// passes, because origin and Host agree. What does not agree is the Host: it
-// is the attacker's domain, never a loopback name. Rejecting non-loopback
-// authorities closes that hole.
+// The server has no authentication, so the only thing standing between it and
+// a hostile web page is the browser. A page on the public internet can point
+// *its own* hostname at 127.0.0.1 (DNS rebinding) and then talk to this server
+// as same-origin — the `Origin` check above passes, because origin and Host
+// agree. What does not agree is the Host: a rebound request always carries the
+// attacker's *name*, because the browser puts the URL's authority there.
+//
+// So the rule is not "loopback only", it is "a name we recognise, or any IP
+// literal". An IP literal cannot be produced by rebinding at all, and a page
+// that fetches one directly is plainly cross-origin, which `validate_origin`
+// already rejects. See `ParsedAuthority::is_rebinding_safe`.
+//
+// A reverse proxy cannot hold this line. The attacker is JavaScript in the
+// victim's own browser, inside the perimeter, opening a connection to the
+// address:port *it* chooses — which is the app's, not the edge's. The rebound
+// request never traverses the proxy, so the proxy never sees it. Host
+// validation is the origin server's job (RFC 9110 §7.2), and this is the only
+// layer the threat passes through.
 //
 // The guard is a `ValidateRequestHeaderLayer::custom` predicate applied to the
 // *outermost* router (see `crate::routes::router`), so it covers every route:
@@ -189,12 +200,17 @@ pub fn set_allowed_origins(origins: &[String]) {
 
 /// Environment variable naming extra authorities the `Host` guard accepts.
 ///
-/// Comma-separated, unset by default (loopback only). Each entry is either a
-/// bare authority (`192.168.1.50:3000`, `vk.example.com`) or a full URL whose
-/// authority is used (`https://vk.example.com`), so the values already used
-/// for `VK_ALLOWED_ORIGINS` can be pasted in unchanged. An entry without a
-/// port matches that host on any port. The single entry `*` accepts any Host
-/// header, disabling the guard.
+/// Comma-separated, unset by default. Only *hostnames* ever need listing here:
+/// IP literals are accepted without configuration (see
+/// [`ParsedAuthority::is_rebinding_safe`]), so this is for a Tailscale MagicDNS
+/// name, an mDNS `.local` name, a reverse-proxy domain, or a container name
+/// like `app:3000`.
+///
+/// Each entry is either a bare authority (`vk.example.com`, `app:3000`) or a
+/// full URL whose authority is used (`https://vk.example.com`), so the values
+/// already used for `VK_ALLOWED_ORIGINS` can be pasted in unchanged. An entry
+/// without a port matches that host on any port. The single entry `*` accepts
+/// any Host header, disabling the guard.
 pub const ALLOWED_HOSTS_ENV: &str = "VK_ALLOWED_HOSTS";
 
 /// A request authority, normalised for comparison.
@@ -265,15 +281,32 @@ impl ParsedAuthority {
         })
     }
 
-    /// `localhost`, or any IP literal in 127.0.0.0/8 or `::1`.
+    /// An authority DNS rebinding cannot forge: any IP literal, or the exact
+    /// name `localhost`.
     ///
-    /// Note that an IP literal Host can only come from a human typing one:
-    /// DNS rebinding yields the attacker's *name* in the Host header, never an
-    /// address. `0.0.0.0` is deliberately excluded — some browsers do route
-    /// `http://0.0.0.0:<port>` from a public page to the local server.
-    fn is_loopback(&self) -> bool {
+    /// Rebinding cannot produce an IP-literal Host. The browser puts the URL's
+    /// authority in the `Host` header, so a rebound request carries the
+    /// attacker's *name* (`evil.com`) no matter which address that name was
+    /// made to resolve to. To make a browser send `Host: 192.168.1.50:3000`
+    /// the page has to fetch that URL directly, which is plainly cross-origin:
+    /// its `Origin` is `http://evil.com`, it cannot match, and
+    /// [`validate_origin`] rejects it. So the two checks together cover what
+    /// neither covers alone, and requiring no configuration for IP-addressed
+    /// access costs nothing.
+    ///
+    /// Origin-less vectors (`<img>`, `<script>`, a GET form navigation) do
+    /// reach the handler, but there is no CORS layer in this workspace, so the
+    /// response is unreadable — side-effect-only CSRF, unchanged by widening
+    /// past loopback, since `http://127.0.0.1:<port>` was always reachable the
+    /// same way.
+    ///
+    /// The unspecified addresses are the one exception. They are not a
+    /// legitimate destination (see `utils::net::dialable_host`), and some
+    /// browsers route `http://0.0.0.0:<port>` from a public page straight to
+    /// the local server, so excluding them removes a known quirk for free.
+    fn is_rebinding_safe(&self) -> bool {
         match self.ip {
-            Some(ip) => ip.is_loopback(),
+            Some(ip) => !ip.is_unspecified(),
             None => self.host == "localhost",
         }
     }
@@ -347,7 +380,7 @@ impl HostPolicy {
         if self.allow_any {
             return true;
         }
-        if authority.is_loopback() {
+        if authority.is_rebinding_safe() {
             return true;
         }
         if allow_localhost_subdomains && authority.is_localhost_subdomain() {
@@ -382,12 +415,13 @@ fn allowed_hosts() -> &'static HostPolicy {
     })
 }
 
-/// Reject requests whose authority is not loopback.
+/// Reject requests whose authority DNS rebinding could have forged — any
+/// hostname other than `localhost` that is not in [`ALLOWED_HOSTS_ENV`].
 ///
 /// Applied to the outermost main router, so it covers `/api/*`, `/v1/*`,
 /// WebSocket upgrades and static frontend files alike.
 #[allow(clippy::result_large_err)]
-pub fn validate_loopback_host<B>(req: &mut Request<B>) -> Result<(), Response> {
+pub fn validate_host<B>(req: &mut Request<B>) -> Result<(), Response> {
     check_host(req, allowed_hosts(), false)
 }
 
@@ -462,18 +496,21 @@ fn host_forbidden(authority: Option<&str>) -> Response {
     let body = format!(
         "403 Forbidden: {subject}.\n\
          \n\
-         This is a single-user local server. It only answers requests addressed to a\n\
-         loopback authority — `localhost`, `127.0.0.0/8` or `[::1]`, on any port.\n\
-         Any other Host header is treated as a DNS-rebinding attempt: a public website\n\
-         can resolve its own hostname to 127.0.0.1 and then talk to this server from\n\
-         your browser.\n\
+         This is a single-user local server. It answers requests addressed to\n\
+         `localhost` or to an IP address literal, on any port. It rejects any other\n\
+         hostname, because a rebound request always carries the attacker's name: a\n\
+         public website can resolve its own hostname to this server's address and\n\
+         then drive it from your browser (DNS rebinding).\n\
          \n\
-         To serve the board on another hostname (a LAN IP, a Tailscale name, or a\n\
-         reverse-proxy domain), set {ALLOWED_HOSTS_ENV} before starting the server:\n\
+         Reaching the board by IP needs no configuration. Reaching it by a hostname —\n\
+         a Tailscale MagicDNS name, an mDNS `.local` name, a reverse-proxy domain, or\n\
+         a container name — needs that name listed before start-up:\n\
          \n\
-         \x20   {ALLOWED_HOSTS_ENV}=\"192.168.1.50:3000,vk.example.com\"\n\
+         \x20   {ALLOWED_HOSTS_ENV}=\"vk.example.com,app:3000\"\n\
          \n\
-         An entry with no port matches any port; `{ALLOWED_HOSTS_ENV}=*` accepts any\n\
+         An entry with no port matches any port. Alternatively, have your reverse\n\
+         proxy rewrite the upstream Host to the address it dials (in Caddy,\n\
+         `header_up Host {{upstream_hostport}}`). `{ALLOWED_HOSTS_ENV}=*` accepts any\n\
          Host header and is not recommended.\n"
     );
     Response::builder()
@@ -721,16 +758,49 @@ mod host_tests {
     }
 
     #[test]
-    fn non_loopback_host_is_forbidden() {
+    fn unlisted_hostnames_are_forbidden() {
         for host in [
             "example.com",
             "example.com:3000",
-            "192.168.1.50:3000",
-            "10.0.0.5",
-            "[2001:db8::1]:3000",
-            // Not loopback, and reachable from a public page in some browsers.
+            // The compose case: Traefik dialling `http://app:3000` sends a
+            // NAME, so the IP-literal widening does not cover it.
+            "app:3000",
+            "vk.example.com:443",
+            "host.local",
+            "johns-macbook.tail99xyz.ts.net:3000",
+        ] {
+            assert!(is_forbidden(check(Some(host))), "{host} should be rejected");
+        }
+    }
+
+    /// The widening: an IP literal cannot be produced by DNS rebinding, so it
+    /// needs no configuration. See `ParsedAuthority::is_rebinding_safe`.
+    #[test]
+    fn ip_literal_hosts_are_allowed_without_configuration() {
+        for host in [
+            "192.168.1.50:3000",    // LAN, the ADR-024 scenario
+            "10.0.0.5",             // private
+            "172.16.4.9:8080",      // private
+            "100.101.102.103:3000", // Tailscale, CGNAT 100.64/10
+            "[2001:db8::1]:3000",   // global IPv6 literal
+            "[fd00::1]:3000",       // unique-local IPv6
+            "203.0.113.7:3000",     // public IPv4 literal
+        ] {
+            assert!(check(Some(host)).is_ok(), "{host} should be allowed");
+        }
+    }
+
+    /// The unspecified addresses stay out: never a legitimate destination, and
+    /// some browsers route `http://0.0.0.0:<port>` from a public page to the
+    /// local server.
+    #[test]
+    fn unspecified_addresses_are_forbidden() {
+        for host in [
+            "0.0.0.0",
             "0.0.0.0:3000",
+            "[::]",
             "[::]:3000",
+            "[0:0:0:0:0:0:0:0]:3000",
         ] {
             assert!(is_forbidden(check(Some(host))), "{host} should be rejected");
         }
@@ -853,15 +923,17 @@ mod host_tests {
 
     #[test]
     fn configured_hosts_are_allowed() {
+        // Only hostnames are worth listing — IP literals pass unconditionally,
+        // so an entry pinning a port on an IP literal is a no-op.
         let policy =
-            HostPolicy::parse_list("192.168.1.50:3000, https://vk.example.com , tailscale-host");
+            HostPolicy::parse_list("pinned.example:3000, https://vk.example.com , tailscale-host");
         assert!(!policy.allow_any);
 
         // Exact host:port match.
-        assert!(check_host(&request(Some("192.168.1.50:3000")), &policy, false).is_ok());
+        assert!(check_host(&request(Some("pinned.example:3000")), &policy, false).is_ok());
         // Wrong port for an entry that pinned one.
         assert!(is_forbidden(check_host(
-            &request(Some("192.168.1.50:3999")),
+            &request(Some("pinned.example:3999")),
             &policy,
             false
         )));
@@ -914,11 +986,11 @@ mod host_tests {
         }
         for host in ["localhost:3000", "127.0.0.1:3000", "[::1]:3000"] {
             let mut req = request(Some(host));
-            assert!(validate_loopback_host(&mut req).is_ok(), "{host}");
+            assert!(validate_host(&mut req).is_ok(), "{host}");
         }
         for host in ["evil.com", "127.0.0.1.evil.com"] {
             let mut req = request(Some(host));
-            assert!(is_forbidden(validate_loopback_host(&mut req)), "{host}");
+            assert!(is_forbidden(validate_host(&mut req)), "{host}");
         }
         // The preview proxy variant adds `*.localhost` and nothing else.
         let mut req = request(Some("3000.localhost:3003"));
@@ -956,7 +1028,7 @@ mod host_tests {
                     "/api",
                     Router::new().route("/health", get(|| async { "ok" })),
                 )
-                .layer(ValidateRequestHeaderLayer::custom(validate_loopback_host))
+                .layer(ValidateRequestHeaderLayer::custom(validate_host))
         };
 
         let probes = [
@@ -1006,7 +1078,9 @@ mod host_tests {
         );
         let body = body_text(response).await;
         assert!(body.contains("evil.com"), "{body}");
-        assert!(body.contains("loopback"), "{body}");
+        assert!(body.contains("rebinding"), "{body}");
+        // It must name the rule it actually enforces, not the old one.
+        assert!(body.contains("IP address literal"), "{body}");
         assert!(body.contains(ALLOWED_HOSTS_ENV), "{body}");
     }
 

@@ -199,7 +199,7 @@ The following environment variables can be configured at build time or runtime:
 | `MCP_PORT` | Runtime | Value of `BACKEND_PORT` | MCP server connection port |
 | `DISABLE_WORKTREE_CLEANUP` | Runtime | Not set | Disable all git worktree cleanup including orphan and expired workspace cleanup (for debugging) |
 | `VK_ALLOWED_ORIGINS` | Runtime | Not set | Comma-separated list of origins that are allowed to make backend API requests (e.g., `https://my-vibekanban-frontend.com`) |
-| `VK_ALLOWED_HOSTS` | Runtime | Not set | Comma-separated list of authorities the server will answer to in addition to loopback (e.g., `vk.example.com,192.168.1.50:3000`). `*` accepts any `Host`. Read once at start-up |
+| `VK_ALLOWED_HOSTS` | Runtime | Not set | Comma-separated list of **hostnames** the server will answer to in addition to `localhost` (e.g., `vk.example.com,app:3000`). IP literals are always accepted and need no entry. `*` accepts any `Host`. Read once at start-up |
 
 **Build-time variables** must be set when running `pnpm run build`. **Runtime variables** are read when the application starts.
 
@@ -217,17 +217,19 @@ VK_ALLOWED_ORIGINS=https://vk.example.com
 VK_ALLOWED_ORIGINS=https://vk.example.com,https://vk-staging.example.com
 ```
 
-`VK_ALLOWED_HOSTS` — the hostname(s) you browse to. The server only answers requests whose `Host` header is a loopback authority (`localhost`, `127.0.0.0/8`, `[::1]`, any port); everything else gets a 403 explaining why. That check is what stops a public website from resolving its own hostname to `127.0.0.1` and driving your unauthenticated local board from your browser (DNS rebinding). Add the names you actually use:
+`VK_ALLOWED_HOSTS` — the **hostname(s)** you browse to. The server answers requests addressed to `localhost` or to any IP address literal, on any port, and rejects any other hostname with a 403 explaining why. That check is what stops a public website from resolving its own hostname to your machine and driving your unauthenticated local board from a visitor's browser (DNS rebinding); an IP-literal `Host` is exempt because a browser can never be made to send one for someone else's origin.
+
+So `http://192.168.1.50:3000` needs nothing. A name does:
 
 ```bash
 # Bare authority or full URL; no port means "any port"
-VK_ALLOWED_HOSTS=vk.example.com,192.168.1.50:3000
+VK_ALLOWED_HOSTS=vk.example.com,app:3000
 
 # Accept any Host header — only behind a proxy that already restricts access
 VK_ALLOWED_HOSTS=*
 ```
 
-A reverse proxy that rewrites the upstream `Host` to the loopback address it dials (Caddy: `reverse_proxy 127.0.0.1:3000 { header_up Host {upstream_hostport} }`) satisfies the check without any `VK_ALLOWED_HOSTS` entry. `VK_ALLOWED_HOSTS` is read once at start-up, so changing it needs a restart — deliberately, since a rejected `Host` 403s every route including the Settings UI.
+A reverse proxy that rewrites the upstream `Host` to the address it dials (Caddy: `reverse_proxy 127.0.0.1:3000 { header_up Host {upstream_hostport} }`) satisfies the check with no entry at all. Note that a proxy dialling the app by container name (Traefik to `http://app:3000`) sends `Host: app:3000` — a name — so that setup still needs an entry. `VK_ALLOWED_HOSTS` is read once at start-up, so changing it needs a restart — deliberately, since a rejected `Host` 403s every route including the Settings UI. The guard lives in the app rather than the proxy because a rebound request comes from a browser inside your network straight to the app's port and never traverses the edge; see `docs/ADR/ADR-025-loopback-host-guard.md`.
 
 ### Remote Deployment
 

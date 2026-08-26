@@ -36,12 +36,17 @@ you'll browse to with `VK_ALLOWED_HOSTS` and the origin with
 `VK_ALLOWED_ORIGINS`.
 
 <Warning>
-**Two separate checks have to pass.** The server only answers requests whose
-`Host` header is a loopback authority (`localhost`, `127.0.0.0/8`, `[::1]`, any
-port) — that is what stops a public website from resolving its own hostname to
-`127.0.0.1` and then driving your local board from your browser (a DNS-rebinding
-attack). Reaching the board by any other name needs that name in
-`VK_ALLOWED_HOSTS`, and its origin in `VK_ALLOWED_ORIGINS`.
+**Reaching the board by IP address needs no `Host` configuration.** The server
+answers requests addressed to `localhost` or to any IP literal — so
+`http://192.168.1.50:3000` or a Tailscale `http://100.101.102.103:3000` work
+with `HOST` alone. What it rejects is an unrecognised **hostname**, because a
+DNS-rebinding attack always arrives as a name: a public website resolves its own
+hostname to your machine's address and then drives your unauthenticated board
+from your browser. A browser can never be made to send an IP-literal `Host` for
+someone else's origin, which is why the exemption is safe.
+
+So a name — a Tailscale MagicDNS name, `host.local`, a reverse-proxy domain —
+needs that name in `VK_ALLOWED_HOSTS`, and its origin in `VK_ALLOWED_ORIGINS`.
 </Warning>
 
 <Steps>
@@ -59,20 +64,21 @@ attack). Reaching the board by any other name needs that name in
 </Step>
 
 <Step title="Allow the hostname you browse to">
-  Every request whose `Host` header is not loopback is rejected with `403
-  Forbidden` and a body explaining why. List the hostnames you'll type into the
-  address bar:
+  Skip this step if you browse to an IP address — that already works. If you
+  type a **name** into the address bar, the request is rejected with `403
+  Forbidden` and a body explaining why until you list it:
 
   ```bash
   VK_ALLOWED_HOSTS="host.your-tailnet.ts.net,192.168.1.50:3000" \
     HOST=0.0.0.0 npx vibe-kanban-indie
   ```
 
-  Entries are comma-separated. Each one is a bare authority
-  (`192.168.1.50:3000`) or a full URL whose authority is used
-  (`https://host.your-tailnet.ts.net`), so you can paste the same values you use
-  for `VK_ALLOWED_ORIGINS`. **An entry with no port matches that host on any
-  port**; an entry with a port matches only that port.
+  Entries are comma-separated. Each one is a bare authority (`app:3000`) or a
+  full URL whose authority is used (`https://host.your-tailnet.ts.net`), so you
+  can paste the same values you use for `VK_ALLOWED_ORIGINS`. **An entry with no
+  port matches that host on any port**; an entry with a port matches only that
+  port. Port pinning only means anything for names — an IP literal is accepted
+  on every port regardless, so listing one has no effect.
 
   <Note>
   `VK_ALLOWED_HOSTS=*` accepts any `Host` header, which switches the guard off.
@@ -125,8 +131,21 @@ the upstream `Host` to the loopback address it dials — in Caddy,
 `reverse_proxy 127.0.0.1:3000 { header_up Host {upstream_hostport} }` — and the
 backend sees `127.0.0.1:3000` and needs no `VK_ALLOWED_HOSTS` entry. Proxies
 that forward the public `Host` unchanged (Caddy's default) do need the public
-name listed.
+name listed. A proxy that dials the app by a container name (Traefik to
+`http://app:3000`) sends `Host: app:3000`, a name, so it needs
+`VK_ALLOWED_HOSTS="app:3000"` too.
 </Tip>
+
+<Note>
+**Why the app checks this rather than your proxy.** The proxy sits between the
+internet and the app — not between a local browser and the app. A rebound
+request comes from JavaScript in a developer's own browser, inside the network,
+straight to the app's port, so it never traverses the edge and the edge cannot
+filter it. The guard also covers the setups with no edge at all: `npx
+vibe-kanban-indie`, `pnpm run dev`, the desktop app, and `vibe-tui`. Full
+reasoning in
+[`docs/ADR/ADR-025-loopback-host-guard.md`](https://github.com/dexloom/vibe-kanban-indie/blob/main/docs/ADR/ADR-025-loopback-host-guard.md).
+</Note>
 
 ## Open your editor on the remote host
 

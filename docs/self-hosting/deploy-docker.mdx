@@ -55,22 +55,46 @@ Pass configuration as environment variables with `-e`:
 |---|---|
 | `PORT` | Port the server listens on inside the container (default `3000`) |
 | `HOST` | Bind address (default `0.0.0.0` in the image) |
-| `VK_ALLOWED_HOSTS` | Comma-separated hostnames the server will answer to, on top of loopback. Required when you reach the UI by any host other than `localhost`, otherwise requests are rejected with `403 Forbidden` |
+| `VK_ALLOWED_HOSTS` | Comma-separated **hostnames** the server will answer to, on top of `localhost`. Not needed to reach the container by IP address — only by name |
 | `VK_ALLOWED_ORIGINS` | Comma-separated origins allowed to call the API. Required when you access the UI by any host other than `localhost`, otherwise requests are rejected with `403 Forbidden` |
 
 <Warning>
-When you reach the container through a reverse proxy or a different hostname,
-set **both**: add the hostname (and port, if you browse to a non-default one) to
-`VK_ALLOWED_HOSTS`, and the exact origin (scheme, host, and port) to
-`VK_ALLOWED_ORIGINS` — e.g. `VK_ALLOWED_HOSTS="vk.example.com"` with
-`VK_ALLOWED_ORIGINS="https://vk.example.com"`.
+When you reach the container **by a hostname** — a reverse-proxy domain, a
+Tailscale MagicDNS name, an mDNS `.local` name — set both
+`VK_ALLOWED_HOSTS="vk.example.com"` and
+`VK_ALLOWED_ORIGINS="https://vk.example.com"`. Reaching it **by IP address**
+(`http://192.168.1.50:3000`) needs neither: an IP-literal `Host` cannot be
+produced by DNS rebinding, so it is accepted without configuration.
 
-The `Host` check is the DNS-rebinding defence: without it, a public website
-could resolve its own hostname to your container's address and drive the
-unauthenticated API from a visitor's browser. `VK_ALLOWED_HOSTS=*` disables it
-entirely and is only sensible behind a proxy that already controls who can
-connect. It is read once at start-up, so changing it needs a container restart.
+`VK_ALLOWED_HOSTS=*` disables the `Host` check entirely. It is read once at
+start-up, so changing it needs a container restart.
 </Warning>
+
+### Why the app checks this and not your reverse proxy
+
+If you always run behind Traefik, Caddy, or nginx, one line at the edge is
+enough and you never need `VK_ALLOWED_HOSTS`: have the proxy rewrite the
+upstream `Host` to the address it dials, e.g. in Caddy
+`reverse_proxy 127.0.0.1:3000 { header_up Host {upstream_hostport} }`. Or list
+the public name once. Either satisfies the guard.
+
+But the guard cannot be *replaced* by the proxy, because the traffic it blocks
+never reaches the proxy. In a DNS-rebinding attack the client is JavaScript in
+a developer's own browser, already inside your network, opening a connection to
+the `address:port` the attacker chose — which is the app's, not the edge's. With
+`-p 3000:3000` published, `http://evil.com:3000/` resolving to your host lands
+on the app directly and your proxy logs nothing. The edge protects the path
+*through* the edge; it cannot protect a port it does not own. That is why `Host`
+validation belongs to the origin server (RFC 9110 §7.2), and why it also covers
+the deployments with no edge at all — `npx vibe-kanban-indie` on a laptop,
+`pnpm run dev`, the desktop app, and `vibe-tui`.
+
+<Note>
+One case the IP exemption does **not** cover: if your proxy dials the app by a
+container name, e.g. Traefik forwarding to `http://app:3000`, the app sees
+`Host: app:3000` — a name, not an IP — so that operator still needs
+`VK_ALLOWED_HOSTS="app:3000"` (or a `Host` rewrite at the proxy).
+</Note>
 
 ## Working with repositories
 

@@ -177,11 +177,12 @@ here overrides that seed; clearing the list restores the env-based behaviour.
 
 <Warning>
 **Allowed Origins is only half of it.** The backend also rejects any request whose
-`Host` header is not a loopback authority (`localhost`, `127.0.0.0/8`, `[::1]`,
-any port) — the defence against a public website resolving its own hostname to
-`127.0.0.1` and driving your unauthenticated board from your browser. Reaching the
-app by a LAN IP, tunnel, or VPN name needs that name in the `VK_ALLOWED_HOSTS`
-environment variable *as well as* an entry here.
+`Host` header is an unrecognised **hostname** — the defence against a public
+website resolving its own hostname to your machine and driving your
+unauthenticated board from a visitor's browser. `localhost` and any IP address
+literal are always accepted, so reaching the app by a LAN IP needs nothing;
+reaching it by a tunnel, VPN, or proxy **name** needs that name in the
+`VK_ALLOWED_HOSTS` environment variable *as well as* an entry here.
 
 `VK_ALLOWED_HOSTS` is intentionally **not** editable from this page: a rejected
 `Host` returns 403 for every route, Settings included, so a UI knob could never be

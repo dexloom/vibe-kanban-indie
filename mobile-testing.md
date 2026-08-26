@@ -73,7 +73,7 @@ HOST=0.0.0.0 BACKEND_PORT=55763 \
 
 - `HOST=0.0.0.0` makes the server listen on all interfaces (default is `127.0.0.1`).
 - `BACKEND_PORT` (or `PORT`) pins the port instead of auto-assigning one.
-- `VK_ALLOWED_HOSTS` is **required**: the server only answers requests whose `Host` header is a loopback authority, so requests addressed to your tailnet name are rejected with `403 Forbidden` until you list it. That check is what stops a public website from pointing its own hostname at `127.0.0.1` and driving your board from your browser.
+- `VK_ALLOWED_HOSTS` is **required here** because a tailnet name is a *name*: the server accepts `localhost` and any IP address literal without configuration, but rejects unrecognised hostnames with `403 Forbidden`. That check is what stops a public website from pointing its own hostname at your Mac and driving your board from your browser. (Browsing to the Tailscale *IP* — `http://100.x.y.z:55763` — needs no entry at all.)
 - `VK_ALLOWED_ORIGINS` covers the separate `Origin` check for the same name.
 - Both are read at start-up; changing either needs a restart.
 - The same port serves both the API and the embedded frontend.
@@ -129,6 +129,6 @@ Plain `http://` over Tailscale works for most testing. If you need a trusted HTT
 | Phone can't reach the URL | Open Tailscale app on phone → toggle ON. Run `tailscale status` on Mac to verify both devices are connected |
 | Phone shows certificate warning | Re-run `tailscale cert $TS_HOSTNAME` — certs may have expired (90-day lifetime) |
 | Server says port already in use | Another instance is running. `pkill -f vibe-kanban`, then retry Step 3 |
-| `403 Forbidden` with a message about loopback hosts | The tailnet name isn't in `VK_ALLOWED_HOSTS`. The response body names the rejected `Host` — add it (with the port) and restart |
+| `403 Forbidden` with a message about hostnames | The tailnet name isn't in `VK_ALLOWED_HOSTS`. The response body names the rejected `Host` — add it (with the port) and restart. Or browse to the Tailscale IP instead, which needs no entry |
 | `ping <hostname>` doesn't resolve | Enable MagicDNS in Tailscale admin: https://login.tailscale.com/admin/dns |
 | Back to local dev | Stop the manual server (`Ctrl+C`), then `~/yt/kanban.sh start` |
